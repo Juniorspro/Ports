@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 
 /// un sonido decodificado: muestras de 16 bits intercaladas
 pub struct Pcm { pub rate: u32, pub ch: u16, pub datos: Vec<i16> }
-struct Voz { pcm: Arc<Pcm>, pos: f64, paso: f64, vi: f32, vd: f32, /** los que se repiten (el ambiente): su número */ lazo: u64 }
+struct Voz { pcm: Arc<Pcm>, pos: f64, paso: f64, vi: f32, vd: f32, /** los que se repiten (el ambiente): su número */ lazo: u64, /** desde dónde vuelve (en muestras) */ ini: f64 }
 pub struct Mezcla { voces: Vec<Voz>, pub rate: u32 }
 impl Mezcla {
     /// mezcla `n` cuadros estéreo en float (la salida los pide)
@@ -18,7 +18,7 @@ impl Mezcla {
             let p = &v.pcm; let ch = p.ch as usize; let largo = p.datos.len() / ch.max(1);
             for k in 0..n {
                 let mut i = v.pos as usize;
-                if i + 1 >= largo { if v.lazo == 0 { return false; } v.pos = 0.0; i = 0; }
+                if i + 1 >= largo { if v.lazo == 0 { return false; } v.pos = if v.ini + 1.0 < largo as f64 { v.ini } else { 0.0 }; i = v.pos as usize; }
                 let f = (v.pos - i as f64) as f32;
                 let m = |j: usize| -> f32 { if ch == 2 { (p.datos[j * 2] as f32 + p.datos[j * 2 + 1] as f32) * 0.5 } else { p.datos[j] as f32 } };
                 let s = (m(i) * (1.0 - f) + m(i + 1) * f) / 32768.0;
@@ -93,7 +93,7 @@ impl Sonido {
         }
         let rate = self.mezcla.lock().map(|m| m.rate).unwrap_or(48000);
         let paso = p.rate as f64 / rate as f64 * tono as f64;
-        if let Ok(mut m) = self.mezcla.lock() { if m.voces.len() < 48 { m.voces.push(Voz { pcm: p, pos: 0.0, paso, vi, vd, lazo: 0 }); } }
+        if let Ok(mut m) = self.mezcla.lock() { if m.voces.len() < 48 { m.voces.push(Voz { pcm: p, pos: 0.0, paso, vi, vd, lazo: 0, ini: 0.0 }); } }
     }
     /// un sonido hecho acá (la bocina): `hacer` da las muestras mono en [-1, 1] a `hz`; se arma una sola vez
     /// si ese sonido ya está (decodificado o anotado como que no se puede)
@@ -126,7 +126,29 @@ impl Sonido {
         let Some(p) = self.pcm(nombre) else { return };
         let id = self.prox; self.prox += 1;
         let rate = self.mezcla.lock().map(|m| m.rate).unwrap_or(48000); let paso = p.rate as f64 / rate as f64;
-        if let Ok(mut m) = self.mezcla.lock() { m.voces.push(Voz { pcm: p, pos: 0.0, paso, vi: g, vd: g, lazo: id }); }
+        if let Ok(mut m) = self.mezcla.lock() { m.voces.push(Voz { pcm: p, pos: 0.0, paso, vi: g, vd: g, lazo: id, ini: 0.0 }); }
+        self.bucles.insert(clave.to_string(), (id, true));
+    }
+    /// un bucle con tono, en un lugar (más bajo lejos y del lado donde está) y que vuelve desde `desde` segundos (los .wav
+    /// de Source con un punto "cue": suenan enteros y después repiten desde ahí). Se pide cada cuadro como `bucle`
+    pub fn bucle_ex(&mut self, clave: &str, nombre: &str, vol: f32, tono: f32, desde: f32, donde: Option<[f32; 3]>) {
+        if !self.suena() { return; }
+        let (mut vi, mut vd) = (vol * self.volumen, vol * self.volumen);
+        if let Some(d) = donde {
+            let (o, yaw) = self.oyente; let v = [d[0] - o[0], d[1] - o[1], d[2] - o[2]]; let dist = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+            let g = if dist > 45.0 { 0.0 } else { (3.0 / dist.max(3.0)).powf(1.1) };
+            let der = [-yaw.cos(), 0.0, yaw.sin()]; let pan = if dist > 0.01 { ((v[0] * der[0] + v[2] * der[2]) / dist).clamp(-1.0, 1.0) * 0.8 } else { 0.0 };
+            vi *= g * ((1.0 - pan) * 0.5).sqrt() * std::f32::consts::SQRT_2; vd *= g * ((1.0 + pan) * 0.5).sqrt() * std::f32::consts::SQRT_2;
+        }
+        let rate = self.mezcla.lock().map(|m| m.rate).unwrap_or(48000);
+        if let Some(b) = self.bucles.get_mut(clave) {
+            b.1 = true; let id = b.0;
+            if let Ok(mut m) = self.mezcla.lock() { if let Some(v) = m.voces.iter_mut().find(|v| v.lazo == id) { v.vi = vi; v.vd = vd; v.paso = v.pcm.rate as f64 / rate as f64 * tono as f64; } }
+            return;
+        }
+        let Some(p) = self.pcm(nombre) else { return };
+        let id = self.prox; self.prox += 1; let paso = p.rate as f64 / rate as f64 * tono as f64; let ini = (desde.max(0.0) as f64) * p.rate as f64;
+        if let Ok(mut m) = self.mezcla.lock() { m.voces.push(Voz { pcm: p, pos: 0.0, paso, vi, vd, lazo: id, ini }); }
         self.bucles.insert(clave.to_string(), (id, true));
     }
     /// al terminar el cuadro: se cortan los bucles que no se pidieron

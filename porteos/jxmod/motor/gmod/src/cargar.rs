@@ -116,6 +116,56 @@ impl Gmod {
     pub fn modelo(&self, ruta: &str) -> Option<Rc<crate::modelos::Modelo>> { self.activar(); crate::modelos::modelo(ruta) }
     /// el WorldModel de un arma de los addons (por su clase)
     pub fn mundo_arma(&self, clase: &str) -> Option<String> { self.activar(); let clase = clase.trim_start_matches("gm:"); let t = clase_tabla(clase, Lado::S).or_else(|| clase_tabla(clase, Lado::C))?; let v = buscar_en_clase(&t, "WorldModel"); if v.es_nil() { None } else { Some(js_str(&v)) } }
+    /// dónde está una entidad del Lua (para los sonidos que suenan atados a ella); None si ya no está
+    pub fn pos_ent(&self, id: f64) -> Option<V3> { self.activar(); let e = g(|g| g.ent_get(id as i64))?; if !ce(&e, |x| x.vivo).unwrap_or(false) { return None; } Some(ent_pos(&e)) }
+    /// los archivos de un addon montado (rutas en minúsculas con /)
+    pub fn archivos_addon(&self, addon: usize) -> Vec<String> { self.activar(); let mut v: Vec<String> = g(|g| g.addons.get(addon).map(|a| a.borrow().archivos.keys().cloned().collect()).unwrap_or_default()); v.sort(); v }
+    /// el número del addon montado con ese id (el de Addon::de_archivos)
+    pub fn addon_de_id(&self, id: &str) -> Option<usize> { self.activar(); g(|g| g.addons.iter().position(|a| a.borrow().id == id)) }
+    /// el id del addon que puso esa entrada de una lista (list.Set "NPC", "Vehicles"…)
+    pub fn addon_de_lista(&self, lista: &str, k: &str) -> Option<String> { self.activar(); g(|g| g.listas_addon.get(&(lista.to_string(), k.to_string())).cloned()) }
+    /// los modelos de jugador registrados (player_manager.AddValidModel: nombre, modelo) y cuántas veces cambió la lista
+    pub fn modelos_jugador(&self) -> (Vec<(String, String)>, u32) { self.activar(); g(|g| (g.pmodels.clone(), g.pm_v)) }
+    /// el modelo que tiene puesto el jugador (Player:GetModel; sus manos para las armas c_)
+    pub fn poner_modelo_jugador(&self, ruta: &str) { self.activar(); g(|g| { if g.modelo_jug != ruta { g.modelo_jug = ruta.to_string(); g.pm_v += 1; } }); }
+    /// las manos de un modelo de jugador (las que registró su addon o las de GMod) y si trae unas propias
+    pub fn manos_de_modelo(&self, ruta: &str) -> (crate::nucleo::ManosPm, bool) { self.activar(); (crate::jugadores::manos_de_modelo(ruta), crate::jugadores::pm_tiene_manos(ruta)) }
+    /// gmnpcSNPC: ¿la clase es un NPC de VJ Base o un SNPC del motor (base_ai)? Lo que el NPC del juego necesita de su Lua:
+    /// el modelo (VJ pone una lista: uno al azar), la vida (StartHealth), el daño cuerpo a cuerpo y si es amigo
+    /// (VJ_NPC_Class con CLASS_PLAYER_ALLY, Behavior pasivo o PlayerFriendly) o enemigo
+    pub fn snpc(&mut self, cls: &str) -> Option<Snpc> {
+        self.activar();
+        let t = clase_tabla(cls, Lado::S)?;
+        let (mut base, mut u, mut n) = (String::new(), Some(t.clone()), 0);
+        while let (Some(x), true) = (u.clone(), n < 20) {
+            n += 1; let b = tget(&x, "Base"); let Valor::Cad(_) = b else { break }; base = js_str(&b);
+            if base.starts_with("npc_vj_creature") || base.starts_with("npc_vj_human") || base.starts_with("npc_vj_tank") || base == "base_ai" { break; }
+            u = clase_tabla(&base, Lado::S);
+        }
+        let tipo = js_str(&buscar_en_clase(&t, "Type"));
+        let vj = base.starts_with("npc_vj_creature") || base.starts_with("npc_vj_human") || base.starts_with("npc_vj_tank");
+        if !(vj || base == "base_ai" || tipo == "ai") { return None; }
+        let mut m = buscar_en_clase(&t, "Model");
+        // (los rebeldes y ciudadanos de HL Resurgence eligen el modelo en PreInit: se corre con una entidad de prueba)
+        if m.es_nil() { let pre = buscar_en_clase(&t, "PreInit"); if let Valor::Func(_) = pre { let e = nueva_ent(cls, TipoEnt::Ent); let _ = self.lua.llamar(&pre, &[e.clone()]); m = ce(&e, |x| x.tabla.clone()).map(|tb| tget(&tb, "Model")).unwrap_or(Valor::Nil); ce(&e, |x| x.vivo = false); } }
+        if let Valor::Tabla(l) = &m { let n = l.borrow().len(); let k = 1 + (self.lua.azar() * n.max(1) as f64).floor() as usize; let v = l.borrow().get(&Valor::Num(k as f64)); m = if v.es_nil() { l.borrow().get(&Valor::Num(1.0)) } else { v }; }
+        let modelo = if let Valor::Cad(_) = m { js_str(&m).to_lowercase().replace('\\', "/") } else { String::new() };
+        let numero = |k: &str, d: f64| { let v = num(&buscar_en_clase(&t, k), f64::NAN); if v.is_finite() && v > 0.0 { v } else { d } };
+        let clases = buscar_en_clase(&t, "VJ_NPC_Class"); let lista: Vec<String> = if let Valor::Tabla(l) = &clases { let l = l.borrow(); (1..=l.len()).map(|i| js_str(&l.get(&Valor::Num(i as f64)))).collect() } else { vec![] };
+        let beh = num(&buscar_en_clase(&t, "Behavior"), 0.0);
+        let amigo = lista.iter().any(|c| c.to_uppercase().contains("PLAYER_ALLY")) || beh == 3.0 || beh == 4.0 || matches!(buscar_en_clase(&t, "PlayerFriendly"), Valor::Bool(true));
+        let melee = !matches!(buscar_en_clase(&t, "HasMeleeAttack"), Valor::Bool(false));
+        Some(Snpc { modelo, vida: numero("StartHealth", 100.0).min(5000.0), dano: if melee { numero("MeleeAttackDamage", 10.0).min(200.0) } else { 6.0 }, hostil: !amigo, base })
+    }
+    /// los personajes de los Pill Packs registrados (pk_pills.register, de tipo «ply», con modelo)
+    pub fn pills(&mut self) -> Vec<crate::pills::PillGm> { self.activar(); crate::pills::pills(&mut self.lua) }
+    /// corre el ataque propio de un Pill (0 attack, 1 attack2, 2 reload) con el jugador
+    pub fn pill_ataque(&mut self, nombre: &str, k: usize) -> bool { self.activar(); crate::pills::correr_ataque(&mut self.lua, nombre, k) }
+    /// lo que pidió el Lua (pk_pills.apply: Some(Some(nombre)); restore: Some(None)) y el Pill que tiene puesto el jugador
+    pub fn pill_pedido(&mut self) -> Option<Option<String>> { self.activar(); crate::pills::pedido() }
+    pub fn pill_activo(&mut self, n: Option<String>) { self.activar(); crate::pills::poner_activo(n) }
+    /// el nombre con que se registró un modelo de jugador (TranslateToPlayerModelName)
+    pub fn nombre_modelo_jugador(&self, ruta: &str) -> String { self.activar(); crate::jugadores::pm_nombre(ruta) }
     /// un archivo de los addons montados
     pub fn archivo(&self, ruta: &str) -> Option<Rc<[u8]>> { self.activar(); archivo(ruta) }
     /// las entradas de una lista de GMod (list.Set: "NPC", "Vehicles", "Weapon"…): (clave, [(campo, texto)]) con los campos
@@ -212,6 +262,9 @@ impl Addon {
         Addon { id: id.to_string(), nombre: nombre.to_string(), archivos: m, lua, ..Default::default() }
     }
 }
+/// lo que el NPC del juego toma de un SNPC (gmnpcSNPC)
+#[derive(Clone, Debug)]
+pub struct Snpc { pub modelo: String, pub vida: f64, pub dano: f64, pub hostil: bool, pub base: String }
 /// los archivos de un .gma (ruta, contenido)
 pub fn leer_gma(b: &[u8]) -> Option<Vec<(String, Vec<u8>)>> {
     if b.len() < 5 || &b[0..4] != b"GMAD" { return None; }

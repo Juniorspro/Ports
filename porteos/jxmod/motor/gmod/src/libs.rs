@@ -438,7 +438,8 @@ pub(crate) fn instalar(e: &mut Estado) {
         if let Valor::Tabla(p) = ar(a, 2) { if let Valor::Cad(bt) = tget(&p, "$basetexture") { if !bt.is_empty() { return ok1(o, crate::resto::material(&bt.texto())); } } }
         ok1(o, crate::resto::material(&nms))
     });
-    def(&gl, "Matrix", |_, _, o| { let mt = g(|g| g.mt.vacio.clone()); ok1(o, Valor::Udata(Udata::nueva((), mt))) });
+    // (VMatrix de verdad: matriz.rs)
+    crate::matriz::instalar(e);
     for (k, d) in [("GetGlobalInt", Valor::Num(0.0)), ("GetGlobalFloat", Valor::Num(0.0)), ("GetGlobalBool", Valor::Bool(false)), ("GetGlobalString", cad(""))] {
         def(&gl, k, move |_, a, o| { let v = g(|g| g.glob.get(&ar(a, 0)).cloned()).filter(|v| !v.es_nil()); ok1(o, v.unwrap_or_else(|| { let d2 = ar(a, 1); if d2.es_nil() { d.clone() } else { d2 } })) });
     }
@@ -460,7 +461,13 @@ pub(crate) fn instalar(e: &mut Estado) {
         Ok(())
     });
     def(&gl, "Format", |e, a, o| { let sf = e.globales().borrow().get_str("string"); let f = match sf { Valor::Tabla(t) => tget(&t, "format"), _ => Valor::Nil }; o.extend(e.llamar_aqui(&f, a)?); Ok(()) });
-    def(&gl, "__gmLista", nada);
+    // (de qué addon es cada entrada de las listas: el menú de GMod las agrupa por addon, como A.listas de la web)
+    def(&gl, "__gmLista", |_, a, _| {
+        let (n, k) = (ar(a, 0), ar(a, 1)); if !matches!(n, Valor::Cad(_)) || k.es_nil() { return Ok(()); }
+        let (n, k) = (js_str(&n), js_str(&k));
+        g(|g| { if let Some(id) = g.addon_actual.as_ref().map(|x| x.borrow().id.clone()) { g.listas_addon.insert((n, k), id); } });
+        Ok(())
+    });
     def(&gl, "GetViewEntity", |_, _, o| { let j = g(|g| g.jug.clone()); let v = ce(&j, |x| x.vista_ent.clone()).flatten().filter(ent_valida); ok1(o, v.unwrap_or(j)) });
     def(&gl, "IsMounted", |_, _, o| b(o, false));
     def(&gl, "GetMap", |_, _, o| s(o, &h(|h| h.nombre_mapa())));
@@ -877,8 +884,9 @@ pub(crate) fn instalar(e: &mut Estado) {
         def(&sni, "Stop", |_, a, _| { parche(&ar(a, 0), false, None); Ok(()) });
         def(&sni, "FadeOut", |_, a, _| { parche(&ar(a, 0), false, Some(num(&ar(a, 1), 0.0))); Ok(()) });
         def(&sni, "IsPlaying", |_, a, o| b(o, match &ar(a, 0) { Valor::Udata(u) => u.con(|p: &Parche| p.on).unwrap_or(false), _ => false }));
-        def(&sni, "ChangeVolume", |_, a, _| { if let Valor::Udata(u) = &ar(a, 0) { u.con_mut(|p: &mut Parche| p.vol = ar(a, 1)); } Ok(()) });
-        def(&sni, "ChangePitch", |_, a, _| { if let Valor::Udata(u) = &ar(a, 0) { u.con_mut(|p: &mut Parche| p.tono = ar(a, 1)); } Ok(()) });
+        // (el volumen y el tono de un bucle que suena cambian al momento: la web los lee del parche en cada cuadro)
+        def(&sni, "ChangeVolume", |_, a, _| { let x = ar(a, 0); if let Valor::Udata(u) = &x { u.con_mut(|p: &mut Parche| p.vol = ar(a, 1)); if u.con(|p: &Parche| p.on).unwrap_or(false) { parche(&x, true, None); } } Ok(()) });
+        def(&sni, "ChangePitch", |_, a, _| { let x = ar(a, 0); if let Valor::Udata(u) = &x { u.con_mut(|p: &mut Parche| p.tono = ar(a, 1)); if u.con(|p: &Parche| p.on).unwrap_or(false) { parche(&x, true, None); } } Ok(()) });
         for k in ["SetSoundLevel", "SetDSP"] { def(&sni, k, nada); }
         def(&sni, "GetVolume", |_, a, o| ok1(o, match &ar(a, 0) { Valor::Udata(u) => u.con(|p: &Parche| p.vol.clone()).unwrap_or(Valor::Nil), _ => Valor::Nil }));
         def(&sni, "GetPitch", |_, a, o| ok1(o, match &ar(a, 0) { Valor::Udata(u) => u.con(|p: &Parche| p.tono.clone()).unwrap_or(Valor::Nil), _ => Valor::Nil }));

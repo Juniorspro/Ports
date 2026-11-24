@@ -89,6 +89,9 @@ pub(crate) struct NetMsg {
     pub lado: Lado,
 }
 
+/// las manos de un modelo de jugador (AddValidHands: { model, skin, body, matchBodySkin })
+#[derive(Clone, Debug, PartialEq)]
+pub struct ManosPm { pub model: String, pub skin: f64, pub body: String, pub match_body_skin: bool }
 /// un addon montado
 #[derive(Default)]
 pub struct Addon {
@@ -265,6 +268,12 @@ pub(crate) struct Gma {
     pub fantasmas: HashMap<String, Option<(Valor, String)>>,
     /// las funciones de dos lados de las metatablas compartidas (server, cliente), por la dirección de la función
     pub dos_lados: HashMap<usize, Rc<RefCell<(Valor, Valor)>>>,
+    /// de qué addon es cada entrada de las listas de GMod (list.Set mientras corre su Lua: A.listas de la web)
+    pub listas_addon: HashMap<(String, String), String>,
+    /// los modelos de jugador y sus manos (player_manager.AddValidModel / AddValidHands: GMA.pmodels, GMA.pmanos), por orden
+    pub pmodels: Vec<(String, String)>, pub pmanos: Vec<(String, ManosPm)>, pub pm_v: u32,
+    /// el modelo que tiene puesto el jugador (lo pone el juego: Player:GetModel, sus manos)
+    pub modelo_jug: String,
 }
 
 /// las metatablas de los valores de Source
@@ -290,6 +299,7 @@ pub(crate) struct Metas {
     pub emisor: Option<TablaRef>,
     pub part: Option<TablaRef>,
     pub vacio: Option<TablaRef>,
+    pub matriz: Option<TablaRef>,
     pub um: Option<TablaRef>,
     pub arch: Option<TablaRef>,
     pub pt: Option<TablaRef>,
@@ -323,7 +333,7 @@ impl Gma {
             part_cola: Vec::new(), umsg_h: HashMap::new(), pts: Vec::new(), dls: Orden::default(), pp: None,
             dib: Dib { col: [255.0; 4], tcol: [255.0; 4], mat: Valor::Nil, fuente: "13px Tahoma, sans-serif".into(), tx: 0.0, ty: 0.0, alfa: None },
             dibujo_hud: false, en_hud_paint: false, hud_n: 0, mov_lua: 0.0, activo: false, cb_n: 0, snd_n: 0, saliente: None, lectura: None, um: None,
-            ancho_cache: HashMap::new(), cargado_prelude: false, herencias: Vec::new(), luz_pedida: HashMap::new(), obj_prefab: HashMap::new(), muerte_muda: false, hud_sucio: false, mov_n: 0, modelos_faltan: Default::default(), fantasmas: HashMap::new(), dos_lados: HashMap::new(),
+            ancho_cache: HashMap::new(), cargado_prelude: false, herencias: Vec::new(), luz_pedida: HashMap::new(), obj_prefab: HashMap::new(), muerte_muda: false, hud_sucio: false, mov_n: 0, modelos_faltan: Default::default(), fantasmas: HashMap::new(), dos_lados: HashMap::new(), listas_addon: HashMap::new(), pmodels: Vec::new(), pmanos: Vec::new(), pm_v: 0, modelo_jug: String::new(),
         }
     }
     pub fn ent_get(&self, id: i64) -> Option<Valor> { self.ents_idx.get(&id).and_then(|&i| self.ents[i].as_ref().map(|x| x.1.clone())) }
@@ -415,6 +425,8 @@ pub(crate) struct Ent {
     pub sub_mat: Option<HashMap<i64, String>>,
     pub r_origen: Option<[f64; 3]>,
     pub r_ang: Option<[f64; 3]>,
+    /// EnableMatrix("RenderMultiply", m): la matriz (filas, Source) que se aplica al modelo en su espacio
+    pub matriz: Option<[f64; 16]>,
     pub vel_anim: f64,
     pub vista_ent: Option<Valor>,
     pub vista_off: Option<[f64; 3]>,
@@ -453,7 +465,7 @@ impl Ent {
             prox: None, prox_s: 0.0, creado: false, solo_c: false, cs: false, dueno: None, creador: None, fis: None, dt: None, dt_l: None, dt_slot: HashMap::new(),
             dt_listo: false, padre: None, soldado_a: None, padre_off: None, padre_q: None, pos_antes: None, material: Valor::Nil, skin: Valor::Nil, no_draw: false,
             limites: None, escala: 1.0, solido_t: None, no_solido: false, grupo_col: 0, mov: None, fijo_ns: false, kv: OrdenV::default(), sf: None, nombre: Valor::Nil,
-            fuego: 0.0, manip: HashMap::new(), cbs: HashMap::new(), sub_mat: None, r_origen: None, r_ang: None, vel_anim: 1.0, vista_ent: None, vista_off: None,
+            fuego: 0.0, manip: HashMap::new(), cbs: HashMap::new(), sub_mat: None, r_origen: None, r_ang: None, matriz: None, vel_anim: 1.0, vista_ent: None, vista_off: None,
             punch: None, enemigo: None, conds: Vec::new(), npc_estado: None, congelado: false, clip1: None, clip2: None, next_p: 0.0, next_s: 0.0, recarga: 0.0,
             prev_p: false, prev_s: false, prev_r: false, tec_w: None, hold: Valor::Nil, vm: Valor::Nil, wm: Valor::Nil, ult_tiro: 0.0, vm_apagada: false,
             arma_suelo: None, nace: None, ult_choque: None, juego: None, noclip_lua: false, sin_mira: false,

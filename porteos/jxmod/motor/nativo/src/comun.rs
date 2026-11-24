@@ -400,7 +400,7 @@ impl Juego {
                 Boton::Camara => { self.camara = (self.camara + 1) % 3; self.avisar(["Primera persona", "Tercera persona", "De frente"][self.camara as usize].into()); }
                 Boton::Volar => { self.jug.noclip = !self.jug.noclip; self.avisar(if self.jug.noclip { "Volar: prendido".into() } else { "Volar: apagado".into() }); }
                 Boton::Objetos => { if !self.catalogo.is_empty() { self.menu = Some(Menu { sub: 0, scroll: 0.0, atlas_de: None, atlas_h: 0, pestana: 0 }); } }
-                Boton::Disparo | Boton::Disparo2 | Boton::Recargar if self.gmod_arma_activa() => {}
+                Boton::Disparo | Boton::Disparo2 | Boton::Recargar if self.gmod_arma_activa() || self.pill_on() => {}
                 Boton::Disparo | Boton::Disparo2 => {
                     self.armas_con_npc(b == Boton::Disparo);
                     // (lanzar con la Gravity Gun: el gesto de tiro en el cuerpo; la Physics Gun no tiene)
@@ -996,6 +996,7 @@ impl Juego {
             // si hay una pared en el medio, se acerca)
             let tam = self.pj.as_ref().map(|p| p.tam).unwrap_or(1.0); let kt = (0.45 + 0.55 * tam).clamp(0.6, 1.0);
             let (cam, mira) = if let Some(c) = cam_veh { c } else { match self.camara {
+                1 if self.pill_camara(&mp.mundo, ojos, fw).is_some() => self.pill_camara(&mp.mundo, ojos, fw).unwrap(),
                 1 => {
                     let d = [-fw[0], -fw[1], -fw[2]]; let l0 = 3.1 * kt;
                     let l = mp.mundo.rayo(ojos, d, l0 + 0.3).map(|h| (h.t - 0.3).max(0.3)).unwrap_or(l0);
@@ -1022,7 +1023,7 @@ impl Juego {
             }
             let mut items = mp.items.clone();
             // (el cuerpo con el arma en la mano; sentado, en el asiento)
-            if ver_cuerpo { if let Some(pj) = &self.pj { let jp = self.jug.pos; let b = pj.base_sentado().or_else(|| personajes::emotes_juego::base_escena(&self.pjs)).unwrap_or_else(|| personaje::base([jp[0], jp[1] - 0.95, jp[2]], self.jug.yaw)); pj.items(&b, &mut items); } }
+            if ver_cuerpo { if let Some(pj) = &self.pj { let jp = self.jug.pos; let b = pj.base_sentado().or_else(|| personajes::emotes_juego::base_escena(&self.pjs)).unwrap_or_else(|| personaje::base([jp[0], jp[1] - 0.95, jp[2]], self.jug.yaw)); if !self.gmp_items_jugador(&b, &mut items, cam, dt) { pj.items(&b, &mut items); } } }
             // (en primera persona, el arma delante de la cámara; y el rayo de la Physics Gun, de la boca a lo agarrado)
             let aj = self.arma_aj_matriz();
             if self.camara == 0 && !self.armas.zoom && self.vehs.jugador.is_none() && !self.jg.sin_hud() && !self.gmod_vista_propia() { if let Some(v) = self.vista.as_mut() {
@@ -1043,7 +1044,7 @@ impl Juego {
             } }
             // los NPC: su animación (sólo los que se ven) y lo que se dibuja
             let vpm = m4::mul(&p, &vista); self.vp_ult = vpm;
-            self.npcs.animar(dt, cam, Some(&vpm), &self.fis); self.npcs.items(&mut items); self.red_items(&mut items); self.mapas_items(&mut items); self.jg_items(&mut items, cam); personajes::celu_juego::antes_items(&mut self.pjs.celu, self.ojos_ult, qcam(self.jug.yaw, self.jug.pitch), self.fov_b, wf / hf.max(1.0), self.sway); self.pjs_items(&mut items, cam, ver_cuerpo); self.gmod_items(ojos, yaw, pitch, &mut items);
+            self.npcs.animar(dt, cam, Some(&vpm), &self.fis); self.npcs.items(&mut items); self.gmp_items_npcs(&mut items, cam, dt); self.red_items(&mut items); self.mapas_items(&mut items); self.jg_items(&mut items, cam); personajes::celu_juego::antes_items(&mut self.pjs.celu, self.ojos_ult, qcam(self.jug.yaw, self.jug.pitch), self.fov_b, wf / hf.max(1.0), self.sway); self.pjs_items(&mut items, cam, ver_cuerpo); self.gmod_items(ojos, yaw, pitch, &mut items);
             // los efectos: avanzan, y sus bloques (partículas, trazas, marcas) y sus luces —primero: GL2 usa 4—
             self.ef.calidad(self.aj.calidad.min(4)); self.ef.alto_px = hf; self.ef.paso(dt, efx::GRAV);
             let mut efectos = self.ef.bloques(&vpm, cam); self.jg_efectos(&mut efectos, &vpm, cam);

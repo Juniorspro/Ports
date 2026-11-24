@@ -18,6 +18,12 @@ const TEX_GMOD: i64 = -3000;
 #[path = "gmod_modelos.rs"] mod gmod_modelos;
 #[path = "gmod_base.rs"] mod gmod_base;
 #[path = "gmod_menu.rs"] mod gmod_menu;
+// (los modelos de jugador de GMod como personaje: gmod_pm.js)
+#[path = "gmod_pm.rs"] pub mod gmod_pm;
+// (los NPC y los vehículos de las listas de GMod: gmod_spawn.js)
+#[path = "gmod_spawn.rs"] mod gmod_spawn;
+// (los Pill Packs: pillpacks.js y pill_gmod.js)
+#[path = "gmod_pill.rs"] pub mod gmod_pill;
 pub use gmod_base::{lector_carpetas, LectorRb};
 #[cfg(target_os = "android")] pub use gmod_base::lector_android;
 /// la tienda de la web (inicio.js: TIENDA_URL)
@@ -30,6 +36,10 @@ enum Pedido {
     Crear(ObjId, String),
     Borrar(ObjId),
     Sonido(String, Option<[f32; 3]>, f32, f32),
+    /// un bucle que se prende o se apaga (k: el parche o la entidad y el nombre; ini: desde dónde vuelve, en segundos)
+    Bucle { k: String, r: String, e: Option<f64>, vol: f32, tono: f32, ini: f32, on: bool, fundido: Option<f64>, ca: i32 },
+    /// un sonido nuevo en ese canal de esa entidad corta los bucles que tenía en el mismo canal
+    Canal(Option<f64>, i32),
     DanarJugador(f32),
     DanarObjeto(ObjId, f32),
     Matar,
@@ -86,6 +96,28 @@ fn css_px(css: &str) -> f32 {
     13.0
 }
 
+impl Puente {
+    /// ¿el sonido es un bucle? (un .wav con un punto "cue" o un bucle "smpl": desde dónde vuelve, en segundos; GMF.wav)
+    fn wav_vuelve(&self, r: &str) -> Option<f32> {
+        let ruta = if r.starts_with("sound/") { r.to_string() } else { format!("sound/{r}") };
+        let b = self.archivos.get(&ruta).cloned().or_else(|| self.lib.as_ref().and_then(|l| l.leer(&ruta)))?;
+        wav_vuelve(&b)
+    }
+}
+/// el punto desde donde vuelve un .wav de Source (cue o smpl), en segundos
+pub(crate) fn wav_vuelve(b: &[u8]) -> Option<f32> {
+    if b.len() < 12 || &b[0..4] != b"RIFF" || &b[8..12] != b"WAVE" { return None; }
+    let u32_ = |p: usize| b.get(p..p + 4).map(|x| u32::from_le_bytes([x[0], x[1], x[2], x[3]]));
+    let (mut p, mut sr, mut cue, mut smpl) = (12usize, 0u32, None, None);
+    while p + 8 <= b.len() {
+        let id = &b[p..p + 4]; let t = u32_(p + 4)? as usize;
+        if id == b"fmt " { sr = u32_(p + 12).unwrap_or(0); }
+        else if id == b"cue " && t >= 28 && p + 36 <= b.len() && u32_(p + 8).unwrap_or(0) > 0 { cue = u32_(p + 32); }
+        else if id == b"smpl" && t >= 60 && p + 56 <= b.len() && u32_(p + 36).unwrap_or(0) > 0 { smpl = u32_(p + 52); }
+        p += 8 + t + (t & 1);
+    }
+    let x = smpl.or(cue)?; if sr == 0 { return None; } Some(x as f32 / sr as f32)
+}
 impl Anfitrion for Puente {
     fn tiempo(&self) -> f64 { self.t }
     fn dt(&self) -> f64 { self.dt }
@@ -145,14 +177,23 @@ impl Anfitrion for Puente {
         let (r, v, t, _) = jxgmod::sonidos::resolver(ruta, Some(vol), Some(tono * 100.0), azar01());
         self.pedidos.push(Pedido::Sonido(r, pos.map(f3), v as f32, t as f32));
     }
-    fn emitir_sonido(&mut self, _e: Option<f64>, s: &str, _nivel: Option<f64>, tono: Option<f64>, vol: Option<f64>, _canal: Option<f64>) {
-        // (un guion de sonido —de sound.Add o de los de GMod: "Weapon_Pistol.Single"— a su .wav, volumen y tono)
-        let (r, v, t, _) = jxgmod::sonidos::resolver(s, vol, tono, azar01());
-        self.pedidos.push(Pedido::Sonido(r, None, v as f32, t as f32));
+    fn emitir_sonido(&mut self, e: Option<f64>, s: &str, _nivel: Option<f64>, tono: Option<f64>, vol: Option<f64>, canal: Option<f64>) {
+        // (un guion de sonido —de sound.Add o de los de GMod: "Weapon_Pistol.Single"— a su .wav, volumen y tono; el canal del
+        // guion (CHAN_WEAPON…) corta lo que esa entidad tenía sonando en el mismo canal; un .wav con un punto "cue" es un
+        // bucle: suena hasta que StopSound lo corta —gmsnEmitir—)
+        let (r, v, t, ca) = jxgmod::sonidos::resolver(s, vol, tono, azar01());
+        let ca = if ca != 0 { ca } else { canal.map(|c| c as i32).unwrap_or(0) };
+        if (1..=4).contains(&ca) { self.pedidos.push(Pedido::Canal(e, ca)); }
+        let k = format!("{}|{}", e.map(|x| x.to_string()).unwrap_or("-".into()), s.to_lowercase());
+        match self.wav_vuelve(&r) { Some(ini) => self.pedidos.push(Pedido::Bucle { k, r, e, vol: v as f32, tono: t as f32, ini, on: true, fundido: None, ca }), None => self.pedidos.push(Pedido::Sonido(r, None, v as f32, t as f32)) }
     }
-    fn parar_sonido(&mut self, _e: Option<f64>, _s: &str) {}
-    fn parche_sonido(&mut self, _id: u32, _e: Option<f64>, s: &str, on: bool, vol: Option<f64>, tono: Option<f64>, _f: Option<f64>) {
-        if on { self.emitir_sonido(None, s, None, tono, vol, None); }
+    fn parar_sonido(&mut self, e: Option<f64>, s: &str) { if !s.is_empty() { self.pedidos.push(Pedido::Bucle { k: format!("{}|{}", e.map(|x| x.to_string()).unwrap_or("-".into()), s.to_lowercase()), r: String::new(), e, vol: 0.0, tono: 1.0, ini: 0.0, on: false, fundido: None, ca: 0 }); } }
+    fn parche_sonido(&mut self, id: u32, e: Option<f64>, s: &str, on: bool, vol: Option<f64>, tono: Option<f64>, f: Option<f64>) {
+        // (CSoundPatch: Play, Stop y FadeOut; un .wav con "cue" suena en bucle hasta que lo paran, y su volumen y su tono se
+        // pueden cambiar mientras suena: gmsnParche)
+        let (r, v, t, _) = jxgmod::sonidos::resolver(s, vol, tono, azar01());
+        let ini = if on { self.wav_vuelve(&r) } else { Some(0.0) };
+        match ini { Some(ini) => self.pedidos.push(Pedido::Bucle { k: format!("p{id}"), r, e, vol: v as f32, tono: t as f32, ini, on, fundido: f.filter(|x| *x > 0.0), ca: 0 }), None => self.pedidos.push(Pedido::Sonido(r, None, v as f32, t as f32)) }
     }
     fn danar_jugador(&mut self, d: f64) { self.pedidos.push(Pedido::DanarJugador(d as f32)); }
     fn danar_objeto(&mut self, o: ObjId, d: f64, _p: V3, _dir: V3) { self.pedidos.push(Pedido::DanarObjeto(o, d as f32)); }
@@ -206,6 +247,9 @@ impl Anfitrion for Puente {
 
 /// un addon instalado: de dónde viene, si está prendido y lo que trae para poner
 pub struct InfoAddon { pub ruta: PathBuf, pub nombre: String, pub prendido: bool, pub idx: Option<usize>, pub sweps: Vec<(String, String)>, pub sents: Vec<(String, String)>, pub errores: usize }
+/// un sonido de un addon en bucle: su clave en el sonido del juego, su entidad, volumen, tono, desde dónde vuelve, canal y
+/// fundido (desde cuándo y cuánto dura)
+struct BucleGm { clave: String, e: Option<f64>, vol: f32, tono: f32, ini: f32, ca: i32, fade: Option<(f32, f32)> }
 /// un resultado de la tienda
 pub struct ItemTienda { pub id: String, pub titulo: String, pub estado: String, pub mb: f32 }
 
@@ -237,13 +281,21 @@ pub struct EnGmod {
     pub ms_3d: f32,
     /// cómo leer rb/ (la biblioteca gm_lib y rb/jxp: en la APK o en una carpeta; lo pone la app), lo leído y el menú de GMod
     pub lector_rb: Option<LectorRb>, lib: Option<Rc<gmod_base::Biblioteca>>, pub jxp: Option<gmod_base::MenuJxp>, pub menu: gmod_menu::MenuGm,
+    /// los modelos de jugador puestos (el jugador y los NPC con uno: gmod_pm.rs)
+    pub pm: gmod_pm::Pm,
+    /// los bucles de sonido de los addons que suenan (gmod_sonidos.js: GMSN.bucles) y el reloj de los fundidos
+    bucles: HashMap<String, BucleGm>, t_snd: f32,
+    /// el Pill puesto (gmod_pill.rs)
+    pub pill: gmod_pill::Pill,
+    /// la forma de choque de los vehículos de las listas ya armados (gmod_spawn.rs)
+    veh_fis: HashMap<String, Arc<jxjuego::forma::PrefabFisica>>,
 }
 
 impl EnGmod {
     pub fn nueva(datos: Option<&Path>) -> EnGmod {
         let (tx, rx) = channel();
         EnGmod { gm: None, addons: vec![], pendientes: vec![], arma: None, base: 0, carpeta_externa: None, datos: datos.map(|d| d.to_path_buf()), panel: false, scroll: 0.0, texs: vec![], hud_px: vec![], escala: 1.0,
-            http_bin: None, tienda: vec![], tx, rx, tienda_pedida: false, ms: 0.0, ms_prom: 0.0, pantalla: (1280.0, 720.0), buscado: false, cuenta: BTreeMap::new(), mods: Default::default(), ms_3d: 0.0, lector_rb: None, lib: None, jxp: None, menu: Default::default() }
+            http_bin: None, tienda: vec![], tx, rx, tienda_pedida: false, ms: 0.0, ms_prom: 0.0, pantalla: (1280.0, 720.0), buscado: false, cuenta: BTreeMap::new(), mods: Default::default(), ms_3d: 0.0, lector_rb: None, lib: None, jxp: None, menu: Default::default(), pm: Default::default(), veh_fis: HashMap::new(), bucles: HashMap::new(), t_snd: 0.0, pill: Default::default() }
     }
     fn apagados_ruta(&self) -> Option<PathBuf> { self.datos.as_ref().map(|d| d.join("gmod_apagados.txt")) }
     /// los addons de las carpetas (.gma y carpetas con lua/), en orden de nombre; los apagados quedan anotados
@@ -379,6 +431,8 @@ impl Juego {
         a.idx = Some(idx); a.sweps = sw.into_iter().zip(nom_sw).collect(); a.sents = se.into_iter().zip(nom_se).collect(); a.errores = er;
         let txt = format!("Mod cargado: {} ({} armas, {} entidades)", a.nombre, a.sweps.len(), a.sents.len());
         self.avisar(txt);
+        // (el menú de GMod se vuelve a armar con lo del addon nuevo)
+        self.gmod.menu.hecho = false;
     }
     /// presta (o devuelve) el mapa, la física y las letras al puente mientras corre el Lua
     fn gmod_prestar(&mut self, prestar: bool) {
@@ -398,6 +452,7 @@ impl Juego {
         self.gmod_tienda_paso();
         if self.gmod.panel && self.gmod.gm.is_none() && self.mapa.is_some() { self.gmod_arrancar(); }
         if self.gmod.panel || !self.gmod.menu.pend.is_empty() { self.gmod_menu_paso(m); }
+        if self.mapa.is_some() { self.pill_paso(m, dt); }
         if self.gmod.gm.is_none() || self.mapa.is_none() { return; }
         let t0 = Instant::now();
         // (el arma de un addon: si el jugador eligió otra del juego, se guarda)
@@ -408,8 +463,46 @@ impl Juego {
         if !pausa { if let Some(gm) = self.gmod.gm.as_mut() { gm.paso(dt as f64, &[]); gm.hud(); let t3 = Instant::now(); self.gmod.mods.dib = gm.dibujar3d(dt as f64); self.gmod.ms_3d = t3.elapsed().as_secs_f32() * 1000.0; } }
         self.gmod_prestar(false);
         self.gmod_aplicar(m);
-        let t3 = Instant::now(); self.gm_modelos_paso(m); self.gmod.ms_3d += t3.elapsed().as_secs_f32() * 1000.0;
+        self.gm_bucles_paso(dt, pausa);
+        let t3 = Instant::now(); self.gm_modelos_paso(m); self.gmp_paso(m); self.gmod.ms_3d += t3.elapsed().as_secs_f32() * 1000.0;
         self.gmod.ms = t0.elapsed().as_secs_f32() * 1000.0; self.gmod.ms_prom = self.gmod.ms_prom * 0.95 + self.gmod.ms * 0.05;
+    }
+    /// el sonido de un addon listo para sonar (un .wav se decodifica; un MP3 u OGG va al disco para el decodificador del
+    /// sistema): su clave en el sonido del juego
+    fn gm_snd_registrar(&mut self, r: &str) -> String {
+        let r = r.to_string(); let clave = format!("gm:{}", r);
+        let ruta = if r.starts_with("sound/") { r.clone() } else { format!("sound/{}", r) };
+        if !self.sonido.tiene(&clave) {
+            let b = self.con_puente(|p| p.archivos.get(&ruta).cloned()).flatten();
+            if let Some(b) = b {
+                if let Some((v, hz)) = leer_wav(&b) { self.sonido.sintetico(&clave, || v, hz); }
+                // (MP3 y OGG: al disco una vez y el decodificador del sistema los lee —en Android; en la compu, mudos—)
+                else if let (Some(dir), Some(ext)) = (self.gmod.datos.clone(), ruta.rsplit_once('.').map(|x| x.1.to_string()).filter(|e| e == "mp3" || e == "ogg")) {
+                    let d = dir.join("gm_sonidos"); let _ = std::fs::create_dir_all(&d);
+                    let h = ruta.bytes().fold(0xcbf2_9ce4_8422_2325u64, |h, c| (h ^ c as u64).wrapping_mul(0x100_0000_01b3));
+                    let f = d.join(format!("{h:016x}.{ext}"));
+                    if !f.exists() { let _ = std::fs::write(&f, &b[..]); }
+                    self.sonido.registrar_archivo(&clave, &f);
+                }
+            }
+        }
+        clave
+    }
+    /// los bucles de los addons (gmsnPaso): donde está su entidad, con su volumen, su tono y lo que lleva de fundido; se
+    /// cortan los de una entidad que ya no está y los del jugador muerto. Con el juego en pausa se callan
+    fn gm_bucles_paso(&mut self, dt: f32, pausa: bool) {
+        self.gmod.t_snd += dt;
+        if self.gmod.bucles.is_empty() || pausa { return; }
+        let t = self.gmod.t_snd; let vivo = !self.muerto && self.jug.vida > 0.0;
+        let gm = self.gmod.gm.as_ref(); let mut fuera = vec![]; let mut sonar = vec![];
+        for (k, b) in &self.gmod.bucles {
+            let p = match b.e { Some(id) if id >= 1.0 => match gm.and_then(|g| g.pos_ent(id)) { Some(p) => Some([p.x as f32, p.y as f32, p.z as f32]), None => { fuera.push(k.clone()); continue } }, _ => None };
+            if b.e == Some(1.0) && !vivo { fuera.push(k.clone()); continue; }
+            let f = b.fade.map(|(t0, d)| 1.0 - (t - t0) / d.max(0.01)).unwrap_or(1.0); if f <= 0.0 { fuera.push(k.clone()); continue; }
+            sonar.push((format!("gmb:{k}"), b.clave.clone(), (b.vol * f).max(0.001), b.tono, b.ini, if b.e == Some(1.0) { None } else { p }));
+        }
+        for k in fuera { self.gmod.bucles.remove(&k); }
+        for (k, c, v, tn, ini, p) in sonar { self.sonido.bucle_ex(&k, &c, v, tn, ini, p); }
     }
     /// el juego → los espejos del Lua
     fn gmod_copiar(&mut self, dt: f32) {
@@ -503,7 +596,7 @@ impl Juego {
         self.gmod.hud_px = cmds;
     }
     fn gmod_pedido(&mut self, m: &mut Motor3d, pd: Pedido) {
-        let clase = match &pd { Pedido::Crear(..) => "crear", Pedido::Borrar(..) => "borrar", Pedido::Sonido(..) => "sonido", Pedido::DanarJugador(..) => "danar_jugador", Pedido::DanarObjeto(..) => "danar_objeto", Pedido::Matar => "matar", Pedido::Explosion(..) => "explosion",
+        let clase = match &pd { Pedido::Crear(..) => "crear", Pedido::Borrar(..) => "borrar", Pedido::Sonido(..) => "sonido", Pedido::Bucle { .. } => "bucle", Pedido::Canal(..) => "canal", Pedido::DanarJugador(..) => "danar_jugador", Pedido::DanarObjeto(..) => "danar_objeto", Pedido::Matar => "matar", Pedido::Explosion(..) => "explosion",
             Pedido::Impacto(..) => "impacto", Pedido::ExplosionFx(..) => "explosion_fx", Pedido::Traza(..) => "traza", Pedido::Fogonazo => "fogonazo", Pedido::Particula(..) => "particula", Pedido::Sacudir(..) => "sacudir", Pedido::Aviso(..) => "aviso", Pedido::Arma(..) => "arma", Pedido::Textura(..) => "textura", Pedido::Anim(..) => "anim" };
         *self.gmod.cuenta.entry(clase).or_insert(0) += 1;
         let id_juego = |o: ObjId| GM_OBJ.with(|x| x.borrow().get(&o).copied());
@@ -530,25 +623,15 @@ impl Juego {
             Pedido::Borrar(oid) => {
                 if let Some(gid) = GM_OBJ.with(|x| x.borrow_mut().remove(&oid)) { if let Some(i) = self.objs.iter().position(|o| o.id == gid) { self.borrar_obj(i); } }
             }
-            Pedido::Sonido(r, pos, vol, tono) => {
-                let clave = format!("gm:{}", r);
-                let ruta = if r.starts_with("sound/") { r.clone() } else { format!("sound/{}", r) };
-                if !self.sonido.tiene(&clave) {
-                    let b = self.con_puente(|p| p.archivos.get(&ruta).cloned()).flatten();
-                    if let Some(b) = b {
-                        if let Some((v, hz)) = leer_wav(&b) { self.sonido.sintetico(&clave, || v, hz); }
-                        // (MP3 y OGG: al disco una vez y el decodificador del sistema los lee —en Android; en la compu, mudos—)
-                        else if let (Some(dir), Some(ext)) = (self.gmod.datos.clone(), ruta.rsplit_once('.').map(|x| x.1.to_string()).filter(|e| e == "mp3" || e == "ogg")) {
-                            let d = dir.join("gm_sonidos"); let _ = std::fs::create_dir_all(&d);
-                            let h = ruta.bytes().fold(0xcbf2_9ce4_8422_2325u64, |h, c| (h ^ c as u64).wrapping_mul(0x100_0000_01b3));
-                            let f = d.join(format!("{h:016x}.{ext}"));
-                            if !f.exists() { let _ = std::fs::write(&f, &b[..]); }
-                            self.sonido.registrar_archivo(&clave, &f);
-                        }
-                    }
-                }
-                self.sonido.tocar(&clave, vol, tono, pos);
+            Pedido::Sonido(r, pos, vol, tono) => { let clave = self.gm_snd_registrar(&r); self.sonido.tocar(&clave, vol, tono, pos); }
+            Pedido::Bucle { k, r, e, vol, tono, ini, on, fundido, ca } => {
+                if on {
+                    if let Some(b) = self.gmod.bucles.get_mut(&k) { b.vol = vol; b.tono = tono; b.fade = None; }
+                    else { let clave = self.gm_snd_registrar(&r); if self.gmod.bucles.len() >= 24 { if let Some(k0) = self.gmod.bucles.keys().next().cloned() { self.gmod.bucles.remove(&k0); } } self.gmod.bucles.insert(k, BucleGm { clave, e, vol, tono, ini, ca, fade: None }); }
+                } else if let (Some(d), Some(b)) = (fundido, self.gmod.bucles.get_mut(&k)) { b.fade = Some((self.gmod.t_snd, d as f32)); }
+                else { self.gmod.bucles.remove(&k); }
             }
+            Pedido::Canal(e, ca) => { self.gmod.bucles.retain(|_, b| !(b.e == e && b.ca == ca)); }
             Pedido::DanarJugador(d) => self.danar_jugador(d),
             Pedido::DanarObjeto(oid, d) => { if let Some(i) = id_juego(oid).and_then(|g| self.objs.iter().position(|o| o.id == g)) { self.danar_objeto(i, d); } }
             Pedido::Matar => { self.jug.vida = 0.0; self.muerto = true; }
@@ -664,6 +747,8 @@ impl Juego {
             l.caja(u, (wf - an) / 2.0 - tt * 0.6, hf - tt * 2.6, an + tt * 1.2, tt * 1.6, tt * 0.4, [0.0, 0.0, 0.0, 0.45]);
             l.texto(u, (wf - an) / 2.0, hf - tt * 2.35, tt, [1.0, 0.85, 0.3, 1.0], &n);
         }
+        // (transformado: la barra de poder y las habilidades: gmod_pill.rs)
+        self.pill_hud(l, u, wf, hf);
         extra
     }
     /// el panel «Mods» (encima de todo, como el de salas)
@@ -919,6 +1004,16 @@ pub fn lzma(src: &[u8]) -> Result<Vec<u8>, String> {
 // ---------------- lo que usan los mapas del Workshop (mapas_juego.rs) ----------------
 impl Juego {
     /// la capa GMod andando (la biblioteca, el addon base), aunque no haya addons montados
+    /// (para las pruebas) pone algo del menú del juego donde se mira (un NPC: «npc:Hero»)
+    pub fn gmod_prueba_poner(&mut self, m: &mut Motor3d, nombre: &str) -> Result<(), String> { let (o, f) = (self.ojos_ult, self.mira()); self.poner(m, nombre, o, f) }
+    /// (para las pruebas) corre un pedazo de Lua del lado del cliente con el mundo a mano; lo que devuelve, como texto
+    pub fn gmod_lua_texto(&mut self, src: &str) -> String {
+        if self.gmod.gm.is_none() { return String::new(); }
+        self.gmod_prestar(true);
+        let r = self.gmod.gm.as_mut().map(|g| g.correr(src, "prueba", true));
+        self.gmod_prestar(false);
+        match r { Some(Ok(v)) => v.first().and_then(|x| x.texto().map(|t| t.into_owned())).unwrap_or_default(), Some(Err(e)) => format!("error: {e}"), None => String::new() }
+    }
     pub(crate) fn gmod_asegurar(&mut self) { if self.gmod.gm.is_none() { self.gmod_arrancar(); } }
     /// un archivo de los addons montados o del contenido base (gmArchivo)
     pub(crate) fn gmod_archivo(&self, r: &str) -> Option<Rc<[u8]>> { self.gmod.gm.as_ref()?.archivo(r) }

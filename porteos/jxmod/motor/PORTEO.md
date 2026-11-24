@@ -36,7 +36,9 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | patadas.js | ✔ | nativo/jugabilidad.rs |
 | accesorios.js | ✔ (GLB, GLTF, OBJ y ZIP desde datos/importar; sin texturas JPEG) | nativo/accesorio.rs |
 | gorros.js, identidad.js | ✔ (los 23 gorros y los tintes de las 12 skins iguales a la web) | juego/gorros.rs, geo.rs, identidad.rs, nativo/personajes.rs |
-| pjimportar.js, gmod_autorig.js, gmod_pm.js | ✘ | |
+| gmod_pm.js | ✔ (el .mdl del addon en la pose del Hero: alineación, cadera escalada, IK de manos y pies, el arma en su mano, muñeco apoyado; los que no tienen esqueleto de Valve, con sus secuencias. Los números de gmpPreparar iguales a la web y los huesos a menos de 5 mm; sin la red: los demás te ven con el Hero) | nativo/gmod_pm.rs (comun.rs con integrar_gmod2.py), gmod/jugadores.rs (player_manager y las manos de cada modelo) |
+| gmod_autorig.js | ✔ (las mismas cuentas que la web: los 23 huesos de una persona de prueba a menos de 0,002 pulgadas y los mismos pesos —tests/autorig.rs, con los números de la web en node—) | gmod/autorig.rs |
+| pjimportar.js | ✘ | (importar GLB/OBJ/VRM con rig automático: necesita elegir un archivo) |
 
 ## Armas y herramientas
 | web | estado | nativa |
@@ -63,13 +65,13 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | gmod_lua.js | ✔ | lua/ (jxlua) |
 | gmod_api.js, gmod_prelude.js, gmod.js, gmod_cargar.js | ✔ | gmod/ (jxgmod) |
 | gmod_carpeta.js, gmod_tienda.js, gmod_panel.js | ◐ | nativo/gmod_juego.rs |
-| gmod_formatos.js, gmod_vista.js, gmod_anim.js, gmod_nextbot.js, gmod_sonidos.js | ◐ (con las manos c_arms; faltan elementos del SWEP Construction Kit, bodygroups, bucles de sonido, .pcf) | gmod/formatos.rs, modelos.rs, sonidos.rs, nativo/gmod_modelos.rs |
+| gmod_formatos.js, gmod_vista.js, gmod_anim.js, gmod_nextbot.js, gmod_sonidos.js | ◐ (las manos del modelo de jugador con su piel y sus cuerpos, sus huesos procedurales y sin las de las vistas que traen brazos; las piezas del SWEP Construction Kit en primera persona —VMatrix, EnableMatrix, GetBoneMatrix y ManipulateBone* de la vista, ViewModelDrawn—, con el campo visual de la vista como en GMod: la web las dibuja sin él y le salen 1/kf más chicas, 0,65 con la granada santa—; los bucles de sonido —.wav con «cue»/«smpl», CSoundPatch con volumen, tono y FadeOut, StopSound y canales—. Faltan las piezas en tercera persona —WElements: los huesos del jugador para el Lua—, .pcf) | gmod/formatos.rs, modelos.rs, sonidos.rs, nativo/gmod_modelos.rs |
 | gmod_render.js, gmod_rt.js, gmod_dx9.js | ✘ | |
 | gmod_lib.js | ✔ (la biblioteca va en la APK: se lee por rangos, sin bajar) | nativo/gmod_base.rs |
-| gmod_spawn.js | ◐ (los NPC y vehículos de list.Set se ponen con su clase y su modelo; falta hacerlos NPC del juego y autos manejables) | nativo/gmod_menu.rs |
+| gmod_spawn.js | ✔ (NPC del juego con el modelo de Source —también los SNPC y los de VJ Base—, un modelo como NPC o muñeco y los vehículos partidos en carrocería y ruedas, manejables: el árbol igual al de la web nodo por nodo; sin la cabina medida para sentarse) | nativo/gmod_spawn.rs, gmod_menu.rs |
 | gmod_modos.js, gmod_server.js, gmod_pipe.js, gmod_steam.js, gmod_cola.js | ✘ | |
 | gmod_personal.js (el menú de GMod de la personal) | ◐ (pestañas, spawnlists, íconos, listas del Lua de GMod; faltan emotes, packs del Workshop, búsqueda) | nativo/gmod_menu.rs, gmod_base.rs |
-| pillpacks.js, pill_gmod.js | ✘ | |
+| pillpacks.js, pill_gmod.js | ◐ (los propios y los de los Pill Packs del Workshop —pk_pills—: el cuerpo, la vida, la velocidad, el salto, la cámara y las habilidades con la barra de poder; sin niveles, red ni ajustes) | nativo/gmod_pill.rs, gmod/pills.rs |
 | nativos.js | ◐ | nativo/nat_juego.rs (sin lo de la red: que otro jugador te agarre) |
 | modmenu.js | ◐ | nativo/jugabilidad.rs (el menú MOD y las Opciones de los mods nativos) |
 | smods.js, acciones.js | ✘ | |

@@ -194,8 +194,9 @@ pub(crate) fn instalar(_e: &mut Estado) {
     def(em, "GetCollisionBounds", move |_, a, o| { let (p, q) = lim_o_caja(&s0(a)); o.push(nva(p)); o.push(nva(q)); Ok(()) });
     def(em, "GetRenderBounds", move |_, a, o| { let (p, q) = lim_o_caja(&s0(a)); o.push(nva(p)); o.push(nva(q)); Ok(()) });
     def(em, "GetModelBounds", |_, a, o| { let (p, q) = caja(&s0(a)); o.push(nva(p)); o.push(nva(q)); Ok(()) });
-    def(em, "EnableMatrix", nada);
-    def(em, "DisableMatrix", nada);
+    // (la del SWEP Construction Kit: cada pieza achicada, estirada y corrida con su matriz —gmrMatrizJuego—)
+    def(em, "EnableMatrix", |_, a, _| { if let Some(m) = crate::matriz::de(&ar(a, 2)) { ce(&s0(a), |x| x.matriz = Some(m)); } Ok(()) });
+    def(em, "DisableMatrix", |_, a, _| { ce(&s0(a), |x| x.matriz = None); Ok(()) });
     def(em, "GetSurroundingBounds", move |_, a, o| { let x = s0(a); let (p, q) = lim_o_caja(&x); let c = a_source(ent_pos(&x)); o.push(nv(c[0] + p[0], c[1] + p[1], c[2] + p[2])); o.push(nv(c[0] + q[0], c[1] + q[1], c[2] + q[2])); Ok(()) });
     def(&ply_m, "CrosshairDisable", |_, a, _| { ce(&s0(a), |x| x.sin_mira = true); Ok(()) });
     def(&ply_m, "CrosshairEnable", |_, a, _| { ce(&s0(a), |x| x.sin_mira = false); Ok(()) });
@@ -620,7 +621,8 @@ pub(crate) fn instalar(_e: &mut Estado) {
     def(pm, "GetInfo", |_, a, o| { let k = js_str(&ar(a, 1)); let c = g(|g| g.cvars.get(&k).cloned()); s(o, &c.map(|c| c.borrow().v.clone()).unwrap_or_default()) });
     def(pm, "GetInfoNum", |_, a, o| { let k = js_str(&ar(a, 1)); let d = ar(a, 2); let c = g(|g| g.cvars.get(&k).cloned()); ok1(o, match c { Some(c) => { let v = cad(&c.borrow().v); Estado::a_numero(&v).map(Valor::Num).unwrap_or(d) } None => d }) });
     def(pm, "SetModel", nada);
-    def(pm, "GetModel", |_, _, o| s(o, "models/player/kleiner.mdl"));
+    // (el modelo de jugador de un addon que tiene puesto —gmvModeloJugador—; con un personaje del juego, Kleiner)
+    def(pm, "GetModel", |_, _, o| { let m = g(|g| g.modelo_jug.clone()); s(o, if m.is_empty() || m.starts_with("jxpj/") { "models/player/kleiner.mdl" } else { &m }) });
     def(pm, "SetPlayerColor", nada);
     def(pm, "GetPlayerColor", |_, _, o| ok1(o, nv(0.24, 0.34, 0.41)));
     def(pm, "SetWeaponColor", nada);

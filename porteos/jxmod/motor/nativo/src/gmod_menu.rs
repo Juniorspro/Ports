@@ -6,8 +6,10 @@ use super::gmod_base::*;
 use super::*;
 
 /// las pestañas: nombre e ícono de 16 px de GMod (rb/jxp/ui/icon16)
-pub const TABS: [(&str, &str); 6] = [("Spawnlists", "application_view_tile"), ("Weapons", "gun"), ("Entities", "bricks"), ("NPCs", "monkey"), ("Vehicles", "car"), ("Addons", "plugin")];
-pub const TAB_ADDONS: usize = 5;
+pub const TABS: [(&str, &str); 7] = [("Spawnlists", "application_view_tile"), ("Weapons", "gun"), ("Entities", "bricks"), ("NPCs", "monkey"), ("Vehicles", "car"), ("Pill Packs", "user"), ("Addons", "plugin")];
+pub const TAB_ADDONS: usize = 6;
+/// la pestaña de los Pill Packs (gmod_pill.rs)
+pub const TAB_PILLS: usize = 5;
 /// (las armas de HL2 de la lista de GMod → las del juego: HL2_ARMAS de gmod_api.js)
 const HL2_ARMAS: [(&str, &str); 14] = [("weapon_crowbar", "Crowbar"), ("weapon_physgun", "PhysicsGun"), ("gmod_tool", "ToolBaton"), ("weapon_rpg", "RPG"), ("weapon_pistol", "Pistol"), ("gmod_camera", "Camera"), ("weapon_fists", "Hands"), ("weapon_357", "Revolver"), ("weapon_smg1", "Smg"), ("weapon_ar2", "Akm"), ("weapon_shotgun", "Shotgun"), ("weapon_crossbow", "Crossbow"), ("weapon_stunstick", "Bat"), ("weapon_physcannon", "GravityGun")];
 
@@ -91,6 +93,55 @@ impl Juego {
             if !a.sweps.is_empty() { cats[1].push(CatM { n: a.nombre.clone(), nivel: 0, ic: "jxp/ui/icon16/folder_brick.png".into(), items: a.sweps.iter().map(|(c, n)| ItemM { id: format!("gmswep:{c}"), n: n.clone(), ic: ic(c) }).collect() }); }
             if !a.sents.is_empty() { cats[2].push(CatM { n: a.nombre.clone(), nivel: 0, ic: "jxp/ui/icon16/folder_brick.png".into(), items: a.sents.iter().map(|(c, n)| ItemM { id: format!("gment:{c}"), n: n.clone(), ic: ic(c) }).collect() }); }
         }
+        // (los personajes de los mods como NPC —sp.npcModelos— y, en Spawnlists, «Addons» con lo de cada addon, como
+        // Browse › Addons del spawnmenu de GMod: sus modelos de jugador —ponérselo, como NPC, como muñeco—, sus NPC y
+        // vehículos de las listas, sus armas, sus entidades y sus props: gmMenu y jxpSubs de la web)
+        let pms = self.gmp_lista();
+        let nom = |r: &str| r.rsplit('/').next().unwrap_or(r).trim_end_matches(".mdl").to_string();
+        if !pms.is_empty() { cats[3].push(CatM { n: "Personajes de los mods".into(), nivel: 0, ic: "jxp/ui/icon16/monkey.png".into(), items: pms.iter().map(|x| ItemM { id: format!("gmnpcm:{}", x.0), n: format!("{} (NPC)", nom(&x.0)), ic: None }).collect() }); }
+        let mut por_addon: Vec<CatM> = vec![];
+        let infos: Vec<(String, Option<usize>, Vec<(String, String)>, Vec<(String, String)>)> = self.gmod.addons.iter().filter(|a| a.prendido).map(|a| (a.nombre.clone(), a.idx, a.sweps.clone(), a.sents.clone())).collect();
+        let (npcs, vehs) = match self.gmod.gm.as_mut() { Some(g) => (g.lista("NPC"), g.lista("Vehicles")), None => (vec![], vec![]) };
+        for (an, idx, sweps, sents) in infos {
+            let Some(idx) = idx else { continue }; let Some(gm) = self.gmod.gm.as_ref() else { break };
+            let mut it: Vec<ItemM> = vec![];
+            let mios: Vec<&(String, String, String, bool)> = pms.iter().filter(|x| x.2 == an).collect();
+            for x in &mios { it.push(ItemM { id: format!("gmpm:{}", x.0), n: nom(&x.0), ic: None }); }
+            for x in &mios { it.push(ItemM { id: format!("gmnpcm:{}", x.0), n: format!("{} (NPC)", nom(&x.0)), ic: None }); }
+            for x in &mios { it.push(ItemM { id: format!("gmrag:{}", x.0), n: format!("{} (muñeco)", nom(&x.0)), ic: None }); }
+            let campo = |c: &[(String, String)], k: &str| c.iter().find(|x| x.0 == k).map(|x| x.1.clone()).unwrap_or_default();
+            let mut fuera: Vec<String> = mios.iter().map(|x| x.0.clone()).collect();
+            for (lista, pre, l) in [("NPC", "gmnpc", &npcs), ("Vehicles", "gmveh", &vehs)] {
+                for (k, c) in l.iter() { if gm.addon_de_lista(lista, k).as_deref() != Some(an.as_str()) { continue; } let n = campo(c, "Name"); fuera.push(jxgmod::jugadores::ruta_mdl(&campo(c, "Model"))); it.push(ItemM { id: format!("{pre}:{k}"), n: if n.trim().is_empty() { k.clone() } else { n }, ic: jset.as_ref().and_then(|s| { let x = k.to_lowercase(); s.contains(&x).then(|| format!("rb:jxp/ui/entities/{x}.png")) }) }); }
+            }
+            for (c, n) in &sweps { it.push(ItemM { id: format!("gmswep:{c}"), n: n.clone(), ic: Some(format!("gm:{c}")) }); if let Some(w) = gm.mundo_arma(c) { fuera.push(jxgmod::jugadores::ruta_mdl(&w)); } }
+            for (c, n) in &sents { it.push(ItemM { id: format!("gment:{c}"), n: n.clone(), ic: Some(format!("gm:{c}")) }); }
+            // (sus props: los modelos sueltos que no son de otra cosa; los que tienen física primero —gmPropsMenu—)
+            let arch = gm.archivos_addon(idx);
+            let sueltos: Vec<String> = arch.iter().filter(|r| r.starts_with("models/") && r.ends_with(".mdl")).filter(|r| {
+                let b = r.rsplit('/').next().unwrap_or(r);
+                !(b.starts_with("v_") || b.starts_with("c_") || r.contains("/c_arms") || b.ends_with("_arms.mdl") || r.contains("/arms/") || fuera.contains(r) || b.starts_with("w_") || r.starts_with("models/weapons/") || b.ends_with("hand.mdl") || b.ends_with("hands.mdl") || r.contains("gib") || r.contains("debris") || r.contains("_chunk") || r.contains("shard"))
+            }).cloned().collect();
+            let con_fis: Vec<String> = sueltos.iter().filter(|r| arch.contains(&format!("{}.phy", &r[..r.len() - 4]))).cloned().collect();
+            for r in if con_fis.is_empty() { sueltos } else { con_fis } { it.push(ItemM { id: format!("gmprop:{r}"), n: nom(&r), ic: None }); }
+            if !it.is_empty() { por_addon.push(CatM { n: an.clone(), nivel: 1, ic: "jxp/ui/icon16/folder_brick.png".into(), items: it }); }
+        }
+        // (Pill Packs: los propios por categoría —como pillSubs— y los de cada Pill Pack del Workshop; arriba, volver)
+        self.pill_leer_gm();
+        {
+            let volver = if self.pill_on() { vec![ItemM { id: "pillfin:".into(), n: "Volver a tu personaje".into(), ic: None }] } else { vec![] };
+            let pr = gmod_pill::propios();
+            for (c, n) in [("fnaf", "Five Nights at Freddy's"), ("terror", "Terror"), ("accion", "Acción"), ("mas", "Más personajes")] {
+                let mut it = volver.clone(); it.extend(pr.iter().filter(|d| d.cat == c).map(|d| ItemM { id: format!("pill:{}", d.id), n: d.nom.clone(), ic: None }));
+                cats[TAB_PILLS].push(CatM { n: n.into(), nivel: 0, ic: "jxp/ui/icon16/user.png".into(), items: it });
+            }
+            let mut packs: Vec<String> = vec![]; for d in &self.gmod.pill.gm { if !packs.contains(&d.cat) { packs.push(d.cat.clone()); } }
+            for pk in packs {
+                let mut it = volver.clone(); it.extend(self.gmod.pill.gm.iter().filter(|d| d.cat == pk).map(|d| ItemM { id: format!("pill:{}", d.id), n: d.nom.clone(), ic: d.gm.as_ref().map(|n| format!("gmpng:materials/pills/{n}.png")) }));
+                cats[TAB_PILLS].push(CatM { n: pk.trim_start_matches("gm:").into(), nivel: 0, ic: "jxp/ui/icon16/pill.png".into(), items: it });
+            }
+        }
+        if !por_addon.is_empty() { cats[0].push(CatM { n: "Addons".into(), nivel: 0, ic: "jxp/ui/icon16/plugin.png".into(), items: por_addon.iter().flat_map(|c| c.items.clone()).collect() }); cats[0].extend(por_addon); }
         self.gmod.menu.cats = cats; self.gmod.menu.hecho = true;
         let m = &mut self.gmod.menu; if m.cat >= m.cats[m.tab].len() { m.cat = 0; m.cat0 = 0; m.scroll = 0.0; }
     }
@@ -102,14 +153,14 @@ impl Juego {
         let lua = |k: &str, cuerpo: &str| format!("local k = {k:?}\nlocal tr = LocalPlayer():GetEyeTrace()\nlocal p = tr.HitPos + tr.HitNormal * 16\n{cuerpo}");
         let src = match it.split_once(':') {
             Some(("arma", k)) => { if let Ok(k) = k.parse::<usize>() { self.gmod_guardar_arma(); self.armas.elegir(&mut self.fis, k); } self.gmod.panel = false; return; }
+            // (un modelo con esqueleto de Valve y física de muñeco: como muñeco de trapo, gmEsMuneco)
+            Some(("gmprop", r)) if self.gs_es_muneco(r) => { self.gmod.menu.pend.push(format!("gmrag:{r}")); self.gmod.panel = false; return; }
             Some(("gmprop", m)) => lua(m, "local e = ents.Create(\"prop_physics\")\nif IsValid(e) then e:SetModel(k) e:SetPos(p) e:SetAngles(Angle(0, LocalPlayer():EyeAngles().y + 180, 0)) e:Spawn() e:Activate() end"),
             // (los NPC y los vehículos de las listas: su clase con su modelo y sus valores, como el spawnmenu de GMod)
             // (una clase del motor —npc_citizen, npc_combine_s, zombis…— es un NPC del juego, como gmnpcCrear; una clase del
             // addon —nextbots, SNPC— se crea con su Lua)
-            Some(("gmnpc", k)) if !self.gm_clase_lua("NPC", k) => { self.gmod.menu.pend.push(it.to_string()); self.gmod.panel = false; return; }
-            Some(("gmveh", k)) if !self.gm_clase_lua("Vehicles", k) => { self.gmod.menu.pend.push(it.to_string()); self.gmod.panel = false; return; }
-            Some(("gmnpc", k)) => lua(k, "local t = list.Get(\"NPC\")[k]\nif not t then return end\nlocal e = ents.Create(t.Class or \"npc_citizen\")\nif not IsValid(e) then return end\nif t.Model then e:SetModel(t.Model) end\nif t.KeyValues then for a, b in pairs(t.KeyValues) do e:SetKeyValue(a, b) end end\nif t.Skin then e:SetSkin(t.Skin) end\ne:SetPos(p + Vector(0, 0, t.Offset or 0)) e:SetAngles(Angle(0, LocalPlayer():EyeAngles().y + 180, 0)) e:Spawn() e:Activate()\nif t.Health then e:SetHealth(t.Health) end"),
-            Some(("gmveh", k)) => lua(k, "local t = list.Get(\"Vehicles\")[k]\nif not t then return end\nlocal e = ents.Create(t.Class or \"prop_physics\")\nif not IsValid(e) then return end\ne:SetModel(t.Model or \"models/buggy.mdl\")\nif t.KeyValues then for a, b in pairs(t.KeyValues) do e:SetKeyValue(a, b) end end\ne:SetPos(p) e:SetAngles(Angle(0, LocalPlayer():EyeAngles().y + 90, 0)) e:Spawn() e:Activate()"),
+            // (lo de gmod_spawn.rs y gmod_pm.rs necesita el motor: queda pedido para el cuadro, gm_poner_juego)
+            Some(("gmnpc" | "gmveh" | "gmnpcm" | "gmrag" | "gmpm" | "pill" | "pillfin", _)) => { self.gmod.menu.pend.push(it.to_string()); self.gmod.panel = false; return; }
             _ => { self.gmod_poner(it); self.gmod.panel = false; return; }
         };
         if self.gmod.gm.is_none() { self.gmod_arrancar(); }
@@ -119,33 +170,27 @@ impl Juego {
         if let Some(Err(e)) = r { self.avisar(format!("No se pudo poner: {e}")); }
         self.gmod.panel = false;
     }
-    /// ¿la clase de esa entrada de la lista es de Lua (de un addon)? (las del motor no tienen tabla de clase)
-    fn gm_clase_lua(&mut self, lista: &str, k: &str) -> bool {
-        let c = { let c = self.gm_campo(lista, k, "Class"); if c.is_empty() { k.to_string() } else { c } };
-        self.gmod.gm.as_ref().map(|g| g.es_clase(&c)).unwrap_or(false)
+    /// un NPC de las listas con una clase del addon (nextbot, entidad con IA propia): esa entidad con su Lua (__gmCrearNPC)
+    fn gm_npc_lua(&mut self, k: &str) {
+        let src = format!("local k = {k:?}\nlocal tr = LocalPlayer():GetEyeTrace()\nlocal p = tr.HitPos + tr.HitNormal * 16\nlocal t = list.Get(\"NPC\")[k]\nif not t then return end\nlocal e = ents.Create(t.Class or \"npc_citizen\")\nif not IsValid(e) then return end\nif t.Model then e:SetModel(t.Model) end\nif t.KeyValues then for a, b in pairs(t.KeyValues) do e:SetKeyValue(a, b) end end\nif t.Skin then e:SetSkin(t.Skin) end\ne:SetPos(p + Vector(0, 0, t.Offset or 0)) e:SetAngles(Angle(0, LocalPlayer():EyeAngles().y + 180, 0)) e:Spawn() e:Activate()\nif t.Health then e:SetHealth(t.Health) end");
+        if self.gmod.gm.is_none() { self.gmod_arrancar(); }
+        self.gmod_prestar(true);
+        let r = self.gmod.gm.as_mut().map(|g| g.correr(&src, "menú", false));
+        self.gmod_prestar(false);
+        if let Some(Err(e)) = r { self.avisar(format!("No se pudo poner: {e}")); }
     }
-    /// un campo de una entrada de una lista de GMod
-    fn gm_campo(&mut self, lista: &str, k: &str, campo: &str) -> String { self.gmod.gm.as_mut().map(|g| g.lista(lista)).unwrap_or_default().into_iter().find(|x| x.0 == k).and_then(|x| x.1.into_iter().find(|c| c.0 == campo).map(|c| c.1)).unwrap_or_default() }
-    /// los NPC de las listas de GMod con clase del motor: un NPC del juego que camina, pega, muere y cae como muñeco, con
-    /// una actitud según la clase (gmnpcCrear: los combine y los zombis persiguen y pegan; los ciudadanos pasean). Los
-    /// vehículos: el del juego que más se parece (el auto, el bote, el asiento)
+    /// lo del menú que necesita el motor: los NPC de las listas (gmnpcCrear; los de una clase del addon, con su Lua), los
+    /// vehículos (gmvehPrefab), un modelo de personaje como NPC o como muñeco y ponerse un modelo de jugador
     fn gm_poner_juego(&mut self, m: &mut Motor3d, it: &str) {
-        let (ojos, fw) = (self.ojos_ult, self.mira());
-        if let Some(k) = it.strip_prefix("gmnpc:") {
-            let cls = { let c = self.gm_campo("NPC", k, "Class"); if c.is_empty() { k.to_string() } else { c } }.to_lowercase();
-            let hostil = ["combine", "metropolice", "police", "zombi", "antlion", "headcrab", "hunter", "strider", "manhack", "scanner", "poison", "vortigaunt_hostile", "gunship", "soldier", "elite", "stalker"].iter().any(|x| cls.contains(x) || k.to_lowercase().contains(x));
-            let vida = self.gm_campo("NPC", k, "Health").parse::<f64>().ok().filter(|v| *v > 0.0).unwrap_or(if hostil { 60.0 } else { 100.0 });
-            let act = if hostil { npc::Actitud { modo: npc::Modo::Perseguir, vel: 3.0, obj: npc::Obj::Cerca, dist: 1.2, hostil: true, dano: 8.0, vida, ..Default::default() } } else { npc::Actitud { modo: npc::Modo::Pasear, vel: 1.6, vida, ..Default::default() } };
-            let Some(paq) = self.paq.as_mut() else { return };
-            let Ok((c, e)) = self.npc_skins.pedir(paq, "Hero", &mut self.pj_cargados) else { return };
-            if let Some(e) = e { if unsafe { m.cargar(&e) }.is_err() { return; } }
-            let Some(mp) = self.mapa.as_ref() else { return };
-            let (p, yaw) = npc::donde_poner(&mp.mundo, &mut self.fis, ojos, fw);
-            if let Some(id) = self.npcs.crear(c, p, yaw, Some(act), &mut self.fis) { self.pila.push((true, id)); }
-        } else if let Some(k) = it.strip_prefix("gmveh:") {
-            let (cls, modelo) = (self.gm_campo("Vehicles", k, "Class").to_lowercase(), self.gm_campo("Vehicles", k, "Model").to_lowercase());
-            let pf = if cls.contains("airboat") { "Inflatable_boat" } else if cls.contains("jeep") { if modelo.contains("jalopy") { "Sedan" } else { "Derby5" } } else if cls.contains("prisoner_pod") { if modelo.contains("chair") { "Chair1" } else { "Seat" } } else { "Seat" };
-            if let Err(e) = self.poner(m, pf, ojos, fw) { self.avisar(format!("No se pudo poner {k}: {e}")); }
+        match it.split_once(':') {
+            Some(("gmnpc", k)) => { if !self.gs_npc_lista(m, k) { self.gm_npc_lua(k); } }
+            Some(("gmveh", k)) => { if !self.gs_veh_poner(m, k) { self.avisar(format!("No se pudo poner {k}: falta su modelo")); } }
+            Some(("gmnpcm", r)) => self.gs_npc_modelo(m, r),
+            Some(("gmrag", r)) => self.gs_rag_modelo(m, r),
+            Some(("gmpm", r)) => self.gmp_elegir(m, &format!("gmpm:{r}")),
+            Some(("pill", id)) => { self.pill_aplicar(m, id); self.gmod.menu.hecho = false; }
+            Some(("pillfin", _)) => { self.pill_fin(m); self.gmod.menu.hecho = false; }
+            _ => {}
         }
     }
     /// los íconos de la grilla que se ven (de a 8 por cuadro) y las listas la primera vez
@@ -161,7 +206,7 @@ impl Juego {
         let mut n = 0;
         for k in quiero {
             if n >= 8 { break; } if self.gmod.menu.iconos.contains_key(&k) { continue; } n += 1;
-            let b: Option<Vec<u8>> = if let Some(r) = k.strip_prefix("rb:") { self.gmod.lector_rb.as_ref().and_then(|l| l(r, 0, usize::MAX)) } else if let Some(c) = k.strip_prefix("gm:") {
+            let b: Option<Vec<u8>> = if let Some(r) = k.strip_prefix("gmpng:") { self.gmod.gm.as_ref().and_then(|g| g.archivo(r)).map(|x| x.to_vec()) } else if let Some(r) = k.strip_prefix("rb:") { self.gmod.lector_rb.as_ref().and_then(|l| l(r, 0, usize::MAX)) } else if let Some(c) = k.strip_prefix("gm:") {
                 // (el ícono de un arma o entidad de un addon: su .png o su .vtf de entities/)
                 let gm = self.gmod.gm.as_ref(); let png = ["materials/entities/", "materials/vgui/entities/"].iter().find_map(|d| gm.and_then(|g| g.archivo(&format!("{d}{c}.png")))).map(|x| x.to_vec());
                 png.or_else(|| { let v = gm.and_then(|g| g.archivo(&format!("materials/vgui/entities/{c}.vtf")))?; let t = jxgmod::formatos::vtf(&v, 128).ok()?; let px = jxgmod::formatos::vtf_rgba(&t); let mut o = vec![]; { let mut e = png::Encoder::new(&mut o, t.w as u32, t.h as u32); e.set_color(png::ColorType::Rgba); e.set_depth(png::BitDepth::Eight); e.write_header().ok()?.write_image_data(&px).ok()?; } Some(o) })

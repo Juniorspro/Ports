@@ -257,6 +257,7 @@ pub struct Secuencia {
 pub struct Vertices { pub n: usize, pub pos: Vec<[f32; 3]>, pub nor: Vec<[f32; 3]>, pub uv: Vec<[f32; 2]>, pub hb: Vec<[u8; 3]>, pub w: Vec<[f32; 3]> }
 #[derive(Clone, Debug)]
 pub struct MallaGeo { pub cuerpo: usize, pub modelo: usize, pub mat: i32, pub tris: Vec<u32> }
+#[derive(Clone)]
 pub struct Mdl {
     pub version: i32, pub nombre: String, pub hull: [[f32; 3]; 2], pub flags: i32,
     pub huesos: Vec<Hueso>, pub texturas: Vec<String>, pub carpetas: Vec<String>, pub pieles: Vec<Vec<i16>>, pub adjuntos: Vec<Adjunto>, pub cuerpos: Vec<CuerpoMdl>,

@@ -26,6 +26,7 @@ fn main() {
     let letras = || (std::fs::read_to_string(Path::new(&let_).join("letras.json")).ok(), std::fs::read(Path::new(&let_).join("letras.png")).ok());
     let (lj, lp) = letras(); let mut j = Juego::nuevo(paq, lj, lp, Some(datos.clone()));
     j.gmod.carpeta_externa = std::env::var("JXM_ADDONS").ok().map(std::path::PathBuf::from);
+    if let Some(f) = std::env::var("JXM_FOV").ok().and_then(|x| x.parse().ok()) { j.aj.fov = f; }   // (el campo de visión de Ajustes: la vista del arma tiene que verse igual con cualquiera)
     // (rb/: la biblioteca de GMod —gm_lib— y los datos de la versión personal —jxp—)
     j.gmod.lector_rb = Some(jxmod::comun::gmod_juego::lector_carpetas(vec![Path::new(&www).join("rb"), "/tmp/claude-0/jxp_pub/rb".into()]));
     let _ = std::fs::remove_file(datos.join("gmod_apagados.txt"));
@@ -78,7 +79,7 @@ fn main() {
     let t = Instant::now(); paso(&mut j, &mut m, 2);
     let mut n = 0; while j.gmod.addons.iter().any(|a| a.prendido && a.idx.is_none()) && n < 200 { paso(&mut j, &mut m, 1); n += 1; }
     println!("addons montados: {} en {:.0} ms ({} cuadros)", j.gmod.addons.len(), t.elapsed().as_secs_f64() * 1000.0, n);
-    for a in &j.gmod.addons { println!("  {} · armas {:?} · entidades {:?} · errores {}", a.nombre, a.sweps.iter().map(|x| &x.0).collect::<Vec<_>>(), a.sents.iter().map(|x| &x.0).collect::<Vec<_>>(), a.errores); }
+    for a in &j.gmod.addons { println!("  {} · armas {:?} · entidades {:?} · errores {}", a.nombre, a.sweps.iter().map(|x| &x.0).collect::<Vec<_>>(), a.sents.iter().map(|x| &x.0).collect::<Vec<_>>(), a.errores); if let (true, Some(g), Some(i)) = (a.errores > 0, j.gmod.gm.as_ref(), a.idx) { for e in g.errores(i).iter().take(4) { println!("    error: {}", e.chars().take(240).collect::<String>()); } } }
     paso(&mut j, &mut m, 30); foto(&mut m, "1_montados");
     j.gmod_abrir(); paso(&mut j, &mut m, 2); foto(&mut m, "2_panel"); j.gmod_abrir();
     // (una entidad delante)
@@ -103,6 +104,8 @@ fn main() {
         // (de afuera: el modelo de mundo en la mano)
         j.camara = 1; paso(&mut j, &mut m, 6); foto(&mut m, "7b_arma_tercera"); j.camara = 0; paso(&mut j, &mut m, 2);
         println!("vista propia {} · modelo de mundo en la mano {}", j.gmod_vista_propia(), j.gmod_arma_mundo());
+        // (JXM_LUA: un pedazo de Lua para preguntar algo después de tener el arma 4 s en la mano, como la web)
+        if let Ok(l) = std::env::var("JXM_LUA") { j.jug.yaw = 0.0; j.jug.pitch = 0.0; paso(&mut j, &mut m, 240); println!("lua: {}", j.gmod_lua_texto(&std::fs::read_to_string(&l).unwrap_or(l))); foto(&mut m, "7c_arma_4s"); }
     }
     // (JXM_NB: un nextbot delante; persigue al jugador)
     if let Ok(nb) = std::env::var("JXM_NB") {
@@ -127,12 +130,95 @@ fn main() {
         let prop = its.iter().find(|i| { let r = i.trim_start_matches("gmprop:"); j.gmod.gm.as_ref().map(|g| g.archivo(r).is_some()).unwrap_or(false) }).cloned();
         println!("  lista 0: {} cosas; con modelo en la biblioteca: {:?}", its.len(), prop);
         j.gmod_menu_ir(3, 0); paso(&mut j, &mut m, 12); foto(&mut m, "m2_npcs");
+        // (los addons en Spawnlists: «Addons» y uno por addon, con sus modelos de jugador, NPC, vehículos y props)
+        if let Some(i) = ls.get(0).and_then(|l| l.iter().position(|x| x == "Addons")) { let its = j.gmod_menu_ir(0, i + 1); println!("  Spawnlists › Addons › {}: {:?}", ls[0].get(i + 1).cloned().unwrap_or_default(), its); paso(&mut j, &mut m, 12); foto(&mut m, "m2b_addons"); }
+        if let Some(i) = ls.get(3).and_then(|l| l.iter().position(|x| x == "Personajes de los mods")) { println!("  NPCs › Personajes de los mods: {:?}", j.gmod_menu_ir(3, i)); }
         j.gmod_menu_ir(1, 0); paso(&mut j, &mut m, 12); foto(&mut m, "m3_weapons");
         if let Some(p) = prop { let n0 = j.objs.len(); j.gmod_menu_poner(&p); paso(&mut j, &mut m, 40); println!("  puesto {}: objetos {} → {} ({:?})", p, n0, j.objs.len(), j.objs.last().map(|o| o.nombre.clone())); foto(&mut m, "m4_prop"); }
-        // (un NPC del motor —npc_combine_s— y un vehículo de base_vehicles: los del juego)
-        let n0 = j.npcs.lista.len(); j.gmod_menu_poner("gmnpc:npc_combine_s"); paso(&mut j, &mut m, 60); println!("  NPC del juego: {} → {}", n0, j.npcs.lista.len()); foto(&mut m, "m6_npc_juego");
-        let n0 = j.objs.len(); j.gmod_menu_poner("gmveh:Jeep"); paso(&mut j, &mut m, 30); println!("  vehículo: objetos {} → {} ({:?})", n0, j.objs.len(), j.objs.last().map(|o| o.nombre.clone())); foto(&mut m, "m7_vehiculo");
-        if let Some(n) = j.gmod_menu_ir(3, 0).first().cloned() { let n0 = j.objs.len(); j.gmod_menu_poner(&n); paso(&mut j, &mut m, 40); println!("  puesto {}: objetos {} → {} ({:?})", n, n0, j.objs.len(), j.objs.last().map(|o| o.nombre.clone())); foto(&mut m, "m5_npc"); }
+        // (los NPC de las listas: los del motor con su modelo —el soldado de élite, de la biblioteca— y los de los addons;
+        // un modelo de personaje como NPC y como muñeco; los vehículos de base_vehicles y de los addons, y manejar el Jeep)
+        let npcs: Vec<String> = std::env::var("JXM_NPCS").unwrap_or("gmnpc:CombineElite,gmnpc:npc_combine_s".into()).split(',').map(String::from).collect();
+        for (k, it) in npcs.iter().enumerate() {
+            let n0 = j.npcs.lista.len(); j.gmod_menu_poner(it); paso(&mut j, &mut m, 90);
+            println!("  {}: NPC {} → {} · {:?}", it, n0, j.npcs.lista.len(), j.npcs.lista.last().map(|p| (p.skin.clone(), p.act.hostil, p.vida, j.gmp_listo(&p.skin))));
+            foto(&mut m, &format!("m6_npc{k}"));
+            if let Some(id) = j.npcs.lista.last().map(|p| 1 + p.id as u64) { println!("    numeros {}", j.gmp_info(id).unwrap_or_default()); }
+        }
+        let lista = j.gmp_lista();
+        if let Some(r) = lista.first().map(|x| x.0.clone()) {
+            j.gmod_menu_poner(&format!("gmnpcm:{r}")); paso(&mut j, &mut m, 60); println!("  modelo como NPC: {:?}", j.npcs.lista.last().map(|p| p.skin.clone())); foto(&mut m, "m6_npc_modelo");
+            j.gmod_menu_poner(&format!("gmrag:{r}")); paso(&mut j, &mut m, 90); println!("  muñeco: {:?} tirado {}", j.npcs.lista.last().map(|p| p.skin.clone()), j.npcs.lista.last().map(|p| p.rag.is_some()).unwrap_or(false));
+            if let Some(id) = j.npcs.lista.last().map(|p| 1 + p.id as u64) { println!("    numeros {}", j.gmp_info(id).unwrap_or_default()); }
+            foto(&mut m, "m6_muneco");
+        }
+        let vehs: Vec<String> = std::env::var("JXM_VEHS").unwrap_or("gmveh:Jeep,gmveh:Airboat".into()).split(',').map(String::from).collect();
+        for (k, it) in vehs.iter().enumerate() {
+            j.jug.pos[0] += 8.0; paso(&mut j, &mut m, 5);
+            let n0 = j.objs.len(); j.gmod_menu_poner(it); paso(&mut j, &mut m, 60);
+            let o = j.objs.last().map(|o| (o.nombre.clone(), o.cuerpo, o.pos));
+            let info = o.as_ref().and_then(|x| x.1).and_then(|c| j.vehs.de(c)).map(|v| format!("tipo {:?} ruedas {} asientos {} bote {}", v.tipo, v.ruedas.len(), v.asientos.len(), v.bote)).unwrap_or_default();
+            println!("  {}: objetos {} → {} {:?} · {}", it, n0, j.objs.len(), o, info);
+            // (el árbol del prefab, para comparar con la web: los nodos con su lugar y lo de las ruedas)
+            if let Some(arb) = j.gs_arbol(it).and_then(|v| v.as_array().cloned()) {
+                let r = |v: &serde_json::Value| v.as_array().map(|a| a.iter().map(|x| (x.as_f64().unwrap_or(0.0) * 1000.0).round() / 1000.0).collect::<Vec<_>>()).unwrap_or_default();
+                println!("    raiz r {:?} m {} bote {}", r(&arb[0]["r"]), arb[0]["rb"]["m"], arb[0]["bote"]);
+                for n in arb.iter().skip(1) { println!("    {} p {:?}{}", n["n"].as_str().unwrap_or(""), r(&n["p"]), if n["wc"].is_object() { format!(" wc r {:.4} sd {} sp {:.1} da {:.2}", n["wc"]["r"].as_f64().unwrap_or(0.0), n["wc"]["sd"], n["wc"]["sp"].as_f64().unwrap_or(0.0), n["wc"]["da"].as_f64().unwrap_or(0.0)) } else { String::new() }); }
+            }
+            foto(&mut m, &format!("m7_vehiculo{k}"));
+            // (subir y manejar 3 s hacia adelante)
+            if k == 0 { if let Some((_, Some(c), p0)) = o {
+                let sube = j.vehs.subir(&j.fis, c); paso(&mut j, &mut m, 10);
+                j.dedo_abajo(1, wf * 0.15, hf * 0.75, wf, hf); j.dedo_mueve(1, wf * 0.15, hf * 0.75 - hf * 0.2, hf); paso(&mut j, &mut m, 180);
+                let p1 = j.objs.iter().find(|x| x.cuerpo == Some(c)).map(|x| x.pos).unwrap_or(p0); let v = j.fis.cuerpo(c).map(|b| (b.vel[0].powi(2) + b.vel[2].powi(2)).sqrt()).unwrap_or(0.0);
+                println!("    manejando (subió {}): {:?} → {:?} ({:.1} m) a {:.1} m/s; ruedas tocan {:?}", sube, p0, p1, ((p1[0] - p0[0]).powi(2) + (p1[2] - p0[2]).powi(2)).sqrt(), v, j.vehs.de(c).map(|v| v.ruedas.iter().filter(|r| r.toca).count()));
+                foto(&mut m, "m7b_manejando"); j.dedo_arriba(1); j.camara = 1; paso(&mut j, &mut m, 20); foto(&mut m, "m7c_manejando_afuera"); j.camara = 0;
+                let _ = j.vehs.salir(&j.fis, &j.mapa.as_ref().unwrap().mundo); paso(&mut j, &mut m, 5);
+            } }
+        }
+    }
+    // (JXM_PM=1 o una ruta: ponerse un modelo de jugador de los addons —el primero de la lista— y verlo de frente quieto,
+    // caminando, corriendo y saltando, de atrás y como NPC; JXM_PM_TODOS=1: uno por uno todos los de la lista, de frente)
+    if let Ok(pm) = std::env::var("JXM_PM") {
+        let lista = j.gmp_lista(); println!("modelos de jugador: {}", lista.len()); for x in &lista { println!("  {} · {} · {}", x.0, x.1, x.2); }
+        let todos = std::env::var("JXM_PM_TODOS").is_ok();
+        let elegidos: Vec<String> = if todos { lista.iter().map(|x| x.0.clone()).collect() } else if pm.ends_with(".mdl") { vec![pm.clone()] } else { lista.first().map(|x| vec![x.0.clone()]).unwrap_or_default() };
+        let (cx, cy) = pos_boton(wf, hf, Boton::Camara);
+        for (k, r) in elegidos.iter().enumerate() {
+            j.gmp_elegir(&mut m, &format!("gmpm:{r}")); paso(&mut j, &mut m, 5);
+            println!("puesto {} · armado {}", r, j.gmp_listo(&j.skin.clone()));
+            let n = r.rsplit('/').next().unwrap_or(r).trim_end_matches(".mdl").to_string();
+            println!("  aparece en {:?} yaw {}", j.jug.pos, j.jug.yaw); j.jug.yaw = 0.0; j.jug.pitch = 0.0;
+            // (JXM_LUGAR=x,y,z: donde está el de la web, para fotos desde el mismo lugar)
+            if let Ok(l) = std::env::var("JXM_LUGAR") { let v: Vec<f32> = l.split(',').filter_map(|x| x.parse().ok()).collect(); if v.len() >= 3 { j.jug.pos = [v[0], v[1], v[2]]; j.jug.vel = [0.0; 3]; } }
+            j.camara = 2; paso(&mut j, &mut m, 30); foto(&mut m, &format!("p{k}_{n}_frente"));
+            println!("  numeros {}", j.gmp_info(0).unwrap_or_default());
+            if todos { continue; }
+            // (con JXM_ARMA: el arma en primera persona, con las manos de este modelo —AddValidHands—)
+            if let Ok(a) = std::env::var("JXM_ARMA") { j.camara = 0; j.gmod_poner(&format!("gmswep:{a}")); paso(&mut j, &mut m, 120); foto(&mut m, &format!("p{k}_{n}_manos")); println!("  manos: {}", j.gmod_lua_texto("local h = player_manager.TranslatePlayerHands(player_manager.TranslateToPlayerModelName(LocalPlayer():GetModel())) return tostring(LocalPlayer():GetModel()) .. ' ' .. tostring(h.model)")); }
+            j.camara = 1; paso(&mut j, &mut m, 10); foto(&mut m, &format!("p{k}_{n}_atras"));
+            j.camara = 2; if let Ok(l) = std::env::var("JXM_LUGAR") { let v: Vec<f32> = l.split(',').filter_map(|x| x.parse().ok()).collect(); if v.len() >= 3 { j.jug.pos = [v[0], v[1], v[2]]; j.jug.vel = [0.0; 3]; j.jug.yaw = 0.0; } }
+            j.dedo_abajo(1, wf * 0.15, hf * 0.75, wf, hf); j.dedo_mueve(1, wf * 0.15, hf * 0.75 - hf * 0.08, hf); paso(&mut j, &mut m, 40); foto(&mut m, &format!("p{k}_{n}_camina"));
+            j.dedo_mueve(1, wf * 0.15, hf * 0.75 - hf * 0.3, hf); paso(&mut j, &mut m, 40); foto(&mut m, &format!("p{k}_{n}_corre")); j.dedo_arriba(1); paso(&mut j, &mut m, 30);
+            let (bx, by) = pos_boton(wf, hf, Boton::Saltar); j.dedo_abajo(2, bx, by, wf, hf); paso(&mut j, &mut m, 8); j.dedo_arriba(2); paso(&mut j, &mut m, 6); foto(&mut m, &format!("p{k}_{n}_salta")); paso(&mut j, &mut m, 60);
+            let _ = (cx, cy);
+        }
+        j.camara = 0; paso(&mut j, &mut m, 2);
+    }
+    // (JXM_PILL=id[,id…]: transformarse —freddy, goku, gm:<nombre> de un Pill Pack—, con un NPC delante: quieto, el golpe,
+    // la habilidad 2, correr y volver)
+    if let Ok(ids) = std::env::var("JXM_PILL") {
+        j.gmod_abrir(); paso(&mut j, &mut m, 3); println!("Pill Packs: {:?}", j.gmod_menu_listas().get(5)); j.gmod_abrir();
+        for (k, id) in ids.split(',').enumerate() {
+            let _ = j.gmod_prueba_poner(&mut m, "npc:Hero"); paso(&mut j, &mut m, 30);
+            let v0 = j.npcs.lista.last().map(|p| p.vida).unwrap_or(0.0);
+            j.gmod_menu_poner(&format!("pill:{id}")); paso(&mut j, &mut m, 30);
+            println!("pill {}: puesto {} · skin {} · vida {} · vel {} · salto {} · cámara {}", id, j.pill_on(), j.skin, j.jug.vida, j.jug.vel_max, j.jug.salto, j.camara);
+            foto(&mut m, &format!("q{k}_pill"));
+            let (bx, by) = pos_boton(wf, hf, Boton::Disparo); j.dedo_abajo(9, bx, by, wf, hf); paso(&mut j, &mut m, 3); j.dedo_arriba(9); paso(&mut j, &mut m, 2); foto(&mut m, &format!("q{k}_pill_golpe")); paso(&mut j, &mut m, 30);
+            println!("  golpe: vida del NPC {} → {:?} (tirado {:?})", v0, j.npcs.lista.last().map(|p| p.vida), j.npcs.lista.last().map(|p| p.rag.is_some()));
+            let (bx, by) = pos_boton(wf, hf, Boton::Disparo2); j.dedo_abajo(9, bx, by, wf, hf); paso(&mut j, &mut m, 3); j.dedo_arriba(9); paso(&mut j, &mut m, 20); foto(&mut m, &format!("q{k}_pill_hab2"));
+            j.gmod_menu_poner("pillfin:"); paso(&mut j, &mut m, 20); println!("  volvió: {} · skin {} · vel {} · cámara {}", !j.pill_on(), j.skin, j.jug.vel_max, j.camara);
+        }
     }
     // (JXM_TIENDA=1: la tienda de verdad con curl: la lista, bajar el más chico, descomprimir e instalar)
     if std::env::var("JXM_TIENDA").is_ok() {

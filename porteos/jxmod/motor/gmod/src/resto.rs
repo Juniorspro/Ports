@@ -550,12 +550,12 @@ pub(crate) fn instalar(e: &mut Estado) {
     for k in ["GetScore", "TotalFrags"] { def(&team, k, |_, _, o| n(o, 0.0)); }
     def(&team, "Joinable", |_, _, o| b(o, true));
     let pmg = l("player_manager");
-    for k in ["AddValidModel", "AddValidHands", "RegisterClass", "SetPlayerClass", "RunClass"] { def(&pmg, k, nada); }
-    def(&pmg, "TranslatePlayerModel", |_, _, o| s(o, "models/player/kleiner.mdl"));
-    def(&pmg, "AllValidModels", |_, _, o| ok1(o, tnueva()));
+    for k in ["RegisterClass", "SetPlayerClass", "RunClass"] { def(&pmg, k, nada); }
     def(&pmg, "GetPlayerClass", |_, _, o| s(o, "player_sandbox"));
-    def(&pmg, "TranslateToPlayerModelName", |_, _, o| s(o, "kleiner"));
-    def(&pmg, "TranslatePlayerHands", |_, _, o| ok1(o, tabla_kv(vec![("model", cad("models/weapons/c_arms_citizen.mdl")), ("skin", Valor::Num(0.0)), ("body", cad("0000000")), ("matchBodySkin", Valor::Bool(false))])));
+    // (AddValidModel, AddValidHands y lo que traduce nombres, modelos y manos: jugadores.rs)
+    crate::jugadores::instalar(e);
+    // (pk_pills: los Pill Packs del Workshop, pills.rs)
+    crate::pills::instalar(e);
     let phe = l("physenv");
     def(&phe, "GetGravity", |_, _, o| ok1(o, nv(0.0, 0.0, -600.0)));
     for k in ["SetGravity", "SetPerformanceSettings", "AddSurfaceData", "SetAirDensity"] { def(&phe, k, nada); }

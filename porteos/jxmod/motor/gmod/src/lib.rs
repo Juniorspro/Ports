@@ -6,6 +6,7 @@
 //! `paso(dt, &choques)` y `hud()`. Un solo Gmod activo por hilo (`activar` si hay más de uno).
 
 pub mod anfitrion;
+pub mod autorig;
 pub mod formatos;
 pub mod modelos;
 pub mod sonidos;
@@ -16,13 +17,17 @@ pub mod traza;
 mod cargar;
 mod dibujo;
 mod entidades;
+pub mod jugadores;
 mod libs;
+mod matriz;
+pub mod pills;
 mod motor;
 mod nucleo;
 mod resto;
 mod valores;
 
 pub use anfitrion::*;
-pub use cargar::{leer_carpeta, leer_gma, Choque, Gmod, PRELUDE};
-pub use nucleo::{Addon, LAng, LVec, Lado};
+pub use cargar::{leer_carpeta, leer_gma, Choque, Gmod, Snpc, PRELUDE};
+pub use nucleo::{Addon, LAng, LVec, Lado, ManosPm};
+pub use pills::{AtaquePill, PillGm};
 pub use resto::Luz;

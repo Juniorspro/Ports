@@ -121,7 +121,7 @@ impl Juego {
         let r = (id, v.map(|v| v.dos_lados).unwrap_or(false)); self.gmod.mods.mats.insert(k, r); r
     }
     /// una malla al motor: vértices (juego), normales, UV, índices por material y, con piel, los huesos (índices locales y pesos)
-    fn gm_subir(&mut self, m: &mut Motor3d, p: &[[f32; 3]], nr: &[[f32; 3]], uv: &[[f32; 2]], partes: &[(i64, Vec<u32>)], piel: Option<&[([u8; 4], [u8; 4])]>) -> Option<MallaGm> {
+    pub(crate) fn gm_subir(&mut self, m: &mut Motor3d, p: &[[f32; 3]], nr: &[[f32; 3]], uv: &[[f32; 2]], partes: &[(i64, Vec<u32>)], piel: Option<&[([u8; 4], [u8; 4])]>) -> Option<MallaGm> {
         let n = p.len(); if n == 0 { return None; }
         let (mut mn, mut mx) = ([f32::MAX; 3], [f32::MIN; 3]); for v in p { for k in 0..3 { mn[k] = mn[k].min(v[k]); mx[k] = mx[k].max(v[k]); } }
         let sc = [(mx[0] - mn[0]).max(1e-5), (mx[1] - mn[1]).max(1e-5), (mx[2] - mn[2]).max(1e-5)];
@@ -232,7 +232,51 @@ impl Juego {
         if ms > self.gmod.mods.ms_max.0 { self.gmod.mods.ms_max = (ms, format!("{ruta} (piel)")); } r
     }
     fn gm_piel_armar(&mut self, m: &mut Motor3d, ruta: &str, md: Rc<ModeloGm>) -> Option<Rc<ModeloGm>> {
-        let mdl = self.gmod.gm.as_ref()?.modelo(ruta)?.m.clone(); let v = mdl.v.as_ref()?;
+        let mdl = self.gmod.gm.as_ref()?.modelo(ruta)?.m.clone();
+        let mallas = self.gm_piel_mallas(m, &mdl, &md.mats)?;
+        let nuevo = Rc::new(ModeloGm { quieto: vec![], piel: Some(mallas), caja: md.caja, fis: md.fis.clone(), mats: md.mats.clone() });
+        // (se guarda el de antes con la piel: lo quieto queda en el de antes, que usa el objeto)
+        let junto = Rc::new(ModeloGm { quieto: md.quieto.iter().map(|q| MallaGm { m: q.m, partes: q.partes.clone(), huesos: vec![], esf: q.esf }).collect(), piel: nuevo.piel.as_ref().map(|l| l.iter().map(|q| MallaGm { m: q.m, partes: q.partes.clone(), huesos: q.huesos.clone(), esf: q.esf }).collect()), caja: md.caja, fis: md.fis.clone(), mats: md.mats.clone() });
+        self.gmod.mods.modelos.insert(ruta.to_string(), Some(junto.clone())); Some(junto)
+    }
+    /// (gmod_pm.rs) la malla con piel de un modelo de jugador
+    pub(crate) fn gm_piel_pub(&mut self, m: &mut Motor3d, ruta: &str) -> Option<Rc<ModeloGm>> { self.gm_piel(m, ruta) }
+    /// (gmod_pm.rs y gmod_autorig.rs) la malla con piel de otro .mdl con la geometría del de esa ruta (el mismo con su rig
+    /// automático: otros huesos y otros pesos), con los materiales del de la ruta; se guarda como «ruta#etiqueta»
+    pub(crate) fn gm_piel_de(&mut self, m: &mut Motor3d, ruta: &str, mdl: &gmf::Mdl, etiqueta: &str) -> Option<Rc<ModeloGm>> {
+        let k = format!("{ruta}#{etiqueta}"); if let Some(x) = self.gmod.mods.modelos.get(&k) { return x.clone(); }
+        let md = self.gm_modelo(m, ruta)?;
+        let r = self.gm_piel_mallas(m, mdl, &md.mats).map(|mallas| Rc::new(ModeloGm { quieto: vec![], piel: Some(mallas), caja: md.caja, fis: md.fis.clone(), mats: md.mats.clone() }));
+        self.gmod.mods.modelos.insert(k, r.clone()); r
+    }
+    /// la clave de un modelo con otra piel y otros cuerpos (SetSkin y SetBodyGroups: las manos de un modelo de jugador)
+    pub(crate) fn gm_clave_op(ruta: &str, piel: i32, cuerpos: &str) -> String { if piel == 0 && cuerpos.chars().all(|c| c == '0') { ruta.to_string() } else { format!("{ruta}|{piel}|{cuerpos}") } }
+    /// la malla con piel de un .mdl con la piel `piel` y en cada cuerpo el modelo que dice `cuerpos` (un dígito en base 36
+    /// por cuerpo, como «0100000»; si no lo hay, el primero), como gmvMallas con op: { piel, cuerpos }
+    pub(crate) fn gm_piel_op(&mut self, m: &mut Motor3d, ruta: &str, piel: i32, cuerpos: &str) -> Option<Rc<ModeloGm>> {
+        let k = Self::gm_clave_op(ruta, piel, cuerpos);
+        if k == ruta { let ya = self.gmod.mods.modelos.get(ruta).map(|x| x.as_ref().map(|y| y.piel.is_some()).unwrap_or(true)).unwrap_or(false); return if ya { self.gmod.mods.modelos.get(ruta).cloned().flatten() } else { self.gm_piel(m, ruta) }; }
+        if let Some(x) = self.gmod.mods.modelos.get(&k) { return x.clone(); }
+        let md = self.gm_modelo(m, ruta)?; let mut mdl = (*self.gmod.gm.as_ref()?.modelo(ruta)?.m).clone();
+        let cs: Vec<usize> = cuerpos.chars().map(|c| c.to_digit(36).unwrap_or(0) as usize).collect();
+        let tabla = mdl.pieles.get(piel.max(0) as usize).or_else(|| mdl.pieles.first()).cloned().unwrap_or_default();
+        // (cada malla del cuerpo elegido pasa a ser la del primero —modelo 0— con la textura de esa piel)
+        let elegido = |c: usize, n: usize| { let x = cs.get(c).copied().unwrap_or(0); if x < n { x } else { 0 } };
+        let ncuerpo: Vec<usize> = mdl.cuerpos.iter().map(|c| c.modelos.len()).collect();
+        mdl.mallas.retain(|x| x.modelo == elegido(x.cuerpo, ncuerpo.get(x.cuerpo).copied().unwrap_or(1)));
+        let mut mats = vec![];
+        for x in mdl.mallas.iter_mut() {
+            let ti = tabla.get(x.mat as usize).map(|&t| t as usize).unwrap_or(x.mat as usize);
+            let tex = mdl.texturas.get(ti).or_else(|| mdl.texturas.get(x.mat as usize)).cloned().unwrap_or_else(|| "error".into());
+            mats.push(self.gm_material(m, &tex, &mdl.carpetas.clone()).0); x.modelo = 0;
+        }
+        let r = self.gm_piel_mallas(m, &mdl, &mats).map(|mallas| Rc::new(ModeloGm { quieto: vec![], piel: Some(mallas), caja: md.caja, fis: md.fis.clone(), mats: md.mats.clone() }));
+        self.gmod.mods.modelos.insert(k, r.clone()); r
+    }
+    /// la malla con piel de un .mdl (en la pose de enlace), partida en grupos de 56 huesos como mucho; `mats`: el material
+    /// de cada malla del primer modelo de cada cuerpo, en orden
+    fn gm_piel_mallas(&mut self, m: &mut Motor3d, mdl: &gmf::Mdl, mats: &[i64]) -> Option<Vec<MallaGm>> {
+        let v = mdl.v.as_ref()?; let md_mats = mats;
         let p: Vec<[f32; 3]> = v.pos.iter().map(|x| a_juego(*x)).collect(); let nr: Vec<[f32; 3]> = v.nor.iter().map(|x| dir_juego(*x)).collect();
         let piel0 = mdl.pieles.first().cloned().unwrap_or_default();
         // (grupo: huesos, vértices del modelo → del grupo, y las caras por material)
@@ -241,7 +285,7 @@ impl Juego {
         let hv = |k: u32| -> Vec<usize> { let k = k as usize; (0..3).filter(|&j| v.w[k][j] > 0.0 || j == 0).map(|j| v.hb[k][j] as usize).collect() };
         for mm in &mdl.mallas {
             if mm.modelo != 0 { continue; }
-            let mat = md.mats.get(k_mat).copied().unwrap_or(-1); k_mat += 1;
+            let mat = md_mats.get(k_mat).copied().unwrap_or(-1); k_mat += 1;
             let _ = piel0.len();
             for t in mm.tris.chunks_exact(3) {
                 let mut hs: Vec<usize> = t.iter().flat_map(|&k| hv(k)).collect(); hs.sort_unstable(); hs.dedup();
@@ -263,10 +307,8 @@ impl Juego {
                 if w.iter().map(|&x| x as u32).sum::<u32>() == 0 { w[0] = 255; } (j, w) }).collect();
             if let Some(mut x) = self.gm_subir(m, &pp, &nn, &uu, &g.partes, Some(&sk)) { x.huesos = g.huesos; mallas.push(x); }
         }
-        let nuevo = Rc::new(ModeloGm { quieto: vec![], piel: Some(mallas), caja: md.caja, fis: md.fis.clone(), mats: md.mats.clone() });
-        // (se guarda el de antes con la piel: lo quieto queda en el de antes, que usa el objeto)
-        let junto = Rc::new(ModeloGm { quieto: md.quieto.iter().map(|q| MallaGm { m: q.m, partes: q.partes.clone(), huesos: vec![], esf: q.esf }).collect(), piel: nuevo.piel.as_ref().map(|l| l.iter().map(|q| MallaGm { m: q.m, partes: q.partes.clone(), huesos: q.huesos.clone(), esf: q.esf }).collect()), caja: md.caja, fis: md.fis.clone(), mats: md.mats.clone() });
-        self.gmod.mods.modelos.insert(ruta.to_string(), Some(junto.clone())); Some(junto)
+        // (la UV como la de la malla quieta: gmUVcorr no se hace con piel; sin mallas, nada)
+        if mallas.is_empty() { None } else { Some(mallas) }
     }
     /// crea el objeto de un modelo de los addons ("gm:models/…") para la entidad `oid` del Lua; false si no hay modelo
     pub(crate) fn gm_crear_objeto(&mut self, m: &mut Motor3d, oid: ObjId, nombre: &str, pos: [f32; 3], q: [f32; 4], vel: [f32; 3], cong: bool) -> bool {
@@ -294,7 +336,7 @@ impl Juego {
         self.gmod.mods.ms_armar = 0.0;
         if !self.gmod.mods.quad { self.gmod.mods.quad = true; self.gm_subir_quad(m); }
         let mut rutas: Vec<(String, bool)> = self.gmod.mods.dib.modelos.iter().map(|d| (d.modelo.clone(), d.huesos.is_some())).collect();
-        if let Some(v) = self.gmod.mods.dib.vista.clone() { rutas.push((v.modelo.clone(), true)); if let Some((r, _)) = &v.manos { rutas.push((r.clone(), true)); } }
+        if let Some(v) = self.gmod.mods.dib.vista.clone() { rutas.push((v.modelo.clone(), true)); if let Some((r, _, sk, body)) = &v.manos { if self.gmod.mods.ms_armar <= 12.0 { self.gm_piel_op(m, r, *sk, body); } } }
         if let Some(w) = self.gm_modelo_mundo() { rutas.push((w, false)); }
         for (r, piel) in rutas {
             if self.gmod.mods.ms_armar > 12.0 { break; }
@@ -381,18 +423,28 @@ impl Juego {
     pub fn gmod_items(&self, ojos: [f32; 3], yaw: f32, pitch: f32, items: &mut Vec<ItemDin>) {
         let d = &self.gmod.mods.dib; let mods = &self.gmod.mods.modelos;
         let t_fis = (self.acum_fis / PASO_FIS).clamp(0.0, 1.0);
+        // (la vista del arma en este cuadro: dónde está y la matriz con que se dibuja —su campo visual y su espejo—; lo que el
+        // Lua dibuja en la pasada de la vista va con ella: se lleva al espacio de la cámara y se dibuja con esa matriz)
+        let vista_base = self.gmod_vista_base(ojos, yaw, pitch);
         for x in &d.modelos {
             let Some(Some(md)) = mods.get(&x.modelo) else { continue };
+            if x.vista && vista_base.is_none() { continue; }
             let es = x.escala as f32;
             let base = match x.obj.and_then(|oid| GM_OBJ.with(|g| g.borrow().get(&oid).copied())).and_then(|gid| self.objs.iter().find(|o| o.id == gid)) {
                 Some(o) => m4::mul(&matriz_obj(o, t_fis), &mapa::trs([0.0; 3], [0.0, 0.0, 0.0, 1.0], [es; 3])),
                 None => mapa::trs([x.pos.x as f32, x.pos.y as f32, x.pos.z as f32], [x.q.x as f32, x.q.y as f32, x.q.z as f32, x.q.w as f32], [es; 3]),
             };
-            Self::gm_items_modelo(md, &base, x.huesos.as_deref(), items);
+            // (EnableMatrix("RenderMultiply"): en el espacio del modelo, de Source al juego —gmrMatrizJuego—)
+            let base = match &x.matriz { Some(mm) => m4::mul(&base, &matriz_juego(mm)), None => base };
+            let n0 = items.len();
+            match (x.vista, &vista_base) { (true, Some((vb, vinv))) => Self::gm_items_modelo(md, &m4::mul(vb, &m4::mul(vinv, &base)), x.huesos.as_deref(), items), _ => Self::gm_items_modelo(md, &base, x.huesos.as_deref(), items) }
+            if x.vista { for it in &mut items[n0..] { it.fl |= FL_SIN_SOMBRA_GM; it.esf[3] = -1.0; } }
         }
         for s in &d.sprites {
             let Some(Some(mat)) = self.gmod.mods.mats_spr.get(&s.mat) else { continue };
-            let [a, b, _c, dd] = s.esq.map(|p| [p.x as f32, p.y as f32, p.z as f32]);
+            if s.vista && vista_base.is_none() { continue; }
+            let a_v = |p: [f32; 3]| match (s.vista, &vista_base) { (true, Some((vb, vinv))) => { let m = m4::mul(vb, vinv); [m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12], m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13], m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14]] } _ => p };
+            let [a, b, _c, dd] = s.esq.map(|p| a_v([p.x as f32, p.y as f32, p.z as f32]));
             let (ux, uy) = ([b[0] - a[0], b[1] - a[1], b[2] - a[2]], [dd[0] - a[0], dd[1] - a[1], dd[2] - a[2]]);
             let nz = [ux[1] * uy[2] - ux[2] * uy[1], ux[2] * uy[0] - ux[0] * uy[2], ux[0] * uy[1] - ux[1] * uy[0]]; let ln = (nz[0] * nz[0] + nz[1] * nz[1] + nz[2] * nz[2]).sqrt().max(1e-6);
             let mm = [ux[0], ux[1], ux[2], 0.0, uy[0], uy[1], uy[2], 0.0, nz[0] / ln * 0.01, nz[1] / ln * 0.01, nz[2] / ln * 0.01, 0.0, a[0], a[1], a[2], 1.0];
@@ -402,14 +454,10 @@ impl Juego {
         // la vista del arma del addon (primera persona): los huesos en los ejes de la cámara, con su campo visual
         if self.camara == 0 && !self.armas.zoom && self.vehs.jugador.is_none() && self.gmod.arma.is_some() && !self.muerto {
             if let Some(v) = &d.vista { if let Some(Some(md)) = mods.get(&v.modelo) { if md.piel.is_some() {
-                let fov = if self.fov_b > 0.0 { self.fov_b } else { self.aj.fov as f32 };
-                let kf = (fov.to_radians() / 2.0).tan() / ((v.fov.clamp(20.0, 120.0) as f32).to_radians() / 2.0).tan() / 0.75;
-                let fx = if v.flip { -1.0 } else { 1.0 };
-                let (p0, q0) = match v.lugar { Some((p, q)) => ([p.x as f32, p.y as f32, p.z as f32], [q.x as f32, q.y as f32, q.z as f32, q.w as f32]), None => (ojos, qcam(yaw, pitch)) };
-                let base = m4::mul(&mapa::trs(p0, q0, [1.0; 3]), &mapa::trs([0.0; 3], [0.0, 0.0, 0.0, 1.0], [kf * fx, kf, 1.0]));
+                let Some((base, _)) = self.gmod_vista_base(ojos, yaw, pitch) else { return };
                 let n0 = items.len(); Self::gm_items_modelo(md, &base, Some(&v.huesos), items);
                 // (las manos: c_arms con los huesos de la vista)
-                if let Some((r, hs)) = &v.manos { if let Some(Some(mh)) = mods.get(r) { if mh.piel.is_some() { Self::gm_items_modelo(mh, &base, Some(hs), items); } } }
+                if let Some((r, hs, sk, body)) = &v.manos { if let Some(Some(mh)) = mods.get(&Self::gm_clave_op(r, *sk, body)) { if mh.piel.is_some() { Self::gm_items_modelo(mh, &base, Some(hs), items); } } }
                 for it in &mut items[n0..] { it.fl |= FL_SIN_SOMBRA_GM; it.esf[3] = -1.0; }
             } } }
         }
@@ -428,6 +476,26 @@ impl Juego {
                 }
             }
         }
+    }
+}
+/// una VMatrix de Source (filas, pulgadas) a una matriz del juego (columnas, metros): gmrMatrizJuego
+fn matriz_juego(m: &[f32; 16]) -> M4 {
+    const E: [usize; 3] = [1, 2, 0]; let mut o = [0.0f32; 16];
+    for j in 0..3 { for i in 0..3 { o[j * 4 + i] = m[E[i] * 4 + E[j]]; } }
+    for i in 0..3 { o[12 + i] = m[E[i] * 4 + 3] * GS; } o[15] = 1.0; o
+}
+impl Juego {
+    /// la vista del arma del addon (primera persona): la matriz con que se dibuja (su lugar, su campo visual y su espejo) y
+    /// la inversa de su lugar (para llevar a ella lo que el Lua dibuja en la pasada de la vista); None si no se ve
+    pub(crate) fn gmod_vista_base(&self, ojos: [f32; 3], yaw: f32, pitch: f32) -> Option<(M4, M4)> {
+        if !(self.camara == 0 && !self.armas.zoom && self.vehs.jugador.is_none() && self.gmod.arma.is_some() && !self.muerto) { return None; }
+        let v = self.gmod.mods.dib.vista.as_ref()?; let md = self.gmod.mods.modelos.get(&v.modelo)?.as_ref()?; md.piel.as_ref()?;
+        let fov = if self.fov_b > 0.0 { self.fov_b } else { self.aj.fov as f32 };
+        let kf = (fov.to_radians() / 2.0).tan() / ((v.fov.clamp(20.0, 120.0) as f32).to_radians() / 2.0).tan() / 0.75;
+        let fx = if v.flip { -1.0 } else { 1.0 };
+        let (p0, q0) = match v.lugar { Some((p, q)) => ([p.x as f32, p.y as f32, p.z as f32], [q.x as f32, q.y as f32, q.z as f32, q.w as f32]), None => (ojos, qcam(yaw, pitch)) };
+        let lugar = mapa::trs(p0, q0, [1.0; 3]);
+        Some((m4::mul(&lugar, &mapa::trs([0.0; 3], [0.0, 0.0, 0.0, 1.0], [kf * fx, kf, 1.0])), m4::inv(&lugar)))
     }
 }
 /// (los sprites y la vista no hacen sombra)

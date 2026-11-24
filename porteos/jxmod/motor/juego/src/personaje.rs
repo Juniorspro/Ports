@@ -1318,6 +1318,13 @@ impl Personaje {
     /// cuántos nodos tiene y el giro local de reposo de cada uno (P.base)
     pub fn n_nodos(&self) -> usize { self.w.len() }
     pub fn giro_base(&self, i: usize) -> Q { self.reposo.1.get(i).copied().unwrap_or([0.0, 0.0, 0.0, 1.0]) }
+    /// las matrices de cada nodo en reposo desde la raíz (md.W de datosSkin: la pose del árbol, sin animar), para llevar a
+    /// este esqueleto otro con otras medidas (los modelos de jugador de GMod: nativo/gmod_pm.rs)
+    pub fn reposo_mundo(&self) -> Vec<M4> {
+        let (p, r, s) = (&self.reposo.0, &self.reposo.1, &self.reposo.2); let mut w = vec![m4::id(); p.len()];
+        for i in 0..p.len() { if !self.act[i] { continue; } let l = trs(p[i], r[i], s[i]); w[i] = if i == 0 || self.pa[i] < 0 { l } else { m4::mul(&w[self.pa[i] as usize], &l) }; }
+        w
+    }
     /// rehace las matrices desde la raíz (md.actualizar)
     pub fn rehacer_matrices(&mut self) { self.actualizar(); }
     /// después de cambiar la pose: las matrices y la paleta de huesos (lo que se dibuja)

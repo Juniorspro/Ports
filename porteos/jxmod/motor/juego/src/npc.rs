@@ -362,6 +362,8 @@ impl Npc {
     pub fn bando(&self) -> Bando { if self.act.hostil { Bando::Malo } else if self.act.modo == Modo::Defender { Bando::Bueno } else { Bando::Nada } }
     /// en pie (npcEnPie): vivo y no tirado
     pub fn en_pie(&self) -> bool { self.vivo && self.rag.is_none() }
+    /// la matriz de la raíz del cuerpo en el último cuadro animado (de pie; tirado es la identidad: el muñeco está en el mundo)
+    pub fn base(&self) -> M4 { if self.rag.is_some() { m4::id() } else { self.base_ult } }
     fn propio(&self) -> &[u32] { self.cuerpo.as_slice() }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -684,7 +686,8 @@ impl Npcs {
     }
     /// lo que se dibuja de los que se ven (después de `animar`)
     pub fn items(&self, out: &mut Vec<ItemDin>) {
-        for p in &self.lista { if !p.visible { continue; } if p.rag.is_some() { p.pj.items(&m4::id(), out); } else { p.pj.items(&p.base_ult, out); } }
+        // (los que tienen un modelo de un addon de GMod —skin «gmpm:…»— los dibuja el juego con ese modelo: nativo/gmod_pm.rs)
+        for p in &self.lista { if !p.visible || p.skin.starts_with("gmpm:") { continue; } if p.rag.is_some() { p.pj.items(&m4::id(), out); } else { p.pj.items(&p.base_ult, out); } }
     }
 }
 
