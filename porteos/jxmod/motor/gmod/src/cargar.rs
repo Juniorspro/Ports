@@ -45,6 +45,7 @@ impl Gmod {
         crate::libs::instalar(&mut e);
         crate::valores::instalar_faltantes(&mut e);
         crate::valores::instalar_tipos(&mut e);
+        crate::modelos::instalar(&mut e);
         match e.compilar(PRELUDE.as_bytes(), "gmod/prelude.lua").and_then(|f| e.llamar(&f, &[])) {
             Ok(_) => {}
             Err(x) => gma_err(&format!("prelude: {}", x.mensaje())),
@@ -108,6 +109,15 @@ impl Gmod {
     }
     /// la HUD de los addons (gmaHUDPaso): HUDPaint y el DrawHUD del arma, como órdenes de dibujo al juego
     pub fn hud(&mut self) { self.activar(); hud(&mut self.lua); }
+    /// lo 3D del cuadro (gmrAntes): los Draw de las entidades, los modelos de los addons que se ven (con su pose), los
+    /// objetos que no se ven, los sprites de render.* y la vista del arma del addon. `dt`: lo que avanza la vista
+    pub fn dibujar3d(&mut self, dt: f64) -> crate::modelos::Dib { self.activar(); if !g(|g| g.activo) { return Default::default(); } crate::modelos::dibujar(&mut self.lua, dt) }
+    /// un modelo de los addons montados (leído una vez)
+    pub fn modelo(&self, ruta: &str) -> Option<Rc<crate::modelos::Modelo>> { self.activar(); crate::modelos::modelo(ruta) }
+    /// el WorldModel de un arma de los addons (por su clase)
+    pub fn mundo_arma(&self, clase: &str) -> Option<String> { self.activar(); let clase = clase.trim_start_matches("gm:"); let t = clase_tabla(clase, Lado::S).or_else(|| clase_tabla(clase, Lado::C))?; let v = buscar_en_clase(&t, "WorldModel"); if v.es_nil() { None } else { Some(js_str(&v)) } }
+    /// un archivo de los addons montados
+    pub fn archivo(&self, ruta: &str) -> Option<Rc<[u8]>> { self.activar(); g(|g| g.arch.get(ruta).cloned()) }
     /// tocar algo del menú: "gmswep:<clase>" da el arma; "gment:<clase>" pone la entidad con su SpawnFunction
     pub fn spawn_menu(&mut self, item: &str) -> bool { self.activar(); spawn_menu(&mut self.lua, item) }
     /// el nombre para mostrar de algo del menú ("gmswep:<clase>" o "gment:<clase>"): su PrintName del lado del cliente
@@ -399,6 +409,7 @@ fn enlazar_todo(e: &mut Estado) {
 // ---------------- cada cuadro (gmaPaso) ----------------
 fn paso(e: &mut Estado, dt: f64, choques: &[Choque]) {
     g(|g| g.cuadro += 1);
+    crate::modelos::nb_paso(e, dt);
     let tt = h(|h| h.tiempo());
     armas_suelo(e);
     { let j = g(|g| g.jug.clone()); let k = (1.0 - dt * 9.0).max(0.0); ce(&j, |x| if let Some(p) = &mut x.punch { p[0] *= k; p[1] *= k; p[2] *= k; }); }

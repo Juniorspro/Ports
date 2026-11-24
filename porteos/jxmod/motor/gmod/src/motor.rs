@@ -252,6 +252,7 @@ pub(crate) fn spawn(e: &mut Estado, ent: &Valor) {
     if creado || !vivo { return; }
     ce(ent, |x| x.creado = true);
     preparar(e, ent);
+    let nb = crate::modelos::nb_antes(ent);
     let ini0 = g(|g| std::mem::replace(&mut g.iniciando, Some(ent.clone())));
     let solo_c = ce(ent, |x| x.solo_c).unwrap_or(false);
     metodo(e, ent, "Initialize", if solo_c { Lado::C } else { Lado::S }, &[]);
@@ -259,6 +260,7 @@ pub(crate) fn spawn(e: &mut Estado, ent: &Valor) {
     let Some((vivo, o, om, modelo, clase)) = ce(ent, |x| (x.vivo, x.o, x.o_modelo.clone(), x.modelo.clone(), x.clase.clone())) else { return };
     if !vivo { return; }
     if o.is_none() || om.as_deref() != Some(modelo.as_str()) { rehacer(ent); }
+    if nb { crate::modelos::nb_despues(e, ent); if !ce(ent, |x| x.vivo).unwrap_or(false) { return; } }
     let separado = g(|g| g.clases.get(&clase).map(|c| match (&c.c, &c.s) { (Some(cc), Some(ss)) => !Rc::ptr_eq(cc, ss), (Some(_), None) => true, _ => false }).unwrap_or(false));
     if !solo_c && separado { metodo(e, ent, "Initialize", Lado::C, &[]); }
     if !solo_c { hook(e, "OnEntityCreated", S, &[ent.clone()]); }
@@ -848,6 +850,7 @@ pub(crate) fn anim_vista(e: &mut Estado, w: &Valor, act: &Valor) {
     let es = |k: &str| { let v = gl.borrow().get_str(k); !v.es_nil() && v.crudo_igual(act) };
     let clip = if es("ACT_VM_PRIMARYATTACK") || es("ACT_VM_HITCENTER") || es("ACT_VM_MISSCENTER") { "fuego" } else if es("ACT_VM_SECONDARYATTACK") { "fuego2" } else if es("ACT_VM_RELOAD") { "recarga" } else if es("ACT_VM_DRAW") { "sacar" } else if es("ACT_VM_IDLE") { "quieto" } else { return };
     h(|h| h.animar_vista(clip));
+    crate::modelos::vista_act(e, num(act, -1.0) as i32);
 }
 /// gmaSwepPaso: cada cuadro, con un arma de un addon en la mano (ataques, recarga, Think; Deploy/Holster al cambiar)
 pub(crate) fn swep_paso(e: &mut Estado) {

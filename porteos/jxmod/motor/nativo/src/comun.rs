@@ -902,9 +902,11 @@ impl Juego {
         // la mirada, el agua si nada, el arma en la mano (P.arma: ninguna en un vehículo) y el asiento (asientoPose)
         let en_veh = self.vehs.jugador;
         let ver_cuerpo = self.camara != 0 || (en_veh.is_some() && !self.vehs.primera);
+        // (con un arma de un addon que trae su modelo de mundo, ése va en la mano: gmod_juego.rs)
+        let gm_mano = self.gmod_arma_mundo();
         if let (Some(pj), Some(paq)) = (self.pj.as_mut(), self.paq.as_mut()) {
             if ver_cuerpo {
-                let arma = if en_veh.is_some() { None } else { Some(self.armas.def().n) };
+                let arma = if en_veh.is_some() || gm_mano { None } else { Some(self.armas.def().n) };
                 if let Some(e) = pj.poner_arma(paq, arma, &mut self.pj_cargados) { if let Err(e) = unsafe { m.cargar(&e) } { self.aviso = Some((format!("arma: {e}"), Instant::now())); } }
                 let asiento = en_veh.and_then(|(id, a)| {
                     let o = self.objs.iter().find(|o| o.cuerpo == Some(id))?;
@@ -959,7 +961,7 @@ impl Juego {
             // (el cuerpo con el arma en la mano; sentado, en el asiento)
             if ver_cuerpo { if let Some(pj) = &self.pj { let jp = self.jug.pos; let b = pj.base_sentado().unwrap_or_else(|| personaje::base([jp[0], jp[1] - 0.95, jp[2]], self.jug.yaw)); pj.items(&b, &mut items); } }
             // (en primera persona, el arma delante de la cámara; y el rayo de la Physics Gun, de la boca a lo agarrado)
-            if self.camara == 0 && !self.armas.zoom && self.vehs.jugador.is_none() { if let Some(v) = self.vista.as_mut() {
+            if self.camara == 0 && !self.armas.zoom && self.vehs.jugador.is_none() && !self.gmod_vista_propia() { if let Some(v) = self.vista.as_mut() {
                 if self.armas.ap_k > 0.002 && v.ads_tok != self.armas.ap_tok { v.calcular_ads(self.armas.ap_tok); }
                 v.ubicar(ojos, qcam(yaw, pitch), self.sway, self.armas.ap_k); v.items(&mut items);
             } }
@@ -971,13 +973,13 @@ impl Juego {
                 vista::rayo_items(p0, mid, p1, self.t0.elapsed().as_secs_f32(), mat, &mut items);
             }
             let t_fis = (self.acum_fis / PASO_FIS).clamp(0.0, 1.0);
-            for o in &self.objs { if let Some(pf) = self.prefabs.get(&o.nombre) {
+            for o in &self.objs { if self.gmod_oculto(o) { continue; } if let Some(pf) = self.prefabs.get(&o.nombre) {
                 // (los vehículos con sus ruedas y rotores girando)
                 match o.cuerpo.and_then(|id| self.vehs.de(id)) { Some(v) => v.items(pf, &matriz_obj(o, t_fis), &mut items), None => pf.items(&matriz_obj(o, t_fis), &mut items) }
             } }
             // los NPC: su animación (sólo los que se ven) y lo que se dibuja
             let vpm = m4::mul(&p, &vista); self.vp_ult = vpm;
-            self.npcs.animar(dt, cam, Some(&vpm), &self.fis); self.npcs.items(&mut items); self.red_items(&mut items);
+            self.npcs.animar(dt, cam, Some(&vpm), &self.fis); self.npcs.items(&mut items); self.red_items(&mut items); self.gmod_items(ojos, yaw, pitch, &mut items);
             // los efectos: avanzan, y sus bloques (partículas, trazas, marcas) y sus luces —primero: GL2 usa 4—
             self.ef.calidad(self.aj.calidad.min(4)); self.ef.alto_px = hf; self.ef.paso(dt, efx::GRAV);
             let efectos = self.ef.bloques(&vpm, cam);

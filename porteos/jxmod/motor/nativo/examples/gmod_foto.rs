@@ -98,7 +98,25 @@ fn main() {
         j.dedo_abajo(7, bx, by, wf, hf); paso(&mut j, &mut m, 1); foto(&mut m, "6_disparo"); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 20); j.dedo_arriba(7);
         let (bx, by) = pos_boton(wf, hf, Boton::Disparo2);
         j.dedo_abajo(8, bx, by, wf, hf); paso(&mut j, &mut m, 4); foto(&mut m, "7_disparo2"); j.dedo_arriba(8); paso(&mut j, &mut m, 10);
+        // (de afuera: el modelo de mundo en la mano)
+        j.camara = 1; paso(&mut j, &mut m, 6); foto(&mut m, "7b_arma_tercera"); j.camara = 0; paso(&mut j, &mut m, 2);
+        println!("vista propia {} · modelo de mundo en la mano {}", j.gmod_vista_propia(), j.gmod_arma_mundo());
     }
+    // (JXM_NB: un nextbot delante; persigue al jugador)
+    if let Ok(nb) = std::env::var("JXM_NB") {
+        // (lejos del punto de aparición: hay nextbots que no persiguen al que está ahí)
+        j.jug.pos[0] += 15.0; paso(&mut j, &mut m, 10);
+        for (k, c) in nb.split(',').enumerate() {
+            let n0 = j.objs.len(); j.gmod_poner(&format!("gment:{}", c)); paso(&mut j, &mut m, 20);
+            println!("nextbot {}: objetos {} → {} · dibujos {} modelos, {} sprites, {} ocultos", c, n0, j.gmod.objs_gm(), j.gmod.mods.dib.modelos.len(), j.gmod.mods.dib.sprites.len(), j.gmod.mods.dib.ocultos.len());
+            foto(&mut m, &format!("n{k}_nextbot"));
+            let p0 = j.gmod.nb_pos(); let mut ms3 = vec![]; for _ in 0..120 { paso(&mut j, &mut m, 1); ms3.push(j.gmod.ms + j.gmod.ms_3d); } let p1 = j.gmod.nb_pos();
+            ms3.sort_by(|a, b| a.partial_cmp(b).unwrap()); println!("  Lua + 3D con el nextbot: mediana {:.3} ms, p95 {:.3} ms", ms3[60], ms3[114]);
+            println!("  2 s después: {:?} → {:?} (jugador en {:?})", p0, p1, j.jug.pos);
+            foto(&mut m, &format!("n{k}_nextbot_2s"));
+        }
+    }
+    println!("modelos armados {} ({} triángulos; el más lento {:.1} ms: {}) · {:?}", j.gmod.mods.armados, j.gmod.mods.tris, j.gmod.mods.ms_max.0, j.gmod.mods.ms_max.1, j.gmod.mods.modelos.iter().map(|(k, v)| (k.clone(), v.is_some())).collect::<Vec<_>>());
     // (JXM_TIENDA=1: la tienda de verdad con curl: la lista, bajar el más chico, descomprimir e instalar)
     if std::env::var("JXM_TIENDA").is_ok() {
         j.gmod.http_bin = Some(std::sync::Arc::new(|u: &str| {
@@ -122,6 +140,7 @@ fn main() {
     let mut ms = vec![]; for _ in 0..120 { paso(&mut j, &mut m, 1); ms.push(j.gmod.ms); }
     ms.sort_by(|a, b| a.partial_cmp(b).unwrap());
     println!("Lua por cuadro: mediana {:.3} ms, p95 {:.3} ms, máx {:.3} ms · cuadro entero {:.1} ms", ms[60], ms[114], ms[119], j.ms);
+    { let mut g3 = vec![]; for _ in 0..60 { let t = Instant::now(); paso(&mut j, &mut m, 1); let _ = t; g3.push(j.gmod.ms_3d); } g3.sort_by(|a, b| a.partial_cmp(b).unwrap()); println!("dibujo 3D del Lua + modelos por cuadro: mediana {:.3} ms, p95 {:.3} ms", g3[30], g3[57]); }
     foto(&mut m, "8_final");
     println!("pedidos del Lua: {:?}", j.gmod.cuenta);
 }

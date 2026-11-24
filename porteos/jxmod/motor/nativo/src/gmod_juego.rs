@@ -15,6 +15,7 @@ use std::sync::Arc;
 
 /// las texturas de los materiales de los addons (TEX_GMOD - k)
 const TEX_GMOD: i64 = -3000;
+#[path = "gmod_modelos.rs"] mod gmod_modelos;
 /// la tienda de la web (inicio.js: TIENDA_URL)
 pub const TIENDA_URL: &str = "https://rezobox-tienda.holasoyjuniors365.workers.dev/api/";
 /// un pedido HTTP binario (los .gma): (código, cuerpo); en Android, red_android::Java::http_bin
@@ -64,8 +65,12 @@ struct Puente {
     /// lo que guarda el Lua (file.Write en data/, PData, cookies): datos/gmod_datos.txt
     datos: BTreeMap<String, String>, datos_sucio: bool,
     nombre: String, mapa_nombre: String, spawns: Vec<(V3, Option<f64>)>,
+    /// la caja de los modelos de los addons ya armados ("gm:…" → mínimo y tamaño, en el juego)
+    cajas: HashMap<String, ([f64; 3], [f64; 3])>,
 }
 
+/// un número al azar entre 0 y 1 (las variantes de los guiones de sonido)
+fn azar01() -> f64 { thread_local! { static S: std::cell::Cell<u64> = const { std::cell::Cell::new(0x9e37_79b9_7f4a_7c15) }; } S.with(|s| { let mut x = s.get(); x ^= x << 13; x ^= x >> 7; x ^= x << 17; s.set(x); (x >> 11) as f64 / (1u64 << 53) as f64 }) }
 fn v3(a: [f32; 3]) -> V3 { V3 { x: a[0] as f64, y: a[1] as f64, z: a[2] as f64 } }
 fn f3(v: V3) -> [f32; 3] { [v.x as f32, v.y as f32, v.z as f32] }
 fn css_px(css: &str) -> f32 {
@@ -104,12 +109,15 @@ impl Anfitrion for Puente {
     fn elegir_arma_callado(&mut self, n: &str) { if let Some(i) = self.armas.lista.iter().position(|x| x == n) { self.elegir_arma(i); } }
     fn prefab(&mut self, modelo: &str, en_addon: bool) -> Option<jxgmod::Prefab> {
         // (el juego nativo todavía no dibuja los .mdl de los addons: un prop del juego con ese nombre o la caja)
+        // (el modelo viene en un addon: se arma con su malla, sus texturas y su .phy —gmPrefab—)
+        if en_addon { return Some(jxgmod::Prefab { nombre: format!("gm:{modelo}"), sustituto: false }); }
         let base = modelo.rsplit('/').next().unwrap_or(modelo).trim_end_matches(".mdl").to_lowercase();
         if let Some(n) = self.prefabs.get(&base) { return Some(jxgmod::Prefab { nombre: n.clone(), sustituto: false }); }
         let caja = self.caja.clone()?;
         Some(jxgmod::Prefab { nombre: caja, sustituto: !en_addon })
     }
     fn modelo_falta(&mut self, _m: &str) {}
+    fn caja_prefab(&self, prefab: &str) -> Option<([f64; 3], [f64; 3])> { self.cajas.get(prefab).copied() }
     fn crear_objeto(&mut self, prefab: &str, pos: V3, q: Quat) -> Option<ObjId> {
         self.sig += 1;
         let id = self.sig;
@@ -127,10 +135,14 @@ impl Anfitrion for Puente {
         let p = if g.p == [0.0; 3] { [o.x + d.x * g.t, o.y + d.y * g.t, o.z + d.z * g.t] } else { g.p };
         Some(Golpe { t: g.t, p: V3 { x: p[0], y: p[1], z: p[2] }, n: V3 { x: g.n[0], y: g.n[1], z: g.n[2] }, obj: g.cuerpo.and_then(|c| self.de_fis.get(&c).copied()), persona: None })
     }
-    fn sonido(&mut self, ruta: &str, pos: Option<V3>, vol: f64, tono: f64) { self.pedidos.push(Pedido::Sonido(ruta.into(), pos.map(f3), vol as f32, tono as f32)); }
+    fn sonido(&mut self, ruta: &str, pos: Option<V3>, vol: f64, tono: f64) {
+        let (r, v, t, _) = jxgmod::sonidos::resolver(ruta, Some(vol), Some(tono * 100.0), azar01());
+        self.pedidos.push(Pedido::Sonido(r, pos.map(f3), v as f32, t as f32));
+    }
     fn emitir_sonido(&mut self, _e: Option<f64>, s: &str, _nivel: Option<f64>, tono: Option<f64>, vol: Option<f64>, _canal: Option<f64>) {
-        let t = tono.map(|x| (x / 100.0).clamp(0.3, 2.5)).unwrap_or(1.0) as f32;
-        self.pedidos.push(Pedido::Sonido(s.to_lowercase().replace('\\', "/"), None, vol.unwrap_or(1.0).clamp(0.0, 2.0) as f32, t));
+        // (un guion de sonido —de sound.Add o de los de GMod: "Weapon_Pistol.Single"— a su .wav, volumen y tono)
+        let (r, v, t, _) = jxgmod::sonidos::resolver(s, vol, tono, azar01());
+        self.pedidos.push(Pedido::Sonido(r, None, v as f32, t as f32));
     }
     fn parar_sonido(&mut self, _e: Option<f64>, _s: &str) {}
     fn parche_sonido(&mut self, _id: u32, _e: Option<f64>, s: &str, on: bool, vol: Option<f64>, tono: Option<f64>, _f: Option<f64>) {
@@ -167,7 +179,16 @@ impl Anfitrion for Puente {
         let png = [format!("materials/{}", k), k.clone(), format!("materials/{}.png", k)].into_iter().find(|r| r.ends_with(".png") && self.archivos.contains_key(r));
         match png {
             Some(r) => { self.pedidos.push(Pedido::Textura(r)); InfoMaterial { existe: true, cargado: false, ancho: 32.0, alto: 32.0, nada: false } }
-            None => InfoMaterial { existe: self.archivos.contains_key(&format!("materials/{}.vmt", k)), cargado: false, ancho: 32.0, alto: 32.0, nada: true },
+            None => {
+                // (un .vmt con su $basetexture o un .vtf suelto: la textura de Source)
+                let kb = k.strip_prefix("materials/").unwrap_or(&k); let kb = kb.trim_end_matches(".vmt").trim_end_matches(".vtf").to_string();
+                let arch = &self.archivos;
+                let vtf = if arch.contains_key(&format!("materials/{kb}.vtf")) { Some(kb.clone()) } else { arch.get(&format!("materials/{kb}.vmt")).and_then(|b| jxgmod::formatos::vmt(b, &|p: &str| arch.get(&format!("materials/{}.vmt", p.trim_end_matches(".vmt"))).cloned())).and_then(|v| v.base).filter(|b| arch.contains_key(&format!("materials/{b}.vtf"))) };
+                match vtf {
+                    Some(b) => { self.pedidos.push(Pedido::Textura(format!("materials/{b}.vtf|{k}"))); InfoMaterial { existe: true, cargado: false, ancho: 32.0, alto: 32.0, nada: false } }
+                    None => InfoMaterial { existe: self.archivos.contains_key(&format!("materials/{}.vmt", k)), cargado: false, ancho: 32.0, alto: 32.0, nada: true },
+                }
+            }
         }
     }
     fn archivo(&mut self, r: &str) -> Option<Vec<u8>> { self.archivos.get(r).map(|b| b.to_vec()) }
@@ -203,13 +224,17 @@ pub struct EnGmod {
     pub pantalla: (f32, f32), buscado: bool,
     /// cuántos pedidos de cada clase hizo el Lua (para las pruebas)
     pub cuenta: BTreeMap<&'static str, u32>,
+    /// los modelos de los addons (gmod_modelos.rs)
+    pub mods: gmod_modelos::GmModelos,
+    /// lo que tardó en el último cuadro el dibujo 3D del Lua más armar y ubicar los modelos (ms)
+    pub ms_3d: f32,
 }
 
 impl EnGmod {
     pub fn nueva(datos: Option<&Path>) -> EnGmod {
         let (tx, rx) = channel();
         EnGmod { gm: None, addons: vec![], pendientes: vec![], arma: None, base: 0, carpeta_externa: None, datos: datos.map(|d| d.to_path_buf()), panel: false, scroll: 0.0, texs: vec![], hud_px: vec![], escala: 1.0,
-            http_bin: None, tienda: vec![], tx, rx, tienda_pedida: false, ms: 0.0, ms_prom: 0.0, pantalla: (1280.0, 720.0), buscado: false, cuenta: BTreeMap::new() }
+            http_bin: None, tienda: vec![], tx, rx, tienda_pedida: false, ms: 0.0, ms_prom: 0.0, pantalla: (1280.0, 720.0), buscado: false, cuenta: BTreeMap::new(), mods: Default::default(), ms_3d: 0.0 }
     }
     fn apagados_ruta(&self) -> Option<PathBuf> { self.datos.as_ref().map(|d| d.join("gmod_apagados.txt")) }
     /// los addons de las carpetas (.gma y carpetas con lua/), en orden de nombre; los apagados quedan anotados
@@ -230,6 +255,9 @@ impl EnGmod {
             if prendido { self.pendientes.push(self.addons.len() - 1); }
         }
     }
+    /// (para las pruebas) cuántos objetos de los addons hay y dónde está el primer nextbot
+    pub fn objs_gm(&self) -> usize { GM_OBJ.with(|x| x.borrow().len()) }
+    pub fn nb_pos(&self) -> Option<[f32; 3]> { self.mods.dib.modelos.iter().map(|d| [d.pos.x as f32, d.pos.y as f32, d.pos.z as f32]).next().or_else(|| self.mods.dib.sprites.first().map(|s| [s.esq[0].x as f32, s.esq[0].y as f32, s.esq[0].z as f32])) }
     fn guardar_apagados(&self) {
         if let Some(r) = self.apagados_ruta() { let s: Vec<&str> = self.addons.iter().filter(|a| !a.prendido).map(|a| a.nombre.as_str()).collect(); let _ = std::fs::write(r, s.join("\n")); }
     }
@@ -238,15 +266,33 @@ impl EnGmod {
 /// un .wav (PCM de 8 o 16 bits) → muestras mono en [-1, 1] y su frecuencia
 fn leer_wav(b: &[u8]) -> Option<(Vec<f32>, u32)> {
     if b.len() < 12 || &b[0..4] != b"RIFF" || &b[8..12] != b"WAVE" { return None; }
-    let (mut p, mut ch, mut hz, mut bits, mut fmt) = (12usize, 1u16, 22050u32, 16u16, 1u16);
+    let (mut p, mut ch, mut hz, mut bits, mut fmt, mut align) = (12usize, 1u16, 22050u32, 16u16, 1u16, 0u16);
     while p + 8 <= b.len() {
         let id = &b[p..p + 4];
         let n = u32::from_le_bytes(b[p + 4..p + 8].try_into().ok()?) as usize;
         let d = &b[p + 8..(p + 8 + n).min(b.len())];
-        if id == b"fmt " && d.len() >= 16 { fmt = u16::from_le_bytes([d[0], d[1]]); ch = u16::from_le_bytes([d[2], d[3]]).max(1); hz = u32::from_le_bytes(d[4..8].try_into().ok()?); bits = u16::from_le_bytes([d[14], d[15]]); }
+        if id == b"fmt " && d.len() >= 16 { fmt = u16::from_le_bytes([d[0], d[1]]); ch = u16::from_le_bytes([d[2], d[3]]).max(1); hz = u32::from_le_bytes(d[4..8].try_into().ok()?); align = u16::from_le_bytes([d[12], d[13]]); bits = u16::from_le_bytes([d[14], d[15]]); }
         if id == b"data" {
-            if fmt != 1 { return None; }
             let ch = ch as usize;
+            // (MS ADPCM —muchos .wav de Source—: a PCM de 16 bits, como GMF.wav)
+            if fmt == 2 {
+                let blk = align.max(1) as usize; let (c1, c2) = ([256i32, 512, 0, 192, 240, 460, 392], [0i32, -256, 0, 64, 0, -208, -232]); let ad = [230i32, 230, 230, 230, 307, 409, 512, 614, 768, 614, 512, 409, 307, 230, 230, 230];
+                let mut out: Vec<f32> = vec![]; let i16_ = |x: usize| d.get(x..x + 2).map(|s| i16::from_le_bytes([s[0], s[1]]) as i32).unwrap_or(0);
+                for k in 0..d.len() / blk {
+                    let o = k * blk; let mut q = o; if o + 7 * ch > d.len() { break; }
+                    let pred: Vec<usize> = (0..ch).map(|c| (d[q + c] as usize).min(6)).collect(); q += ch;
+                    let mut del: Vec<i32> = (0..ch).map(|c| i16_(q + c * 2)).collect(); q += 2 * ch;
+                    let mut s1: Vec<i32> = (0..ch).map(|c| i16_(q + c * 2)).collect(); q += 2 * ch;
+                    let mut s2: Vec<i32> = (0..ch).map(|c| i16_(q + c * 2)).collect(); q += 2 * ch;
+                    let mut mezcla: Vec<i32> = vec![]; mezcla.extend(&s2); mezcla.extend(&s1);
+                    let mut c = 0;
+                    while q < o + blk && q < d.len() { for nib in [d[q] >> 4, d[q] & 15] { let sn = if nib & 8 != 0 { nib as i32 - 16 } else { nib as i32 }; let v = (((s1[c] * c1[pred[c]] + s2[c] * c2[pred[c]]) >> 8) + sn * del[c]).clamp(-32768, 32767); s2[c] = s1[c]; s1[c] = v; mezcla.push(v); del[c] = ((ad[nib as usize] * del[c]) >> 8).max(16); c = (c + 1) % ch; } q += 1; }
+                    for f in mezcla.chunks_exact(ch) { out.push(f.iter().map(|&x| x as f32 / 32768.0).sum::<f32>() / ch as f32); }
+                }
+                return Some((out, hz));
+            }
+            if fmt == 3 && bits == 32 { return Some((d.chunks_exact(4 * ch).map(|f| f.chunks_exact(4).map(|s| f32::from_le_bytes([s[0], s[1], s[2], s[3]])).sum::<f32>() / ch as f32).collect(), hz)); }
+            if fmt != 1 { return None; }
             let v: Vec<f32> = match bits {
                 16 => d.chunks_exact(2 * ch).map(|f| f.chunks_exact(2).map(|s| i16::from_le_bytes([s[0], s[1]]) as f32 / 32768.0).sum::<f32>() / ch as f32).collect(),
                 8 => d.chunks_exact(ch).map(|f| f.iter().map(|s| (*s as f32 - 128.0) / 128.0).sum::<f32>() / ch as f32).collect(),
@@ -281,7 +327,7 @@ impl Juego {
             jug: jxgmod::Jugador::default(), cam: jxgmod::Camara::default(), ent: jxgmod::Entrada::default(), armas: jxgmod::Armas::default(),
             cuerpos: BTreeMap::new(), sig: 0, pedidos: vec![], cmds: vec![], gm_armas: vec![], mapa: None, fis: None, letras: None,
             de_fis: HashMap::new(), a_fis: HashMap::new(), archivos: HashMap::new(), mats: HashMap::new(), prefabs: nombres, caja, datos, datos_sucio: false,
-            nombre: "Jugador".into(), mapa_nombre: self.mapas.get(self.mapa_i).cloned().unwrap_or_default(), spawns,
+            nombre: "Jugador".into(), mapa_nombre: self.mapas.get(self.mapa_i).cloned().unwrap_or_default(), spawns, cajas: HashMap::new(),
         };
         self.gmod.gm = Some(Gmod::nuevo(Box::new(p)));
         self.gmod.texs.clear();
@@ -343,9 +389,10 @@ impl Juego {
         self.gmod_copiar(dt);
         let pausa = self.ajustes.is_some();
         self.gmod_prestar(true);
-        if !pausa { if let Some(gm) = self.gmod.gm.as_mut() { gm.paso(dt as f64, &[]); gm.hud(); } }
+        if !pausa { if let Some(gm) = self.gmod.gm.as_mut() { gm.paso(dt as f64, &[]); gm.hud(); let t3 = Instant::now(); self.gmod.mods.dib = gm.dibujar3d(dt as f64); self.gmod.ms_3d = t3.elapsed().as_secs_f32() * 1000.0; } }
         self.gmod_prestar(false);
         self.gmod_aplicar(m);
+        let t3 = Instant::now(); self.gm_modelos_paso(m); self.gmod.ms_3d += t3.elapsed().as_secs_f32() * 1000.0;
         self.gmod.ms = t0.elapsed().as_secs_f32() * 1000.0; self.gmod.ms_prom = self.gmod.ms_prom * 0.95 + self.gmod.ms * 0.05;
     }
     /// el juego → los espejos del Lua
@@ -445,6 +492,12 @@ impl Juego {
         *self.gmod.cuenta.entry(clase).or_insert(0) += 1;
         let id_juego = |o: ObjId| GM_OBJ.with(|x| x.borrow().get(&o).copied());
         match pd {
+            // (un modelo de los addons: se arma —si este cuadro ya armó mucho, en el que sigue— y se crea su objeto)
+            Pedido::Crear(oid, pf) if pf.starts_with("gm:") => {
+                let r = pf.trim_start_matches("gm:").to_string();
+                if self.gmod.mods.modelos.contains_key(&r) || self.gmod.mods.ms_armar < 12.0 { self.gm_crear_pendiente(m, oid, &pf); } else { self.gmod.mods.crear.push((oid, pf.clone())); }
+                if let Some(Some(md)) = self.gmod.mods.modelos.get(&r).cloned() { let c = md.caja; self.con_puente(|p| { p.cajas.insert(pf.clone(), ([c[0] as f64, c[1] as f64, c[2] as f64], [(c[3] - c[0]) as f64, (c[4] - c[1]) as f64, (c[5] - c[2]) as f64])); }); }
+            }
             Pedido::Crear(oid, pf) => {
                 let Some((pos, q, vel, cong)) = self.con_puente(|p| p.cuerpos.get(&oid).map(|c| (f3(c.pos), [c.q.x as f32, c.q.y as f32, c.q.z as f32, c.q.w as f32], f3(c.vel), c.congelado))).flatten() else { return };
                 let aviso = self.aviso.take();
@@ -464,8 +517,20 @@ impl Juego {
             Pedido::Sonido(r, pos, vol, tono) => {
                 let clave = format!("gm:{}", r);
                 let ruta = if r.starts_with("sound/") { r.clone() } else { format!("sound/{}", r) };
-                let b = self.con_puente(|p| p.archivos.get(&ruta).cloned()).flatten();
-                if let Some(b) = b { if let Some((v, hz)) = leer_wav(&b) { self.sonido.sintetico(&clave, || v, hz); } }
+                if !self.sonido.tiene(&clave) {
+                    let b = self.con_puente(|p| p.archivos.get(&ruta).cloned()).flatten();
+                    if let Some(b) = b {
+                        if let Some((v, hz)) = leer_wav(&b) { self.sonido.sintetico(&clave, || v, hz); }
+                        // (MP3 y OGG: al disco una vez y el decodificador del sistema los lee —en Android; en la compu, mudos—)
+                        else if let (Some(dir), Some(ext)) = (self.gmod.datos.clone(), ruta.rsplit_once('.').map(|x| x.1.to_string()).filter(|e| e == "mp3" || e == "ogg")) {
+                            let d = dir.join("gm_sonidos"); let _ = std::fs::create_dir_all(&d);
+                            let h = ruta.bytes().fold(0xcbf2_9ce4_8422_2325u64, |h, c| (h ^ c as u64).wrapping_mul(0x100_0000_01b3));
+                            let f = d.join(format!("{h:016x}.{ext}"));
+                            if !f.exists() { let _ = std::fs::write(&f, &b[..]); }
+                            self.sonido.registrar_archivo(&clave, &f);
+                        }
+                    }
+                }
                 self.sonido.tocar(&clave, vol, tono, pos);
             }
             Pedido::DanarJugador(d) => self.danar_jugador(d),
@@ -497,11 +562,15 @@ impl Juego {
                 let clip = match c { "fuego" => d.fuego, "fuego2" => if d.fuego2.is_empty() { d.fuego } else { d.fuego2 }, "recarga" => d.recarga, "sacar" => d.sacar, _ => d.quieto };
                 if !clip.is_empty() { self.armas.anim = Some(clip); }
             }
-            Pedido::Textura(r) => {
-                if self.con_puente(|p| p.mats.contains_key(&r)).unwrap_or(true) { return; }
+            Pedido::Textura(r0) => {
+                // ("materials/x.vtf|clave": la textura de un .vmt, que el Lua pide por su clave)
+                let (r, clave_vtf) = match r0.split_once('|') { Some((a, b)) => (a.to_string(), Some(b.to_string())), None => (r0.clone(), None) };
+                if self.con_puente(|p| p.mats.contains_key(clave_vtf.as_ref().unwrap_or(&r))).unwrap_or(true) { return; }
                 let b = self.con_puente(|p| p.archivos.get(&r).cloned()).flatten();
                 let k = self.gmod.texs.len() as i64; let id = TEX_GMOD - k;
-                let Some((w, h, px)) = b.and_then(|b| png_rgba(b.to_vec())) else { return };
+                let img = if r.ends_with(".vtf") { b.and_then(|b| jxgmod::formatos::vtf(&b, 512).ok().map(|t| (t.w as u32, t.h as u32, jxgmod::formatos::vtf_rgba(&t)))) } else { b.and_then(|b| png_rgba(b.to_vec())) };
+                let Some((w, h, px)) = img else { return };
+                if let Some(c) = &clave_vtf { let c = c.clone(); self.con_puente(|p| { p.mats.insert(c, (id, w, h, true)); }); }
                 let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas: vec![], mats: vec![], texs: vec![Tex { id, n: format!("gm{}", k), w, h, a: 1, o: 0 }], lms: vec![], items: vec![], agua: None, cielo: None };
                 let ok = unsafe { m.cargar(&Escena { c: cab, datos: px }) }.is_ok();
                 self.gmod.texs.push(id);
@@ -510,8 +579,6 @@ impl Juego {
             }
         }
     }
-    /// lo 3D de los addons (los objetos ya van con los del juego): por ahora nada aparte
-    pub fn gmod_items(&self, _items: &mut Vec<jxmotor::escena::ItemDin>) {}
     /// el tamaño de la pantalla para el Lua (lo pone el HUD de cada cuadro)
     pub fn gmod_tam(&mut self, w: f32, h: f32) { self.gmod.pantalla = (w, h); }
     /// la HUD de los addons (lo que dibujaron HUDPaint y el DrawHUD del arma) y el panel «Mods»: los vértices de la

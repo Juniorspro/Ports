@@ -6,6 +6,9 @@
 //! `paso(dt, &choques)` y `hud()`. Un solo Gmod activo por hilo (`activar` si hay más de uno).
 
 pub mod anfitrion;
+pub mod formatos;
+pub mod modelos;
+pub mod sonidos;
 pub mod mates;
 pub mod prueba;
 #[doc(hidden)]

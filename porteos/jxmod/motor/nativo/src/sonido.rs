@@ -96,6 +96,19 @@ impl Sonido {
         if let Ok(mut m) = self.mezcla.lock() { if m.voces.len() < 48 { m.voces.push(Voz { pcm: p, pos: 0.0, paso, vi, vd, lazo: 0 }); } }
     }
     /// un sonido hecho acá (la bocina): `hacer` da las muestras mono en [-1, 1] a `hz`; se arma una sola vez
+    /// si ese sonido ya está (decodificado o anotado como que no se puede)
+    pub fn tiene(&self, nombre: &str) -> bool { self.cache.contains_key(nombre) }
+    /// un sonido comprimido en un archivo (los MP3 y OGG de los addons de GMod) con el decodificador del sistema
+    /// (MediaCodec); en la compu no hay: queda mudo
+    pub fn registrar_archivo(&mut self, nombre: &str, ruta: &std::path::Path) -> bool {
+        if let Some(p) = self.cache.get(nombre) { return p.is_some(); }
+        #[cfg(target_os = "android")] {
+            use std::os::fd::AsRawFd;
+            let p = std::fs::File::open(ruta).ok().and_then(|f| { let n = f.metadata().map(|m| m.len()).unwrap_or(0) as i64; unsafe { android::decodificar(f.as_raw_fd(), 0, n) } });
+            let ok = p.is_some(); self.cache.insert(nombre.to_string(), p.map(Arc::new)); return ok;
+        }
+        #[allow(unreachable_code)] { let _ = ruta; self.cache.insert(nombre.to_string(), None); false }
+    }
     pub fn sintetico(&mut self, nombre: &str, hacer: impl FnOnce() -> Vec<f32>, hz: u32) {
         if self.cache.contains_key(nombre) { return; }
         let datos = hacer().iter().map(|x| (x.clamp(-1.0, 1.0) * 32767.0).round() as i16).collect();
