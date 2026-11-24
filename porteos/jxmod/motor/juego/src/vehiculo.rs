@@ -155,6 +155,10 @@ pub struct Vehiculo {
     nodos: Vec<(i64, bool, M4)>,
     /// la clave del prefab en DATA.pf (para leer su malla), la malla en la grilla (V.cols) y la cabina de cada asiento (V.cab)
     clave: String, cols: Option<std::sync::Arc<Cols>>, cab: std::collections::HashMap<usize, Option<Cabina>>,
+    /// destruccion.js: la malla abollada de cada nodo que se hundió (la copia subida al motor), los nodos que no se dibujan
+    /// (las ruedas que se soltaron: o.md.ver) y los nodos de las ruedas sueltas (V.sueltas); `oscuro`: roto, se dibuja
+    /// con este material (o.md.color oscuro de vehiculoRoto)
+    pub abollada: std::collections::HashMap<usize, i64>, pub ocultos: Vec<usize>, pub sueltas: Vec<usize>,
 }
 
 // ---------------- sentado de verdad: la cabina de cada auto (vehiculos.js) ----------------
@@ -372,7 +376,8 @@ impl Vehiculo {
         let mut v = Vehiculo { cuerpo, nombre: nombre.to_string(), tipo, c, ruedas: vec![], asientos: vec![], rotores: vec![], jets: vec![],
             vida: if tipo == Tipo::Asiento { 1e9 } else { 400.0 }, roto: false, motor: 0.0, giro: 0.0, rpm: 0.0, vel: 0.0,
             bote: verdad(&arb[0]["bote"]), bici: art.as_deref() == Some("bici"), turbo: false, cam_dist: None, policia: nombre.to_lowercase().contains("police"),
-            vel_ant: 0.0, vuelco_t: 0.0, ejes: None, tobera: None, art, nodos: vec![], clave: String::new(), cols: None, cab: std::collections::HashMap::new() };
+            vel_ant: 0.0, vuelco_t: 0.0, ejes: None, tobera: None, art, nodos: vec![], clave: String::new(), cols: None, cab: std::collections::HashMap::new(),
+            abollada: std::collections::HashMap::new(), ocultos: vec![], sueltas: vec![] };
         let rueda = |p: V, r: f64, sd: f64, sp: f64, da: f64, del: bool, n: Option<String>| Rueda { p, r, sd, sp, da, del, comp_vis: 0.0, giro_ang: 0.0, toca: false, n,
             vis: None, cl: [0.0; 3], eje_x: [1.0, 0.0, 0.0], eje_y: [0.0, 1.0, 0.0], esp: 1.0, esc: 1.0, r_vis: 0.0, marca_p: None };
         for (i, x) in arb.iter().enumerate() {
@@ -497,12 +502,19 @@ impl Vehiculo {
         let w = self.matrices(); let n = w.len();
         let e = [0, 4, 8].iter().map(|&o| (base[o] * base[o] + base[o + 1] * base[o + 1] + base[o + 2] * base[o + 2]).sqrt()).fold(0.0f32, f32::max);
         for p in &pf.partes {
+            if self.ocultos.contains(&p.nodo) { continue; }
             let local = if p.nodo < n { &w[p.nodo] } else { &p.local };
             let mm = m4::mul(base, local); let q = p.esf;
             let c = [base[0] * q[0] + base[4] * q[1] + base[8] * q[2] + base[12], base[1] * q[0] + base[5] * q[1] + base[9] * q[2] + base[13], base[2] * q[0] + base[6] * q[1] + base[10] * q[2] + base[14]];
-            out.push(ItemDin { m: p.m, s0: p.s0, sn: p.sn, mat: p.mat, mm, esf: [c[0], c[1], c[2], q[3] * e], fl: 0, h: vec![] });
+            out.push(ItemDin { m: self.abollada.get(&p.nodo).copied().unwrap_or(p.m), s0: p.s0, sn: p.sn, mat: p.mat, mm, esf: [c[0], c[1], c[2], q[3] * e], fl: 0, h: vec![] });
         }
     }
+    /// el árbol del modelo (para destruccion.js): cuántos nodos, el padre de cada uno y si se dibuja
+    pub fn n_nodos(&self) -> usize { self.nodos.len() }
+    pub fn padre(&self, i: usize) -> i64 { self.nodos.get(i).map(|n| n.0).unwrap_or(-1) }
+    pub fn activo(&self, i: usize) -> bool { self.nodos.get(i).map(|n| n.1).unwrap_or(false) && !self.ocultos.contains(&i) }
+    /// la clave del prefab en DATA.pf
+    pub fn clave(&self) -> &str { &self.clave }
     /// bocTipo: la bocina que tiene ('auto', 'policia', 'moto' o 'timbre' —la bici—), o ninguna
     pub fn bocina_tipo(&self) -> Option<&'static str> {
         if self.art.as_deref() == Some("bici") { Some("timbre") } else if self.tipo == Tipo::Moto { Some("moto") } else if self.policia { Some("policia") } else if self.tipo == Tipo::Auto { Some("auto") } else { None }

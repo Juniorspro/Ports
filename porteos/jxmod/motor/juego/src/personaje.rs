@@ -1286,3 +1286,33 @@ impl Personaje {
         o
     }
 }
+
+// ---------------- poses de afuera (jugabilidad.rs: volar, el SCP, el Cíclope, la patada en primera persona, Pepe) ----------------
+/// lo que necesitan las poses que se agregan después de `animar` (P.poseExtra de la web): leer y cambiar el giro local de
+/// cada nodo, su escala y la raíz, y rehacer las matrices y la paleta. Todo en el espacio del personaje (el mundo: base × esto)
+impl Personaje {
+    /// el nodo de un hueso humanoide (de HUESOS)
+    pub fn indice(&self, nombre: &str) -> Option<usize> { let k = HUESOS.iter().position(|x| *x == nombre)?; self.h[k] }
+    /// el padre de un nodo (-1: la raíz)
+    pub fn padre(&self, i: usize) -> i32 { self.pa.get(i).copied().unwrap_or(-1) }
+    /// la matriz de un nodo desde la raíz
+    pub fn mundo(&self, i: usize) -> M4 { self.w[i] }
+    /// el giro local de un nodo
+    pub fn giro(&self, i: usize) -> Q { self.r[i] }
+    pub fn poner_giro(&mut self, i: usize, q: Q) { self.r[i] = q; self.sucio = true; }
+    /// el giro de reposo de un nodo desde la raíz (P.D.rw)
+    pub fn giro_reposo(&self, i: usize) -> Q { self.rw.get(i).copied().unwrap_or([0.0, 0.0, 0.0, 1.0]) }
+    /// la escala local de un nodo
+    pub fn escala(&self, i: usize) -> V { self.s[i] }
+    pub fn poner_escala(&mut self, i: usize, s: V) { self.s[i] = s; self.sucio = true; }
+    /// la raíz (la base del modelo dentro del personaje: ubicarPersona)
+    pub fn raiz(&self) -> M4 { self.raiz }
+    pub fn poner_raiz(&mut self, m: M4) { self.raiz = m; self.sucio = true; }
+    /// cuántos nodos tiene y el giro local de reposo de cada uno (P.base)
+    pub fn n_nodos(&self) -> usize { self.w.len() }
+    pub fn giro_base(&self, i: usize) -> Q { self.reposo.1.get(i).copied().unwrap_or([0.0, 0.0, 0.0, 1.0]) }
+    /// rehace las matrices desde la raíz (md.actualizar)
+    pub fn rehacer_matrices(&mut self) { self.actualizar(); }
+    /// después de cambiar la pose: las matrices y la paleta de huesos (lo que se dibuja)
+    pub fn rehacer(&mut self) { self.actualizar(); self.calcular_paleta(); self.sucio = false; }
+}

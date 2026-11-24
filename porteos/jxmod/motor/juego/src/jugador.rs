@@ -297,3 +297,8 @@ impl Jugador {
         ([self.pos[0], oy, self.pos[2]], self.bob.sin() * 0.006 * self.bob_k)
     }
 }
+
+impl Jugador {
+    /// jugadorMoverChocar desde afuera (volar, de nativos.js: el mod mueve y esto saca la cápsula de lo que toca)
+    pub fn mover_chocar_ext(&mut self, m: &Mundo, mut fis: Option<&mut Fisica>, dt: f32) { let f = &mut fis; self.mover_chocar(m, f, dt, 0.25); }
+}

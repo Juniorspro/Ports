@@ -1,0 +1,175 @@
+//! La prueba de jugabilidad.rs (con integrar_jugabilidad.py aplicado a comun.rs): la destrucción de un Sedan contra la
+//! pared de RB_Construct a 100 km/h (como pruebas/destruccion.mjs), una explosión al costado de otro auto, una nuclear
+//! (Little Boy) vista de lejos, la catapulta, la bomba de Rick Prime, la patada, la linterna, la cámara libre, volar, el
+//! muñeco, el SCP, el Cíclope y Pepe (forzado con JXM_PEPE). Saca fotos de cada cosa y escribe los números.
+//! Uso: jugabilidad_foto CARPETA [ANCHO ALTO]  (JXM_WWW, JXM_LETRAS y JXM_MOTOR como foto.rs; JXM_SOLO=destruccion,nuclear,…)
+use glow::HasContext;
+use jxjuego::paquete::Paquete;
+use jxmod::comun::{Juego, Placa};
+use jxmod::motor::Motor3d;
+use jxmotor::gpu::{Motor, Opciones};
+use khronos_egl as egl;
+use std::path::Path;
+
+fn main() {
+    let a: Vec<String> = std::env::args().collect();
+    let sal = a.get(1).cloned().unwrap_or("/tmp/claude-0/jugabilidad/fotos".into()); std::fs::create_dir_all(&sal).unwrap();
+    let (w, h): (i32, i32) = (a.get(2).and_then(|x| x.parse().ok()).unwrap_or(960), a.get(3).and_then(|x| x.parse().ok()).unwrap_or(540));
+    let www = std::env::var("JXM_WWW").unwrap_or("/tmp/claude-0/jxm/www_todo".into());
+    let let_ = std::env::var("JXM_LETRAS").unwrap_or("/tmp/claude-0/jxm/letras".into());
+    let solo = std::env::var("JXM_SOLO").unwrap_or_default(); let hace = |k: &str| solo.is_empty() || solo.split(',').any(|s| s == k);
+    let vk = std::env::var("JXM_MOTOR").unwrap_or_default() == "vk";
+    let datos = std::env::temp_dir().join("jxm_jug_datos"); let _ = std::fs::create_dir_all(&datos); let _ = std::fs::remove_file(datos.join("mapa.txt")); let _ = std::fs::remove_file(datos.join("ajustes.txt"));
+    let lt = (std::fs::read_to_string(Path::new(&let_).join("letras.json")).ok(), std::fs::read(Path::new(&let_).join("letras.png")).ok());
+    let mut j = Juego::nuevo(Paquete::abrir(Path::new(&www)), lt.0, lt.1, Some(datos));
+    j.dt_fijo = Some(1.0 / 60.0);
+    let (mut m, placa) = if vk {
+        let m = unsafe { jxmotor::vk::Motor::nuevo(None, w as u32, h as u32, Opciones::default()) }.expect("Vulkan"); let p = m.placa.clone(); j.en_uso = Placa::Vulkan; (Motor3d::Vk(m), p)
+    } else {
+        let e = unsafe { egl::DynamicInstance::<egl::EGL1_5>::load_required() }.expect("libEGL");
+        let d = unsafe { e.get_platform_display(0x31DD, egl::DEFAULT_DISPLAY, &[egl::ATTRIB_NONE]) }.expect("pantalla EGL");
+        e.initialize(d).unwrap(); e.bind_api(egl::OPENGL_ES_API).unwrap();
+        let cfg = e.choose_first_config(d, &[egl::SURFACE_TYPE, egl::PBUFFER_BIT, egl::RENDERABLE_TYPE, egl::OPENGL_ES3_BIT, egl::NONE]).unwrap().or_else(|| e.choose_first_config(d, &[egl::NONE]).unwrap()).unwrap();
+        let ctx = e.create_context(d, cfg, None, &[egl::CONTEXT_MAJOR_VERSION, 3, egl::NONE]).unwrap(); e.make_current(d, None, None, Some(ctx)).unwrap();
+        let gl = unsafe { glow::Context::from_loader_function(|s| e.get_proc_address(s).map_or(std::ptr::null(), |p| p as *const _)) };
+        let placa = unsafe { gl.get_parameter_string(glow::RENDERER) };
+        let fb = unsafe { let t = gl.create_renderbuffer().unwrap(); gl.bind_renderbuffer(glow::RENDERBUFFER, Some(t)); gl.renderbuffer_storage(glow::RENDERBUFFER, glow::RGBA8, w, h);
+            let f = gl.create_framebuffer().unwrap(); gl.bind_framebuffer(glow::FRAMEBUFFER, Some(f)); gl.framebuffer_renderbuffer(glow::FRAMEBUFFER, glow::COLOR_ATTACHMENT0, glow::RENDERBUFFER, Some(t)); f };
+        std::mem::forget(e);
+        (Motor3d::Gl(unsafe { Motor::nuevo(gl, Opciones::default()) }.expect("motor"), Some(fb)), placa)
+    };
+    let (wf, hf) = (w as f32, h as f32);
+    let paso = |j: &mut Juego, m: &mut Motor3d, n: usize| { for _ in 0..n { unsafe { j.cuadro(m, w, h, &placa).expect("cuadro"); } } };
+    let foto = |m: &mut Motor3d, nombre: &str| {
+        let dado = match m {
+            Motor3d::Vk(v) => unsafe { v.leer_imagen() }.expect("imagen"),
+            _ => {
+                let (gl, f): (&glow::Context, Option<glow::Framebuffer>) = match m { Motor3d::Gl(g, f) => (&g.gl, *f), Motor3d::Gl2(g, f) => (&g.gl, *f), _ => unreachable!() };
+                let mut px = vec![0u8; (w * h * 4) as usize];
+                unsafe { gl.bind_framebuffer(glow::FRAMEBUFFER, f); gl.read_pixels(0, 0, w, h, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelPackData::Slice(Some(&mut px))); }
+                let fila = (w * 4) as usize; let mut dado = vec![0u8; px.len()];
+                for y in 0..h as usize { dado[y * fila..(y + 1) * fila].copy_from_slice(&px[(h as usize - 1 - y) * fila..(h as usize - y) * fila]); }
+                dado
+            }
+        };
+        let ruta = format!("{sal}/{nombre}.png"); let f = std::fs::File::create(&ruta).unwrap(); let mut enc = png::Encoder::new(std::io::BufWriter::new(f), w as u32, h as u32);
+        enc.set_color(png::ColorType::Rgba); enc.set_depth(png::BitDepth::Eight); enc.write_header().unwrap().write_image_data(&dado).unwrap(); println!("  → {ruta}");
+    };
+    // (mirar desde `o` hacia `p`)
+    let mirar = |j: &mut Juego, o: [f32; 3], p: [f32; 3]| { let d = [p[0] - o[0], p[1] - o[1], p[2] - o[2]]; let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt(); j.poner_ojos(o, d[0].atan2(d[2]), (d[1] / l).asin()); };
+    let boton = |j: &mut Juego, b: jxmod::comun::Boton| { let (x, y) = jxmod::comun::pos_boton(wf, hf, b); j.dedo_abajo(90, x, y, wf, hf); j.dedo_arriba(90); };
+    let caminar = |j: &mut Juego, si: bool| { if si { j.dedo_abajo(1, wf * 0.15, hf * 0.75, wf, hf); j.dedo_mueve(1, wf * 0.15, hf * 0.75 - hf * 0.12, hf); } else { j.dedo_arriba(1); } };
+    use jxmod::comun::jugabilidad::Bj;
+    use jxmod::comun::Boton;
+
+    // ---------------- RB_Construct: el choque y la explosión ----------------
+    j.poner_mapa("RB_Construct"); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 60);
+    println!("mapa {} · jugador {:?}", j.mapas[j.mapas.iter().position(|x| x == "RB_Construct").unwrap_or(0)], j.jug.pos);
+    if hace("destruccion") {
+        let _ = j.crear_en(&mut m, "Sedan", [-2.0, -2.4, 19.2], 0.0); let id = j.objs.last().and_then(|o| o.cuerpo).unwrap();
+        mirar(&mut j, [-2.0 + 3.6, -2.4 + 1.6, 19.2 + 6.2], [-2.0, -2.0, 19.2 + 1.8]); paso(&mut j, &mut m, 72);
+        let p0 = j.fis.cuerpo(id).unwrap().pos; println!("Sedan en {:?}", p0); foto(&mut m, "des_100_antes");
+        if let Some(b) = j.fis.cuerpo_mut(id) { b.vel = [0.0, 0.0, 27.78]; b.despertar(); }
+        for k in 0..96 { paso(&mut j, &mut m, 1); if k == 6 { foto(&mut m, "des_100_choque"); } }
+        let b = j.fis.cuerpo(id).unwrap(); let v = j.vehs.de(id).unwrap();
+        let (autos, piezas) = j.jg_des_info();
+        println!("choque a 100 km/h: auto en {:?} · vida {:.0} · ruedas {} · roto {} · ruedas sueltas {} · {:?}", b.pos, v.vida, v.ruedas.len(), v.roto, piezas, autos);
+        foto(&mut m, "des_100_despues");
+        let p = j.fis.cuerpo(id).unwrap().pos; mirar(&mut j, [p[0] as f32 + 2.6, p[1] as f32 + 1.4, p[2] as f32 - 3.2], [p[0] as f32, p[1] as f32, p[2] as f32 + 1.2]); paso(&mut j, &mut m, 3); foto(&mut m, "des_100_trompa");
+        paso(&mut j, &mut m, 240); foto(&mut m, "des_100_humo");
+        // una explosión al costado de otro auto
+        let _ = j.crear_en(&mut m, "Sedan", [8.0, -2.4, 10.0], 0.0); let id2 = j.objs.last().and_then(|o| o.cuerpo).unwrap(); paso(&mut j, &mut m, 60);
+        let p2 = j.fis.cuerpo(id2).unwrap().pos; let pe = [p2[0] as f32 + 2.6, p2[1] as f32, p2[2] as f32];
+        mirar(&mut j, [p2[0] as f32 + 5.0, p2[1] as f32 + 1.2, p2[2] as f32 - 3.0], [p2[0] as f32, p2[1] as f32, p2[2] as f32]);
+        j.jg_prueba("explosion", pe, ""); paso(&mut j, &mut m, 2); foto(&mut m, "des_explosion_0"); paso(&mut j, &mut m, 150);
+        let p2 = j.fis.cuerpo(id2).unwrap().pos; mirar(&mut j, [p2[0] as f32 + 4.0, p2[1] as f32 + 1.0, p2[2] as f32 - 1.0], [p2[0] as f32, p2[1] as f32, p2[2] as f32]); paso(&mut j, &mut m, 3);
+        let (autos, _) = j.jg_des_info(); println!("explosión al costado: {:?} · vida {:.0}", autos, j.vehs.de(id2).map(|v| v.vida).unwrap_or(0.0)); foto(&mut m, "des_explosion_lado");
+    }
+    // ---------------- RB_Flatgrass: lo demás ----------------
+    j.poner_mapa("RB_Flatgrass"); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 60); j.jug.noclip = false; paso(&mut j, &mut m, 30);
+    let base = j.jug.pos; let fw = [j.jug.yaw.sin(), 0.0, j.jug.yaw.cos()]; println!("Flatgrass: jugador {:?} yaw {:.2}", base, j.jug.yaw);
+    let delante = |k: f32| [base[0] + fw[0] * k, base[1] - 0.95, base[2] + fw[2] * k];
+    if hace("patada") {
+        let _ = j.crear_en(&mut m, "Box2", delante(1.3), 0.0); let id = j.objs.last().and_then(|o| o.cuerpo); paso(&mut j, &mut m, 40);
+        boton(&mut j, Boton::Jg(Bj::Patada)); paso(&mut j, &mut m, 14); foto(&mut m, "patada_primera"); paso(&mut j, &mut m, 3);
+        let v = id.and_then(|i| j.fis.cuerpo(i)).map(|b| b.vel).unwrap_or_default(); println!("patada: la caja sale a {:.2} m/s (la web: hasta 9 m/s, más arriba)", (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt());
+        paso(&mut j, &mut m, 60);
+    }
+    if hace("linterna") {
+        boton(&mut j, Boton::Jg(Bj::Linterna)); j.poner_ojos([base[0], base[1] + 0.72, base[2]], j.jug.yaw, -0.5); paso(&mut j, &mut m, 3); foto(&mut m, "linterna"); println!("linterna: {}", j.jg.lint); boton(&mut j, Boton::Jg(Bj::Linterna)); j.jug.noclip = false;
+    }
+    if hace("camlibre") {
+        boton(&mut j, Boton::Jg(Bj::CamLibre)); boton(&mut j, Boton::Jg(Bj::CamL)); let p0 = j.jug.pos;
+        caminar(&mut j, true); paso(&mut j, &mut m, 90); caminar(&mut j, false); let c = j.jg_prueba("camara", [0.0; 3], "").unwrap();
+        println!("cámara libre L: el jugador se movió {:.2} m, la cámara está a {:.1} m de él", ((j.jug.pos[0] - p0[0]).powi(2) + (j.jug.pos[2] - p0[2]).powi(2)).sqrt(), ((c[0] - p0[0]).powi(2) + (c[2] - p0[2]).powi(2)).sqrt());
+        foto(&mut m, "camlibre_L"); boton(&mut j, Boton::Jg(Bj::CamR)); caminar(&mut j, true); paso(&mut j, &mut m, 40); caminar(&mut j, false); paso(&mut j, &mut m, 5); foto(&mut m, "camlibre_R");
+        boton(&mut j, Boton::Jg(Bj::CamR)); boton(&mut j, Boton::Jg(Bj::CamLibre)); println!("cámara libre: modo {:?} · cámara {}", j.jg.clib.modo, j.camara);
+    }
+    if hace("catapulta") {
+        let _ = j.crear_en(&mut m, "Catapulta", delante(6.0), j.jug.yaw); paso(&mut j, &mut m, 60);
+        if let Some(c) = j.jg_prueba("cuchara", [0.0; 3], "Catapulta") {
+            let _ = j.crear_en(&mut m, "Box2", [c[0], c[1] + 0.3, c[2]], 0.0); let id = j.objs.last().and_then(|o| o.cuerpo); paso(&mut j, &mut m, 30);
+            mirar(&mut j, [c[0] + fw[2] * 7.0, c[1] + 2.0, c[2] - fw[0] * 7.0], [c[0], c[1] + 1.0, c[2]]); paso(&mut j, &mut m, 2); foto(&mut m, "catapulta_antes");
+            j.jg_prueba("usar", [0.0; 3], "Catapulta"); let mut vmax = 0.0f64;
+            for k in 0..40 { paso(&mut j, &mut m, 1); if let Some(b) = id.and_then(|i| j.fis.cuerpo(i)) { vmax = vmax.max((b.vel[0].powi(2) + b.vel[1].powi(2) + b.vel[2].powi(2)).sqrt()); } if k == 9 { foto(&mut m, "catapulta_tiro"); } }
+            println!("catapulta: la caja salió a {vmax:.1} m/s (la web: 17) · brazo {:?}", j.jg_prueba("brazo", [0.0; 3], "Catapulta"));
+        } else { println!("catapulta: sin brazo"); }
+        j.jug.noclip = false;
+    }
+    if hace("omega") {
+        let jp = j.jug.pos; let o = [jp[0], jp[1] + 0.72, jp[2]]; let _ = j.poner(&mut m, "npc:Engineer", o, fw); paso(&mut j, &mut m, 3);
+        let _ = j.crear_en(&mut m, "BombaOmega", delante(2.5), 0.0); paso(&mut j, &mut m, 30);
+        let vivos = |j: &Juego| j.npcs.lista.iter().filter(|n| n.vivo && n.skin == "Engineer").count();
+        println!("bomba de Rick Prime: Engineer vivos antes {}", vivos(&j)); j.jg_prueba("omega", [0.0; 3], "BombaOmega"); paso(&mut j, &mut m, 60 * 5 + 6); foto(&mut m, "omega_destello");
+        println!("  después: {} vivos · destello {:.2} · jugador en {:?}", vivos(&j), j.jg.art.flash, jp); paso(&mut j, &mut m, 120);
+    }
+    if hace("mods") {
+        for k in ["volar", "ragdoll", "scp"] { j.jg_prueba("opcion", [0.0; 3], k); }
+        boton(&mut j, Boton::Jg(Bj::Mod)); paso(&mut j, &mut m, 2); foto(&mut m, "mod_menu"); boton(&mut j, Boton::Jg(Bj::Mod)); j.jg.panel_mod = false;
+        j.jg_prueba("accion", [0.0; 3], "volar"); caminar(&mut j, true); paso(&mut j, &mut m, 120); foto(&mut m, "volar"); caminar(&mut j, false);
+        println!("volar: vel {:.1} m/s (la web: hasta 20) · alto {:.1}", (j.jug.vel[0].powi(2) + j.jug.vel[1].powi(2) + j.jug.vel[2].powi(2)).sqrt(), j.jug.pos[1] - base[1]);
+        j.jg_prueba("accion", [0.0; 3], "volar"); paso(&mut j, &mut m, 120);
+        j.jg_prueba("accion", [0.0; 3], "ragdoll"); paso(&mut j, &mut m, 90); foto(&mut m, "munieco"); println!("muñeco: {:?} · jugador {:?}", j.jg.nat.rag, j.jug.pos); j.jg_prueba("accion", [0.0; 3], "ragdoll"); paso(&mut j, &mut m, 30);
+        j.jg_prueba("accion", [0.0; 3], "scp"); caminar(&mut j, true); paso(&mut j, &mut m, 50); foto(&mut m, "scp_caminando"); caminar(&mut j, false); paso(&mut j, &mut m, 40); foto(&mut m, "scp_quieto");
+        println!("scp: pegado {} · jugador {:?}", j.jug.suelo, j.jug.pos); j.jg_prueba("accion", [0.0; 3], "scp"); paso(&mut j, &mut m, 30);
+        for k in ["volar", "ragdoll", "scp"] { j.jg_prueba("opcion", [0.0; 3], k); }
+    }
+    if hace("ciclope") {
+        j.jg_prueba("opcion", [0.0; 3], "ciclope"); paso(&mut j, &mut m, 5); j.camara = 1;
+        let _ = j.crear_en(&mut m, "Box2", delante(8.0), 0.0); paso(&mut j, &mut m, 30);
+        boton(&mut j, Boton::Jg(Bj::Ciclope)); paso(&mut j, &mut m, 2); foto(&mut m, "ciclope_laser");
+        let (x, y) = jxmod::comun::pos_boton(wf, hf, Boton::Jg(Bj::Ciclope)); j.dedo_abajo(91, x, y, wf, hf); paso(&mut j, &mut m, 70); j.dedo_arriba(91);
+        let mut hecho = 10usize; for (t, n) in [(1.2, "ciclope_rodillas"), (3.0, "ciclope_mano"), (5.0, "ciclope_ojos"), (8.0, "ciclope_rayo")] { let tt = (t * 60.0) as usize; paso(&mut j, &mut m, tt.saturating_sub(hecho).max(1)); hecho = hecho.max(tt); foto(&mut m, n); }
+        println!("cíclope: definitiva {} · rojo {:.2}", j.jg.cic.ult.is_some(), j.jg.cic.rojo); paso(&mut j, &mut m, 60 * 14); println!("  terminó: {} · espera", !j.jg.cic.ult.is_some());
+        j.jg_prueba("opcion", [0.0; 3], "ciclope"); paso(&mut j, &mut m, 5);
+    }
+    if hace("nuclear") {
+        j.camara = 0; let pn = delante(260.0); let piso = j.mapa.as_ref().and_then(|mp| mp.mundo.rayo([pn[0], pn[1] + 60.0, pn[2]], [0.0, -1.0, 0.0], 200.0)).map(|g| pn[1] + 60.0 - g.t).unwrap_or(pn[1]);
+        let pn = [pn[0], piso + 0.5, pn[2]]; mirar(&mut j, [base[0], base[1] + 2.0, base[2]], [pn[0], pn[1] + 60.0, pn[2]]);
+        j.jg_prueba("explotar", pn, "NK_ivymike"); println!("nuclear (Ivy Mike, 10,4 Mt) a 260 m: radio {:.0} m", jxjuego::nucleares::radio(10400.0));
+        let mut hecho = 0usize; for (t, n) in [(0.15, "nuk_0s"), (2.0, "nuk_2s"), (6.0, "nuk_6s"), (15.0, "nuk_15s"), (40.0, "nuk_40s")] { let ya = (t * 60.0) as usize; paso(&mut j, &mut m, ya.saturating_sub(hecho).max(1)); hecho = ya; foto(&mut m, n); println!("  {t} s: destello/radiación {:?} · vida {:.0} · jugador {:?}", j.jg_nuk_info(), j.jug.vida, j.jug.pos); }
+    }
+    if hace("nuclear2") {
+        // (una chica —Little Boy, 15 kt— vista entera desde 250 m: la bola, el polvo de la onda y el hongo)
+        j.camara = 0; let pn = delante(250.0); let piso = j.mapa.as_ref().and_then(|mp| mp.mundo.rayo([pn[0], pn[1] + 60.0, pn[2]], [0.0, -1.0, 0.0], 200.0)).map(|g| pn[1] + 60.0 - g.t).unwrap_or(pn[1]);
+        let pn = [pn[0], piso + 0.5, pn[2]]; let ojo = [base[0], base[1] + 1.5, base[2]];
+        j.jg_prueba("explotar", pn, "NK_littleboy"); let r = jxjuego::nucleares::radio(15.0); println!("nuclear (Little Boy, 15 kt) a 250 m: radio {r:.1} m · alcance del daño {:.0} m · del viento {:.0} m", r * 2.3, r * 6.9);
+        let mut hecho = 0usize; for (t, n) in [(0.5, "nuk2_0s"), (3.0, "nuk2_3s"), (8.0, "nuk2_8s"), (20.0, "nuk2_20s"), (60.0, "nuk2_60s")] { let ya = (t * 60.0) as usize; mirar(&mut j, ojo, [pn[0], pn[1] + 45.0, pn[2]]); paso(&mut j, &mut m, ya.saturating_sub(hecho).max(1)); hecho = ya; foto(&mut m, n); println!("  {t} s: destello/radiación {:?} · vida {:.0}", j.jg_nuk_info(), j.jug.vida); }
+    }
+    if hace("paneles") {
+        // (la bomba de Rick Prime con su panel: Usar lo abre y tocar un personaje la arma; una nuclear armada con Usar)
+        let _ = j.crear_en(&mut m, "BombaOmega", delante(2.5), 0.0); paso(&mut j, &mut m, 20);
+        j.jg_prueba("usar", [0.0; 3], "BombaOmega"); paso(&mut j, &mut m, 3); foto(&mut m, "omega_panel"); println!("panel de la bomba abierto: {}", j.jg.panel());
+        let (x, y) = (wf * 0.08 + hf * 0.03 + hf * 0.08, hf * 0.08 + hf * 0.12 + hf * 0.08); j.dedo_abajo(92, x, y, wf, hf); j.dedo_arriba_en(92, wf, hf); paso(&mut j, &mut m, 3);
+        println!("  tocar el primero: panel {} · aviso armada", j.jg.panel()); paso(&mut j, &mut m, 60 * 6); println!("  después de 6 s: bombas Omega {}", j.objs.iter().filter(|o| o.nombre == "BombaOmega").count());
+        let _ = j.crear_en(&mut m, "NK_littleboy", delante(120.0), 0.0); paso(&mut j, &mut m, 30);
+        j.jg_prueba("usar", [0.0; 3], "NK_littleboy"); println!("nuclear armada: {} · Usar dice {:?}", j.jg.nuk.armadas.len(), j.jg.usar_txt);
+        paso(&mut j, &mut m, 60 * 10 + 30); println!("  a los 10,5 s: armadas {} · nucleares en el mapa {} · destello {:?}", j.jg.nuk.armadas.len(), j.objs.iter().filter(|o| o.nombre.starts_with("NK_")).count(), j.jg_nuk_info());
+    }
+    if hace("pepe") && std::env::var("JXM_PEPE").is_ok() {
+        j.poner_mapa("RB_Flatgrass"); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 60); j.jug.noclip = false; j.camara = 0;
+        paso(&mut j, &mut m, 60 * 6); foto(&mut m, "pepe_vhs"); j.jug.yaw += std::f32::consts::PI; paso(&mut j, &mut m, 10); foto(&mut m, "pepe_atras");
+        for k in 0..40 { paso(&mut j, &mut m, 30); if j.jg.pv.grita() { paso(&mut j, &mut m, 18); foto(&mut m, "pepe_screamer"); println!("pepe: screamer a los {:.1} s", 6.0 + k as f32 * 0.5); break; } }
+        paso(&mut j, &mut m, 120); foto(&mut m, "pepe_fin");
+    }
+}

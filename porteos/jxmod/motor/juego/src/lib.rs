@@ -2,6 +2,7 @@
 //! Por etapas: el paquete y los mapas; después el jugador, la física, los objetos y herramientas, los NPC, los menús.
 pub mod arma_mano;
 pub mod censura;
+pub mod destruccion;
 pub mod efectos;
 pub mod fisica;
 pub mod flotar;
@@ -11,6 +12,7 @@ pub mod mapa;
 pub mod mqtt;
 pub mod mundo;
 pub mod npc;
+pub mod nucleares;
 pub mod objetos;
 pub mod paquete;
 pub mod persona;

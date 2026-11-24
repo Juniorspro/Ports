@@ -196,6 +196,7 @@ impl Juego {
             danos.push((id, dan * k));
         }
         for (id, dk) in danos { if let Some(i) = self.objs.iter().position(|o| o.cuerpo == Some(id)) { self.danar_objeto(i, dk); } self.vehs.danar(&self.fis, id, dk as f64); }
+        self.des_explosion_cerca(p, radio);
         // (los NPC de pie en el radio: daño y, si es fuerte, al piso)
         let cerca: Vec<(u32, [f32; 3])> = self.npcs.lista.iter().filter(|n| n.en_pie()).map(|n| (n.id, n.pos())).collect();
         for (n, q) in cerca {
@@ -204,7 +205,7 @@ impl Juego {
             self.npcs.danar(n, dan * k, q, nd, &mut self.fis, Some(npc::Quien::Jugador));
         }
         let jp = self.jug.pos; let dj = ((jp[0] - p[0]).powi(2) + (jp[1] - p[1]).powi(2) + (jp[2] - p[2]).powi(2)).sqrt();
-        if dj < radio * 1.4 {
+        if dj < radio * 1.4 && !self.jg.inmune() {
             let k = 1.0 - dj / (radio * 1.4); self.danar_jugador(dan * k);
             let n = norm([jp[0] - p[0], jp[1] - p[1], jp[2] - p[2]]); for e in 0..3 { self.jug.vel[e] += n[e] * 12.0 * k; } self.jug.vel[1] += 4.0;
         }

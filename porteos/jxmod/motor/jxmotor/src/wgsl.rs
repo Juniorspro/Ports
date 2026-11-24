@@ -96,7 +96,7 @@ fn brdf(n: vec3<f32>, v: vec3<f32>, l: vec3<f32>, dif: vec3<f32>, f0: vec3<f32>,
   let h = normalize(l + v); let nh = max(dot(n, h), 0.0); let nv = max(dot(n, v), 1e-3); let lh = max(dot(l, h), 0.0);
   let a2 = a * a; let d = nh * nh * (a2 - 1.0) + 1.0; let D = a2 / (PI * d * d);
   let k = a * 0.5; let V = 0.25 / ((nl * (1.0 - k) + k) * (nv * (1.0 - k) + k));
-  let F = f0 + (1.0 - f0) * pow(1.0 - lh, 5.0);
+  let F = f0 + (1.0 - f0) * pow(max(1.0 - lh, 0.0), 5.0);
   return (dif * (1.0 - F) + min(D * V, 40.0) * F * PI) * nl;
 }
 // la sombra en dos cascadas, una al lado de la otra en el mismo mapa: la de cerca (fina) y la de lejos; en el borde de la de

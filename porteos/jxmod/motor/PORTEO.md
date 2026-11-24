@@ -1,7 +1,7 @@
 # Porteo de la web (juego/*.js) a la app nativa en Rust
 
 Pedido del dueño: «hasta que tengas todo calcado de la versión de Javascript en nuestro propio motor sin Javascript».
-Cada archivo de la web y dónde quedó en la nativa. ✔ hecho (comparado con la web), ◐ en parte, ✘ falta, — no aplica.
+Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una vez aplicado nativo/integrar_jugabilidad.py). ✔ hecho (comparado con la web), ◐ en parte, ✘ falta, — no aplica.
 
 ## Motor y mundo
 | web | estado | nativa |
@@ -12,7 +12,7 @@ Cada archivo de la web y dónde quedó en la nativa. ✔ hecho (comparado con la
 | agua.js | ✔ | juego/flotar.rs + motores |
 | efectos.js, marcas.js | ✔ | juego/efectos.rs |
 | dia.js, noche.js, cielo3d.js, vhs.js, vivo.js | ✘ | |
-| linterna.js | ✘ | |
+| linterna.js | ◐ | nativo/jugabilidad.rs (sin el Lua de GMod ni la de los demás de la sala; en OpenGL 2, una luz donde pega) |
 | puertas.js, mapaio.js, portales.js, entidades.js | ✘ | |
 | gmod_bsp.js (mapas del Workshop) | ✘ | |
 
@@ -23,9 +23,10 @@ Cada archivo de la web y dónde quedó en la nativa. ✔ hecho (comparado con la
 | personas.js, humano.js | ✔ | juego/personaje.rs, persona.rs, arma_mano.rs |
 | npc.js | ✔ | juego/npc.rs, comun.rs (Actitud) |
 | vehiculos.js, gfxauto.js | ◐ | juego/vehiculo.rs, personaje.rs (sentados; sin la calidad automática) |
-| destruccion.js | ✘ | (abolladuras, piezas, humo, fuego de los autos) |
+| destruccion.js | ✔ | juego/destruccion.rs (comparado con la web en node), nativo/des_juego.rs |
 | emotes.js | ◐ | comun.rs (los del juego, en la red; faltan los de captura, los tuyos y los rb:) |
-| juntos.js, ruleta.js, emomusica.js, patadas.js | ✘ | |
+| juntos.js, ruleta.js, emomusica.js | ✘ | |
+| patadas.js | ✔ | nativo/jugabilidad.rs |
 | accesorios.js, gorros.js, identidad.js | ✘ | |
 | pjimportar.js, gmod_autorig.js, gmod_pm.js | ✘ | |
 
@@ -35,7 +36,8 @@ Cada archivo de la web y dónde quedó en la nativa. ✔ hecho (comparado con la
 | armas.js, armasjx.js, vista.js | ✔ | nativo/armas.rs, combate.rs, juego/vista.rs |
 | herramientas.js | ✔ | nativo/herramientas.rs |
 | armaaj.js | ✘ | |
-| nucleares.js, nuclear_vol.js, artefactos.js, ciclope.js | ✘ | |
+| nucleares.js, artefactos.js, ciclope.js | ◐ | juego/nucleares.rs, nativo/nuk_juego.rs, cic_juego.rs (sin lo de la red) |
+| nuclear_vol.js | ✘ | (el hongo con volumen necesita su sombreador en jxmotor: va con los carteles de nucleares.js) |
 | celumano.js, celular.js, celulares.js | ✘ | |
 
 ## Multijugador
@@ -60,7 +62,9 @@ Cada archivo de la web y dónde quedó en la nativa. ✔ hecho (comparado con la
 | gmod_modos.js, gmod_server.js, gmod_pipe.js, gmod_steam.js, gmod_cola.js | ✘ | |
 | gmod_personal.js (el menú de GMod de la personal) | ◐ (pestañas, spawnlists, íconos, listas del Lua de GMod; faltan emotes, packs del Workshop, búsqueda) | nativo/gmod_menu.rs, gmod_base.rs |
 | pillpacks.js, pill_gmod.js | ✘ | |
-| nativos.js, smods.js, modmenu.js, acciones.js | ✘ | |
+| nativos.js | ◐ | nativo/nat_juego.rs (sin lo de la red: que otro jugador te agarre) |
+| modmenu.js | ◐ | nativo/jugabilidad.rs (el menú MOD y las Opciones de los mods nativos) |
+| smods.js, acciones.js | ✘ | |
 | modapi.js (mods con código JS) | — | no hay JavaScript en la nativa |
 
 ## Menús e interfaz
@@ -71,7 +75,7 @@ Cada archivo de la web y dónde quedó en la nativa. ✔ hecho (comparado con la
 | controles.js, tutorial.js | ✘ | |
 | idiomas.js, idiomas3.js | ✘ | (la nativa está en castellano) |
 | musica.js, fondovideo.js, milogo.js, iconoapp.js, iconos.js, novedades.js | ✘ | |
-| camlibre.js | ✘ | |
+| camlibre.js | ✔ | nativo/jugabilidad.rs |
 | banco.js, cajanegra.js | ✘ | |
 
 ## Lo demás
@@ -82,6 +86,7 @@ Cada archivo de la web y dónde quedó en la nativa. ✔ hecho (comparado con la
 | animedit.js, creador.js, verity.js, veritycrea.js | ✘ | |
 | grabar.js | ✘ | |
 | vr.js, manos_jx.js | ✘ | |
-| pepe_vuelve.js, evento.js | ✘ | |
+| pepe_vuelve.js | ◐ | nativo/pepe_juego.rs (la cinta VHS, aproximada con el HUD: vhs.js no está) |
+| evento.js | ✘ | |
 | ev300*.js (evento terminado) | — | |
 | ios.js, suelto.js, inflar.js | — | sólo de la web |

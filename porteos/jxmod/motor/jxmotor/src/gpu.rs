@@ -94,7 +94,7 @@ vec3 brdf(vec3 n, vec3 v, vec3 l, vec3 dif, vec3 f0, float a) {
   vec3 h = normalize(l + v); float nh = max(dot(n, h), 0.0), nv = max(dot(n, v), 1e-3), lh = max(dot(l, h), 0.0);
   float a2 = a * a, d = nh * nh * (a2 - 1.0) + 1.0, D = a2 / (PI * d * d);
   float k = a * 0.5, V = 0.25 / ((nl * (1.0 - k) + k) * (nv * (1.0 - k) + k));
-  vec3 F = f0 + (1.0 - f0) * pow(1.0 - lh, 5.0);
+  vec3 F = f0 + (1.0 - f0) * pow(max(1.0 - lh, 0.0), 5.0);   // (con la luz pegada a los ojos —la linterna— lh pasa de 1 por redondeo: sin el max, NaN)
   return (dif * (1.0 - F) + min(D * V, 40.0) * F * PI) * nl;
 }
 // la sombra en dos cascadas, una al lado de la otra en el mismo mapa: la de cerca (fina) y la de lejos; en el borde de la de
