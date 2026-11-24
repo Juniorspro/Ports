@@ -58,6 +58,7 @@ def main():
     ap.add_argument('--so-armv7', default=os.path.join(TARGET, 'armv7-linux-androideabi', 'release', 'libjxmod.so'))
     ap.add_argument('--mapas', default='todo')
     ap.add_argument('--rb-extra', default='/tmp/claude-0/jxp_pub/rb', help='otra carpeta donde buscar los paquetes aparte que no estén en WWW/rb')
+    ap.add_argument('--gmod', default='todo', choices=['todo', 'sin-iconos', 'nada'], help='la biblioteca de GMod (rb/gm_lib, 86 MB) y rb/jxp (el menú de GMod: 11 MB, más 37 MB de spawnicons con «todo»)')
     ap.add_argument('--version-name', default='0.1')
     ap.add_argument('--version-code', type=int, default=int(datetime.datetime.now(datetime.timezone.utc).strftime('%y%m%d%H')))
     ap.add_argument('--conservar', action='store_true')
@@ -95,6 +96,17 @@ def main():
             orig = next((os.path.join(d, r) for d in (os.path.join(a.www, 'rb'), a.rb_extra) if d and os.path.isfile(os.path.join(d, r))), None)
             if not orig: A.fallar('no está el paquete aparte', r, '(ni en WWW/rb ni en --rb-extra)')
             shutil.copyfile(orig, os.path.join(act, 'rb', r))
+        # (los addons de GMod: la biblioteca de GMod/HL2 que dan por hecho —rb/gm_lib.*: c_arms, armas c_/w_, props— y lo de
+        # la versión personal —rb/jxp/: el menú de GMod con sus spawnlists, su Lua, sus nombres y, con «todo», los spawnicons—)
+        if a.gmod != 'nada':
+            dirs = [d for d in (os.path.join(a.www, 'rb'), a.rb_extra) if d and os.path.isdir(d)]
+            idx = next((f for d in dirs for f in sorted(glob.glob(os.path.join(d, 'gm_lib.*.idx')))), None)
+            if not idx: A.fallar('no está la biblioteca de GMod (rb/gm_lib.*.idx) ni en WWW/rb ni en --rb-extra')
+            pre = os.path.basename(idx)[:-len('idx')]
+            for f in glob.glob(os.path.join(os.path.dirname(idx), pre + '*')): shutil.copyfile(f, os.path.join(act, 'rb', os.path.basename(f)))
+            jxp = next((os.path.join(d, 'jxp') for d in dirs if os.path.isfile(os.path.join(d, 'jxp', 'menu.json'))), None)
+            if not jxp: A.fallar('no está rb/jxp (el menú de GMod de la versión personal)')
+            shutil.copytree(jxp, os.path.join(act, 'rb', 'jxp'), ignore=None if a.gmod == 'todo' else shutil.ignore_patterns('iconos'))
         A.correr([sys.executable, '-I', os.path.join(os.path.dirname(AQUI), 'herramientas', 'atlas_letras.py'), os.path.join(act, 'ui')], 'atlas de letras')
         # (las dos capturas de nado del cuerpo —CMU 126_04 y 79_02, las que la web baja de emotes/cmu—)
         cmu = os.path.join(AQUI, '..', '..', '..', 'web', 'emotes', 'cmu'); os.makedirs(os.path.join(act, 'cmu'))

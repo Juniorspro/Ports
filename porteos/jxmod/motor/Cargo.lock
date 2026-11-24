@@ -543,6 +543,7 @@ name = "jxmod-nativo"
 version = "0.1.0"
 dependencies = [
  "android-activity",
+ "flate2",
  "glow 0.16.0",
  "jni",
  "jxgmod",

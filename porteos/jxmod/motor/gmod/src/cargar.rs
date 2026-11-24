@@ -117,7 +117,33 @@ impl Gmod {
     /// el WorldModel de un arma de los addons (por su clase)
     pub fn mundo_arma(&self, clase: &str) -> Option<String> { self.activar(); let clase = clase.trim_start_matches("gm:"); let t = clase_tabla(clase, Lado::S).or_else(|| clase_tabla(clase, Lado::C))?; let v = buscar_en_clase(&t, "WorldModel"); if v.es_nil() { None } else { Some(js_str(&v)) } }
     /// un archivo de los addons montados
-    pub fn archivo(&self, ruta: &str) -> Option<Rc<[u8]>> { self.activar(); g(|g| g.arch.get(ruta).cloned()) }
+    pub fn archivo(&self, ruta: &str) -> Option<Rc<[u8]>> { self.activar(); archivo(ruta) }
+    /// las entradas de una lista de GMod (list.Set: "NPC", "Vehicles", "Weapon"…): (clave, [(campo, texto)]) con los campos
+    /// de texto o número (y los de KeyValues con «kv.» adelante)
+    pub fn lista(&mut self, nombre: &str) -> Vec<(String, Vec<(String, String)>)> {
+        self.activar();
+        let gl = self.lua.globales(); let l = gl.borrow().get_str("list");
+        let Valor::Tabla(l) = l else { return vec![] }; let f = l.borrow().get_str("GetForEdit");
+        let Ok(r) = self.lua.llamar(&f, &[cad(nombre)]) else { return vec![] };
+        let Some(Valor::Tabla(t)) = r.into_iter().next() else { return vec![] };
+        let txt = |v: &Valor| match v { Valor::Cad(_) | Valor::Num(_) => Some(js_str(v)), Valor::Bool(b) => Some(b.to_string()), _ => None };
+        let mut out = vec![];
+        for (k, v) in t.borrow().pares() {
+            let Some(k) = txt(&k) else { continue }; let mut campos = vec![];
+            if let Valor::Tabla(e) = &v { for (ck, cv) in e.borrow().pares() {
+                let Some(ck) = txt(&ck) else { continue };
+                if let Some(x) = txt(&cv) { campos.push((ck, x)); } else if let Valor::Tabla(kv) = &cv { for (a, b) in kv.borrow().pares() { if let (Some(a), Some(b)) = (txt(&a), txt(&b)) { campos.push((format!("kv.{ck}.{a}"), b)); } } }
+            } }
+            out.push((k, campos));
+        }
+        out.sort_by(|a, b| a.0.cmp(&b.0)); out
+    }
+    /// una frase de GMod ("#npc_alyx" → "Alyx Vance"), si está
+    pub fn frase(&mut self, k: &str) -> Option<String> {
+        self.activar(); let k = k.trim_start_matches('#');
+        let r = self.correr(&format!("return language.GetPhrase({:?})", k), "frase", true).ok()?;
+        let v = js_str(r.first()?); if v.is_empty() || v == k { None } else { Some(v) }
+    }
     /// tocar algo del menú: "gmswep:<clase>" da el arma; "gment:<clase>" pone la entidad con su SpawnFunction
     pub fn spawn_menu(&mut self, item: &str) -> bool { self.activar(); spawn_menu(&mut self.lua, item) }
     /// el nombre para mostrar de algo del menú ("gmswep:<clase>" o "gment:<clase>"): su PrintName del lado del cliente

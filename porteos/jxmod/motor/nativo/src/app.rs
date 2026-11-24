@@ -55,6 +55,8 @@ fn android_main(app: AndroidApp) {
     j.en_red.puente = Some(unsafe { crate::red_android::Java::de_vm(app.vm_as_ptr()) }.puente());
     // (los addons de GMod: bajar de la tienda —binario— y la carpeta del celular donde se pueden dejar .gma)
     let java = unsafe { crate::red_android::Java::de_vm(app.vm_as_ptr()) }; j.gmod.http_bin = Some(java.http_bin()); j.gmod.carpeta_externa = app.external_data_path().map(|p| p.join("addons"));
+    // (el contenido base de GMod y HL2 —rb/gm_lib.*— y el menú de GMod —rb/jxp/— leídos de la APK)
+    j.gmod.lector_rb = Some(crate::comun::gmod_juego::lector_android(&app));
     // (escribir: el cuadro de texto de Juego.java)
     if let Some(t) = unsafe { crate::red_android::Teclado::nuevo(app.vm_as_ptr(), app.activity_as_ptr()) } {
         let (t1, t2) = (t.clone(), t);

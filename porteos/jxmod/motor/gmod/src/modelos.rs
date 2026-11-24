@@ -53,7 +53,9 @@ pub fn modelo(ruta: &str) -> Option<Rc<Modelo>> {
     e3(|s| s.modelos.insert(r, res.clone())); res
 }
 /// las matrices de piel (W·p2b, en el espacio de Source) de la animación `ia` en el cuadro (con fracción) `fr`
-pub fn huesos_de(md: &Modelo, ia: usize, fr: f64) -> Vec<[f32; 12]> {
+pub fn huesos_de(md: &Modelo, ia: usize, fr: f64) -> Vec<[f32; 12]> { let w = pose_w(md, ia, fr); w.iter().zip(md.m.huesos.iter()).map(|(w, h)| gmf::mul34(w, &h.p2b)).collect() }
+/// los huesos en el espacio del modelo (W) de la animación `ia` en el cuadro (con fracción) `fr`
+pub fn pose_w(md: &Modelo, ia: usize, fr: f64) -> Vec<[f32; 12]> {
     let m = &md.m; let nf = m.anims.get(ia).map(|a| a.nf).unwrap_or(1).max(1);
     let fr = fr.clamp(0.0, (nf - 1) as f64); let f0 = fr.floor() as i32; let w = (fr - f0 as f64) as f32;
     let mut pa = gmf::pose_capas(m, &md.capas, ia, f0);
@@ -65,8 +67,19 @@ pub fn huesos_de(md: &Modelo, ia: usize, fr: f64) -> Vec<[f32; 12]> {
             pa.q[h] = gmf::qnorm([q0[0] * (1.0 - w) + q1[0] * w, q0[1] * (1.0 - w) + q1[1] * w, q0[2] * (1.0 - w) + q1[2] * w, q0[3] * (1.0 - w) + q1[3] * w]);
         }
     }
-    let wm = gmf::mundo_huesos(m, &pa);
-    wm.iter().zip(m.huesos.iter()).map(|(w, h)| gmf::mul34(w, &h.p2b)).collect()
+    gmf::mundo_huesos(m, &pa)
+}
+/// las manos del jugador (UseHands: c_arms, como la entidad gmod_hands pegada a la vista): cada hueso suyo que la vista
+/// tiene con el mismo nombre va donde está ése; los demás, en su pose de reposo desde su padre
+fn manos_de(vm: &Modelo, wv: &[[f32; 12]]) -> Option<(String, Vec<[f32; 12]>)> {
+    let r = "models/weapons/c_arms_citizen.mdl"; let mh = modelo(r)?;
+    let nom: HashMap<String, usize> = vm.m.huesos.iter().enumerate().map(|(i, h)| (h.n.to_lowercase(), i)).collect();
+    let mut w: Vec<[f32; 12]> = Vec::with_capacity(mh.m.huesos.len());
+    for (i, h) in mh.m.huesos.iter().enumerate() {
+        let x = match nom.get(&h.n.to_lowercase()) { Some(&j) if j < wv.len() => wv[j], _ => { let l = gmf::m34(h.pos, h.q); if h.pa >= 0 && (h.pa as usize) < i { gmf::mul34(&w[h.pa as usize], &l) } else { l } } };
+        w.push(x);
+    }
+    Some((r.to_string(), w.iter().zip(mh.m.huesos.iter()).map(|(w, h)| gmf::mul34(w, &h.p2b)).collect()))
 }
 /// los huesos en el espacio del modelo (W) de la pose de ahora de una entidad (para enganches y huesos del Lua)
 fn mundo_de(md: &Modelo, a: Option<&SecEnt>) -> Vec<[f32; 12]> {
@@ -641,7 +654,7 @@ pub(crate) fn vista_act(e: &mut Estado, act: i32) -> bool {
     an(id, |x| { x.sec = Some(SecEnt { i, anim: ai, t: 0.0, lp: s.lp, dur }); x.rate = Some(1.0); }); true
 }
 /// lo que hace falta para dibujar la vista del arma del addon
-pub struct VistaArma { pub modelo: String, pub fov: f64, pub flip: bool, pub huesos: Vec<[f32; 12]>, pub piel: i32, pub lugar: Option<(V3, Quat)> }
+pub struct VistaArma { pub modelo: String, pub fov: f64, pub flip: bool, pub huesos: Vec<[f32; 12]>, pub piel: i32, pub lugar: Option<(V3, Quat)>, pub manos: Option<(String, Vec<[f32; 12]>)> }
 fn vista_cuadro(e: &mut Estado, dt: f64) -> Option<VistaArma> {
     let r = vista_modelo()?; let id = vista_id()?; let md = modelo(&r)?;
     let w = g(|g| g.swep.clone())?; let clase = ce(&w, |x| x.clase.clone())?; let t = clase_tabla(&clase, Lado::C).or_else(|| clase_tabla(&clase, Lado::S))?;
@@ -660,7 +673,10 @@ fn vista_cuadro(e: &mut Estado, dt: f64) -> Option<VistaArma> {
         let r = metodo(e, &w, "GetViewModelPosition", Lado::C, &[vv(c.pos), naa(ang)]);
         match (r.first().and_then(vec_de), r.get(1).and_then(ang_de)) { (Some(p), Some(a)) => Some((a_juego(p), ang_quat(a))), (Some(p), None) => Some((a_juego(p), ang_quat(ang))), _ => None }
     } else { None };
-    Some(VistaArma { modelo: r, fov, flip, huesos: huesos_de(&md, s.anim, fr), piel, lugar })
+    let wv = pose_w(&md, s.anim, fr);
+    let manos = if t_(&buscar_en_clase(&t, "UseHands")) { manos_de(&md, &wv) } else { None };
+    let huesos = wv.iter().zip(md.m.huesos.iter()).map(|(w, h)| gmf::mul34(w, &h.p2b)).collect();
+    Some(VistaArma { modelo: r, fov, flip, huesos, piel, lugar, manos })
 }
 fn t_(v: &Valor) -> bool { v.es_verdad() }
 fn mat_nombre(v: &Valor) -> String { match v { Valor::Udata(u) => u.con(|m: &crate::resto::Mat| m.n.clone()).unwrap_or_default(), Valor::Cad(_) => js_str(v), _ => String::new() } }
@@ -677,7 +693,7 @@ pub struct Sprite3 { pub mat: String, /** las esquinas (en el juego): la de la U
 pub struct Dib { pub modelos: Vec<DibModelo>, pub sprites: Vec<Sprite3>, pub ocultos: Vec<ObjId>, pub vista: Option<std::rc::Rc<VistaArma2>> }
 /// (la vista, para el que dibuja)
 #[derive(Clone, Debug)]
-pub struct VistaArma2 { pub modelo: String, pub fov: f64, pub flip: bool, pub huesos: Vec<[f32; 12]>, pub piel: i32, /** de GetViewModelPosition (en el juego) */ pub lugar: Option<(V3, Quat)> }
+pub struct VistaArma2 { pub modelo: String, pub fov: f64, pub flip: bool, pub huesos: Vec<[f32; 12]>, pub piel: i32, /** de GetViewModelPosition (en el juego) */ pub lugar: Option<(V3, Quat)>, /** las manos (UseHands): su modelo y su pose */ pub manos: Option<(String, Vec<[f32; 12]>)> }
 struct Pasada { act: Option<i64>, dm: bool, mat: String, modc: [f32; 3], blend: f32, dib: Dib }
 thread_local! { static PS: RefCell<Option<Pasada>> = const { RefCell::new(None) }; }
 fn ps<X>(f: impl FnOnce(&mut Pasada) -> X) -> Option<X> { PS.with(|p| p.borrow_mut().as_mut().map(f)) }
@@ -768,7 +784,7 @@ pub(crate) fn dibujar(e: &mut Estado, dt: f64) -> Dib {
     // (los objetos que DrawModel dibujó desde otra entidad se ven aunque su Draw no lo haya hecho)
     let vistos: HashSet<ObjId> = e3(|s| { let l: Vec<i64> = s.anim.iter().filter(|(_, a)| a.dm).map(|(k, _)| *k).collect(); for k in &l { if let Some(a) = s.anim.get_mut(k) { a.dm = false; } } l }).into_iter().filter_map(|id| ce(&ent_por_id(id), |y| y.o).flatten()).collect();
     if !vistos.is_empty() { d.ocultos.retain(|o| !vistos.contains(o)); }
-    d.vista = vista_cuadro(e, dt).map(|v| std::rc::Rc::new(VistaArma2 { modelo: v.modelo, fov: v.fov, flip: v.flip, huesos: v.huesos, piel: v.piel, lugar: v.lugar }));
+    d.vista = vista_cuadro(e, dt).map(|v| std::rc::Rc::new(VistaArma2 { modelo: v.modelo, fov: v.fov, flip: v.flip, huesos: v.huesos, piel: v.piel, lugar: v.lugar, manos: v.manos }));
     d
 }
 

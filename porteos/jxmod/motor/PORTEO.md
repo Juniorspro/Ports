@@ -53,10 +53,12 @@ Cada archivo de la web y dónde quedó en la nativa. ✔ hecho (comparado con la
 | gmod_lua.js | ✔ | lua/ (jxlua) |
 | gmod_api.js, gmod_prelude.js, gmod.js, gmod_cargar.js | ✔ | gmod/ (jxgmod) |
 | gmod_carpeta.js, gmod_tienda.js, gmod_panel.js | ◐ | nativo/gmod_juego.rs |
-| gmod_formatos.js, gmod_vista.js, gmod_anim.js, gmod_nextbot.js, gmod_sonidos.js | ◐ (faltan manos c_arms, elementos del SWEP Construction Kit, bodygroups, bucles de sonido, .pcf) | gmod/formatos.rs, modelos.rs, sonidos.rs, nativo/gmod_modelos.rs |
+| gmod_formatos.js, gmod_vista.js, gmod_anim.js, gmod_nextbot.js, gmod_sonidos.js | ◐ (con las manos c_arms; faltan elementos del SWEP Construction Kit, bodygroups, bucles de sonido, .pcf) | gmod/formatos.rs, modelos.rs, sonidos.rs, nativo/gmod_modelos.rs |
 | gmod_render.js, gmod_rt.js, gmod_dx9.js | ✘ | |
-| gmod_spawn.js, gmod_modos.js, gmod_server.js, gmod_pipe.js, gmod_steam.js, gmod_lib.js, gmod_cola.js | ✘ | |
-| gmod_personal.js (el menú de GMod de la personal) | ✘ | |
+| gmod_lib.js | ✔ (la biblioteca va en la APK: se lee por rangos, sin bajar) | nativo/gmod_base.rs |
+| gmod_spawn.js | ◐ (los NPC y vehículos de list.Set se ponen con su clase y su modelo; falta hacerlos NPC del juego y autos manejables) | nativo/gmod_menu.rs |
+| gmod_modos.js, gmod_server.js, gmod_pipe.js, gmod_steam.js, gmod_cola.js | ✘ | |
+| gmod_personal.js (el menú de GMod de la personal) | ◐ (pestañas, spawnlists, íconos, listas del Lua de GMod; faltan emotes, packs del Workshop, búsqueda) | nativo/gmod_menu.rs, gmod_base.rs |
 | pillpacks.js, pill_gmod.js | ✘ | |
 | nativos.js, smods.js, modmenu.js, acciones.js | ✘ | |
 | modapi.js (mods con código JS) | — | no hay JavaScript en la nativa |

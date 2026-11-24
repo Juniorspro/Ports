@@ -64,6 +64,7 @@ fn sonido_sup(s: &str) -> &'static str {
 }
 
 impl Juego {
+    pub(crate) fn gm_id_pub(&mut self) -> i64 { self.gm_id() }
     fn gm_id(&mut self) -> i64 { self.gmod.mods.sig += 1; ID_GM - 16 - self.gmod.mods.sig }
     fn gm_archivo(&self, r: &str) -> Option<Rc<[u8]>> { self.gmod.gm.as_ref()?.archivo(r) }
     /// una textura de los addons (materials/<ruta>.vtf, o una imagen PNG): su número, ancho y alto
@@ -154,7 +155,9 @@ impl Juego {
         r
     }
     fn gm_armar(&mut self, m: &mut Motor3d, ruta: &str) -> Option<ModeloGm> {
-        let md = self.gmod.gm.as_ref()?.modelo(ruta)?; let mdl = md.m.clone();
+        let tp = Instant::now(); let perfil = std::env::var("JXM_PERFIL").is_ok(); let mut marcas: Vec<(&str, f32)> = vec![];
+        let mut marca = |n: &'static str| if perfil { marcas.push((n, tp.elapsed().as_secs_f32() * 1000.0)); };
+        let md = self.gmod.gm.as_ref()?.modelo(ruta)?; let mdl = md.m.clone(); marca("mdl");
         let v = mdl.v.as_ref()?; if mdl.mallas.is_empty() { return None; }
         let base = &ruta[..ruta.len().saturating_sub(4)];
         let fphy = self.gm_archivo(&format!("{base}.phy")).map(|b| gmf::phy(&b));
@@ -171,6 +174,7 @@ impl Juego {
             if !usar && hull_ok { let hh = Some([h0[0][0], h0[0][1], h0[0][2], h0[1][0], h0[1][1], h0[1][2]]); let hb = calce(cb, hh); let hp = calce(cp, hh); usar = hb > 8.0 && hp < hb * 0.5; }
             if usar { vp = Some(vpp); } else { rp = None; }
         }
+        marca("reposo");
         let (pos_s, nor_s) = match &vp { Some((a, b)) => (a.as_slice(), b.as_slice()), None => (v.pos.as_slice(), v.nor.as_slice()) };
         let p: Vec<[f32; 3]> = pos_s.iter().map(|x| a_juego(*x)).collect(); let nr: Vec<[f32; 3]> = nor_s.iter().map(|x| dir_juego(*x)).collect();
         // (las UV de cada malla llevadas cerca de 0, de a enteros: gmUVcorr)
@@ -187,7 +191,8 @@ impl Juego {
             let l = match por_mat.iter_mut().find(|x| x.0 == mat) { Some(x) => &mut x.1, None => { por_mat.push((mat, vec![])); &mut por_mat.last_mut().unwrap().1 } };
             for t in mm.tris.chunks_exact(3) { l.extend_from_slice(&[t[0], t[2], t[1]]); if dos { l.extend_from_slice(&[t[0], t[1], t[2]]); } }
         }
-        let quieto = self.gm_subir(m, &p, &nr, &uv, &por_mat, None)?;
+        marca("materiales");
+        let quieto = self.gm_subir(m, &p, &nr, &uv, &por_mat, None)?; marca("subir");
         let (mut mn, mut mx) = ([f32::MAX; 3], [f32::MIN; 3]); for x in &p { for k in 0..3 { mn[k] = mn[k].min(x[k]); mx[k] = mx[k].max(x[k]); } }
         // la forma de choque: las piezas del .phy (hasta 24) o el casco de la malla
         let mut partes: Vec<(fz::Casco, [f64; 3], f64)> = vec![];
@@ -212,6 +217,7 @@ impl Juego {
             let snd = sonido_sup(fphy.as_ref().and_then(|f| f.superficie.clone()).unwrap_or_default().as_str()).to_string();
             Some(Arc::new(PrefabFisica { nombre: format!("gm:{ruta}"), clave: format!("gm:{ruta}#gm"), forma: Arc::new(forma), c, eje_cap: None, cap_q: None, partes: 1, masa: masa.clamp(0.5, 50000.0), fric: 0.6, rest: 0.12, tipo: "prop", sin_fisica: false, congelado: false, salta: false, snd, dens: None }))
         };
+        marca("fisica"); if perfil { eprintln!("armar {ruta}: {:?}", marcas); }
         Some(ModeloGm { quieto: vec![quieto], piel: None, caja: [mn[0], mn[1], mn[2], mx[0], mx[1], mx[2]], fis, mats })
     }
     /// la malla con piel (en la pose de enlace), partida en grupos de 56 huesos como mucho
@@ -283,7 +289,7 @@ impl Juego {
         self.gmod.mods.ms_armar = 0.0;
         if !self.gmod.mods.quad { self.gmod.mods.quad = true; self.gm_subir_quad(m); }
         let mut rutas: Vec<(String, bool)> = self.gmod.mods.dib.modelos.iter().map(|d| (d.modelo.clone(), d.huesos.is_some())).collect();
-        if let Some(v) = self.gmod.mods.dib.vista.clone() { rutas.push((v.modelo.clone(), true)); }
+        if let Some(v) = self.gmod.mods.dib.vista.clone() { rutas.push((v.modelo.clone(), true)); if let Some((r, _)) = &v.manos { rutas.push((r.clone(), true)); } }
         if let Some(w) = self.gm_modelo_mundo() { rutas.push((w, false)); }
         for (r, piel) in rutas {
             if self.gmod.mods.ms_armar > 12.0 { break; }
@@ -397,6 +403,8 @@ impl Juego {
                 let (p0, q0) = match v.lugar { Some((p, q)) => ([p.x as f32, p.y as f32, p.z as f32], [q.x as f32, q.y as f32, q.z as f32, q.w as f32]), None => (ojos, qcam(yaw, pitch)) };
                 let base = m4::mul(&mapa::trs(p0, q0, [1.0; 3]), &mapa::trs([0.0; 3], [0.0, 0.0, 0.0, 1.0], [kf * fx, kf, 1.0]));
                 let n0 = items.len(); Self::gm_items_modelo(md, &base, Some(&v.huesos), items);
+                // (las manos: c_arms con los huesos de la vista)
+                if let Some((r, hs)) = &v.manos { if let Some(Some(mh)) = mods.get(r) { if mh.piel.is_some() { Self::gm_items_modelo(mh, &base, Some(hs), items); } } }
                 for it in &mut items[n0..] { it.fl |= FL_SIN_SOMBRA_GM; it.esf[3] = -1.0; }
             } } }
         }

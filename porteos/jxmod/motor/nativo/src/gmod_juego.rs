@@ -16,6 +16,10 @@ use std::sync::Arc;
 /// las texturas de los materiales de los addons (TEX_GMOD - k)
 const TEX_GMOD: i64 = -3000;
 #[path = "gmod_modelos.rs"] mod gmod_modelos;
+#[path = "gmod_base.rs"] mod gmod_base;
+#[path = "gmod_menu.rs"] mod gmod_menu;
+pub use gmod_base::{lector_carpetas, LectorRb};
+#[cfg(target_os = "android")] pub use gmod_base::lector_android;
 /// la tienda de la web (inicio.js: TIENDA_URL)
 pub const TIENDA_URL: &str = "https://rezobox-tienda.holasoyjuniors365.workers.dev/api/";
 /// un pedido HTTP binario (los .gma): (código, cuerpo); en Android, red_android::Java::http_bin
@@ -67,6 +71,8 @@ struct Puente {
     nombre: String, mapa_nombre: String, spawns: Vec<(V3, Option<f64>)>,
     /// la caja de los modelos de los addons ya armados ("gm:…" → mínimo y tamaño, en el juego)
     cajas: HashMap<String, ([f64; 3], [f64; 3])>,
+    /// el contenido base de GMod y HL2 (rb/gm_lib.*): lo que los addons dan por hecho
+    lib: Option<Rc<gmod_base::Biblioteca>>,
 }
 
 /// un número al azar entre 0 y 1 (las variantes de los guiones de sonido)
@@ -191,7 +197,8 @@ impl Anfitrion for Puente {
             }
         }
     }
-    fn archivo(&mut self, r: &str) -> Option<Vec<u8>> { self.archivos.get(r).map(|b| b.to_vec()) }
+    fn archivo(&mut self, r: &str) -> Option<Vec<u8>> { self.archivos.get(r).map(|b| b.to_vec()).or_else(|| self.lib.as_ref().and_then(|l| l.leer(r)).map(|b| b.to_vec())) }
+    fn existe(&mut self, r: &str) -> bool { self.archivos.contains_key(r) || self.lib.as_ref().map(|l| l.tiene(r)).unwrap_or(false) }
     fn dato(&mut self, k: &str) -> Option<String> { self.datos.get(k).cloned() }
     fn poner_dato(&mut self, k: &str, v: Option<&str>) { match v { Some(v) => { self.datos.insert(k.into(), v.into()); } None => { self.datos.remove(k); } } self.datos_sucio = true; }
     fn como_any(&mut self) -> Option<&mut dyn std::any::Any> { Some(self) }
@@ -228,13 +235,15 @@ pub struct EnGmod {
     pub mods: gmod_modelos::GmModelos,
     /// lo que tardó en el último cuadro el dibujo 3D del Lua más armar y ubicar los modelos (ms)
     pub ms_3d: f32,
+    /// cómo leer rb/ (la biblioteca gm_lib y rb/jxp: en la APK o en una carpeta; lo pone la app), lo leído y el menú de GMod
+    pub lector_rb: Option<LectorRb>, lib: Option<Rc<gmod_base::Biblioteca>>, pub jxp: Option<gmod_base::MenuJxp>, pub menu: gmod_menu::MenuGm,
 }
 
 impl EnGmod {
     pub fn nueva(datos: Option<&Path>) -> EnGmod {
         let (tx, rx) = channel();
         EnGmod { gm: None, addons: vec![], pendientes: vec![], arma: None, base: 0, carpeta_externa: None, datos: datos.map(|d| d.to_path_buf()), panel: false, scroll: 0.0, texs: vec![], hud_px: vec![], escala: 1.0,
-            http_bin: None, tienda: vec![], tx, rx, tienda_pedida: false, ms: 0.0, ms_prom: 0.0, pantalla: (1280.0, 720.0), buscado: false, cuenta: BTreeMap::new(), mods: Default::default(), ms_3d: 0.0 }
+            http_bin: None, tienda: vec![], tx, rx, tienda_pedida: false, ms: 0.0, ms_prom: 0.0, pantalla: (1280.0, 720.0), buscado: false, cuenta: BTreeMap::new(), mods: Default::default(), ms_3d: 0.0, lector_rb: None, lib: None, jxp: None, menu: Default::default() }
     }
     fn apagados_ruta(&self) -> Option<PathBuf> { self.datos.as_ref().map(|d| d.join("gmod_apagados.txt")) }
     /// los addons de las carpetas (.gma y carpetas con lua/), en orden de nombre; los apagados quedan anotados
@@ -316,6 +325,8 @@ impl Juego {
     }
     /// arranca la capa GMod (sin addons todavía): se llama sola la primera vez
     fn gmod_arrancar(&mut self) {
+        // (la biblioteca y los datos de la versión personal, una vez)
+        if self.gmod.lib.is_none() { if let Some(l) = self.gmod.lector_rb.clone() { self.gmod.lib = gmod_base::Biblioteca::abrir(l.clone()).map(Rc::new); if self.gmod.jxp.is_none() { self.gmod.jxp = gmod_base::menu_jxp(&l); } } }
         let nombres: HashMap<String, String> = self.nombres.keys().map(|k| (k.to_lowercase(), k.clone())).collect();
         let caja = ["WoodenCrate", "Crate", "crate"].iter().find(|n| self.nombres.contains_key(**n)).map(|s| s.to_string())
             .or_else(|| self.nombres.keys().filter(|k| k.to_lowercase().contains("crate") || k.to_lowercase().contains("box")).min().cloned())
@@ -327,9 +338,12 @@ impl Juego {
             jug: jxgmod::Jugador::default(), cam: jxgmod::Camara::default(), ent: jxgmod::Entrada::default(), armas: jxgmod::Armas::default(),
             cuerpos: BTreeMap::new(), sig: 0, pedidos: vec![], cmds: vec![], gm_armas: vec![], mapa: None, fis: None, letras: None,
             de_fis: HashMap::new(), a_fis: HashMap::new(), archivos: HashMap::new(), mats: HashMap::new(), prefabs: nombres, caja, datos, datos_sucio: false,
-            nombre: "Jugador".into(), mapa_nombre: self.mapas.get(self.mapa_i).cloned().unwrap_or_default(), spawns, cajas: HashMap::new(),
+            nombre: "Jugador".into(), mapa_nombre: self.mapas.get(self.mapa_i).cloned().unwrap_or_default(), spawns, cajas: HashMap::new(), lib: self.gmod.lib.clone(),
         };
         self.gmod.gm = Some(Gmod::nuevo(Box::new(p)));
+        // (el addon base «Garry's Mod»: el Lua de GMod que llena las listas de NPCs, vehículos y armas, antes que los demás)
+        if let (Some(l), Some(mj)) = (self.gmod.lector_rb.clone(), self.gmod.jxp.as_ref()) { if let Some(a) = gmod_base::addon_base(&l, mj) { self.gmod_prestar(true); if let Some(gm) = self.gmod.gm.as_mut() { gm.montar(a); } self.gmod_prestar(false); } }
+        self.gmod.menu.hecho = false;
         self.gmod.texs.clear();
         self.gmod.arma = None;
     }
@@ -382,6 +396,8 @@ impl Juego {
         if !self.gmod.buscado { self.gmod.buscado = true; self.gmod.buscar(); }
         if !self.gmod.pendientes.is_empty() && self.mapa.is_some() { self.gmod_montar_uno(); }
         self.gmod_tienda_paso();
+        if self.gmod.panel && self.gmod.gm.is_none() && self.mapa.is_some() { self.gmod_arrancar(); }
+        self.gmod_menu_paso(m);
         if self.gmod.gm.is_none() || self.mapa.is_none() { return; }
         let t0 = Instant::now();
         // (el arma de un addon: si el jugador eligió otra del juego, se guarda)
@@ -641,6 +657,7 @@ impl Juego {
                 }
             }
         }
+        if self.gmod.panel { self.gmod_menu_iconos(wf, hf, &mut extra); }
         // (el arma de un addon en la mano: su nombre arriba de la barra)
         if let Some(n) = self.gmod.arma.and_then(|kk| self.con_puente(|p| p.gm_armas.get(kk).map(|a| a.2.clone())).flatten()) {
             let tt = t * 0.75; let an = l.ancho(tt, &n);
@@ -666,7 +683,7 @@ thread_local! {
 pub enum BtnMods { Prender(usize), Arma(usize, usize), Ent(usize, usize), Bajar(usize), Tienda, Cerrar }
 /// dónde va el panel y cada botón (con la lista bajada `scroll`)
 pub fn panel_mods_geo(w: f32, h: f32, en: &EnGmod) -> ([f32; 4], Vec<(BtnMods, [f32; 4])>) {
-    let (pw, ph) = (w * 0.86, h * 0.84); let (x0, y0) = ((w - pw) / 2.0, (h - ph) / 2.0);
+    let (pw, ph) = (w * 0.86, h * 0.78); let (x0, y0) = ((w - pw) / 2.0, h * 0.14);
     let fila = h * 0.075; let chip = h * 0.062;
     let mut v = vec![(BtnMods::Cerrar, [x0 + pw - fila * 1.1, y0 + fila * 0.15, fila * 0.9, fila * 0.8]), (BtnMods::Tienda, [x0 + pw - fila * 4.6, y0 + fila * 0.15, fila * 3.3, fila * 0.8])];
     let mut y = y0 + fila * 1.3 - en.scroll;
@@ -686,10 +703,13 @@ impl Juego {
     /// abrir (o cerrar) el panel «Mods»
     pub fn gmod_abrir(&mut self) { self.gmod.panel = !self.gmod.panel; self.gmod.scroll = 0.0; if self.gmod.panel && self.gmod.addons.is_empty() { self.gmod.buscar(); } }
     /// arrastrar en el panel (baja la lista)
-    pub fn gmod_mueve(&mut self, dy: f32) { self.gmod.scroll = (self.gmod.scroll - dy).max(0.0); }
+    pub fn gmod_mueve(&mut self, dy: f32) { if self.gmod.menu.tab != gmod_menu::TAB_ADDONS { self.gmod.menu.scroll = (self.gmod.menu.scroll - dy).max(0.0); } else { self.gmod.scroll = (self.gmod.scroll - dy).max(0.0); } }
     /// un toque en el panel; true si lo tomó
     pub fn gmod_toque(&mut self, x: f32, y: f32, w: f32, h: f32) -> bool {
         if !self.gmod.panel { return false; }
+        // (las pestañas y lo del menú de GMod; en Addons, lo de siempre)
+        let tab = gmod_menu::menu_geo(w, h, &self.gmod.menu).1.into_iter().any(|(b, r)| matches!(b, gmod_menu::BtnMenu::Tab(_) | gmod_menu::BtnMenu::Cerrar) && x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3]);
+        if tab || self.gmod.menu.tab != gmod_menu::TAB_ADDONS { return self.gmod_menu_toque(x, y, w, h); }
         let (_, bs) = panel_mods_geo(w, h, &self.gmod);
         let Some(b) = bs.into_iter().find(|(_, r)| x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3]).map(|x| x.0) else { return true };
         match b {
@@ -715,6 +735,11 @@ impl Juego {
         self.gmod.addons.iter().filter(|a| a.prendido).map(|a| (a.nombre.clone(), a.sweps.iter().map(|(c, n)| (format!("gmswep:{}", c), n.clone())).chain(a.sents.iter().map(|(c, n)| (format!("gment:{}", c), n.clone()))).collect())).collect()
     }
     fn gmod_dibujar_panel(&self, l: &Letras, u: &mut Vec<f32>, wf: f32, hf: f32, t: f32) {
+        // (el menú de GMod: Spawnlists, Weapons, Entities, NPCs, Vehicles; en Addons, el panel de siempre debajo de las pestañas)
+        if self.gmod.menu.tab != gmod_menu::TAB_ADDONS { self.gmod_menu_dibujar(l, u, wf, hf, t); return; }
+        self.gmod_dibujar_addons(l, u, wf, hf, t); self.gmod_menu_dibujar(l, u, wf, hf, t);
+    }
+    fn gmod_dibujar_addons(&self, l: &Letras, u: &mut Vec<f32>, wf: f32, hf: f32, t: f32) {
         let (c, bs) = panel_mods_geo(wf, hf, &self.gmod);
         let fila = hf * 0.075; let bl = [1.0, 1.0, 1.0, 1.0];
         l.caja(u, c[0], c[1], c[2], c[3], hf * 0.02, [0.06, 0.07, 0.09, 0.94]);

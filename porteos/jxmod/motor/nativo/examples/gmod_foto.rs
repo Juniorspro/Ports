@@ -26,6 +26,8 @@ fn main() {
     let letras = || (std::fs::read_to_string(Path::new(&let_).join("letras.json")).ok(), std::fs::read(Path::new(&let_).join("letras.png")).ok());
     let (lj, lp) = letras(); let mut j = Juego::nuevo(paq, lj, lp, Some(datos.clone()));
     j.gmod.carpeta_externa = std::env::var("JXM_ADDONS").ok().map(std::path::PathBuf::from);
+    // (rb/: la biblioteca de GMod —gm_lib— y los datos de la versión personal —jxp—)
+    j.gmod.lector_rb = Some(jxmod::comun::gmod_juego::lector_carpetas(vec![Path::new(&www).join("rb"), "/tmp/claude-0/jxp_pub/rb".into()]));
     let _ = std::fs::remove_file(datos.join("gmod_apagados.txt"));
     j.dt_fijo = Some(1.0 / 60.0);
 
@@ -117,6 +119,18 @@ fn main() {
         }
     }
     println!("modelos armados {} ({} triángulos; el más lento {:.1} ms: {}) · {:?}", j.gmod.mods.armados, j.gmod.mods.tris, j.gmod.mods.ms_max.0, j.gmod.mods.ms_max.1, j.gmod.mods.modelos.iter().map(|(k, v)| (k.clone(), v.is_some())).collect::<Vec<_>>());
+    // (JXM_MENU=1: el menú de GMod: pestañas, listas, poner un prop de un spawnlist, un NPC y un vehículo)
+    if std::env::var("JXM_MENU").is_ok() {
+        j.gmod_abrir(); paso(&mut j, &mut m, 3);
+        let ls = j.gmod_menu_listas(); println!("menú: {:?}", ls.iter().map(|x| x.len()).collect::<Vec<_>>()); println!("  NPCs: {:?}", ls.get(3)); println!("  Vehicles: {:?}", ls.get(4));
+        let its = j.gmod_menu_ir(0, 0); paso(&mut j, &mut m, 12); foto(&mut m, "m1_spawnlists");
+        let prop = its.iter().find(|i| { let r = i.trim_start_matches("gmprop:"); j.gmod.gm.as_ref().map(|g| g.archivo(r).is_some()).unwrap_or(false) }).cloned();
+        println!("  lista 0: {} cosas; con modelo en la biblioteca: {:?}", its.len(), prop);
+        j.gmod_menu_ir(3, 0); paso(&mut j, &mut m, 12); foto(&mut m, "m2_npcs");
+        j.gmod_menu_ir(1, 0); paso(&mut j, &mut m, 12); foto(&mut m, "m3_weapons");
+        if let Some(p) = prop { let n0 = j.objs.len(); j.gmod_menu_poner(&p); paso(&mut j, &mut m, 40); println!("  puesto {}: objetos {} → {} ({:?})", p, n0, j.objs.len(), j.objs.last().map(|o| o.nombre.clone())); foto(&mut m, "m4_prop"); }
+        if let Some(n) = j.gmod_menu_ir(3, 0).first().cloned() { let n0 = j.objs.len(); j.gmod_menu_poner(&n); paso(&mut j, &mut m, 40); println!("  puesto {}: objetos {} → {} ({:?})", n, n0, j.objs.len(), j.objs.last().map(|o| o.nombre.clone())); foto(&mut m, "m5_npc"); }
+    }
     // (JXM_TIENDA=1: la tienda de verdad con curl: la lista, bajar el más chico, descomprimir e instalar)
     if std::env::var("JXM_TIENDA").is_ok() {
         j.gmod.http_bin = Some(std::sync::Arc::new(|u: &str| {
