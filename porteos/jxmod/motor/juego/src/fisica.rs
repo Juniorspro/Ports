@@ -6,8 +6,12 @@
 //! contactos con fricción, velocidades y rebote) es el de `jxfisica` —el mismo que corre en WebAssembly en la web—: los
 //! cuerpos, contactos y uniones se le pasan en arreglos, como fisicaWasmPaso.
 //! Todo en f64 (como el JS); el mapa es f32 (como MUNDO.T, un Float32Array).
+//! Con hilos (`Fisica::hilos`, hasta 4 por defecto; un equipo fijo de `jxfisica`): los choques entre cuerpos se reparten
+//! y se juntan en el orden de los pares, y el solver reparte las islas. Da lo mismo, bit por bit, que con uno solo (y que
+//! la web): ver tests/fisica_rapida.rs.
 use crate::mundo::{Forma as FormaMundo, Mundo, CUERPO};
 use std::cell::{Cell, RefCell};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hasher};
 use std::sync::Arc;
@@ -322,7 +326,9 @@ pub struct GolpeRayo { pub t: f64, pub n: V, pub p: V, pub cuerpo: Option<u32> }
 struct Fijo { forma: Forma, geo: Geo, tri: Option<u32>, tn: V, ar: Cell<Option<[bool; 3]>> }
 const FIJO_CUERPO: u64 = 1 << 40;
 
-#[inline] fn tv(m: &Mundo, t: u32, k: usize) -> V { let o = t as usize * 9 + k * 3; [m.t[o] as f64, m.t[o + 1] as f64, m.t[o + 2] as f64] }
+#[inline] fn tv(m: &Mundo, t: u32, k: usize) -> V { tvs(&m.t, t, k) }
+/// (lo mismo, con los triángulos sueltos: lo que se puede mirar desde otro hilo)
+#[inline] fn tvs(m: &[f32], t: u32, k: usize) -> V { let o = t as usize * 9 + k * 3; [m[o] as f64, m[o + 1] as f64, m[o + 2] as f64] }
 #[inline] fn tnorm(m: &Mundo, t: u32) -> V { let o = t as usize * 3; [m.tn[o] as f64, m.tn[o + 1] as f64, m.tn[o + 2] as f64] }
 fn v32(a: [f32; 3]) -> V { [a[0] as f64, a[1] as f64, a[2] as f64] }
 
@@ -382,12 +388,16 @@ struct Sep { t: u8, i: usize, j: usize }
 /// las aristas de los triángulos de cada celda (triAristasCelda)
 type AristasCel = FxMapa<(i32, i32), FxMapa<((i32, i32, i32), (i32, i32, i32)), Vec<u32>>>;
 
-/// lo que hace falta mientras se buscan los choques
+/// lo que hace falta mientras se buscan los choques. La caché del SAT se lee como estaba al empezar y lo nuevo se anota
+/// aparte (se guarda al final de cada tanda): cada par se mira una sola vez por paso, así que da lo mismo que guardarlo
+/// en el momento, y los pares se pueden repartir entre hilos
 struct Det<'a> {
     cts: &'a mut Vec<Contacto>,
-    sep: &'a mut FxMapa<(u64, u64), Sep>,
-    mundo: &'a Mundo,
-    aristas: &'a RefCell<AristasCel>,
+    sep: &'a FxMapa<(u64, u64), Sep>,
+    sep_nuevos: &'a mut Vec<((u64, u64), Sep)>,
+    /// los triángulos del mapa (MUNDO.T) y, para las aristas lisas, el mapa entero (sólo en el hilo del juego)
+    t: &'a [f32],
+    mundo: Option<(&'a Mundo, &'a RefCell<AristasCel>)>,
     /// PH.dtDet y GRAV × gscale
     dt: f64, g: f64,
     tmp: Vec<u32>,
@@ -479,7 +489,7 @@ fn sep_cara(a: &Ent, b: &Ent, i: usize) -> f64 {
     let mut mn = 1e9; for v in &b.g.wv { let s = dot(n, *v) - dd; if s < mn { mn = s; } }
     mn
 }
-fn sat_guardar(d: &mut Det, a: &Ent, b: &Ent, t: u8, i: usize, j: usize) { d.sep.insert((a.k, b.k), Sep { t, i, j }); }
+fn sat_guardar(d: &mut Det, a: &Ent, b: &Ent, t: u8, i: usize, j: usize) { d.sep_nuevos.push(((a.k, b.k), Sep { t, i, j })); }
 fn sat_cache(d: &Det, a: &Ent, b: &Ent) -> f64 {
     let Some(c) = d.sep.get(&(a.k, b.k)) else { return -1e9 };
     match c.t {
@@ -586,7 +596,7 @@ fn casco_casco(d: &mut Det, a: &Ent, b: &Ent) {
 /// centro del poliedro; con lado, hullTriLado: todos los puntos, sin reducir)
 fn casco_tri(d: &mut Det, a: &Ent, b: &Ent, sg: f64) {
     let t = b.tri.unwrap(); let m = a.spec + b.spec;
-    let p0 = tv(d.mundo, t, 0); let e0 = sub(tv(d.mundo, t, 1), p0); let e1 = sub(tv(d.mundo, t, 2), p0);
+    let p0 = tvs(d.t, t, 0); let e0 = sub(tvs(d.t, t, 1), p0); let e1 = sub(tvs(d.t, t, 2), p0);
     let (d00, d01, d11) = (dot(e0, e0), dot(e0, e1), dot(e1, e1)); let den = d00 * d11 - d01 * d01; if den.abs() < 1e-12 { return; }
     let n = if sg != 0.0 { esc(b.tn, sg) } else if dot(sub(a.g.pos, p0), b.tn) < 0.0 { esc(b.tn, -1.0) } else { b.tn };
     let mut pts: Vec<Pt> = vec![];
@@ -603,7 +613,7 @@ fn casco_tri(d: &mut Det, a: &Ent, b: &Ent, sg: f64) {
 /// triLejos: ¿el poliedro está del todo de un lado del plano del triángulo y más lejos de lo que puede acercarse a él en
 /// este cuadro? Entonces no lo toca: ni contacto especulativo
 fn tri_lejos(d: &Det, a: &Ent, b: &Ent) -> bool {
-    let p0 = tv(d.mundo, b.tri.unwrap(), 0); let n = b.tn;
+    let p0 = tvs(d.t, b.tri.unwrap(), 0); let n = b.tn;
     let sg = if dot(sub(a.g.pos, p0), n) >= 0.0 { 1.0 } else { -1.0 };
     let mut mn = 1e9f64; for v in &a.g.wv { let s = sg * dot(sub(*v, p0), n); if s < mn { mn = s; } }
     if mn <= 0.01 { return false; }
@@ -616,7 +626,9 @@ fn tri_lejos(d: &Det, a: &Ent, b: &Ent) -> bool {
 fn casco_tri_mundo(d: &mut Det, a: &Ent, b: &Ent) {
     if tri_lejos(d, a, b) { return; }
     let t = b.tri.unwrap();
-    let ar = match b.ar.and_then(|c| c.get()) { Some(x) => x, None => { let x = tri_aristas(d.mundo, d.aristas, &mut d.tmp, t); if let Some(c) = b.ar { c.set(Some(x)); } x } };
+    let ar = match b.ar.and_then(|c| c.get()) { Some(x) => x, None => {
+        let (mu, cel) = d.mundo.expect("las aristas de un triángulo, fuera del hilo del juego");
+        let x = tri_aristas(mu, cel, &mut d.tmp, t); if let Some(c) = b.ar { c.set(Some(x)); } x } };
     if ar[0] && ar[1] && ar[2] { return casco_tri(d, a, b, 0.0); }
     let n0 = d.cts.len(); casco_casco(d, a, b);
     if d.cts.len() == n0 { return; }
@@ -628,7 +640,7 @@ fn casco_tri_mundo(d: &mut Det, a: &Ent, b: &Ent) {
         if cdep < -0.05 { d.cts.truncate(n0); return casco_tri(d, a, b, 0.0); }
         let (mut cerca, mut filosa) = (false, false);
         for e in 0..3 {
-            let pa = tv(d.mundo, t, e); let u = sub(tv(d.mundo, t, (e + 1) % 3), pa); let p = sub(wb, pa);
+            let pa = tvs(d.t, t, e); let u = sub(tvs(d.t, t, (e + 1) % 3), pa); let p = sub(wb, pa);
             let uu = dot(u, u); let s = clamp(dot(p, u) / if uu != 0.0 { uu } else { 1.0 }, 0.0, 1.0);
             let dd = sub(p, esc(u, s));
             if largo2(dd) < 0.0004 { cerca = true; if !ar[e] { filosa = true; } }
@@ -674,8 +686,8 @@ fn cap_esferas(e: &Ent) -> [V; 3] { let (a, b) = (e.g.cap_a, e.g.cap_b); [a, esc
 
 // ---- el muñeco: de qué lado de cada triángulo está ----
 /// triPrisma: ¿la proyección de p sobre el plano del triángulo t cae adentro (con margen m)?
-fn tri_prisma(mu: &Mundo, t: u32, p: V, m: f64) -> bool {
-    let a = tv(mu, t, 0); let e0 = sub(tv(mu, t, 1), a); let e1 = sub(tv(mu, t, 2), a);
+fn tri_prisma(mu: &[f32], t: u32, p: V, m: f64) -> bool {
+    let a = tvs(mu, t, 0); let e0 = sub(tvs(mu, t, 1), a); let e1 = sub(tvs(mu, t, 2), a);
     let n = cruz(e0, e1); let nl = largo(n); let nl = if nl != 0.0 { nl } else { 1.0 };
     let ed = |b: V, c: V| { let u = sub(c, b); let q = sub(p, b); let ul = largo(u); dot(cruz(u, q), n) / nl / if ul != 0.0 { ul } else { 1.0 } };
     let (b, c) = (add(a, e0), add(a, e1));
@@ -687,7 +699,7 @@ fn tramo_cruza_tri(mu: &Mundo, t: u32, o: V, p: V) -> bool {
     let (s0, s1) = (dot(sub(o, a), n), dot(sub(p, a), n));
     if (s0 > 0.0) == (s1 > 0.0) && s0 != 0.0 && s1 != 0.0 { return false; }
     let dd = s0 - s1; let f = s0 / if dd != 0.0 { dd } else { 1e-12 };
-    tri_prisma(mu, t, add(o, esc(sub(p, o), f)), 0.02)
+    tri_prisma(&mu.t, t, add(o, esc(sub(p, o), f)), 0.02)
 }
 /// ladosActualizar: de qué lado está el cuerpo de cada triángulo cercano (cambia sólo si rodeó el borde)
 fn lados_actualizar(c: &mut Cuerpo, near: &[u64], fijos: &FxMapa<u64, Fijo>, mu: &Mundo) {
@@ -714,8 +726,8 @@ fn lados_actualizar(c: &mut Cuerpo, near: &[u64], fijos: &FxMapa<u64, Fijo>, mu:
 }
 /// esferaTriLado: una esfera contra el triángulo B del lado sg (si su centro quedó del otro lado, la saca hacia el suyo)
 fn esfera_tri_lado(d: &mut Det, a: &Ent, p: V, r: f64, b: &Ent, sg: f64, flip: bool) {
-    let t = b.tri.unwrap(); let p0 = tv(d.mundo, t, 0); let sd = sg * dot(sub(p, p0), b.tn);
-    if sd >= 0.0 || !tri_prisma(d.mundo, t, p, 0.005) { return esfera_casco(d, a, p, r, b, flip); }
+    let t = b.tri.unwrap(); let p0 = tvs(d.t, t, 0); let sd = sg * dot(sub(p, p0), b.tn);
+    if sd >= 0.0 || !tri_prisma(d.t, t, p, 0.005) { return esfera_casco(d, a, p, r, b, flip); }
     let n = esc(b.tn, sg); let q = sub(p, esc(n, sd)); let ps = sub(p, esc(n, r));
     if !flip { mk(d, a, b, ps, q, n, r - sd); } else { mk(d, b, a, q, ps, esc(n, -1.0), r - sd); }
 }
@@ -724,7 +736,7 @@ fn choque_lado(d: &mut Det, a: &Ent, b: &Ent, lados: &FxMapa<u32, i8>) -> bool {
     let t = b.tri.unwrap(); let Some(&sg) = lados.get(&t) else { return false }; let sg = sg as f64;
     match a.f {
         Forma::Casco(_) => {
-            let sd = sg * dot(sub(a.g.pos, tv(d.mundo, t, 0)), b.tn);
+            let sd = sg * dot(sub(a.g.pos, tvs(d.t, t, 0)), b.tn);
             if sd >= 0.0 { casco_tri_mundo(d, a, b); } else { casco_tri(d, a, b, sg); }
             true
         }
@@ -903,6 +915,45 @@ impl Cz {
     }
 }
 
+// ---------------- los choques entre cuerpos, repartidos ----------------
+/// cuántos hilos usa la física si no se le dice otra cosa: los núcleos que hay menos uno (el de dibujar), hasta 4
+pub fn hilos_por_defecto() -> usize { std::thread::available_parallelism().map_or(1, |n| n.get()).saturating_sub(1).clamp(1, 4) }
+
+/// lo que sale de los choques de una tanda de pares: sus contactos, cuántos de cada par y lo nuevo de la caché del SAT
+type Tanda = (Vec<Contacto>, Vec<u32>, Vec<((u64, u64), Sep)>);
+fn choques_tanda(cs: &[Cuerpo], pares: &[(usize, usize)], sep: &FxMapa<(u64, u64), Sep>, dt: f64, g: f64) -> Tanda {
+    let (mut cts, mut por_par, mut nuevos) = (Vec::with_capacity(pares.len() * 2), Vec::with_capacity(pares.len()), vec![]);
+    let mut d = Det { cts: &mut cts, sep, sep_nuevos: &mut nuevos, t: &[], mundo: None, dt, g, tmp: vec![] };
+    for &(ia, ib) in pares {
+        let n0 = d.cts.len();
+        let (ea, eb) = (ent_cuerpo(&cs[ia], ia), ent_cuerpo(&cs[ib], ib));
+        if ea.din { choque(&mut d, &ea, &eb); } else { choque(&mut d, &eb, &ea); }
+        por_par.push((d.cts.len() - n0) as u32);
+    }
+    (cts, por_par, nuevos)
+}
+/// los choques de todos los pares (cuerpo contra cuerpo: no miran el mapa ni cambian los cuerpos), repartidos en tandas
+/// entre los hilos del equipo; se juntan en el orden de los pares, así que sale lo mismo que con uno solo
+fn choques_pares(cs: &[Cuerpo], pares: &[(usize, usize)], sep: &FxMapa<(u64, u64), Sep>, dt: f64, g: f64, eq: Option<&jxfisica::Equipo>) -> Tanda {
+    let Some(eq) = eq.filter(|e| e.hilos() > 1 && pares.len() >= 2) else { return choques_tanda(cs, pares, sep, dt, g) };
+    const TANDA: usize = 12;
+    let n_t = pares.len().div_ceil(TANDA); let sig = AtomicUsize::new(0);
+    let salidas: Vec<std::sync::Mutex<Vec<(usize, Tanda)>>> = (0..eq.hilos()).map(|_| std::sync::Mutex::new(vec![])).collect();
+    eq.correr(&|h: usize| {
+        let mut r: Vec<(usize, Tanda)> = vec![];
+        loop {
+            let k = sig.fetch_add(1, Ordering::Relaxed); if k >= n_t { break; }
+            r.push((k, choques_tanda(cs, &pares[k * TANDA..((k + 1) * TANDA).min(pares.len())], sep, dt, g)));
+        }
+        *salidas[h].lock().unwrap() = r;
+    });
+    let mut todo: Vec<(usize, Tanda)> = salidas.into_iter().flat_map(|m| m.into_inner().unwrap()).collect();
+    todo.sort_unstable_by_key(|x| x.0);
+    let (mut cts, mut por_par, mut nuevos) = (Vec::with_capacity(pares.len() * 2), Vec::with_capacity(pares.len()), vec![]);
+    for (_, (c, p, n)) in todo { cts.extend(c); por_par.extend(p); nuevos.extend(n); }
+    (cts, por_par, nuevos)
+}
+
 // ---------------- el mundo de la física ----------------
 pub struct Fisica {
     /// los cuerpos, en el orden en que se agregaron (PH.bodies: el orden cambia lo que resuelve la física)
@@ -920,6 +971,13 @@ pub struct Fisica {
     pub tiempo: f64,
     /// cuánto tardó el último paso (ms): detección y subpasos
     pub ms_det: f64, pub ms_sol: f64,
+    /// lo mismo, por partes (ms): contra el mapa, paresCerca, los choques entre cuerpos, juntarlos, armar el solver y los
+    /// subpasos
+    pub ms_fases: [f64; 6],
+    /// cuántos hilos puede usar (1: todo en el hilo del juego; da lo mismo, bit por bit) y desde cuántos pares o contactos
+    /// vale la pena repartir (con menos, un hilo)
+    pub hilos: usize, pub min_paralelo: usize,
+    equipo: Option<jxfisica::Equipo>,
     sig_id: u32, ver: u64,
     indices: FxMapa<u32, usize>,
     cz: Cz,
@@ -927,16 +985,21 @@ pub struct Fisica {
     sep: FxMapa<(u64, u64), Sep>,
     aristas: RefCell<AristasCel>,
     // (de trabajo)
-    near: Vec<u64>, items: Vec<u32>, czp: Vec<usize>, tmp: Vec<u32>,
+    near: Vec<u64>, items: Vec<u32>, czp: Vec<usize>, tmp: Vec<u32>, sep_nuevos: Vec<((u64, u64), Sep)>, b_pares: Vec<(usize, usize)>,
+    b_lim: Vec<[f64; 6]>, b_preg: Vec<(usize, [f64; 6])>, b_ix: Vec<usize>, b_grandes: Vec<usize>, b_orden: Vec<usize>, b_rango: Vec<u32>,
+    b_llaves: Vec<f64>, b_ls: [Vec<f64>; 13], b_ln: Vec<u32>, b_lr: Vec<u32>, b_caja: Vec<([f64; 6], f64, bool)>, b_todos: Vec<usize>,
+    /// el eje del barrido de paresCerca, cuántos pasos más se usa y con cuántos cuerpos se eligió
+    b_eje: (usize, u32, usize),
     bcu: Vec<f64>, bco: Vec<f64>, bun: Vec<f64>,
 }
 impl Default for Fisica { fn default() -> Self { Fisica::nueva() } }
 
 impl Fisica {
     pub fn nueva() -> Fisica {
-        Fisica { cuerpos: vec![], uniones: vec![], contactos: vec![], golpes: vec![], sub: SUB, vel_iter: 2, gscale: None, tiempo: 0.0, ms_det: 0.0, ms_sol: 0.0,
-            sig_id: 1, ver: 0, indices: FxMapa::default(), cz: Cz::default(), fijos: FxMapa::default(), sep: FxMapa::default(), aristas: RefCell::new(FxMapa::default()),
-            near: vec![], items: vec![], czp: vec![], tmp: vec![], bcu: vec![], bco: vec![], bun: vec![] }
+        Fisica { cuerpos: vec![], uniones: vec![], contactos: vec![], golpes: vec![], sub: SUB, vel_iter: 2, gscale: None, tiempo: 0.0, ms_det: 0.0, ms_sol: 0.0, ms_fases: [0.0; 6],
+            hilos: hilos_por_defecto(), min_paralelo: 96, equipo: None, sig_id: 1, ver: 0, indices: FxMapa::default(), cz: Cz::default(), fijos: FxMapa::default(), sep: FxMapa::default(), aristas: RefCell::new(FxMapa::default()),
+            near: vec![], items: vec![], czp: vec![], tmp: vec![], sep_nuevos: vec![], b_pares: vec![],
+            b_lim: vec![], b_preg: vec![], b_ix: vec![], b_grandes: vec![], b_orden: vec![], b_rango: vec![], b_llaves: vec![], b_ls: Default::default(), b_ln: vec![], b_lr: vec![], b_caja: vec![], b_todos: vec![], b_eje: (0, 0, 0), bcu: vec![], bco: vec![], bun: vec![] }
     }
     /// addBody: lo agrega (con su forma ya en el mundo) y devuelve su id
     pub fn agregar(&mut self, mut c: Cuerpo) -> u32 {
@@ -1015,6 +1078,13 @@ impl Fisica {
     pub fn paso(&mut self, mundo: &Mundo, dt: f64) {
         let gs = self.gscale.unwrap_or(mundo.gravedad as f64);
         self.tiempo += dt; self.golpes.clear();
+        // (el equipo de hilos, si se pidieron más de uno y hay con qué: se arma la primera vez que hace falta)
+        let h = self.hilos.max(1);
+        let despiertos = self.cuerpos.iter().filter(|b| b.dinamico() && !b.duerme).count();
+        if h == 1 { self.equipo = None; }
+        else if despiertos >= self.min_paralelo / 2 && self.equipo.as_ref().map_or(true, |e| e.hilos() != h) { self.equipo = Some(jxfisica::Equipo::nuevo(h)); }
+        // (que se vayan despertando mientras se arma lo que les toca: despertar un hilo dormido tarda)
+        if let Some(e) = &self.equipo { if despiertos >= self.min_paralelo / 2 { e.despertar(); } }
         let t0 = Instant::now();
         self.detectar(mundo, dt, gs);
         let t1 = Instant::now();
@@ -1055,6 +1125,7 @@ impl Fisica {
         }
         if self.sep.len() > 1 << 18 { self.sep.clear(); }   // (la caché del SAT no crece sin fin)
         // contra el mapa
+        let reloj = Instant::now();
         let mut near = std::mem::take(&mut self.near);
         for i in 0..self.cuerpos.len() {
             let (bx, no_cruza) = {
@@ -1063,39 +1134,43 @@ impl Fisica {
             };
             self.mundo_cerca(mu, bx, &mut near);
             if no_cruza { lados_actualizar(&mut self.cuerpos[i], &near, &self.fijos, mu); }
-            let Fisica { cuerpos, fijos, contactos, sep, aristas, tmp, .. } = self;
-            let mut d = Det { cts: contactos, sep, mundo: mu, aristas, dt, g: GRAV * gs, tmp: std::mem::take(tmp) };
+            let Fisica { cuerpos, fijos, contactos, sep, aristas, tmp, sep_nuevos, .. } = self;
+            let mut d = Det { cts: contactos, sep, sep_nuevos, t: &mu.t, mundo: Some((mu, aristas)), dt, g: GRAV * gs, tmp: std::mem::take(tmp) };
             let ea = ent_cuerpo(&cuerpos[i], i);
             for k in near.iter() { choque(&mut d, &ea, &ent_fijo(&fijos[k], *k)); }
             *tmp = d.tmp;
         }
         self.near = near;
-        // pares de cuerpos
-        self.cz.armar(&self.cuerpos, self.ver);
+        for (k, v) in self.sep_nuevos.drain(..) { self.sep.insert(k, v); }
+        // pares de cuerpos (los filtros de antes del choque no dependen de quién se despierta en el medio: el par siempre
+        // tiene uno despierto desde paresCerca, y despertar no cambia nada de lo que mira el choque)
+        let reloj = { let t = Instant::now(); self.ms_fases[0] = (t - reloj).as_secs_f64() * 1000.0; t };
         let pares = self.pares_cerca(mx);
+        let reloj = { let t = Instant::now(); self.ms_fases[1] = (t - reloj).as_secs_f64() * 1000.0; t };
+        let mut lista = std::mem::take(&mut self.b_pares); lista.clear();
         for (ia, ib) in pares {
-            {
-                let (a, b) = (&self.cuerpos[ia], &self.cuerpos[ib]);
-                if !a.dinamico() && !b.dinamico() { continue; }
-                if (a.duerme || !a.dinamico()) && (b.duerme || !b.dinamico()) { continue; }
-                if a.grupo != 0 && a.grupo == b.grupo { continue; }
-                if a.sin_fisica || b.sin_fisica { continue; }
-                if a.no_choca.contains(&b.id) { continue; }
-            }
-            let n0 = self.contactos.len();
-            {
-                let Fisica { cuerpos, contactos, sep, aristas, tmp, .. } = self;
-                let mut d = Det { cts: contactos, sep, mundo: mu, aristas, dt, g: GRAV * gs, tmp: std::mem::take(tmp) };
-                let (ea, eb) = (ent_cuerpo(&cuerpos[ia], ia), ent_cuerpo(&cuerpos[ib], ib));
-                if ea.din { choque(&mut d, &ea, &eb); } else { choque(&mut d, &eb, &ea); }
-                *tmp = d.tmp;
-            }
-            if self.contactos.len() > n0 {
+            let (a, b) = (&self.cuerpos[ia], &self.cuerpos[ib]);
+            if !a.dinamico() && !b.dinamico() { continue; }
+            if (a.duerme || !a.dinamico()) && (b.duerme || !b.dinamico()) { continue; }
+            if a.grupo != 0 && a.grupo == b.grupo { continue; }
+            if a.sin_fisica || b.sin_fisica { continue; }
+            if a.no_choca.contains(&b.id) { continue; }
+            lista.push((ia, ib));
+        }
+        // los choques de cada par (repartidos entre hilos) y, en el orden de los pares, sus contactos y quién despierta
+        let eq = if lista.len() >= self.min_paralelo { self.equipo.as_ref() } else { None };
+        let (cts, por_par, nuevos) = choques_pares(&self.cuerpos, &lista, &self.sep, dt, GRAV * gs, eq);
+        let reloj = { let t = Instant::now(); self.ms_fases[2] = (t - reloj).as_secs_f64() * 1000.0; t };
+        self.contactos.extend_from_slice(&cts);
+        for (k, &(ia, ib)) in lista.iter().enumerate() {
+            if por_par[k] > 0 {
                 let (va, vb) = (self.cuerpos[ia].vivo(), self.cuerpos[ib].vivo());
                 if self.cuerpos[ia].duerme && vb { self.cuerpos[ia].despertar(); }
                 if self.cuerpos[ib].duerme && va { self.cuerpos[ib].despertar(); }
             }
         }
+        for (k, v) in nuevos { self.sep.insert(k, v); }
+        self.b_pares = lista; self.ms_fases[3] = reloj.elapsed().as_secs_f64() * 1000.0;
         // las partes unidas (muñeco) se despiertan juntas
         for _ in 0..3 { for u in 0..self.uniones.len() {
             let (Some(ia), Some(ib)) = (self.indice(self.uniones[u].a), self.indice(self.uniones[u].b)) else { continue };
@@ -1104,8 +1179,143 @@ impl Fisica {
     }
 
     /// paresCerca: los pares que se pueden tocar en este paso con al menos uno despierto, en el orden del barrido por x
-    /// (cada par con el de menor x primero; el orden de los contactos cambia lo que resuelve la física)
+    /// (cada par con el de menor x primero; el orden de los contactos cambia lo que resuelve la física). Los mismos que
+    /// salen de la grilla (`pares_cerca_cz`: la pregunta a la grilla devuelve justo los cuerpos cuya caja con margen toca,
+    /// y el orden final es el de `antes`, que no depende de cómo se juntaron), pero con un barrido sobre el eje más
+    /// desparramado: las torres de cajas llenan las celdas de la grilla (que es en x, z) de cuerpos que están lejos en y.
+    /// Con algo no finito o una caja dada vuelta, la grilla de siempre
     fn pares_cerca(&mut self, mx: f64) -> Vec<(usize, usize)> {
+        let mg = CZ_MARGEN; let n = self.cuerpos.len();
+        let (mut lim, mut preg, mut ix) = (std::mem::take(&mut self.b_lim), std::mem::take(&mut self.b_preg), std::mem::take(&mut self.b_ix));
+        lim.clear(); preg.clear(); ix.clear();
+        let mut bien = true;
+        let caja_ok = |c: &[f64; 6]| (0..3).all(|k| c[k].is_finite() && c[k + 3].is_finite() && c[k] <= c[k + 3]);
+        for b in &self.cuerpos {
+            // (czLim con el margen, con las mismas cuentas que `fuera` de Cz::cerca)
+            let a = cz_lim(b); let l = [a[0] - mg, a[1] - mg, a[2] - mg, a[3] + mg, a[4] + mg, a[5] + mg];
+            bien &= caja_ok(&l); lim.push(l);
+        }
+        for (xi, x) in self.cuerpos.iter().enumerate() {
+            if !x.dinamico() || x.duerme { continue; }
+            let (xb, e) = (x.geo.aabb, x.spec + mx + 0.02);
+            let q = [xb[0] - e, xb[1] - e, xb[2] - e, xb[3] + e, xb[4] + e, xb[5] + e];
+            bien &= caja_ok(&q); preg.push((xi, q));
+        }
+        if !bien {
+            self.b_lim = lim; self.b_preg = preg; self.b_ix = ix;
+            self.cz.armar(&self.cuerpos, self.ver); return self.pares_cerca_cz(mx);
+        }
+        // el eje del barrido: con el que hay que mirar menos candidatos (se vuelve a elegir cada tanto: sólo cambia lo que
+        // tarda). Los muy largos en ese eje se prueban siempre; los demás, ordenados por dónde empiezan (con uno que empieza
+        // más allá del final de la pregunta ya no hay nada). Los órdenes arrancan del paso anterior: casi no cambian
+        let mut grandes = std::mem::take(&mut self.b_grandes);
+        let mut llaves = std::mem::take(&mut self.b_llaves);
+        let ordenar = |ix: &mut Vec<usize>, k: usize, lim: &[[f64; 6]]| {
+            ix.retain(|&i| i < n); if ix.len() != n { ix.clear(); ix.extend(0..n); }
+            ix.sort_by(|&a, &b| lim[a][k].partial_cmp(&lim[b][k]).unwrap().then(a.cmp(&b)));
+        };
+        if self.b_eje.1 == 0 || self.b_eje.2 != n {
+            let (mut ej, mut mejor) = (0usize, usize::MAX);
+            for k in 0..3 {
+                ordenar(&mut ix, k, &lim);
+                let (mut largo_max, mut n_gr) = (0.0f64, 0usize); llaves.clear();
+                for &i in ix.iter() { let d = lim[i][k + 3] - lim[i][k]; if d > 16.0 { n_gr += 1; } else { llaves.push(lim[i][k]); largo_max = largo_max.max(d); } }
+                let holgura = largo_max * 1.001 + 1e-6;
+                let cuantos: usize = preg.iter().map(|(_, q)| llaves.partition_point(|&v| v <= q[k + 3]) - llaves.partition_point(|&v| v < q[k] - holgura) + n_gr).sum();
+                if cuantos < mejor { mejor = cuantos; ej = k; }
+            }
+            self.b_eje = (ej, 30, n); ix.clear();
+        }
+        self.b_eje.1 -= 1; let ej = self.b_eje.0;
+        let mut todos = std::mem::take(&mut self.b_todos); ordenar(&mut todos, ej, &lim);
+        grandes.clear(); ix.clear(); llaves.clear(); let mut largo_max = 0.0f64;
+        let cs = &self.cuerpos;
+        // (las cajas en el orden del barrido, seguidas y por columnas —la prueba de la caja es lo que más se repite: así se
+        // hacen varias a la vez—, con el número y si está despierto)
+        // `antes` como un número de orden de cada cuerpo
+        let x0 = |i: usize| { let v = cs[i].geo.aabb[0]; if v.is_nan() { f64::MAX } else { v } };
+        let mut orden = std::mem::take(&mut self.b_orden); orden.retain(|&i| i < n); if orden.len() != n { orden.clear(); orden.extend(0..n); }
+        orden.sort_by(|&p, &q| x0(p).partial_cmp(&x0(q)).unwrap().then(p.cmp(&q)));
+        let mut rango = std::mem::take(&mut self.b_rango); rango.clear(); rango.resize(n, 0);
+        for (k, &i) in orden.iter().enumerate() { rango[i] = k as u32; }
+        // (columnas: la caja de la grilla —czLim con margen—, la caja del cuerpo, su margen especulativo, su número de
+        // orden y su número; despierto, en el bit alto del número)
+        let mut ls = std::mem::take(&mut self.b_ls); for c in ls.iter_mut() { c.clear(); }
+        let mut ln = std::mem::take(&mut self.b_ln); ln.clear(); let mut lr = std::mem::take(&mut self.b_lr); lr.clear();
+        for &i in todos.iter() {
+            let d = lim[i][ej + 3] - lim[i][ej];
+            if d > 16.0 { grandes.push(i); } else {
+                ix.push(i); llaves.push(lim[i][ej]); let a = cs[i].geo.aabb;
+                for k in 0..6 { ls[k].push(lim[i][k]); ls[6 + k].push(a[k]); } ls[12].push(cs[i].spec);
+                ln.push(((cs[i].dinamico() && !cs[i].duerme) as u32) << 31 | i as u32); lr.push(rango[i]); largo_max = largo_max.max(d);
+            }
+        }
+        let holgura = largo_max * 1.001 + 1e-6;
+        // (de cada cuerpo, lo que mira el par: si está despierto, su caja y su margen)
+        let mut caja = std::mem::take(&mut self.b_caja); caja.clear();
+        caja.extend(cs.iter().map(|b| (b.geo.aabb, b.spec, b.dinamico() && !b.duerme)));
+        let par = |xi: usize, yi: usize, o: &mut Vec<u64>| {
+            let (a, b) = if rango[xi] < rango[yi] { (xi, yi) } else { (yi, xi) };
+            let ((aa, sa, _), (bb, sb, _)) = (caja[a], caja[b]); let g = sa + sb + 0.02;
+            if bb[0] > aa[3] + g || bb[1] > aa[4] + g || bb[4] < aa[1] - g || bb[2] > aa[5] + g || bb[5] < aa[2] - g { return; }
+            o.push((rango[a] as u64) << 32 | rango[b] as u64);
+        };
+        // (las preguntas son independientes y al final se ordena todo: se pueden repartir entre los hilos)
+        let consultar = |preg: &[(usize, [f64; 6])], o: &mut Vec<u64>| { for &(xi, q) in preg {
+            // (con todo finito, `toca` es lo mismo que !fuera de Cz::cerca)
+            let toca = |l: &[f64; 6]| (q[3] >= l[0]) & (q[0] <= l[3]) & (q[4] >= l[1]) & (q[1] <= l[4]) & (q[5] >= l[2]) & (q[2] <= l[5]);
+            let desde = llaves.partition_point(|&v| v < q[ej] - holgura); let hasta = llaves.partition_point(|&v| v <= q[ej + 3]);
+            // (de a 16, todo junto sin saltos: si toca, si es el par una sola vez —dos despiertos: desde el de menor número— y
+            // la caja con los márgenes de los dos, con el de menor x como A; después, sólo los que pasan)
+            let (xa, xs, xr) = (caja[xi].0, caja[xi].1, rango[xi]);
+            let mut k0 = desde;
+            while k0 < hasta {
+                let m = (hasta - k0).min(16); let mut va = [false; 16];
+                let c = |k: usize| &ls[k][k0..k0 + m];
+                let (l0, l1, l2, l3, l4, l5) = (c(0), c(1), c(2), c(3), c(4), c(5));
+                let (a0, a1, a2, a3, a4, a5, sp) = (c(6), c(7), c(8), c(9), c(10), c(11), c(12));
+                let (nn, rr) = (&ln[k0..k0 + m], &lr[k0..k0 + m]);
+                for j in 0..m {
+                    let toca = (q[3] >= l0[j]) & (q[0] <= l3[j]) & (q[4] >= l1[j]) & (q[1] <= l4[j]) & (q[5] >= l2[j]) & (q[2] <= l5[j]);
+                    let yi = (nn[j] & 0x7fff_ffff) as usize; let una = (yi != xi) & !((nn[j] >> 31 != 0) & (yi < xi));
+                    let g = if xr < rr[j] { xs + sp[j] } else { sp[j] + xs } + 0.02;
+                    // (A = x, B = y o al revés; las mismas comparaciones que el par de siempre)
+                    let (aa, bb) = if xr < rr[j] { ([xa[0], xa[1], xa[2], xa[3], xa[4], xa[5]], [a0[j], a1[j], a2[j], a3[j], a4[j], a5[j]]) } else { ([a0[j], a1[j], a2[j], a3[j], a4[j], a5[j]], [xa[0], xa[1], xa[2], xa[3], xa[4], xa[5]]) };
+                    let lejos = (bb[0] > aa[3] + g) | (bb[1] > aa[4] + g) | (bb[4] < aa[1] - g) | (bb[2] > aa[5] + g) | (bb[5] < aa[2] - g);
+                    va[j] = toca & una & !lejos;
+                }
+                for j in 0..m { if va[j] {
+                    let (r0, r1) = (xr, rr[j]); let (ra, rb) = if r0 < r1 { (r0, r1) } else { (r1, r0) };
+                    o.push((ra as u64) << 32 | rb as u64);
+                } }
+                k0 += m;
+            }
+            for &yi in &grandes { if yi == xi || (caja[yi].2 && yi < xi) { continue; } if toca(&lim[yi]) { par(xi, yi, o); } }
+        } };
+        let mut o: Vec<u64> = Vec::with_capacity(preg.len() * 4);
+        match self.equipo.as_ref().filter(|e| e.hilos() > 1 && preg.len() >= self.min_paralelo && preg.len() >= 2) {
+            Some(eq) => {
+                const TANDA: usize = 24;
+                let n_t = preg.len().div_ceil(TANDA); let sig = AtomicUsize::new(0);
+                let salidas: Vec<std::sync::Mutex<Vec<u64>>> = (0..eq.hilos()).map(|_| std::sync::Mutex::new(vec![])).collect();
+                eq.correr(&|h: usize| {
+                    let mut r = vec![];
+                    loop { let k = sig.fetch_add(1, Ordering::Relaxed); if k >= n_t { break; } consultar(&preg[k * TANDA..((k + 1) * TANDA).min(preg.len())], &mut r); }
+                    *salidas[h].lock().unwrap() = r;
+                });
+                for m in salidas { o.extend(m.into_inner().unwrap()); }
+            }
+            None => consultar(&preg, &mut o),
+        }
+        o.sort_unstable();
+        let r = o.iter().map(|&k| (orden[(k >> 32) as usize], orden[(k & 0xffff_ffff) as usize])).collect();
+        self.b_lim = lim; self.b_preg = preg; self.b_ix = ix; self.b_grandes = grandes; self.b_orden = orden; self.b_rango = rango;
+        self.b_llaves = llaves; self.b_ls = ls; self.b_ln = ln; self.b_lr = lr; self.b_caja = caja; self.b_todos = todos;
+        r
+    }
+
+    /// paresCerca con la grilla (la de siempre: queda para cuando hay algo no finito)
+    fn pares_cerca_cz(&mut self, mx: f64) -> Vec<(usize, usize)> {
         let cs = &self.cuerpos; let mut o: Vec<(usize, usize)> = vec![]; let mut czp = std::mem::take(&mut self.czp);
         let x0 = |i: usize| { let v = cs[i].geo.aabb[0]; if v.is_nan() { f64::MAX } else { v } };
         let antes = |p: usize, q: usize| { let (a, b) = (x0(p), x0(q)); a < b || (a == b && p < q) };
@@ -1131,6 +1341,7 @@ impl Fisica {
     /// los subpasos (integrar, uniones, contactos, velocidades, rebote) con jxfisica, como fisicaWasmPaso
     fn resolver(&mut self, dt: f64, gs: f64) {
         use jxfisica::{CO, CU, UN};
+        let reloj = Instant::now();
         let n = self.cuerpos.len(); let mut idx = vec![-1i32; n]; let mut l: Vec<usize> = vec![];
         let mut pon = |i: usize, l: &mut Vec<usize>| -> i32 { if idx[i] < 0 { idx[i] = l.len() as i32; l.push(i); } idx[i] };
         // (sólo lo que el solver puede mover o lo que toca a algo que se mueve)
@@ -1140,7 +1351,7 @@ impl Fisica {
         for u in &self.uniones { if let (Some(a), Some(b)) = (self.indices.get(&u.a), self.indices.get(&u.b)) { un_ix.push((pon(*a, &mut l), pon(*b, &mut l), u)); } }
         // (lo fijo del mapa: un lugar más, sin masa, con la fricción y el rebote de un Body fijo)
         let fijo = l.len();
-        let (cu, co, un) = (&mut self.bcu, &mut self.bco, &mut self.bun);
+        let Fisica { bcu: cu, bco: co, bun: un, .. } = self;
         cu.clear(); cu.resize((l.len() + 1) * CU, 0.0); co.clear(); co.resize(self.contactos.len() * CO, 0.0); un.clear(); un.resize(un_ix.len() * UN, 0.0);
         for (k, &i) in l.iter().enumerate() {
             let b = &self.cuerpos[i]; let o = &mut cu[k * CU..(k + 1) * CU];
@@ -1161,7 +1372,9 @@ impl Fisica {
             for (j, v) in [u.pa, u.pb, u.ax_a, u.ax_b, u.p_a, u.p_b, u.h_a, u.h_b].iter().enumerate() { o[2 + j * 3..5 + j * 3].copy_from_slice(v); }
             o[26] = u.swing; o[27] = u.twist; o[28] = u.bisagra as u8 as f64; o[29] = u.lo; o[30] = u.hi;
         }
-        jxfisica::paso(cu, co, un, dt, self.sub, gs, self.vel_iter);
+        let medio = Instant::now();
+        jxfisica::paso_con(cu, co, un, dt, self.sub, gs, self.vel_iter, self.equipo.as_ref(), self.min_paralelo);
+        self.ms_fases[4] = (medio - reloj).as_secs_f64() * 1000.0; self.ms_fases[5] = medio.elapsed().as_secs_f64() * 1000.0;
         for (k, &i) in l.iter().enumerate() {
             let o = &cu[k * CU..(k + 1) * CU]; let b = &mut self.cuerpos[i];
             b.pos = [o[0], o[1], o[2]]; b.q = [o[3], o[4], o[5], o[6]]; b.vel = [o[7], o[8], o[9]]; b.ang = [o[10], o[11], o[12]];
