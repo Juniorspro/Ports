@@ -506,13 +506,20 @@ export function recortarCuadro(c) {
   const out = lienzo(x1 - x0 + 1, y1 - y0 + 1); out.getContext('2d').drawImage(c, -x0, -y0);
   return { x: x0, y: y0, c: out };
 }
-async function anmf(cr, ms, q) {
+export async function anmf(cr, ms, q) {
   const b = await aBlob(cr.c, 'image/webp', q); if (!b || b.type !== 'image/webp') throw new Error('este navegador no hace WebP');
   const ts = trozosWebP(await b.arrayBuffer()).filter((x) => x.id === 'ALPH' || x.id === 'VP8 ' || x.id === 'VP8L');
   if (!ts.some((x) => x.id !== 'ALPH')) throw new Error('cuadro sin imagen');
   const cab = new Uint8Array(16); u24(cab, 0, cr.x / 2); u24(cab, 3, cr.y / 2); u24(cab, 6, cr.c.width - 1); u24(cab, 9, cr.c.height - 1);
   u24(cab, 12, Math.max(8, Math.round(ms))); cab[15] = 0x03; // (sin mezclar con el anterior; al terminar, se borra)
   return trozo('ANMF', unir([cab, ...ts.map((x) => trozo(x.id, x.datos))]));
+}
+// arma el WebP animado con cuadros ya codificados (anmf): el editor de video los codifica de a uno, sin tenerlos todos en memoria
+export function webpDePartes(partes, W = LADO, H = LADO) {
+  const vp8x = new Uint8Array(10); vp8x[0] = 0x02 | 0x10; u24(vp8x, 4, W - 1); u24(vp8x, 7, H - 1);
+  const cuerpo = unir([ascii('WEBP'), trozo('VP8X', vp8x), trozo('ANIM', new Uint8Array(6)), ...partes]);
+  const riff = new Uint8Array(8 + cuerpo.length); riff.set(ascii('RIFF'), 0); new DataView(riff.buffer).setUint32(4, cuerpo.length, true); riff.set(cuerpo, 8);
+  return new Blob([riff], { type: 'image/webp' });
 }
 export async function webpAnimado(cuadros, ms, q, W = LADO, H = LADO) {
   const crs = cuadros.map((c) => (c.c ? c : recortarCuadro(c))), partes = [];

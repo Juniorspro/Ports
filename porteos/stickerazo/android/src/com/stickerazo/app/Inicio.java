@@ -11,6 +11,10 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.ext.SdkExtensions;
 import android.provider.MediaStore;
+import android.content.ContentValues;
+import android.util.Base64;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
 import android.util.Log;
 import android.view.View;
 import android.view.Window;
@@ -57,6 +61,8 @@ public final class Inicio extends Activity {
     private Almacen almacen;
     private ValueCallback<Uri[]> pendiente;
     private boolean varias;
+    /** qué pidió la página al elegir un archivo: imagen (se prepara), video, audio o media (audio y video, sin tocar) */
+    private String pide = "image";
     private String respWa;
     private int nFoto;
     /** un enlace stickerazo://pack/ID que abrió la app y la página todavía no tomó */
@@ -320,6 +326,12 @@ public final class Inicio extends Activity {
             // (la versión nueva de la página, si se bajó una; si no, la del APK)
             File ota = otaEnUso != null ? OtaNucleo.archivo(otaEnUso, p.substring(1)) : null;
             if (ota != null) { try { return respuesta(tipo(p), new FileInputStream(ota), false); } catch (IOException e) { /* la del APK */ } }
+            if (p.startsWith("/cache/")) {
+                String n = p.substring(7); File f = n.matches("[a-z0-9_]{1,40}\\.(m4a|webm|mp3|mp4)") ? new File(Audios.carpeta(Inicio.this), n) : null;
+                if (f == null || !f.isFile()) return noHay();
+                String t = n.endsWith(".m4a") ? "audio/mp4" : n.endsWith(".mp3") ? "audio/mpeg" : n.endsWith(".mp4") ? "video/mp4" : "audio/webm";
+                try { return respuesta(t, new FileInputStream(f), true); } catch (IOException e) { return noHay(); }
+            }
             if (p.startsWith("/archivos/")) {
                 List<String> s = u.getPathSegments();
                 File f = s.size() == 3 ? almacen.archivo(s.get(1), s.get(2)) : null;
@@ -353,6 +365,8 @@ public final class Inicio extends Activity {
             if (pendiente != null) pendiente.onReceiveValue(null);
             pendiente = cb;
             varias = p.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE;
+            StringBuilder ac = new StringBuilder(); for (String t : p.getAcceptTypes()) ac.append(t).append(','); String a = ac.toString().toLowerCase();
+            pide = a.contains("video") && a.contains("audio") ? "media" : a.contains("video") ? "video" : a.contains("audio") ? "audio" : "image";
             if ((!varias && p.isCaptureEnabled() && abrirCamara()) || abrirGaleria()) return true;
             pendiente = null;
             cb.onReceiveValue(null);
@@ -371,6 +385,14 @@ public final class Inicio extends Activity {
     }
 
     private boolean abrirGaleria() {
+        // (videos: el selector de fotos con videos; audio, o audio y video: el de archivos)
+        if (!pide.equals("image")) {
+            boolean sel = pide.equals("video") && (Build.VERSION.SDK_INT >= 33 || (Build.VERSION.SDK_INT >= 30 && SdkExtensions.getExtensionVersion(Build.VERSION_CODES.R) >= 2));
+            if (sel) { Intent i = new Intent(MediaStore.ACTION_PICK_IMAGES); i.setType("video/*"); try { startActivityForResult(i, PEDIR_FOTO); return true; } catch (ActivityNotFoundException e) { /* el otro */ } }
+            Intent i = new Intent(Intent.ACTION_GET_CONTENT); i.addCategory(Intent.CATEGORY_OPENABLE);
+            if (pide.equals("media")) { i.setType("*/*"); i.putExtra(Intent.EXTRA_MIME_TYPES, new String[] { "audio/*", "video/*" }); } else i.setType(pide + "/*");
+            try { startActivityForResult(i, PEDIR_FOTO); return true; } catch (ActivityNotFoundException e) { return false; }
+        }
         // el selector de fotos de Android (sin pedir permisos); si no está, el de archivos
         boolean selector = Build.VERSION.SDK_INT >= 33 || (Build.VERSION.SDK_INT >= 30 && SdkExtensions.getExtensionVersion(Build.VERSION_CODES.R) >= 2);
         if (selector) {
@@ -415,6 +437,8 @@ public final class Inicio extends Activity {
             else if (datos != null && datos.getData() != null) origenes.add(datos.getData());
         }
         if (origenes.isEmpty()) { cb.onReceiveValue(null); return; }
+        // (videos y audios van como están: la página los lee de su content://)
+        if (!pide.equals("image")) { cb.onReceiveValue(origenes.toArray(new Uri[0])); return; }
         new Thread(new Runnable() {
             @Override public void run() {
                 final List<Uri> listas = new ArrayList<Uri>();
@@ -449,6 +473,34 @@ public final class Inicio extends Activity {
         }
     }
 
+    void jsDesdeHilo(final String codigo) { runOnUiThread(new Runnable() { @Override public void run() { js(codigo); } }); }
+    /** un video del editor, de a pedazos: al último va a la galería (Películas/Stickerazo) y se abre «Compartir» */
+    boolean videoParte(String nombre, String b64, boolean primero, boolean ultimo) {
+        if (nombre == null || !nombre.matches("[a-z0-9_]{1,40}\\.(mp4|webm)")) return false;
+        File f = new File(Fotos.carpeta(this), nombre);
+        try { OutputStream o = new FileOutputStream(f, !primero); try { o.write(Base64.decode(b64, Base64.DEFAULT)); } finally { o.close(); } }
+        catch (IOException | IllegalArgumentException e) { Log.w(TAG, "video: " + e); return false; }
+        if (!ultimo) return true;
+        final String tipo = nombre.endsWith(".mp4") ? "video/mp4" : "video/webm";
+        if (Build.VERSION.SDK_INT >= 29) {
+            try {
+                ContentValues v = new ContentValues(); v.put(MediaStore.Video.Media.DISPLAY_NAME, nombre); v.put(MediaStore.Video.Media.MIME_TYPE, tipo);
+                v.put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/Stickerazo"); v.put(MediaStore.Video.Media.IS_PENDING, 1);
+                Uri u = getContentResolver().insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, v);
+                if (u != null) {
+                    OutputStream o = getContentResolver().openOutputStream(u); FileInputStream in = new FileInputStream(f);
+                    try { byte[] b = new byte[1 << 16]; int k; while ((k = in.read(b)) > 0) o.write(b, 0, k); } finally { in.close(); if (o != null) o.close(); }
+                    v.clear(); v.put(MediaStore.Video.Media.IS_PENDING, 0); getContentResolver().update(u, v, null, null);
+                }
+            } catch (Exception e) { Log.w(TAG, "galería: " + e); }
+        }
+        final Uri u = Fotos.uri(nombre);
+        runOnUiThread(new Runnable() { @Override public void run() {
+            Intent i = new Intent(Intent.ACTION_SEND); i.setType(tipo); i.putExtra(Intent.EXTRA_STREAM, u); i.setClipData(ClipData.newRawUri("", u)); i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            try { startActivity(Intent.createChooser(i, "Mandar el video")); } catch (ActivityNotFoundException e) { /* nada */ }
+        } });
+        return true;
+    }
     void compartir(String texto) {
         Intent i = new Intent(Intent.ACTION_SEND);
         i.setType("text/plain");

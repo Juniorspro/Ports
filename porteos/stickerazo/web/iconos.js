@@ -2,6 +2,8 @@
 // Cada uno es el adentro de un <svg viewBox="0 0 24 24">; se usan con <i data-i="nombre"></i>.
 const RI = (d) => `<path class="r" d="${d}"/>`;
 export const ICONOS_MAS = {
+  // (el editor de video: dividir en el cabezal)
+  tijera: '<circle cx="6.5" cy="17" r="2.6"/><circle cx="17.5" cy="17" r="2.6"/><path d="M8.4 15.2 17 4.5M15.6 15.2 7 4.5"/>',
   corona: RI('M4 8l4 4 4-6 4 6 4-4-1.5 10h-13z') + '<path d="M4 8l4 4 4-6 4 6 4-4-1.5 10h-13z"/><path d="M6.5 21h11"/>',
   cerrar: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
   rombo: RI('M12 3.5l8.5 8.5-8.5 8.5L3.5 12z') + '<path d="M12 3.5l8.5 8.5-8.5 8.5L3.5 12z"/>',

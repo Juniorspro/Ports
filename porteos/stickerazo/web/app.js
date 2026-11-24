@@ -8,6 +8,7 @@ import { LISTOS, armarListo, emojisListo, prepararListo } from './listos.js';
 import { LISTA_PAISES, elegirPaisMapa } from './mapa_pais.js';
 import { abrirMusica, hayMusica } from './musica.js';
 import * as C from './comunidad.js';
+import { abrirVideo, cerrarVideo } from './video.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const MAX_ST = 30, MIN_ST = 3, MAX_FOTO = 1280;
@@ -221,7 +222,7 @@ async function atras() {
   else if (E.vista === 'vInicio' && E.tab !== 'Feed') pestaña('Feed');
 }
 // el botón «atrás» del celular (Java pregunta: true = lo manejó la app; false = salir)
-window.__szAtras = () => { const maneja = hayModal() || E.vista !== 'vInicio' || E.tab !== 'Feed'; atras(); return maneja; };
+window.__szAtras = () => { if (window.__szAtrasVideo && window.__szAtrasVideo()) return true; const maneja = hayModal() || E.vista !== 'vInicio' || E.tab !== 'Feed'; atras(); return maneja; };
 for (const b of document.querySelectorAll('.volver')) b.onclick = () => atras();
 
 // ---- crear: galería, cámara o sólo texto ----
@@ -235,6 +236,11 @@ function crear(como, origen) {
 $('#bCrear').onclick = () => crear('galeria', 'vInicio');
 $('#bCamara').onclick = () => crear('camara', 'vInicio');
 $('#bTexto').onclick = () => crear('texto', 'vInicio');
+// el editor de video (video.js): sale un sticker animado (se guarda en un pack como los demás) o un video con sonido
+const ayudaVideo = () => ({ iconos, aviso, modal, cerrarModal, confirmar,
+  guardar: async ({ blob, tapa }) => { const st = { video: true, capas: [{ tipo: 'video' }], sel: -1, hecho: { blob }, animado: () => true, componer: () => tapa, seSale: () => 0, encajar() {}, aProyecto: () => ({ proyecto: { video: 1, capas: [] }, imgs: [] }) }; E.editando = null; await hojaGuardar(st); },
+  guardarVideo: async (blob, nombre) => { const r = await P.guardarVideo(blob, nombre); aviso(r ? 'Listo: está en tu galería (Películas › Stickerazo)' : 'No se pudo guardar el video'); } });
+$('#bVideo').onclick = () => abrirVideo(ayudaVideo());
 $('#bExpress').onclick = () => { const i = $('#archivoVarios'); i.value = ''; i.click(); };
 $('#archivoVarios').addEventListener('change', (ev) => { const fs = [...(ev.target.files || [])].slice(0, MAX_ST); if (fs.length) packExpress(fs); });
 // muchas fotos de una: cada una recortada sola, con borde, a un pack nuevo (y editables después, como cualquier otro)
@@ -1264,8 +1270,9 @@ function abrirBorde() {
 
 // ---- guardar el sticker en un pack ----
 const packsOrden = (packs) => packs.slice().sort((a, b) => (b.mod || 0) - (a.mod || 0));
-$('#eGuardar').onclick = async () => {
-  const s = E.st; if (!s) return;
+$('#eGuardar').onclick = () => hojaGuardar(E.st);
+async function hojaGuardar(s) {
+  if (!s) return;
   if (!s.capas.length) return aviso('Agregale algo primero');
   s.sel = -1; pedirE(true);
   const animado = s.animado(), ed = E.editando;
@@ -1298,11 +1305,12 @@ $('#eGuardar').onclick = async () => {
     try {
       const pk = await guardarSticker(s, destino === 'cambiar' ? ed.packId : destino, nombre, emojis.slice(), destino === 'cambiar' ? ed.archivo : null);
       cerrarModal(); E.st = null; E.desdeRecorte = false; E.foto = null; E.editando = null; E.packId = pk.id;
+      if (s.video) cerrarVideo();
       ir('vPack', false, true); aviso(destino === 'cambiar' ? '¡Cambiado!' : '¡Guardado!');
     } catch (e) { console.error(e); cerrarModal(); aviso(String(e.message || e).includes('pesa') ? 'El sticker quedó muy pesado' : 'Uh, no se guardó: ' + (e.message || e)); }
   };
   marcar();
-};
+}
 // las imágenes del proyecto (para volver a editarlo): WebP con transparencia, de 900 px como mucho y menos de 480 KB
 async function fuenteWebP(c) {
   const k = Math.min(1, 900 / Math.max(c.width, c.height)); let x = c;
@@ -1312,7 +1320,7 @@ async function fuenteWebP(c) {
 }
 // guarda el sticker (nuevo, o en lugar de `reemplazar`) con su proyecto; devuelve el pack
 async function guardarSticker(st, destino, nombre, emojis, reemplazar) {
-  const animado = st.animado(), r = animado ? await exportarAnimado(st) : await exportarWebP(st.componer()), packs = await P.leerPacks();
+  const animado = st.animado(), r = st.hecho ? st.hecho : animado ? await exportarAnimado(st) : await exportarWebP(st.componer()), packs = await P.leerPacks();
   let pack = packs.find((p) => p.id === destino);
   if (!pack) { pack = { id: 'p' + Date.now().toString(36), nombre, autor: 'Stickerazo', animado, stickers: [], bandeja: '', v: 0, n: 0, creado: Date.now() }; packs.push(pack); }
   if (!!pack.animado !== animado) throw new Error(animado ? 'ese pack es de stickers quietos' : 'ese pack es animado');

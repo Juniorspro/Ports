@@ -17,7 +17,7 @@ import java.util.regex.Pattern;
  *  convertimos para la página (JPEG o PNG derecho y achicado). No es pública: sólo se presta con permiso por foto. */
 public final class Fotos extends ContentProvider {
     static final String AUTORIDAD = "com.stickerazo.app.fotos";
-    private static final Pattern NOMBRE = Pattern.compile("[a-z0-9_]{1,40}\\.(jpg|png)");
+    private static final Pattern NOMBRE = Pattern.compile("[a-z0-9_]{1,48}\\.(jpg|png|mp4|webm)");
 
     static File carpeta(Context c) {
         File d = new File(c.getCacheDir(), "fotos");
@@ -52,6 +52,8 @@ public final class Fotos extends ContentProvider {
 
     @Override public String getType(Uri uri) {
         String n = uri.getLastPathSegment();
+        if (n != null && n.endsWith(".mp4")) return "video/mp4";
+        if (n != null && n.endsWith(".webm")) return "video/webm";
         return n != null && n.endsWith(".png") ? "image/png" : "image/jpeg";
     }
 

@@ -28,6 +28,15 @@ final class Puente {
         app.runOnUiThread(new Runnable() { @Override public void run() { app.agregarAWhatsApp(id, nombre, resp); } });
     }
 
+    // ---- el editor de video (web/video.js): el audio de YouTube y TikTok (en un hilo: contesta con window.__szAudio) y
+    // guardar el video que salió (de a pedazos en base64; al último, a la galería y a compartir) ----
+    @JavascriptInterface public void pedirAudio(final String id, final String tipo, final String arg) {
+        new Thread(new Runnable() { @Override public void run() {
+            final String r = Audios.atender(app, tipo, arg);
+            app.jsDesdeHilo("window.__szAudio && window.__szAudio(" + org.json.JSONObject.quote(id) + "," + org.json.JSONObject.quote(r) + ")");
+        } }, "audio").start();
+    }
+    @JavascriptInterface public boolean videoParte(String nombre, String b64, boolean primero, boolean ultimo) { return app.videoParte(nombre, b64, primero, ultimo); }
     @JavascriptInterface public boolean estaEnWhatsApp(String id) { return Almacen.idValido(id) && WhatsApp.agregado(app, id); }
     @JavascriptInterface public boolean hayWhatsApp() { return !WhatsApp.instalados(app.getPackageManager()).isEmpty(); }
 

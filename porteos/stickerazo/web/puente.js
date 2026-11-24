@@ -39,6 +39,17 @@ export async function guardarArchivo(pack, nombre, blob) {
   const k = pack + '/' + nombre; if (urls.has(k)) { URL.revokeObjectURL(urls.get(k)); urls.delete(k); }
   return idb('archivos', 'readwrite', (s) => s.put(blob, k));
 }
+// un video hecho en el editor de video: en la app va a la galería (Películas › Stickerazo) de a pedazos de 1 MB; en el
+// navegador, se baja
+export async function guardarVideo(blob, nombre) {
+  const ext = blob.type.includes('mp4') ? 'mp4' : 'webm', archivo = `${nombre}_${Date.now().toString(36)}.${ext}`;
+  if (N && N.videoParte) {
+    const T = 1 << 20; let ok = true;
+    for (let i = 0; i < blob.size && ok; i += T) ok = N.videoParte(archivo, await b64DeBlob(blob.slice(i, i + T)), i === 0, i + T >= blob.size);
+    return ok;
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = archivo; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000); return true;
+}
 export async function borrarArchivo(pack, nombre) {
   if (N) return N.borrarArchivo(pack, nombre);
   const k = pack + '/' + nombre; if (urls.has(k)) { URL.revokeObjectURL(urls.get(k)); urls.delete(k); }

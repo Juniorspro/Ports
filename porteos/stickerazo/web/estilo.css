@@ -1157,3 +1157,77 @@ html[data-tema="claro"] .soPost, html[data-tema="claro"] .soNuevo { background: 
 /* («Comunidad» es el nombre más largo: su lugar es un poco más ancho y lo pagan Inicio y Buscar, así los tres de la
    izquierda suman lo mismo que los tres de la derecha y el «+» sigue en el medio) */
 .tabs [data-t="Feed"], .tabs [data-t="Listos"] { flex-grow: .88; } .tabs [data-t="Social"] { flex-grow: 1.24; }
+
+/* ---- el editor de video (video.js): vista arriba, herramientas y la línea de tiempo con el cabezal fijo en el medio ---- */
+.vVideo { position: absolute; inset: 0; z-index: 9; background: #000; display: flex; flex-direction: column; padding-top: var(--arriba); padding-bottom: var(--abajo); animation: vvEntra .28s cubic-bezier(.2,.9,.3,1.15); }
+@keyframes vvEntra { from { opacity: 0; transform: translateY(24px) scale(.98); } }
+.vvCab { height: 56px; display: flex; align-items: center; gap: 8px; padding: 0 10px; flex: none; }
+.vvCab > b { flex: 1; font: 400 22px/1 'LuckiestGuy', sans-serif; letter-spacing: .5px; }
+.vvFor { padding: 7px 12px; border-radius: 999px; background: var(--panel2); font-size: 13px; font-weight: 700; border: 1px solid var(--borde); transition: transform .15s; }
+.vvFor:active, .vvSale:active { transform: scale(.94); }
+.vvSale { background: var(--dg1); color: #fff; box-shadow: 0 4px 18px rgba(255, 62, 138, .35); }
+.vvVista { flex: 1; min-height: 120px; position: relative; overflow: hidden; }
+.vvVista canvas { position: absolute; inset: 6px 12px; margin: auto; width: auto; height: auto; max-width: calc(100% - 24px); max-height: calc(100% - 12px); border-radius: 14px; background: #0b0b10; box-shadow: 0 10px 40px rgba(0,0,0,.6); touch-action: none; }
+.vvVacio { position: absolute; inset: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; border: 2px dashed rgba(255,255,255,.16); border-radius: 18px; color: var(--suave); cursor: pointer; animation: vvLatido 2.4s ease-in-out infinite; }
+.vvVacio i[data-i] { width: 46px; height: 46px; color: var(--ama); }
+.vvVacio b { color: var(--texto); font-size: 18px; }
+@keyframes vvLatido { 50% { border-color: rgba(255, 210, 63, .45); transform: scale(1.01); } }
+.vvCtl { display: flex; align-items: center; justify-content: center; gap: 18px; height: 46px; flex: none; font: 600 13px/1 ui-monospace, monospace; color: var(--suave); }
+.vvPlay { width: 44px; height: 44px; border-radius: 50%; background: #fff; color: #000; display: grid; place-items: center; transition: transform .15s; }
+.vvPlay:active { transform: scale(.88); }
+.vvPlay i[data-i] { width: 22px; height: 22px; }
+.vvHerr { display: flex; gap: 6px; padding: 4px 10px; overflow-x: auto; flex: none; scrollbar-width: none; }
+.vvHerr button, .vvSel button { flex: none; min-width: 62px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 6px; border-radius: 14px; font-size: 12px; color: var(--suave); transition: transform .15s, background .2s; }
+.vvHerr button:active, .vvSel button:active { transform: scale(.9); background: var(--panel2); }
+.vvHerr i[data-i] { color: var(--texto); }
+.vvSel { display: flex; gap: 4px; align-items: center; padding: 2px 10px; flex: none; overflow-x: auto; animation: vvSube .22s ease-out; }
+@keyframes vvSube { from { opacity: 0; transform: translateY(8px); } }
+.vvVol { display: flex; align-items: center; gap: 6px; padding: 0 6px; flex: 1 1 150px; min-width: 150px; font-size: 12px; color: var(--suave); }
+.vvVol input { flex: 1; min-width: 60px; accent-color: var(--ama); }
+.vvVol b { min-width: 40px; text-align: right; font-variant-numeric: tabular-nums; }
+.vvLinea { position: relative; height: 216px; flex: none; overflow: hidden; background: linear-gradient(#0c0c12, #08080c); border-top: 1px solid var(--borde); touch-action: none; }
+.vvRegla { position: absolute; left: 0; top: 0; height: 22px; font: 600 10px/22px ui-monospace, monospace; color: #6f6b82; will-change: transform; }
+.vvRegla span { position: absolute; top: 0; transform: translateX(-50%); }
+.vvPistas { position: absolute; left: 0; right: 0; top: 26px; bottom: 0; overflow-y: auto; overflow-x: hidden; }
+.vvFila { position: relative; margin: 6px 0; }
+.vvPista0 { margin: 26px auto; text-align: center; color: #6f6b82; font-size: 13px; display: flex; gap: 6px; justify-content: center; align-items: center; }
+.vvClip { position: absolute; top: 0; left: 0; height: 100%; border-radius: 9px; overflow: visible; background: var(--c, #333); border: 2px solid transparent; box-shadow: 0 2px 8px rgba(0,0,0,.4); will-change: transform; animation: vvPop .32s cubic-bezier(.2,1.4,.4,1); transition: border-color .15s, box-shadow .2s, filter .2s; }
+@keyframes vvPop { from { opacity: 0; filter: brightness(1.8); } }
+.vvClip.video { background-color: #22222c; background-repeat: repeat-x; border-radius: 8px; }
+.vvClip.sel { border-color: #fff; box-shadow: 0 0 0 3px rgba(255,255,255,.18), 0 6px 18px rgba(0,0,0,.6); z-index: 2; }
+.vvClip.levanta { transform-origin: center; filter: brightness(1.15); box-shadow: 0 14px 30px rgba(0,0,0,.7); animation: vvLevanta .18s ease-out forwards; }
+@keyframes vvLevanta { to { margin-top: -5px; } }
+.vvEt { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; max-width: calc(100% - 14px); text-shadow: 0 1px 2px rgba(0,0,0,.6); pointer-events: none; }
+.vvEt i[data-i] { width: 16px; height: 16px; }
+.vvClip.texto .vvEt, .vvClip.texto .vvT { color: #1c1503; text-shadow: none; }
+.vvT { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; background: rgba(0,0,0,.18); font: 400 13px/1 'LuckiestGuy', sans-serif; }
+.vvOnda { position: absolute; left: 0; top: 2px; height: calc(100% - 4px); width: 100%; pointer-events: none; }
+.vvClip.audio { background: linear-gradient(180deg, color-mix(in srgb, var(--c) 92%, #fff), var(--c)); border-color: color-mix(in srgb, var(--b) 40%, transparent); }
+.vvClip.audio.sel { border-color: var(--b); }
+/* las manijas: pestañas que sobresalen del borde, con su flechita */
+.vvManija { position: absolute; top: -2px; bottom: -2px; width: 18px; display: grid; place-items: center; background: #fff; color: #111; z-index: 3; touch-action: none; animation: vvManija .22s cubic-bezier(.2,1.5,.4,1); }
+.vvManija svg { width: 9px; height: 18px; }
+.vvManija.izq { left: -18px; border-radius: 8px 3px 3px 8px; box-shadow: -3px 2px 8px rgba(0,0,0,.45); }
+.vvManija.der { right: -18px; border-radius: 3px 8px 8px 3px; box-shadow: 3px 2px 8px rgba(0,0,0,.45); }
+@keyframes vvManija { from { transform: scaleX(.2); opacity: 0; } }
+.vvCabezal { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 10px rgba(255,255,255,.6); pointer-events: none; z-index: 5; }
+.vvCabezal::before { content: ''; position: absolute; left: -6px; top: 0; width: 14px; height: 14px; border-radius: 3px 3px 7px 7px; background: #fff; }
+.vvHojaA { display: flex; flex-direction: column; gap: 8px; }
+.vvFuente { display: flex; align-items: center; gap: 12px; text-align: left; padding: 12px; border-radius: 16px; background: var(--panel2); border: 1px solid var(--borde); transition: transform .15s, background .2s; animation: vvSube .25s ease-out backwards; }
+.vvFuente:nth-child(3) { animation-delay: .04s; } .vvFuente:nth-child(4) { animation-delay: .08s; }
+.vvFuente:active { transform: scale(.97); }
+.vvFuente span { display: flex; flex-direction: column; gap: 2px; }
+.vvFuente small { color: var(--suave); font-size: 12.5px; }
+.vvPunto { width: 34px; height: 34px; border-radius: 10px; flex: none; box-shadow: inset 0 0 0 2px rgba(255,255,255,.15); }
+.vvBusca { display: flex; gap: 8px; }
+.vvBusca .campo { flex: 1; }
+.vvRes { max-height: 52vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.vvItem { display: flex; gap: 10px; align-items: center; text-align: left; padding: 6px; border-radius: 12px; animation: vvSube .25s ease-out backwards; }
+.vvItem:active { background: var(--panel2); }
+.vvItem img { width: 84px; height: 48px; object-fit: cover; border-radius: 8px; background: #222; flex: none; }
+.vvItem span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vvItem b { font-size: 13.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.vvItem small, .vvNota, .vvNada { color: var(--suave); font-size: 12.5px; }
+.vvColores { display: flex; gap: 10px; margin: 12px 0; }
+.vvColores button { width: 34px; height: 34px; border-radius: 50%; border: 2px solid rgba(255,255,255,.2); transition: transform .15s; }
+.vvColores button.act { transform: scale(1.18); border-color: #fff; }
