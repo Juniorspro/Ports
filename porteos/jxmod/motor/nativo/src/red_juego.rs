@@ -6,6 +6,7 @@ use super::*;
 use jxjuego::red::{self, Evento, Local, NpcLocal, NuevaSala, ObjLocal, Puente, Red, Sala, SimRemoto};
 use std::collections::HashSet;
 use jxmotor::escena::ItemDin;
+use jxjuego::censura::censurar;
 
 /// lo del multijugador del juego
 pub struct EnRed {
@@ -225,9 +226,10 @@ impl Juego {
         match e {
             Evento::Conectado { sala } => self.en_red.al_chat(format!("Conectado: {sala}")),
             Evento::Desconectado => self.avisar("Se cortó la conexión (reconectando…)".into()),
-            Evento::Entro { nombre, .. } => self.en_red.al_chat(format!("{nombre} entró")),
-            Evento::Salio { nombre, id } => { self.en_red.cuerpos.remove(&id); self.en_red.al_chat(format!("{nombre} salió")); }
-            Evento::Chat { nombre, texto, .. } => self.en_red.al_chat(format!("{nombre}: {texto}")),
+            // (lo que escriben y los nombres de los demás, con la censura de la web: censura.js)
+            Evento::Entro { nombre, .. } => self.en_red.al_chat(format!("{} entró", censurar(&nombre))),
+            Evento::Salio { nombre, id } => { self.en_red.cuerpos.remove(&id); self.en_red.al_chat(format!("{} salió", censurar(&nombre))); }
+            Evento::Chat { nombre, texto, .. } => self.en_red.al_chat(format!("{}: {}", censurar(&nombre), censurar(&texto))),
             Evento::Aviso(t) => self.avisar(t),
             Evento::Disparo { arma, o, dir, .. } => {
                 // (la traza desde sus ojos hasta lo que toca, y el sonido de su arma ahí)
@@ -363,9 +365,9 @@ impl Juego {
             let (cx, cy) = ((v[0] * g[0] + v[4] * g[1] + v[8] * g[2] + v[12]) / cw, (v[1] * g[0] + v[5] * g[1] + v[9] * g[2] + v[13]) / cw);
             if cx.abs() > 1.2 || cy.abs() > 1.2 { continue; }
             let (sx, sy) = ((cx * 0.5 + 0.5) * wf, (0.5 - cy * 0.5) * hf);
-            let tt = t * 0.75 * (8.0 / cw).clamp(0.65, 1.0); let an = l.ancho(tt, &r.nombre);
-            l.texto_sombra(u, sx - an / 2.0, sy - tt, tt, [1.0, 1.0, 1.0, 0.95], &r.nombre);
-            if let (Some(txt), true) = (&r.globo, r.globo_hasta > ahora) {
+            let nom = censurar(&r.nombre); let tt = t * 0.75 * (8.0 / cw).clamp(0.65, 1.0); let an = l.ancho(tt, &nom);
+            l.texto_sombra(u, sx - an / 2.0, sy - tt, tt, [1.0, 1.0, 1.0, 0.95], &nom);
+            if let (Some(txt), true) = (r.globo.as_deref().map(censurar), r.globo_hasta > ahora) { let txt = &txt;
                 let tg = t * 0.7; let ag = l.ancho(tg, txt).min(wf * 0.4);
                 l.caja(u, sx - ag / 2.0 - tg * 0.5, sy - tt - tg * 1.9, ag + tg, tg * 1.5, tg * 0.4, [1.0, 1.0, 1.0, 0.92]);
                 l.texto(u, sx - ag / 2.0, sy - tt - tg * 1.65, tg, [0.0, 0.0, 0.0, 1.0], txt);
