@@ -125,6 +125,8 @@ impl Juego {
 
     /// cada cuadro, después de la física y antes de armar lo que se dibuja: lo que llega, lo que mando y los demás
     pub(super) unsafe fn red_cuadro(&mut self, m: &mut Motor3d, dt: f32) {
+        // (los pedazos de mis memes que faltan mandar: memes_juego.rs)
+        self.memes_paso();
         if !self.en_red.listo { if self.paq.is_some() {
             self.en_red.listo = true; self.en_red.red.mapas = self.mapas.clone();
             self.en_red.red.prefabs = Some(self.nombres.keys().cloned().collect());

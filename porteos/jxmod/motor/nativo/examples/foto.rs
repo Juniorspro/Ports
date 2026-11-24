@@ -125,11 +125,20 @@ fn main() {
             // (y un NPC suyo con escopeta, quieto a 6 m a la izquierda)
             let np = NpcLocal { id: 1, skin: "Hero".into(), pos: [jp0[0] as f64 + fx * 6.0 - fz * 2.0, jp0[1] as f64, jp0[2] as f64 + fz * 6.0 + fx * 2.0], yaw: yaw + std::f64::consts::PI, f: 1, arma: "Shotgun".into(), ..Default::default() };
             let local = Local { jug, objs: vec![ObjLocal { id: 1, nombre: caja.clone(), pos: cp, q: [0.0, 0.0, 0.0, 1.0], congelado: true, ..Default::default() }], npcs: vec![np], ..Default::default() };
-            beto.paso(dt, &local); for e in beto.eventos() { match e { jxjuego::red::Evento::Chat { nombre, texto, .. } => oyo.push(format!("{nombre}: {texto}")), jxjuego::red::Evento::Dano { de, dano, .. } => oyo.push(format!("daño {dano} de {de}")), _ => {} } } pb.bombear(&mut beto);
+            beto.paso(dt, &local); for e in beto.eventos() { match e { jxjuego::red::Evento::Chat { nombre, texto, .. } => oyo.push(format!("{nombre}: {texto}")), jxjuego::red::Evento::Dano { de, dano, .. } => oyo.push(format!("daño {dano} de {de}")), jxjuego::red::Evento::Hecho { k, d, .. } if k == "meme" => oyo.push(format!("meme {} de {}", d["m"], d["q"])), _ => {} } } pb.bombear(&mut beto);
             if f == 150 { let (cx, cy) = pos_boton(wf, hf, Boton::Chat); toque(&mut j, 63, cx, cy); }
+            // (memes: toco el primero de los incluidos —Beto lo tiene que oír— y Beto toca uno suyo, que llega de a pedazos)
+            if f == 160 { let id = j.memes_lista(0).first().map(|m| m.0.clone()).unwrap_or_default(); println!("red: toco el meme {id}: {}", j.meme_tocar(&id)); }
+            if f == 170 { let b: Vec<u8> = (0..30000u32).map(|i| (i * 7 % 251) as u8).collect(); let s = jxmod::comun::memes_juego::base64(&b);
+                beto.publicar("a", r##"{"k":"meme","m":"u:0a1b2c3d4e5f","q":"Beto","n":"Mi meme","c":"#43a047"}"##, false);
+                let p: Vec<&str> = s.as_bytes().chunks(24000).map(|x| std::str::from_utf8(x).unwrap()).collect();
+                for (x, d) in p.iter().enumerate() { beto.publicar("a", &format!(r#"{{"k":"memed","g":"u:0a1b2c3d4e5f","x":{x},"n":{},"d":"{d}"}}"#, p.len()), false); } }
             // (un emote: el panel, el primero de la lista; Beto lo tiene que ver)
             if f == 100 { let (ex, ey) = pos_boton(wf, hf, Boton::Emotes); toque(&mut j, 65, ex, ey); }
-            if f == 102 { let n = j.lista_emotes().len(); let (_, cel) = jxmod::comun::panel_emotes_geo(wf, hf, n, 0.0); foto(&mut m, "8a2_emotes"); toque(&mut j, 66, cel[0][0] + cel[0][2] / 2.0, cel[0][1] + cel[0][3] / 2.0); println!("red: {} emotes · hago {:?}", n, j.emote); }
+            if f == 102 { let n = j.lista_emotes().len(); let (_, cel) = jxmod::comun::panel_emotes_geo(wf, hf, n, 0.0); foto(&mut m, "8a2_emotes"); toque(&mut j, 66, cel[0][0] + cel[0][2] / 2.0, cel[0][1] + cel[0][3] / 2.0);
+                // (la rueda de emotes de la web —emotes_juego.rs— no es la grilla de antes: si el toque no cayó en uno, el primero de la lista)
+                if j.emote.is_none() { let e = j.lista_emotes().first().cloned(); j.hacer_emote(e); }
+                println!("red: {} emotes · hago {:?}", n, j.emote); }
             if f == 140 { println!("red: Beto ve mi emote {:?}", beto.remotos().first().and_then(|r| r.emote.clone())); }
             if f == 200 { beto.chat("hola desde la red", None); }
             if f == 230 { let o = [p[0], p[1] + 0.72, p[2]]; beto.disparo("Pistol", o, [-fx, 0.0, -fz]); }
@@ -145,6 +154,8 @@ fn main() {
         println!("red: en sala {} ({}) · veo {} jugador(es): {:?} · cosas de otros {} · objetos en el juego {}", j.en_red.en_sala(), j.en_red.red.estado(), j.en_red.red.remotos().len(),
             j.en_red.red.remotos().iter().map(|r| format!("{} en [{:.2}, {:.2}, {:.2}]", r.nombre, r.pos[0], r.pos[1], r.pos[2])).collect::<Vec<_>>(), j.en_red.red.objetos().len(), j.objs.len());
         println!("red: NPC de otros que veo: {:?}", j.en_red.red.npcs_remotos().iter().map(|n| format!("{} de {} con {:?}", n.skin, n.de, n.arma)).collect::<Vec<_>>());
+        let f = std::env::temp_dir().join("jxm_nativo_datos/memes_sala/0a1b2c3d4e5f");
+        println!("red: memes en el chat {:?} · el de Beto llegó entero: {} bytes", j.memes.renglones, std::fs::metadata(&f).map(|m| m.len()).unwrap_or(0));
         println!("red: Beto ve {} jugador(es): {:?} · a {:.3} m de donde estoy · oyó {:?}", beto.remotos().len(), beto.remotos().iter().map(|r| r.nombre.clone()).collect::<Vec<_>>(), dif, oyo);
         let (sx, sy) = pos_boton(wf, hf, Boton::Camara); toque(&mut j, 62, sx, sy); paso(&mut j, &mut m, 20); foto(&mut m, "8c_red_tercera");
         return;

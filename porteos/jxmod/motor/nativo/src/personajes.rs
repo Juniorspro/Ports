@@ -709,6 +709,7 @@ impl Juego {
     // ---------------- la red ----------------
     /// un hecho de otro que es de acá (ROOM/a): los accesorios, juntos, echar, las animaciones de la gente
     pub(crate) fn pjs_hecho(&mut self, de: &str, k: &str, d: &Value) {
+        if self.meme_red(de, k, d) { return; }
         match k {
             "acq" | "acd" => self.acc_red(de, d),
             "jnt" | "jntP" | "jntS" => self.juntos_red(de, d),

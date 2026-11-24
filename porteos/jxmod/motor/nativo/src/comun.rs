@@ -35,6 +35,8 @@ use herramientas::{Herramientas, Logica, Valor};
 #[path = "pausa_juego.rs"] pub mod pausa_juego;
 // (los gráficos automáticos: gfxauto.js)
 #[path = "gfx_juego.rs"] pub mod gfx_juego;
+// (el pad de memes: memes.js)
+#[path = "memes_juego.rs"] pub mod memes_juego;
 use combate::Proy;
 use crate::motor::Motor3d;
 use jxmotor::gpu::TEX_LETRAS;
@@ -246,6 +248,8 @@ pub struct Juego {
     pub dt_fijo: Option<f32>,
     /// los gráficos automáticos (gfx_juego.rs): la búsqueda, si se mide (sólo en la app) y el refresco de la pantalla (Hz)
     pub gfxa: jxjuego::gfxauto::Busqueda, pub gfx_medir: bool, pub refresco: f32,
+    /// los memes (memes_juego.rs)
+    pub memes: memes_juego::Memes,
     /// lo que salió mal (se muestra en la pantalla: en el teléfono no hay otra forma de verlo)
     pub error: Option<String>,
     mapa_cartel: bool,
@@ -335,7 +339,7 @@ impl Juego {
         let gmod = gmod_juego::EnGmod::nueva(datos.as_deref());
         let mut j = Juego { paq, mapa: None, mapas: vec!["RB_Flatgrass".into(), "RB_Construct".into()], mapa_i: 0, letras, letras_px, jug: Jugador::nuevo(), acum: 0.0,
             dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0, perf: [0.0; 5], perf_t: Instant::now(),
-            recargar: true, dt_fijo: None, gfxa: Default::default(), gfx_medir: false, refresco: 60.0, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
+            recargar: true, dt_fijo: None, gfxa: Default::default(), gfx_medir: false, refresco: 60.0, memes: Default::default(), error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
             nombres: HashMap::new(), catalogo: vec![], cat_npc: vec![], cat_veh: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),

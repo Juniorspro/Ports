@@ -93,7 +93,8 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | web | estado | nativa |
 |---|---|---|
 | sonidos.js, audio.js | ◐ | nativo/sonido.rs |
-| memes.js, maquinitas.js, pantalla.js | ✘ | |
+| memes.js | ✔ (los míos, desde la carpeta memes/ de la app; sin el interruptor de silenciar los de los demás) | nativo/memes_juego.rs, celu_juego.rs (app Memes) |
+| maquinitas.js, pantalla.js | ✘ | (juegos HTML y videos de YouTube) |
 | animedit.js, creador.js, verity.js, veritycrea.js | ✘ | |
 | grabar.js | ✘ | |
 | vr.js, manos_jx.js | ✘ | |

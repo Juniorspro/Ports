@@ -183,7 +183,7 @@ impl Juego {
                     for (k, n) in self.celu_lista_obj().iter().enumerate() { let r = [8.0 + (k % 3) as f32 * (cw + 6.0), y + (k / 3) as f32 * (chh + 6.0) - c.scroll, cw, chh]; if r[1] + r[3] < y || r[1] > ph - 30.0 { continue; } v.push((format!("poner|{n}"), r)); }
                 } else if app == "memes" {
                     v.push(("mtab|0".into(), [8.0, y, 60.0, 22.0])); v.push(("mtab|1".into(), [72.0, y, 80.0, 22.0])); y += 30.0;
-                    if c.meme_tab == 0 { if let Some(p) = &self.paq { let cw = (pw - 16.0 - 8.0) / 3.0; for (k, mm) in p.d["memes"].as_array().into_iter().flatten().enumerate() { let r = [8.0 + (k % 3) as f32 * (cw + 4.0), y + (k / 3) as f32 * (cw * 0.62 + 30.0) - c.scroll, cw, cw * 0.62 + 22.0]; if r[1] + r[3] < y || r[1] > ph - 30.0 { continue; } v.push((format!("meme|{}", mm[0].as_str().unwrap_or("")), r)); } } }
+                    { let y = if c.meme_tab == 1 { y + 44.0 } else { y }; let cw = (pw - 16.0 - 8.0) / 3.0; for (k, mm) in self.memes_lista(c.meme_tab).iter().enumerate() { let r = [8.0 + (k % 3) as f32 * (cw + 4.0), y + (k / 3) as f32 * (cw * 0.62 + 30.0) - c.scroll, cw, cw * 0.62 + 22.0]; if r[1] + r[3] < y || r[1] > ph - 30.0 { continue; } v.push((format!("meme|{}", mm.0), r)); } }
                 } else if app == "gente" {
                     let dueno = self.en_red.red.soy_anfitrion() && self.en_red.red.sala.as_ref().map(|s| !s.of).unwrap_or(false);
                     y += 42.0; for r in self.en_red.red.remotos() { if dueno { v.push((format!("echar|{}", r.id), [pw - 8.0 - 58.0, y + 8.0, 52.0, 24.0])); } y += 46.0; }
@@ -219,8 +219,8 @@ impl Juego {
             "cat" => { self.pjs.celu.cat = x.parse().unwrap_or(0); self.pjs.celu.scroll = 0.0; }
             "buscar" => { let q = self.pjs.celu.q.clone(); self.pedir_texto(Escribir::Pj, "Buscar", &q, 30, false); self.pjs.celu.escribe = Some(Escribe::BuscarCelu); }
             "poner" => { let n = x.to_string(); self.pendientes.push(n.clone()); self.pjs.celu.puso = Some((format!("Puesto: {}", self.jg.nombre_item(&n)), 2.0)); self.sonido.tocar("UI_blip", 0.3, 1.2, None); }
-            "mtab" => { self.pjs.celu.meme_tab = x.parse().unwrap_or(0); self.pjs.celu.scroll = 0.0; }
-            "meme" => self.avisar("Los memes todavía no están en la nativa".into()),
+            "mtab" => { self.pjs.celu.meme_tab = x.parse().unwrap_or(0); self.pjs.celu.scroll = 0.0; if self.pjs.celu.meme_tab == 1 { self.memes_cargar(); } }
+            "meme" => { self.meme_tocar(x); }
             "echar" => self.celu_echar(x),
             _ => {}
         }
@@ -332,10 +332,10 @@ impl Juego {
                     if let Some((t, _)) = &c.puso { l.caja(u, 8.0, ph - 22.0 - 26.0, pw - 16.0, 26.0, 10.0, [20.0 / 255.0, 24.0 / 255.0, 36.0 / 255.0, 0.9]); texto_cabe(l, u, 8.0, ph - 22.0 - 26.0 + 7.0, 11.0, pw - 16.0, bl, t, true); }
                 } else if app == "memes" {
                     for (k, n) in ["Memes", "Mis memes"].iter().enumerate() { let r = if k == 0 { [8.0, y, 60.0, 22.0] } else { [72.0, y, 80.0, 22.0] }; let s = c.meme_tab == k as u8; l.caja(u, r[0], r[1], r[2], r[3], 11.0, if s { bl } else { [1.0, 1.0, 1.0, 0.14] }); texto_cabe(l, u, r[0], r[1] + 5.0, 11.0, r[2], if s { [0.114, 0.137, 0.251, 1.0] } else { bl }, n, true); }
-                    if c.meme_tab == 1 { for (i, rr) in jugabilidad::partir(l, 11.0, "Agregá audios cortos de tu aparato y suenan para todos", pw - 24.0).iter().enumerate() { l.texto(u, 12.0, y + 40.0 + i as f32 * 14.0, 11.0, [1.0, 1.0, 1.0, 0.75], rr); } }
+                    if c.meme_tab == 1 { for (i, rr) in jugabilidad::partir(l, 11.0, "Poné audios cortos (hasta 400 KB) en la carpeta memes de la app y suenan para todos", pw - 24.0).iter().enumerate() { l.texto(u, 12.0, y + 30.0 + i as f32 * 14.0, 11.0, [1.0, 1.0, 1.0, 0.75], rr); } }
+                    let lista = self.memes_lista(c.meme_tab);
                     for (k, r) in self.celu_cosas().iter().filter(|x| x.0.starts_with("meme|")).map(|x| (x.0[5..].to_string(), x.1)) {
-                        let mm = self.paq.as_ref().and_then(|p| p.d["memes"].as_array().and_then(|a| a.iter().find(|m| m[0].as_str() == Some(k.as_str())).cloned()));
-                        let (n, co) = mm.map(|m| (m[1].as_str().unwrap_or("").to_string(), m[3].as_str().map(hexc).unwrap_or([0.5; 3]))).unwrap_or_default();
+                        let (n, co) = lista.iter().find(|m| m.0 == k).map(|m| (m.1.clone(), hexc(&m.2))).unwrap_or_default();
                         let (cx, cy, rr) = (r[0] + r[2] / 2.0, r[1] + 23.0, 23.0f32.min(r[2] / 2.0));
                         l.disco(u, cx, cy + 4.0, rr, [0.0, 0.0, 0.0, 0.4]); l.disco(u, cx, cy, rr, [co[0], co[1], co[2], 1.0]); l.disco(u, cx - rr * 0.3, cy - rr * 0.4, rr * 0.42, [1.0, 1.0, 1.0, 0.35]);
                         texto_cabe(l, u, r[0], cy + rr + 4.0, 10.0, r[2], bl, &n, true);
