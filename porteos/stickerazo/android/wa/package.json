@@ -1,9 +1,0 @@
-{
-  "name": "stickerazo-wa",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "description": "El envío de stickers con sonido a WhatsApp (corre en Node dentro de la app: nodejs-mobile)",
-  "main": "main.mjs",
-  "dependencies": { "baileys": "7.0.0-rc14" }
-}
