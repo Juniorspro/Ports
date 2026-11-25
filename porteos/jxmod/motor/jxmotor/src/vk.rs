@@ -912,7 +912,15 @@ impl Motor {
         let cam_arriba = ay.map(|y| self.c.as_ref().unwrap().pos[1] > y + 0.05).unwrap_or(false);
         let hacer_ref = hay_agua && self.op.reflejo && cam_arriba;
         let vref = ay.map(|y| mat::mul(&vp, &mat::espejo_y(y))).unwrap_or(vp);
-        let l_ref = if hacer_ref { let l = self.recortar(&vref, false); self.lista(&mut a, &l, false) } else { vec![] };
+        // (en el reflejo sólo lo que cruza el agua necesita el corte —el sombreador que descarta—; lo que está entero arriba va
+        // con el que no descarta, así se prueba la profundidad antes de pintar)
+        // (y sólo donde está el agua en la pantalla —más lo que la corren las olas—: ese rectángulo y lo que puede caer adentro)
+        let (r0, r1) = crate::gpu::rect_agua(&vp, self.aguas.iter().map(|&i| self.items[i].esf));
+        let (l_ref, l_ref_c) = if hacer_ref {
+            let ayv = ay.unwrap(); let pl = crate::gpu::planos_rect(&vref, r0, r1);
+            let (arr, cru): (Vec<usize>, Vec<usize>) = self.recortar(&vref, false).into_iter().filter(|&i| { let e = self.items[i].esf; e[1] + e[3] > ayv - 0.05 && mat::esfera_dentro(&pl, &e) }).partition(|&i| { let e = self.items[i].esf; e[1] - e[3] > ayv });
+            (self.lista(&mut a, &arr, false), self.lista(&mut a, &cru, false))
+        } else { (vec![], vec![]) };
         // (el cielo 3D —la maqueta de los mapas del Workshop— aparte: se dibuja primero y después se borra la profundidad)
         let (op_c, opacos): (Vec<usize>, Vec<usize>) = self.opacos.iter().partition(|&&i| self.items[i].fl & FL_CIELO != 0);
         let l_cie = self.lista(&mut a, &op_c, false);
@@ -1047,10 +1055,15 @@ impl Motor {
             let (fb, rw, rh) = { let r = self.dest.as_ref().unwrap().refl.as_ref().unwrap(); (r.2, r.0.w, r.0.h) };
             let t = self.marcar(cb, mi, medir, "reflejo", true);
             let lim = [vk::ClearValue { color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 1.0] } }, vk::ClearValue { depth_stencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 } }];
-            d.cmd_begin_render_pass(cb, &vk::RenderPassBeginInfo::default().render_pass(self.pasadas.refl).framebuffer(fb).render_area(rect(rw, rh)).clear_values(&lim), vk::SubpassContents::INLINE);
-            vista(&d, cb, rw, rh, 0.0);
+            // (la Y de la pantalla de Vulkan va para abajo: el rectángulo del agua dado vuelta)
+            let (x0, x1) = (((r0[0] * 0.5 + 0.5) * rw as f32).floor().max(0.0) as u32, ((r1[0] * 0.5 + 0.5) * rw as f32).ceil().min(rw as f32) as u32);
+            let (y0, y1) = (((0.5 - r1[1] * 0.5) * rh as f32).floor().max(0.0) as u32, ((0.5 - r0[1] * 0.5) * rh as f32).ceil().min(rh as f32) as u32);
+            let area = vk::Rect2D { offset: vk::Offset2D { x: x0 as i32, y: y0 as i32 }, extent: vk::Extent2D { width: (x1.max(x0 + 1) - x0), height: (y1.max(y0 + 1) - y0) } };
+            d.cmd_begin_render_pass(cb, &vk::RenderPassBeginInfo::default().render_pass(self.pasadas.refl).framebuffer(fb).render_area(area).clear_values(&lim), vk::SubpassContents::INLINE);
+            vista(&d, cb, rw, rh, 0.0); d.cmd_set_scissor(cb, 0, &[area]);
             d.cmd_bind_descriptor_sets(cb, vk::PipelineBindPoint::GRAPHICS, self.planos.luz, 0, &[g_glob], &[(G_REF * G_PASO) as u32]);
-            dibujos += self.dibujar_lista(cb, &l_ref, false, false, g_obj, g_hue);
+            dibujos += self.dibujar_lista(cb, &l_ref, false, true, g_obj, g_hue);
+            dibujos += self.dibujar_lista(cb, &l_ref_c, false, false, g_obj, g_hue);
             d.cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, self.tubos.cielo);
             d.cmd_bind_descriptor_sets(cb, vk::PipelineBindPoint::GRAPHICS, self.planos.cielo, 0, &[g_solo, g_cielo], &[(G_REF * G_PASO) as u32]);
             d.cmd_draw(cb, 3, 1, 0, 0); dibujos += 1;

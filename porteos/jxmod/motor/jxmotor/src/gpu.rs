@@ -513,12 +513,34 @@ unsafe fn destino(gl: &glow::Context, w: i32, h: i32) -> Destino { destino_con(g
 pub static AB: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 pub fn ab() -> bool { AB.load(std::sync::atomic::Ordering::Relaxed) }
 /// (en un cuadro B, si JXM_PRUEBA nombra esta prueba)
-pub fn prueba(n: &str) -> bool { ab() && std::env::var("JXM_PRUEBA").map_or(false, |v| v.split(',').any(|x| x == n)) }
+pub fn prueba(n: &str) -> bool { (ab() || std::env::var_os("JXM_PRUEBA_SIEMPRE").is_some()) && std::env::var("JXM_PRUEBA").map_or(false, |v| v.split(',').any(|x| x == n)) }
 /// (mientras se arman los programas B: los defines de prueba salen de JXM_FS_DEFS_B)
 static DEFS_B: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 /// una matriz de sombra (ortográfica: su w da siempre 1) que en vez de −1..1 da 0..1 —la posición en el mapa de sombras y su
 /// profundidad—: cada fila x, y, z pasa a la mitad de ella más la mitad de la fila w
 fn a_01(m: &M4) -> M4 { let mut r = *m; for c in 0..4 { for i in 0..3 { r[c * 4 + i] = 0.5 * m[c * 4 + i] + 0.5 * m[c * 4 + 3]; } } r }
+/// el rectángulo de la pantalla (NDC, de −1 a 1) donde está el agua —sus esferas vistas con `v`— más lo que la corren las olas;
+/// la pantalla entera si alguna rodea a la cámara
+pub(crate) fn rect_agua(v: &M4, esferas: impl Iterator<Item = [f32; 4]>) -> ([f32; 2], [f32; 2]) {
+    let (fx, fy) = ((v[0] * v[0] + v[4] * v[4] + v[8] * v[8]).sqrt(), (v[1] * v[1] + v[5] * v[5] + v[9] * v[9]).sqrt());
+    let (mut lo, mut hi) = ([1.0f32; 2], [-1.0f32; 2]);
+    for e in esferas {
+        let w = v[3] * e[0] + v[7] * e[1] + v[11] * e[2] + v[15];
+        if w <= e[3] * 1.05 { return ([-1.0; 2], [1.0; 2]); }
+        let (x, y) = ((v[0] * e[0] + v[4] * e[1] + v[8] * e[2] + v[12]) / w, (v[1] * e[0] + v[5] * e[1] + v[9] * e[2] + v[13]) / w);
+        let (rx, ry) = (e[3] * fx / w, e[3] * fy / w);
+        lo = [lo[0].min(x - rx), lo[1].min(y - ry)]; hi = [hi[0].max(x + rx), hi[1].max(y + ry)];
+    }
+    let m = 0.15; ([(lo[0] - m).max(-1.0), (lo[1] - m).max(-1.0)], [(hi[0] + m).min(1.0), (hi[1] + m).min(1.0)])
+}
+/// los planos de la vista `vp` recortada al rectángulo r0..r1 (NDC) a los costados, con el cerca y el lejos de siempre
+pub(crate) fn planos_rect(vp: &M4, r0: [f32; 2], r1: [f32; 2]) -> [[f32; 4]; 6] {
+    let f = |i: usize| [vp[i], vp[4 + i], vp[8 + i], vp[12 + i]]; let (x, y, w) = (f(0), f(1), f(3));
+    let pn = |a: [f32; 4], k: f32, b: [f32; 4]| { let q = [a[0] * k + b[0], a[1] * k + b[1], a[2] * k + b[2], a[3] * k + b[3]]; let l = (q[0] * q[0] + q[1] * q[1] + q[2] * q[2]).sqrt().max(1e-12); [q[0] / l, q[1] / l, q[2] / l, q[3] / l] };
+    let neg = |a: [f32; 4]| [-a[0], -a[1], -a[2], -a[3]]; let esc = |a: [f32; 4], k: f32| [a[0] * k, a[1] * k, a[2] * k, a[3] * k];
+    let base = mat::planos(vp);
+    [pn(x, 1.0, esc(w, -r0[0])), pn(neg(x), 1.0, esc(w, r1[0])), pn(y, 1.0, esc(w, -r0[1])), pn(neg(y), 1.0, esc(w, r1[1])), base[4], base[5]]
+}
 /// para rehacer el mundo desde la profundidad sin la inversa por píxel: el ojo, el rayo por cada punto de la pantalla (uv de
 /// 0 a 1: r0 + u·rx + v·ry, medido para que la w de recorte crezca 1 por unidad) y lo que pasa de la profundidad (−1..1) a la
 /// distancia por ese rayo: t = zl[0] / (z − zl[1])
@@ -1017,7 +1039,9 @@ impl Motor {
         for &(s, p, ma, mt, n, t, ms) in pf.borrow().iter() { let e = m.entry((s, p, ma, mt)).or_default(); e.0 += 1; e.1 = n; e.2 = t; e.3 += ms; }
         let mut v: Vec<_> = m.into_iter().collect(); v.sort_by(|a, b| b.1 .3.total_cmp(&a.1 .3));
         let total: f64 = v.iter().filter(|x| !x.0 .0).map(|x| x.1 .3).sum();
-        let pre: Vec<String> = v.iter().filter(|x| x.0 .0 && x.0 .1).take(6).map(|((_, _, ma, mt), (veces, n, t, ms))| format!("malla {ma} mat {mt} ×{n} {t} tri: {:.2} ms/vez ({veces})", ms / *veces as f64)).collect();
+        let tp: f64 = v.iter().filter(|x| x.0 .0 && x.0 .1).map(|x| x.1 .3).sum();
+        let pre: Vec<String> = v.iter().filter(|x| x.0 .0 && x.0 .1).take(8).map(|((_, _, ma, mt), (veces, n, t, ms))| format!("malla {ma} mat {mt} ×{n} {t} tri: {:.0} ms en total, {:.2} ms/vez ({veces})", ms, ms / *veces as f64)).collect();
+        let pre = { let mut p = pre; p.insert(0, format!("total {tp:.0} ms")); p };
         format!("prepaso: {} || luz total {total:.0} ms · ", pre.join(" | ")) + &v.iter().filter(|x| !x.0 .0).take(12).map(|((_, _, ma, mt), (veces, n, t, ms))| format!("malla {ma} mat {mt} ×{n} {t} tri: {:.1} ms/vez ({veces} veces)", ms / *veces as f64)).collect::<Vec<_>>().join(" | ")
     }
 
@@ -1065,17 +1089,8 @@ impl Motor {
     /// dónde está el agua en la pantalla (en −1..1, de la cámara de ahora): la caja de sus esferas, más un margen por lo que las
     /// olas corren el reflejo; si alguna rodea a la cámara, la pantalla entera
     fn agua_en_pantalla(&self) -> ([f32; 2], [f32; 2]) {
-        let Some(c) = self.c.as_ref() else { return ([-1.0; 2], [1.0; 2]) }; let v = &c.vp;
-        let (fx, fy) = ((v[0] * v[0] + v[4] * v[4] + v[8] * v[8]).sqrt(), (v[1] * v[1] + v[5] * v[5] + v[9] * v[9]).sqrt());
-        let (mut lo, mut hi) = ([1.0f32; 2], [-1.0f32; 2]);
-        for &i in &self.aguas {
-            let e = self.items[i].esf; let w = v[3] * e[0] + v[7] * e[1] + v[11] * e[2] + v[15];
-            if w <= e[3] * 1.05 { return ([-1.0; 2], [1.0; 2]); }
-            let (x, y) = ((v[0] * e[0] + v[4] * e[1] + v[8] * e[2] + v[12]) / w, (v[1] * e[0] + v[5] * e[1] + v[9] * e[2] + v[13]) / w);
-            let (rx, ry) = (e[3] * fx / w, e[3] * fy / w);
-            lo = [lo[0].min(x - rx), lo[1].min(y - ry)]; hi = [hi[0].max(x + rx), hi[1].max(y + ry)];
-        }
-        let m = 0.15; ([(lo[0] - m).max(-1.0), (lo[1] - m).max(-1.0)], [(hi[0] + m).min(1.0), (hi[1] + m).min(1.0)])
+        let Some(c) = self.c.as_ref() else { return ([-1.0; 2], [1.0; 2]) };
+        rect_agua(&c.vp, self.aguas.iter().map(|&i| self.items[i].esf))
     }
     /// la huella de una mitad de la sombra: su matriz y, de cada cosa, la malla, la parte, el material, la matriz y los huesos
     fn huella(&self, svp: &M4, lista: &[usize]) -> u64 {
@@ -1094,11 +1109,7 @@ impl Motor {
         // (el reflejo sólo se mira donde está el agua en la pantalla —más lo que la corren las olas—: ese rectángulo y nada más;
         // lo que no puede caer adentro, afuera)
         let (r0, r1) = self.agua_en_pantalla();
-        let pl = { let f = |i: usize| [vp[i], vp[4 + i], vp[8 + i], vp[12 + i]]; let (x, y, w) = (f(0), f(1), f(3));
-            let pn = |a: [f32; 4], k: f32, b: [f32; 4]| { let q = [a[0] * k + b[0], a[1] * k + b[1], a[2] * k + b[2], a[3] * k + b[3]]; let l = (q[0] * q[0] + q[1] * q[1] + q[2] * q[2]).sqrt().max(1e-12); [q[0] / l, q[1] / l, q[2] / l, q[3] / l] };
-            let neg = |a: [f32; 4]| [-a[0], -a[1], -a[2], -a[3]]; let esc = |a: [f32; 4], k: f32| [a[0] * k, a[1] * k, a[2] * k, a[3] * k];
-            let base = mat::planos(&vp);
-            [pn(x, 1.0, esc(w, -r0[0])), pn(neg(x), 1.0, esc(w, r1[0])), pn(y, 1.0, esc(w, -r0[1])), pn(neg(y), 1.0, esc(w, r1[1])), base[4], base[5]] };
+        let pl = planos_rect(&vp, r0, r1);
         // (lo que está entero debajo del agua no se refleja)
         let lista: Vec<usize> = self.recortar(&vp, false).into_iter().filter(|&i| { let e = self.items[i].esf; e[1] + e[3] > ay - 0.05 && mat::esfera_dentro(&pl, &e) }).collect();
         { let gl = &self.gl; let d = self.reflejo.as_ref().unwrap(); gl.bind_framebuffer(glow::FRAMEBUFFER, Some(d.fb)); gl.viewport(0, 0, d.w, d.h);
@@ -1106,8 +1117,18 @@ impl Motor {
           let (sx1, sy1) = (((r1[0] * 0.5 + 0.5) * d.w as f32).ceil() as i32, ((r1[1] * 0.5 + 0.5) * d.h as f32).ceil() as i32);
           gl.enable(glow::SCISSOR_TEST); gl.scissor(sx0.max(0), sy0.max(0), (sx1 - sx0).max(1), (sy1 - sy0).max(1));
           gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT); }
-        self.cielo(&vp);
-        self.dibujos += self.dibujar_lista(&lista, &vp, ay - 0.05, false);
+        // (sólo lo que cruza el agua necesita el corte —que descarta píxeles y así apaga la prueba de profundidad temprana—: lo
+        // que está entero arriba va con el programa común, de cerca a lejos; el cielo al final, sólo donde no quedó nada)
+        let cp = self.c.as_ref().unwrap().pos;
+        let (mut arriba, cruza): (Vec<usize>, Vec<usize>) = lista.iter().partition(|&&i| { let e = self.items[i].esf; e[1] - e[3] > ay });
+        let lejos = |i: usize| { let e = self.items[i].esf; ((((e[0] - cp[0]).powi(2) + (e[1] - cp[1]).powi(2) + (e[2] - cp[2]).powi(2)).sqrt() - e[3]).max(0.0) / 6.0) as u32 };
+        arriba.sort_by_key(|&i| { let it = &self.items[i]; (lejos(i), it.m, it.s0, it.mat) });
+        if prueba("reflejo_viejo") { self.cielo(&vp); self.dibujos += self.dibujar_lista(&lista, &vp, ay - 0.05, false); }
+        else {
+            self.dibujos += self.dibujar_lista(&arriba, &vp, -1e9, false);
+            self.dibujos += self.dibujar_lista(&cruza, &vp, ay - 0.05, false);
+            self.cielo(&vp);
+        }
         self.gl.disable(glow::SCISSOR_TEST);
         self.gl.invalidate_framebuffer(glow::FRAMEBUFFER, &[glow::DEPTH_ATTACHMENT]);
     }
@@ -1208,7 +1229,8 @@ impl Motor {
         let cielo3d = self.items.iter().any(|it| it.fl & FL_CIELO != 0);
         if cielo3d {
             self.cielo(&vp);
-            let cie: Vec<usize> = self.opacos.iter().copied().filter(|&i| self.items[i].fl & FL_CIELO != 0).collect();
+            let mut cie: Vec<usize> = self.opacos.iter().copied().filter(|&i| self.items[i].fl & FL_CIELO != 0).collect();
+            if prueba("sin_cielo3d") { cie.clear(); }
             self.dibujos += self.dibujar_lista(&cie, &vp, -1e9, false);
             { let gl = &self.gl; gl.enable(glow::BLEND); gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); gl.depth_mask(false); }
             let mut act: Option<bool> = None;
@@ -1220,6 +1242,7 @@ impl Motor {
                 if add { self.gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); }
             }
             { let gl = &self.gl; gl.disable(glow::BLEND); gl.depth_mask(true); gl.clear(glow::DEPTH_BUFFER_BIT); }
+            self.marca("cielo3d");
         }
         let mapa: Vec<usize> = self.opacos.iter().copied().filter(|&i| self.items[i].fl & FL_CIELO == 0).collect();
         let con_pre = self.op.prepaso;
@@ -1227,6 +1250,7 @@ impl Motor {
         if con_pre {
             // (la oclusión: lo que la prueba de su caja dio tapado del todo no se dibuja —ni la profundidad ni la luz—)
             self.oclu_leer();
+            self.marca("oclu_leer");
             let cand: Vec<(usize, u64)> = mapa.iter().filter_map(|&i| self.oclu_clave(i).map(|k| (i, k))).collect();
             for &(i, k) in &cand { if self.oclu.get(&k).map_or(false, |e| !e.2) { self.tapados[i] = true; } }
             // (la pasada de profundidad: lo opaco que no se cala, sin color, de cerca a lejos —lo de atrás se descarta enseguida—;
@@ -1291,7 +1315,7 @@ impl Motor {
             let (bx, bz, bw, bh, bd) = a.prof.as_ref().map(|q| (q.x0, q.z0, 1.0 / q.w, 1.0 / q.h, q.d)).unwrap_or((0.0, 0.0, 0.0, 0.0, 20.0));
             gl.uniform_4_f32(p.u(U::Bq), bx, bz, bw, bh); gl.uniform_2_f32(p.u(U::D), bd, a.largo.max(0.5));
             let t = self.c.as_ref().unwrap().tiempo; let t = if t > 0.0 { t } else { self.cuadro as f32 / 60.0 };
-            gl.uniform_2_f32(p.u(U::RefInv), 1.0 / ew as f32, 1.0 / eh as f32); gl.uniform_1_f32(p.u(U::Tiempo), t);
+            gl.uniform_2_f32(p.u(U::RefInv), 1.0 / ew as f32, 1.0 / eh as f32); gl.uniform_1_f32(p.u(U::Tiempo), if std::env::var_os("JXM_TIEMPO_FIJO").is_some() { 3.0 } else { t });
             gl.active_texture(glow::TEXTURE0); gl.bind_texture(glow::TEXTURE_2D, self.agua_n);
             gl.uniform_1_f32(p.u(U::NC), self.agua_na.map_or(0.0, |x| x.1 as f32));
             if let Some((t, _)) = self.agua_na { gl.active_texture(glow::TEXTURE14); gl.bind_texture(glow::TEXTURE_2D_ARRAY, Some(t)); gl.active_texture(glow::TEXTURE0); }
@@ -1346,6 +1370,10 @@ impl Motor {
         gl.bind_vertex_array(Some(self.ui.0)); gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.ui.1));
         gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, f32_bytes(v), glow::STREAM_DRAW);
         gl.draw_arrays(glow::TRIANGLES, 0, (v.len() / 8) as i32);
+        if std::env::var_os("JXM_DBG_UI").is_some() && self.cuadro % 100 == 0 {
+            let mut area = 0.0f64; for t in v.chunks_exact(24) { let (ax, ay, bx, by, cx, cy) = (t[0], t[1], t[8], t[9], t[16], t[17]); area += (((bx - ax) * (cy - ay) - (cx - ax) * (by - ay)) * 0.5).abs() as f64; }
+            eprintln!("ui tanda tex {tex}: {} triángulos, área {:.2} pantallas", v.len() / 24, area / (w as f64 * h as f64));
+        }
         gl.bind_vertex_array(None); gl.disable(glow::BLEND); gl.enable(glow::DEPTH_TEST); gl.depth_mask(true);
         self.dibujos += 1;
     }
