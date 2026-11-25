@@ -41,6 +41,8 @@ use herramientas::{Herramientas, Logica, Valor};
 #[path = "grieta_juego.rs"] pub mod grieta_juego;
 /// el menú de objetos como el de la web
 #[path = "menu_objetos.rs"] pub mod menu_objetos;
+#[path = "aero.rs"] pub mod aero;
+#[path = "inicio_aero.rs"] pub mod inicio_aero;
 // (los gráficos automáticos: gfxauto.js)
 #[path = "gfx_juego.rs"] pub mod gfx_juego;
 // (el pad de memes: memes.js)

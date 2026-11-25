@@ -6,6 +6,7 @@
 use glow::HasContext;
 use jxjuego::paquete::Paquete;
 use jxmod::comun::{Juego, Placa};
+use jxmod::comun::inicio_juego::Pieza;
 use jxmod::motor::Motor3d;
 use jxmotor::gpu::{Motor, Opciones};
 use khronos_egl as egl;
@@ -84,19 +85,14 @@ fn main() {
         let centro = |r: [f32; 4]| (r[0] + r[2] / 2.0, r[1] + r[3] / 2.0);
         j.inicio_abrir(); j.ini.fondo_quieto();
         if hace("home") {
-            let t = Instant::now(); paso(&mut j, &mut m, 1); let ms1 = t.elapsed().as_secs_f32() * 1000.0;
+            paso(&mut j, &mut m, 1);
             paso(&mut j, &mut m, 17); foto(&mut m, "entrada_03");
             paso(&mut j, &mut m, 120); foto(&mut m, "home");
-            // (las medidas del clásico, para compararlas con las de la web)
-            let cl = j.ini.cl.clone();
-            let r = |v: [f32; 4]| format!("[{:.1},{:.1},{:.1},{:.1}]", v[0], v[1], v[2], v[3]);
-            let its: Vec<String> = cl.its.iter().map(|(b, ht, hb)| format!("{{\"b\":{},\"ht\":{ht:.1},\"hb\":{hb:.1}}}", r(*b))).collect();
-            let chips: Vec<String> = cl.abajo.iter().chain(cl.arriba.iter()).map(|(p, b)| format!("{{\"k\":\"{p:?}\",\"b\":{}}}", r(*b))).collect();
-            let json = format!("{{\"W\":{w},\"H\":{h},\"apretada\":{},\"P\":{:.2},\"F\":{:.2},\"S\":{:.2},\"top\":{:.1},\"xS\":{:.1},\"lw\":{:.1},\"chV\":{:.1},\"chF\":{:.1},\"logo\":{},\"acento\":{},\"its\":[{}],\"chips\":[{}],\"ver\":{},\"compacto\":{},\"evt_corto\":{},\"ms_primer_cuadro\":{ms1:.1}}}",
-                cl.apretada, cl.p, cl.f, cl.s, cl.top, cl.xs, cl.lw, cl.ch_v, cl.ch_f, r(cl.logo), r(cl.acento), its.join(","), chips.join(","), r(cl.ver), cl.compacto, cl.evt_corto);
-            std::fs::write(format!("{sal}/{pre}_{w}x{h}_medidas.json"), json).unwrap();
-            // (apretar una opción: el golpe y la elegida en amarillo con el barrido)
-            let (b, _, _) = cl.its[1]; let (x, y) = centro(b); j.dedo_abajo(7, x, y, wf, hf); paso(&mut j, &mut m, 5); foto(&mut m, "apretada"); j.dedo_arriba(7); j.ini.elegir(None); paso(&mut j, &mut m, 30);
+            // (lo que se toca del inicio, para medirlo)
+            let zs: Vec<String> = j.ini.zonas.iter().map(|(r, a)| format!("{{\"r\":[{:.1},{:.1},{:.1},{:.1}],\"a\":\"{:?}\"}}", r[0], r[1], r[2], r[3], a)).collect();
+            std::fs::write(format!("{sal}/{pre}_{w}x{h}_home_zonas.json"), format!("[{}]", zs.join(","))).unwrap();
+            // (apretar una opción: la fila de vidrio)
+            if let Some(b) = j.ini_zona(Pieza::Op(1)) { let (x, y) = centro(b); j.dedo_abajo(7, x, y, wf, hf); paso(&mut j, &mut m, 5); foto(&mut m, "apretada"); j.dedo_arriba(7); j.ini.elegir(None); paso(&mut j, &mut m, 30); }
             // (el glitch del logo)
             j.ini.glitch_forzar(); paso(&mut j, &mut m, 6); foto(&mut m, "glitch"); paso(&mut j, &mut m, 30);
         } else { paso(&mut j, &mut m, 100); }
@@ -106,7 +102,7 @@ fn main() {
             // (cada opción del menú y lo de arriba, tocando en el centro; la foto con la entrada terminada; y volver)
             let nombres = ["nueva", "multi", "social", "tienda", "crear", "personajes", "opciones"];
             for (i, n) in nombres.iter().enumerate() {
-                let (b, _, _) = j.ini.cl.its[i].clone(); let (x, y) = centro(b); tocar(&mut j, &mut m, x, y);
+                let Some(b) = j.ini_zona(Pieza::Op(i)) else { continue }; let (x, y) = centro(b); tocar(&mut j, &mut m, x, y);
                 paso(&mut j, &mut m, 70); if *n == "multi" && _lan.is_some() { std::thread::sleep(std::time::Duration::from_millis(1500)); paso(&mut j, &mut m, 10); } foto(&mut m, n);
                 // (lo que se toca en el panel, para medirlo: tamaños, que no se pisen y que estén adentro de la pantalla)
                 let zs: Vec<String> = j.ini.pn.zonas.iter().map(|(r, a)| format!("{{\"r\":[{:.1},{:.1},{:.1},{:.1}],\"a\":\"{:?}\"}}", r[0], r[1], r[2], r[3], a).replace("\\\"", "'")).collect();
@@ -125,18 +121,18 @@ fn main() {
                 if let Some((r, _)) = j.ini.pn.zonas.iter().find(|z| matches!(z.1, jxmod::comun::paneles_juego::Acc::Volver | jxmod::comun::paneles_juego::Acc::Listo)).cloned() { let (x, y) = centro(r); tocar(&mut j, &mut m, x, y); }
                 paso(&mut j, &mut m, 40);
             }
-            for (k, n) in [(0usize, "avisos"), (1, "bugs"), (2, "grieta")] {
-                let Some((_, r)) = j.ini.cl.arriba.get(k).cloned() else { continue }; let (x, y) = centro(r); tocar(&mut j, &mut m, x, y); paso(&mut j, &mut m, 60); foto(&mut m, n);
+            for (k, n) in [(Pieza::Avisos, "avisos"), (Pieza::Bugs, "bugs"), (Pieza::Grieta, "grieta")] {
+                let Some(r) = j.ini_zona(k) else { continue }; let (x, y) = centro(r); tocar(&mut j, &mut m, x, y); paso(&mut j, &mut m, 60); foto(&mut m, n);
                 if n == "bugs" { if let Some((r, _)) = j.ini.pn.zonas.iter().find(|z| z.1 == jxmod::comun::paneles_juego::Acc::Tab(2)).cloned() { let (x, y) = centro(r); tocar(&mut j, &mut m, x, y); paso(&mut j, &mut m, 50); foto(&mut m, "novedades"); } }
                 if let Some((r, _)) = j.ini.pn.zonas.iter().find(|z| z.1 == jxmod::comun::paneles_juego::Acc::Volver).cloned() { let (x, y) = centro(r); tocar(&mut j, &mut m, x, y); }
                 paso(&mut j, &mut m, 30);
             }
-            if let Some((_, r)) = j.ini.cl.abajo.get(1).cloned() { let (x, y) = centro(r); tocar(&mut j, &mut m, x, y); paso(&mut j, &mut m, 60); foto(&mut m, "idioma");
+            if let Some(r) = j.ini_zona(Pieza::Idioma) { let (x, y) = centro(r); tocar(&mut j, &mut m, x, y); paso(&mut j, &mut m, 60); foto(&mut m, "idioma");
                 if let Some((r, _)) = j.ini.pn.zonas.iter().find(|z| z.1 == jxmod::comun::paneles_juego::Acc::Volver).cloned() { let (x, y) = centro(r); tocar(&mut j, &mut m, x, y); } paso(&mut j, &mut m, 30); }
         }
         if hace("pausa") {
             // (empezar la partida desde «Empezar partida nueva»: la pantalla de carga, el juego con el botón de pausa y la pausa)
-            let (b, _, _) = j.ini.cl.its[0].clone(); let (x, y) = centro(b); tocar(&mut j, &mut m, x, y); paso(&mut j, &mut m, 30);
+            if let Some(b) = j.ini_zona(Pieza::Op(0)) { let (x, y) = centro(b); tocar(&mut j, &mut m, x, y); } paso(&mut j, &mut m, 30);
             if let Some((r, _)) = j.ini.pn.zonas.iter().find(|z| z.1 == jxmod::comun::paneles_juego::Acc::Empezar).cloned() { let (x, y) = centro(r); j.dedo_abajo(7, x, y, wf, hf); paso(&mut j, &mut m, 1); j.dedo_arriba_en(7, wf, hf);
                 paso(&mut j, &mut m, 1); foto(&mut m, "carga"); }
             paso(&mut j, &mut m, 90); foto(&mut m, "juego");

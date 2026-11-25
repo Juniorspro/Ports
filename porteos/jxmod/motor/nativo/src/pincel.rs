@@ -341,7 +341,12 @@ pub struct Pincel<'a> {
     pub m: [f32; 6],
     /// la opacidad de todo
     pub alfa: f32,
+    /// lo que se ve detrás del vidrio Aero (aero.rs): las fotos del fondo desenfocadas y cómo caen en la pantalla
+    pub vidrio: Option<Vidrio>,
 }
+/// el fondo desenfocado para el vidrio: cada capa (su textura, de la pantalla a la UV —u = a x + b, v = c y + d— y su opacidad)
+#[derive(Clone, Debug, Default)]
+pub struct Vidrio { pub capas: Vec<(i64, [f32; 4], f32)> }
 pub const IDENT: [f32; 6] = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
 /// m1 después de m2 (primero m2)
 pub fn mm(m1: [f32; 6], m2: [f32; 6]) -> [f32; 6] {
@@ -353,7 +358,7 @@ pub fn escalar_en(sx: f32, sy: f32, cx: f32, cy: f32) -> [f32; 6] { [sx, 0.0, 0.
 pub fn rotar_en(g: f32, cx: f32, cy: f32) -> [f32; 6] { let (s, c) = g.to_radians().sin_cos(); [c, s, -s, c, cx - c * cx + s * cy, cy - s * cx - c * cy] }
 
 impl<'a> Pincel<'a> {
-    pub fn nuevo(at: &'a Atlas, ic: &'a mut Iconos, gl: &'a mut Glifos) -> Pincel<'a> { Pincel { at, ic, gl, tandas: vec![], recorte: None, m: IDENT, alfa: 1.0 } }
+    pub fn nuevo(at: &'a Atlas, ic: &'a mut Iconos, gl: &'a mut Glifos) -> Pincel<'a> { Pincel { at, ic, gl, tandas: vec![], recorte: None, m: IDENT, alfa: 1.0, vidrio: None } }
     fn tanda(&mut self, tex: i64) -> &mut Vec<f32> {
         if self.tandas.last().map(|t| t.0) != Some(tex) { self.tandas.push((tex, vec![])); }
         &mut self.tandas.last_mut().unwrap().1
@@ -446,6 +451,12 @@ impl<'a> Pincel<'a> {
     pub fn poli_tex(&mut self, tex: i64, p: &[[f32; 2]], uv: impl Fn([f32; 2]) -> [f32; 2], c: Col) {
         for t in orejas(p) { let v = t.iter().map(|&i| { let q = uv(p[i]); self.vert(p[i][0], p[i][1], q[0], q[1], c) }).collect(); self.convexo(tex, v); }
     }
+    /// un polígono con una textura y un color por punto (la UV y el color de cada punto los dan `uv` y `col`)
+    pub fn poli_gen(&mut self, tex: i64, p: &[[f32; 2]], uv: impl Fn([f32; 2]) -> [f32; 2], col: impl Fn([f32; 2]) -> Col) {
+        for t in orejas(p) { let v = t.iter().map(|&i| { let q = uv(p[i]); self.vert(p[i][0], p[i][1], q[0], q[1], col(p[i])) }).collect(); self.convexo(tex, v); }
+    }
+    /// la UV del blanco liso del atlas (para lo que va sin textura)
+    pub fn uv_liso(&self) -> [f32; 2] { self.uv_blanco() }
     /// una raya de `a` a `b` de grosor `g`
     pub fn linea(&mut self, a: [f32; 2], b: [f32; 2], g: f32, c: Col) {
         let (dx, dy) = (b[0] - a[0], b[1] - a[1]); let l = (dx * dx + dy * dy).sqrt(); if l <= 0.0 { return; }
