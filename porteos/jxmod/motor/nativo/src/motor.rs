@@ -34,6 +34,7 @@ impl Motor3d {
                 if hay_mapa { m.dibujar(*salida, w, h); }
                 else { m.gl.bind_framebuffer(glow::FRAMEBUFFER, *salida); m.gl.viewport(0, 0, w, h); m.gl.clear_color(0.06, 0.07, 0.09, 1.0); m.gl.clear(glow::COLOR_BUFFER_BIT); }
                 for (t, v) in ui { m.ui(*salida, w, h, *t, v); }
+                m.marca("interfaz");
                 Ok(())
             }
             Motor3d::Vk(m) => { if !hay_mapa { m.c = None; } let t: Vec<(i64, &[f32])> = ui.iter().map(|(t, v)| (*t, v.as_slice())).collect(); m.dibujar(&t).map(|_| ()) }

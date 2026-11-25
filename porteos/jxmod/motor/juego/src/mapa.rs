@@ -206,6 +206,50 @@ impl Mapa {
 
 /// arma el mapa `nombre`: abre su paquete, recorre sus nodos y junta lo que hay que mandarle al motor. `tmax`: el lado
 /// mayor de las texturas; `lejos_cal`: hasta dónde se ve en esta calidad (GFX.lejos)
+/// los triángulos de cada submalla grande, ordenados por celdas del espacio (de ~20 m) y partidos en trozos de al menos 400
+/// triángulos, cada uno con su caja: así la cámara, las sombras y el reflejo dibujan sólo los trozos que ven (antes cada
+/// material del mapa era una sola cosa de punta a punta y siempre se dibujaba entero). Reescribe el orden de los índices de cada
+/// submalla (los mismos triángulos) y devuelve, por submalla, sus trozos: (desde, cuántos índices, lo y hi locales)
+pub fn trocear(vb: &[u8], ib: &mut [u8], i32: bool, subs: &[(usize, usize)], mn: [f32; 3], sc: [f32; 3]) -> Vec<Vec<(u32, u32, [f32; 3], [f32; 3])>> {
+    const CELDA: f32 = 20.0; const MIN_TRIS: usize = 400;
+    let nv = vb.len() / 14;
+    let pos = |k: usize| -> [f32; 3] { let b = k * 14; let q = |j: usize| u16::from_le_bytes([vb[b + j * 2], vb[b + j * 2 + 1]]) as f32 / 65535.0; [mn[0] + q(0) * sc[0], mn[1] + q(1) * sc[1], mn[2] + q(2) * sc[2]] };
+    let tam = if i32 { 4 } else { 2 };
+    let leer = |ib: &[u8], k: usize| -> usize { let b = k * tam; if i32 { u32::from_le_bytes([ib[b], ib[b + 1], ib[b + 2], ib[b + 3]]) as usize } else { u16::from_le_bytes([ib[b], ib[b + 1]]) as usize } };
+    let caja = |ib: &[u8], s0: usize, sn: usize| { let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
+        for k in s0..s0 + sn { let v = leer(ib, k); if v >= nv { continue; } let p = pos(v); for e in 0..3 { lo[e] = lo[e].min(p[e]); hi[e] = hi[e].max(p[e]); } }
+        if lo[0] > hi[0] { (mn, mn) } else { (lo, hi) } };
+    let mut out = vec![];
+    for &(s0, sn) in subs {
+        if s0 + sn > ib.len() / tam || sn < 3 { out.push(vec![]); continue; }
+        let nt = sn / 3; let (lo, hi) = caja(ib, s0, sn);
+        if nt < MIN_TRIS * 2 || (hi[0] - lo[0]).max(hi[1] - lo[1]).max(hi[2] - lo[2]) < CELDA * 1.5 { out.push(vec![(s0 as u32, sn as u32, lo, hi)]); continue; }
+        let n = [0, 1, 2].map(|e| (((hi[e] - lo[e]) / CELDA).ceil() as usize).clamp(1, 64));
+        // (cada triángulo a la celda de su centro; ordenados por celda —estable: dentro de cada celda, como venían—)
+        let mut tris: Vec<(usize, usize)> = (0..nt).map(|t| {
+            let (a, b, c) = (leer(ib, s0 + t * 3), leer(ib, s0 + t * 3 + 1), leer(ib, s0 + t * 3 + 2));
+            if a >= nv || b >= nv || c >= nv { return (0, t); }
+            let (pa, pb, pc) = (pos(a), pos(b), pos(c));
+            let cel = [0, 1, 2].map(|e| ((((pa[e] + pb[e] + pc[e]) / 3.0 - lo[e]) / (hi[e] - lo[e]).max(1e-6) * n[e] as f32) as usize).min(n[e] - 1));
+            ((cel[0] * n[1] + cel[1]) * n[2] + cel[2], t)
+        }).collect();
+        tris.sort_by_key(|x| x.0);
+        let viejo = ib[s0 * tam..(s0 + sn) * tam].to_vec();
+        for (j, &(_, t)) in tris.iter().enumerate() { let (d, o) = ((s0 + j * 3) * tam, t * 3 * tam); ib[d..d + 3 * tam].copy_from_slice(&viejo[o..o + 3 * tam]); }
+        // (los trozos: las celdas seguidas, juntando hasta tener al menos MIN_TRIS triángulos)
+        let mut tz = vec![]; let mut ini = 0;
+        while ini < nt {
+            let mut fin = ini; let mut cuenta = 0;
+            while fin < nt { let c = tris[fin].0; let mut e = fin; while e < nt && tris[e].0 == c { e += 1; } cuenta += e - fin; fin = e; if cuenta >= MIN_TRIS { break; } }
+            let (a, b) = (s0 + ini * 3, (fin - ini) * 3); let (l, h) = caja(ib, a, b); tz.push((a as u32, b as u32, l, h)); ini = fin;
+        }
+        // (el último, si quedó chico, con el anterior)
+        if tz.len() >= 2 && (tz[tz.len() - 1].1 as usize) < MIN_TRIS * 3 / 2 { let u = tz.pop().unwrap(); let p = tz.last_mut().unwrap(); p.1 += u.1; for e in 0..3 { p.2[e] = p.2[e].min(u.2[e]); p.3[e] = p.3[e].max(u.3[e]); } }
+        out.push(tz);
+    }
+    out
+}
+
 pub fn armar(paq: &mut Paquete, nombre: &str, tmax: u32, lejos_cal: f32) -> Result<Mapa, String> {
     paq.asegurar(&format!("m_{nombre}"))?;
     paq.soltar_menos(&[&format!("m_{nombre}")]);
@@ -216,6 +260,8 @@ pub fn armar(paq: &mut Paquete, nombre: &str, tmax: u32, lejos_cal: f32) -> Resu
     let (mut mallas, mut mats, mut texs) = (vec![], vec![], vec![]);
     let (mut hay_malla, mut hay_mat, mut hay_tex) = (std::collections::HashSet::new(), std::collections::HashSet::new(), std::collections::HashSet::new());
     let mut items = vec![]; let mut spawns = vec![]; let mut luces = vec![];
+    // (los trozos de cada malla: por submalla, (desde, cuántos índices, lo y hi locales))
+    let mut trozos_de: std::collections::HashMap<i64, Vec<Vec<(u32, u32, [f32; 3], [f32; 3])>>> = std::collections::HashMap::new();
     let (mut sol, mut sol_col) = ([0.3f32, 0.8, 0.2], [1.0f32, 0.96, 0.9]);
     let (mut lo, mut hi) = ([1e9f32; 3], [-1e9f32; 3]);
     let (mut tris, mut cuerpos): (Vec<f32>, Vec<crate::mundo::Cuerpo>) = (vec![], vec![]);
@@ -322,7 +368,10 @@ pub fn armar(paq: &mut Paquete, nombre: &str, tmax: u32, lejos_cal: f32) -> Resu
                 let (v, o, ii) = (md["v"].as_u64().unwrap_or(0) as usize, md["o"].as_u64().unwrap_or(0) as usize, md["i"].as_u64().unwrap_or(0) as usize);
                 let i32 = md["i32"].as_bool().unwrap_or(false); let ni = subs.iter().map(|s| s[0].as_u64().unwrap_or(0) + s[1].as_u64().unwrap_or(0)).max().unwrap_or(0) as usize;
                 let vb = bin.get(o..o + v * 14).ok_or("malla cortada")?; let ib = bin.get(ii..ii + ni * if i32 { 4 } else { 2 }).ok_or("índices cortados")?;
-                let vo = poner(vb); let io = poner(ib);
+                let sub2: Vec<(usize, usize)> = subs.iter().map(|s| (s[0].as_u64().unwrap_or(0) as usize, s[1].as_u64().unwrap_or(0) as usize)).collect();
+                let mut ib2 = ib.to_vec(); let tz = trocear(vb, &mut ib2, i32, &sub2, v3(&md["mn"], [0.0; 3]), v3(&md["sc"], [1.0; 3]));
+                trozos_de.insert(mi, tz);
+                let vo = poner(vb); let io = poner(&ib2);
                 mallas.push(Malla { id: mi, v: v as u32, mn: v3(&md["mn"], [0.0; 3]), sc: v3(&md["sc"], [1.0; 3]), i32: i32 as u8, ni: ni as u32, vo, io, lo: -1, so: -1, lm: -1 });
             }
             let mn = v3(&md["mn"], [0.0; 3]); let sc = v3(&md["sc"], [1.0; 3]);
@@ -332,8 +381,15 @@ pub fn armar(paq: &mut Paquete, nombre: &str, tmax: u32, lejos_cal: f32) -> Resu
                 let Some(s) = subs.get(k) else { continue };
                 if hay_mat.insert(mt) { match material(d, mt as usize) { Some(m) => mats.push(m), None => continue } }
                 if !mats.iter().any(|m: &Mat| m.id == mt) { continue; }   // (oculto: no se dibuja)
-                let cen = punto(&wm, c); let rr = r * escala(&wm);
-                items.push(ItemDin { m: mi, s0: s[0].as_u64().unwrap_or(0) as u32, sn: s[1].as_u64().unwrap_or(0) as u32, mat: mt, mm: wm, esf: [cen[0], cen[1], cen[2], rr], fl: 0, h: vec![] });
+                // (una cosa por trozo —la parte de la malla de una celda del espacio—: los motores dejan afuera las que no ven)
+                match trozos_de.get(&mi).and_then(|t| t.get(k)).filter(|t| t.len() > 1) {
+                    Some(tz) => for &(s0, sn, lo, hi) in tz {
+                        let cl = [(lo[0] + hi[0]) / 2.0, (lo[1] + hi[1]) / 2.0, (lo[2] + hi[2]) / 2.0]; let rl = ((hi[0] - lo[0]).powi(2) + (hi[1] - lo[1]).powi(2) + (hi[2] - lo[2]).powi(2)).sqrt() / 2.0;
+                        let cen = punto(&wm, cl); items.push(ItemDin { m: mi, s0, sn, mat: mt, mm: wm, esf: [cen[0], cen[1], cen[2], rl * escala(&wm) + 0.01], fl: 0, h: vec![] });
+                    },
+                    None => { let cen = punto(&wm, c); let rr = r * escala(&wm);
+                        items.push(ItemDin { m: mi, s0: s[0].as_u64().unwrap_or(0) as u32, sn: s[1].as_u64().unwrap_or(0) as u32, mat: mt, mm: wm, esf: [cen[0], cen[1], cen[2], rr], fl: 0, h: vec![] }); }
+                }
             }
         }
     }

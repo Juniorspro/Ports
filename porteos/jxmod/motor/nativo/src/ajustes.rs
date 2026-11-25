@@ -45,19 +45,22 @@ pub struct Ajustes {
     pub tut: bool,
     /// la ventana del contenido (elegir qué bajar) ya se vio: no sale sola otra vez
     pub cont: bool,
+    /// la resolución dinámica: si el celular no llega a 45 cuadros por segundo, la escena se dibuja a menos píxeles (y vuelve a
+    /// la elegida cuando sobra)
+    pub dinamica: bool,
 }
 impl Default for Ajustes {
-    fn default() -> Self { Ajustes { calidad: 4, res: 100, sombras: true, ao: true, reflejo: true, retoque: true, sens: 12, fov: 70, fps: true, vol: 80, ambiente: true, hora: 12.0, ciclo: false, auto: true, medido: None, hud: 80, pal: 100, hud_pos: String::new(), tut: false, cont: false } }
+    fn default() -> Self { Ajustes { calidad: 4, res: 100, sombras: true, ao: true, reflejo: true, retoque: true, sens: 12, fov: 70, fps: true, vol: 80, ambiente: true, hora: 12.0, ciclo: false, auto: true, medido: None, hud: 80, pal: 100, hud_pos: String::new(), tut: false, cont: false, dinamica: false } }
 }
 
 /// lo que se puede tocar en el menú, un renglón cada uno
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Clave { Calidad, Res, Sombras, Ao, Reflejo, Retoque, Sens, Fov, Fps, Vol, Ambiente, Motor, Mapa, Hora, Ciclo, TamBotones, TamPalanca, Botones }
+pub enum Clave { Calidad, Res, Dinamica, Sombras, Ao, Reflejo, Retoque, Sens, Fov, Fps, Vol, Ambiente, Motor, Mapa, Hora, Ciclo, TamBotones, TamPalanca, Botones }
 /// las pestañas del menú y sus renglones
 pub const PESTANAS: [&str; 6] = ["Gráficos", "Controles", "Sonido", "Motor", "Mapa", "Día"];
 pub fn claves(pestana: usize) -> &'static [Clave] {
     match pestana {
-        0 => &[Clave::Calidad, Clave::Res, Clave::Sombras, Clave::Ao, Clave::Reflejo, Clave::Retoque],
+        0 => &[Clave::Calidad, Clave::Res, Clave::Dinamica, Clave::Sombras, Clave::Ao, Clave::Reflejo, Clave::Retoque],
         1 => &[Clave::Sens, Clave::Fov, Clave::Fps, Clave::TamBotones, Clave::TamPalanca, Clave::Botones],
         2 => &[Clave::Vol, Clave::Ambiente],
         3 => &[Clave::Motor],
@@ -67,7 +70,7 @@ pub fn claves(pestana: usize) -> &'static [Clave] {
 }
 pub fn nombre(c: Clave) -> &'static str {
     match c {
-        Clave::Calidad => "Calidad", Clave::Res => "Resolución", Clave::Sombras => "Sombras", Clave::Ao => "Oclusión ambiental", Clave::Reflejo => "Reflejos del agua",
+        Clave::Calidad => "Calidad", Clave::Res => "Resolución", Clave::Dinamica => "Resolución dinámica", Clave::Sombras => "Sombras", Clave::Ao => "Oclusión ambiental", Clave::Reflejo => "Reflejos del agua",
         Clave::Retoque => "Retoque de color", Clave::Sens => "Sensibilidad", Clave::Fov => "Campo de visión", Clave::Fps => "Mostrar fps", Clave::Vol => "Volumen",
         Clave::Ambiente => "Sonido del ambiente", Clave::Motor => "Motor", Clave::Mapa => "Mapa", Clave::Hora => "Hora", Clave::Ciclo => "Ciclo (2 horas por minuto)",
         Clave::TamBotones => "Tamaño de los botones", Clave::TamPalanca => "Tamaño de la palanca", Clave::Botones => "Botones de la pantalla",
@@ -92,7 +95,7 @@ impl Ajustes {
                 "fps" => a.fps = b, "vol" => if let Some(n) = n { a.vol = n.min(100) }, "ambiente" => a.ambiente = b,
                 "auto" => a.auto = b,
                 "hud" => if let Some(n) = n { a.hud = n.clamp(60, 120) }, "pal" => if let Some(n) = n { a.pal = n.clamp(60, 160) },
-                "hudpos" => a.hud_pos = v.to_string(), "tut" => a.tut = b, "cont" => a.cont = b,
+                "hudpos" => a.hud_pos = v.to_string(), "tut" => a.tut = b, "cont" => a.cont = b, "din" => a.dinamica = b,
                 "medido" => if let Some((q, g)) = v.split_once('|') { if let Ok(q) = q.parse::<usize>() { if q < 5 { a.medido = Some((q, g.to_string())) } } },
                 _ => {}
             }
@@ -104,7 +107,7 @@ impl Ajustes {
         let mut t = format!("calidad={}\nres={}\nsombras={}\nao={}\nreflejo={}\nretoque={}\nsens={}\nfov={}\nfps={}\nvol={}\nambiente={}\nauto={}\n",
             self.calidad, self.res, b(self.sombras), b(self.ao), b(self.reflejo), b(self.retoque), self.sens, self.fov, b(self.fps), self.vol, b(self.ambiente), b(self.auto));
         if let Some((q, g)) = &self.medido { t += &format!("medido={q}|{}\n", g.replace('\n', " ")); }
-        t += &format!("hud={}\npal={}\ntut={}\ncont={}\n", self.hud, self.pal, b(self.tut), b(self.cont)); if !self.hud_pos.is_empty() { t += &format!("hudpos={}\n", self.hud_pos.replace('\n', "")); }
+        t += &format!("hud={}\npal={}\ntut={}\ncont={}\ndin={}\n", self.hud, self.pal, b(self.tut), b(self.cont), b(self.dinamica)); if !self.hud_pos.is_empty() { t += &format!("hudpos={}\n", self.hud_pos.replace('\n', "")); }
         t
     }
     /// pone una calidad entera (como gfx de la web: cada una con su resolución y sus pasadas)
@@ -116,7 +119,7 @@ impl Ajustes {
     pub fn opciones(&self) -> Opciones {
         let flojo = self.calidad <= 2; let muy = self.calidad <= 1;
         Opciones { escala: self.res as f32 / 100.0, sombras: self.sombras, sombra_px: if flojo { 1024 } else { 2048 }, sombra_cada: if flojo { 2 } else { 1 }, sombra_radio: if flojo { 35.0 } else { 45.0 },
-            reflejo: self.reflejo, reflejo_div: if muy { 4 } else { 2 }, reflejo_cada: if muy { 2 } else { 1 }, ao: self.ao, ao_fuerza: 0.6, retoque: self.retoque }
+            reflejo: self.reflejo, reflejo_div: if muy { 4 } else { 2 }, reflejo_cada: if muy { 2 } else { 1 }, ao: self.ao, ao_fuerza: 0.6, retoque: self.retoque, prepaso: true }
     }
     /// el volumen para el mezclador (80, el de fábrica, es 1: como quedó medido contra la web)
     pub fn volumen(&self) -> f32 { self.vol as f32 / 80.0 }
@@ -127,7 +130,7 @@ impl Ajustes {
             // (como el selector de la web: Automático primero y después las cinco)
             Clave::Calidad => std::iter::once("Automático").chain(CALIDADES).map(|s| s.to_string()).collect(),
             Clave::Res => num(&RES, "%"), Clave::Sens => num(&SENS, ""), Clave::Fov => num(&FOV, "°"), Clave::Vol => num(&VOL, "%"),
-            Clave::Sombras | Clave::Ao | Clave::Reflejo | Clave::Retoque | Clave::Fps | Clave::Ambiente | Clave::Ciclo => NO_SI.iter().map(|s| s.to_string()).collect(),
+            Clave::Dinamica | Clave::Sombras | Clave::Ao | Clave::Reflejo | Clave::Retoque | Clave::Fps | Clave::Ambiente | Clave::Ciclo => NO_SI.iter().map(|s| s.to_string()).collect(),
             Clave::Hora => HORAS.iter().map(|h| h.0.to_string()).collect(),
             Clave::TamBotones => num(&TAM_HUD, "%"), Clave::TamPalanca => num(&TAM_PAL, "%"),
             // (el primero abre el editor —lo hace el juego—; el segundo vuelve todo a como viene)
@@ -141,7 +144,7 @@ impl Ajustes {
         match c {
             Clave::Calidad => if self.auto { Some(0) } else if self.calidad < PERSONAL { Some(self.calidad + 1) } else { None },
             Clave::Res => pos(&RES, self.res), Clave::Sens => pos(&SENS, self.sens), Clave::Fov => pos(&FOV, self.fov), Clave::Vol => pos(&VOL, self.vol),
-            Clave::Sombras => Some(self.sombras as usize), Clave::Ao => Some(self.ao as usize), Clave::Reflejo => Some(self.reflejo as usize),
+            Clave::Dinamica => Some(self.dinamica as usize), Clave::Sombras => Some(self.sombras as usize), Clave::Ao => Some(self.ao as usize), Clave::Reflejo => Some(self.reflejo as usize),
             Clave::Retoque => Some(self.retoque as usize), Clave::Fps => Some(self.fps as usize), Clave::Ambiente => Some(self.ambiente as usize),
             Clave::Hora => HORAS.iter().position(|h| h.1 == self.hora), Clave::Ciclo => Some(self.ciclo as usize),
             Clave::TamBotones => pos(&TAM_HUD, self.hud), Clave::TamPalanca => pos(&TAM_PAL, self.pal),
@@ -154,6 +157,7 @@ impl Ajustes {
         match c {
             Clave::Calidad => if k == 0 { self.auto = true } else { self.auto = false; self.poner_calidad(k - 1) },
             Clave::Res => { self.res = toma(&RES); self.calidad = PERSONAL; self.auto = false; }
+            Clave::Dinamica => self.dinamica = k == 1,
             Clave::Sombras => { self.sombras = k == 1; self.calidad = PERSONAL; self.auto = false; }
             Clave::Ao => { self.ao = k == 1; self.calidad = PERSONAL; self.auto = false; }
             Clave::Reflejo => { self.reflejo = k == 1; self.calidad = PERSONAL; self.auto = false; }

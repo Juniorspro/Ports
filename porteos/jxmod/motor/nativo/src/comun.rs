@@ -225,6 +225,8 @@ pub struct Juego {
     /// lo que tarda cada parte del cuadro en la CPU (ms, promediado): el jugador, la física de los objetos, la IA de los
     /// NPC, lo demás del juego (eventos, red, animación y armar lo que se dibuja) y el motor (mandar el cuadro a la placa)
     pub perf: [f32; 5], perf_t: Instant,
+    /// la resolución dinámica: la fracción de la resolución elegida con la que se dibuja ahora (1: toda) y lo que se lleva medido
+    pub drs: f32, drs_t: f32,
     recargar: bool,
     /// (para las pruebas: el tiempo fijo de cada cuadro, en vez del reloj)
     pub dt_fijo: Option<f32>,
@@ -334,7 +336,7 @@ impl Juego {
         let en_red = red_juego::EnRed::nueva(datos.as_deref());
         let gmod = gmod_juego::EnGmod::nueva(datos.as_deref());
         let mut j = Juego { paq, mapa: None, mapas: vec!["RB_Flatgrass".into(), "RB_Construct".into()], mapa_i: 0, letras, letras_px, jug: Jugador::nuevo(), acum: 0.0,
-            dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0, perf: [0.0; 5], perf_t: Instant::now(),
+            dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0, perf: [0.0; 5], drs: 1.0, drs_t: 0.0, perf_t: Instant::now(),
             recargar: true, dt_fijo: None, gfxa: Default::default(), gfx_medir: false, refresco: 60.0, memes: Default::default(), lan: Default::default(), bajas: None, bajada: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
             nombres: HashMap::new(), catalogo: vec![], cat_npc: vec![], cat_veh: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
@@ -934,7 +936,7 @@ impl Juego {
         // (un emote se corta al moverse o saltar, como en la web)
         if self.emote.is_some() && (ent.x.abs() + ent.y.abs() > 0.15 || ent.saltar) { self.hacer_emote(None); }
         // (lo de Ajustes, cada cuadro: la calidad al motor y el volumen al mezclador)
-        m.opciones(&self.aj.opciones()); self.sonido.volumen = self.aj.volumen();
+        { let mut op = self.aj.opciones(); op.escala *= self.drs; m.opciones(&op); } self.sonido.volumen = self.aj.volumen();
         if self.ajustes.is_some() { self.acum = 0.0; }
         else if let Some(mp) = &self.mapa {
             self.acum = (self.acum + dt).min(PASO * 12.0);
@@ -1264,7 +1266,7 @@ impl Juego {
             let y0 = hud_web::bajo_izq(wf, hf);
             let (ew, eh) = ((wf * self.aj.res as f32 / 100.0).round(), (hf * self.aj.res as f32 / 100.0).round());
             l.texto_sombra(&mut u, t * 0.5, y0 + t * 0.5, t, bl, &format!("{:.0} fps · cuadro {:.1} ms · placa {:.1} ms · {}×{}", self.fps, self.ms, self.placa_ms, ew, eh));
-            l.texto_sombra(&mut u, t * 0.5, y0 + t * 1.75, t * 0.7, [1.0, 1.0, 1.0, 0.85], &format!("JXMod nativo (Rust) · {} · {} · {}", usa.nombre(), self.calidad_txt(), placa_txt));
+            l.texto_sombra(&mut u, t * 0.5, y0 + t * 1.75, t * 0.7, [1.0, 1.0, 1.0, 0.85], &format!("JXMod nativo (Rust) · {} · {}{} · {}", usa.nombre(), self.calidad_txt(), if self.drs < 1.0 { format!(" · dinámica {:.0} %", self.drs * 100.0) } else { String::new() }, placa_txt));
             l.texto_sombra(&mut u, t * 0.5, y0 + t * 2.7, t * 0.7, [1.0, 1.0, 1.0, 0.85], &format!("{} · {} · vida {:.0}", self.mapas[self.mapa_i], if self.jug.noclip { "volando" } else if self.jug.nada { "nadando" } else if self.jug.suelo { "en el piso" } else { "en el aire" }, self.jug.vida));
             // (lo que tarda cada parte en la CPU: para ver dónde se va el cuadro en el celular)
             let pf = self.perf; let no = if self.detalle.is_empty() { 3.65 } else { 4.5 };
@@ -1471,6 +1473,16 @@ impl Juego {
     /// lo que tardó el cuadro entero (ms, con la espera a la pantalla) y los cuadros por segundo
     pub fn medir(&mut self, ms: f32) {
         self.ms = if self.cuenta == 0 { ms } else { self.ms * 0.9 + ms * 0.1 }; self.cuenta += 1; self.n_med += 1;
+        // (la resolución dinámica: cada cuarto de segundo, si el cuadro tarda más que el de 45 por segundo, menos píxeles —lo que
+        // cuesta va con el cuadrado de la escala—; si sobra, de a poco hasta la elegida. En pasos de 5 %, entre 55 % y 100 %)
+        if self.aj.dinamica && self.mapa.is_some() && !self.ini.abierto && !self.recargar {
+            self.drs_t += ms;
+            if self.drs_t >= 250.0 {
+                self.drs_t = 0.0; let obj = 1000.0 / 45.0;
+                if self.ms > obj * 1.06 { self.drs = ((self.drs * (obj / self.ms).sqrt().max(0.85) * 20.0).floor() / 20.0).max(0.55); }
+                else if self.ms < obj * 0.78 { self.drs = (((self.drs + 0.05) * 20.0).round() / 20.0).min(1.0); }
+            }
+        } else if !self.aj.dinamica { self.drs = 1.0; }
         let e = self.t_med.elapsed().as_secs_f32(); if e >= 0.5 { self.fps = self.n_med as f32 / e; self.n_med = 0; self.t_med = Instant::now(); }
     }
 }
