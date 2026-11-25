@@ -45,7 +45,7 @@ function gmvMallas(Mx, nodo, etiqueta, arb, pv, C, flip, op) {
   const cuerpo = (k) => { const x = op && op.cuerpos ? op.cuerpos[k] | 0 : 0, c = Mx.cuerpos && Mx.cuerpos[k]; return c && x < c.modelos.length ? x : 0; };
   for (const m of Mx.mallas) {
     if (m.modelo !== cuerpo(m.cuerpo)) continue;
-    const ti = piel[m.mat] !== undefined ? piel[m.mat] : m.mat, tex = Mx.texturas[ti] || Mx.texturas[m.mat] || 'error', mat = gmMaterial(tex, Mx.carpetas, false, true);   // (con la resolución del arma en la mano: gmTexTope)
+    const ti = piel[m.mat] !== undefined ? piel[m.mat] : m.mat, tex = Mx.texturas[ti] || Mx.texturas[m.mat] || 'error', mat = gmMaterial(tex, Mx.carpetas, false, !!(op && op.vista));   // (el arma en la mano y sus manos, con la resolución de la vista —gmTexTope—; los personajes —gmod_pm— y los importados —pjimportar, con sus materiales ya puestos—, como cualquier modelo: antes iban todos como el arma y los importados salían blancos)
     const T = m.tris; for (let t = 0; t + 2 < T.length; t += 3) { if (flip) tris.push(T[t], T[t + 1], T[t + 2], mat.mi); else tris.push(T[t], T[t + 2], T[t + 1], mat.mi); }
   }
   if (!tris.length) return 0;
@@ -106,7 +106,7 @@ function gmvConstruir(ruta, flip, fovVm, clase, manos, aparte) {
   for (let i = 0; i < nb; i++) { const h = H[i]; arb.push({ n: h.n, p: pv(h.pos), r: rot(h.q), s: [1, 1, 1], pa: h.pa >= 0 ? 1 + h.pa : 0 }); }
   // la malla (de un modelo Mx, con cada hueso suyo en un nodo del árbol): vértices en los ejes de la vista; caras por
   // material (piel 0, primer modelo de cada cuerpo)
-  const mallas = (Mx, nodo, etiqueta) => gmvMallas(Mx, nodo, etiqueta, arb, pv, C, flip);
+  const mallas = (Mx, nodo, etiqueta) => gmvMallas(Mx, nodo, etiqueta, arb, pv, C, flip, { vista: true });
   // (hay ViewModels sin malla, sólo huesos y animaciones: las manos las pone UseHands, como el parkour)
   if (!mallas(M, (h) => 1 + h, ruta) && !manos) { gmErr('vista ' + ruta, 'sin caras'); return null; }
   // las manos del jugador (UseHands): gmvManosArmar, como la entidad gmod_hands de GMod pegada a la vista
@@ -561,7 +561,7 @@ function gmvManosArmar(M, Mh, manos, arb, pv, rot, C, flip) {
   });
   for (const x of proc) { x.ctrlPa = nodoH[H[x.ctrl].pa]; x.ctrl = nodoH[x.ctrl]; }
   const ini = arb.length;
-  const op = { piel: manos.skin | 0, cuerpos: [...String(manos.body || '')].map((ch) => parseInt(ch, 36) || 0) };
+  const op = { vista: true, piel: manos.skin | 0, cuerpos: [...String(manos.body || '')].map((ch) => parseInt(ch, 36) || 0) };
   gmvMallas(Mh, (h) => nodoH[h], 'manos:' + manos.model, arb, pv, C, flip, op);
   const nodos = []; for (let i = ini; i < arb.length; i++) if (arb[i].m !== undefined) nodos.push(i);
   // (los personajes del juego: los materiales propios, teñidos con sus colores; los de las mangas y los de las manos)

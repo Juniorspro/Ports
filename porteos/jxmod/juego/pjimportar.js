@@ -236,13 +236,19 @@ function pjiMapaHumano(C) {
   const cand = {}, add = (k, i) => (cand[k] = cand[k] || []).push(i), sp = [];
   H.forEach((h, i) => {
     const L = lado(h.n), w = palabras(h.n), sl = parte(h.n);
-    if (w.some((x) => /^(end|nub|tip|top|twist|roll|helper|ik|pole|target|ctrl|socket|weapon|prop|attach|eye|jaw|tongue|teeth|hair|skirt|breast|bust)\d*$/.test(x))) return;
+    if (w.some((x) => /^(end|nub|tip|top|twist|roll|helper|ik|pole|target|ctrl|socket|weapon|prop|attach|eye|jaw|tongue|teeth|hair|skirt|breast|bust|aim|sec|adj|tops|bottoms|coat|cloth)\d*$/.test(x))) return;
     const fd = /(thumb|index|middle|ring|pinky|little)/.exec(sl);
     if (fd) { if (L) add(L + 'Dedo' + ({ little: 'Pinky' }[fd[1]] || fd[1][0].toUpperCase() + fd[1].slice(1)), i); return; }
     if (/^(spine|chest|abdomen|torso|waist|upperchest|ribs)\d*$/.test(sl) && !L) { sp.push(i); return; }
     for (const [k, re] of reglas) if (re.test(sl)) { if (['Hips', 'Neck', 'Head'].includes(k)) { if (!L) add(k, i); } else if (L) add(L + k, i); return; }
   });
-  const elegir = (k, pa) => { if (mapa[k] !== undefined) return; const L = (cand[k] || []).filter((i) => !usado.has(i) && (pa === undefined || desc(pa, i))); if (L.length) pon(k, L.sort((a, b) => prof(a) - prof(b))[0]); };
+  // (entre varios: el que tiene debajo la parte que sigue —el muslo con su rodilla—, el menos hondo y el de nombre más limpio:
+  // los VRoid pasados a GLB traen J_Aim_R_UpperLeg y J_Bip_R_UpperLeg colgando de la cadera, y se elegía el del ayudante,
+  // que no tiene la rodilla debajo: no se reconocía el esqueleto)
+  const largo = (i) => parte(H[i].n).length;
+  const elegir = (k, pa, sig) => { if (mapa[k] !== undefined) return; let L = (cand[k] || []).filter((i) => !usado.has(i) && (pa === undefined || desc(pa, i))); if (!L.length) return;
+    if (sig) { const S = cand[sig] || [], con = L.filter((i) => S.some((j) => desc(i, j))); if (con.length) L = con; }
+    pon(k, L.sort((a, b) => prof(a) - prof(b) || largo(a) - largo(b))[0]); };
   elegir('Hips');
   // (piernas que cuelgan del padre de la cadera —el Robot: «Body» tiene la cadera y los muslos de hijos—: la cadera es ese
   // padre y la «Hips» del archivo pasa a ser la primera vértebra)
@@ -253,8 +259,8 @@ function pjiMapaHumano(C) {
   if (mapa.Spine2 === undefined && mapa.Spine === undefined && col.length) { if (col.length === 1) pon('Spine2', col[0]); else if (col.length === 2) { pon('Spine', col[0]); pon('Spine2', col[1]); } else { pon('Spine', col[0]); pon('Spine1', col[Math.floor(col.length / 2)]); pon('Spine2', col[col.length - 1]); } }
   elegir('Neck', mapa.Hips); elegir('Head', mapa.Neck ?? mapa.Hips);
   for (const L of ['Left', 'Right']) {
-    elegir(L + 'Shoulder', mapa.Hips); elegir(L + 'Arm', mapa[L + 'Shoulder'] ?? mapa.Hips); elegir(L + 'ForeArm', mapa[L + 'Arm']); elegir(L + 'Hand', mapa[L + 'ForeArm']);
-    elegir(L + 'UpLeg', mapa.Hips); elegir(L + 'Leg', mapa[L + 'UpLeg']); elegir(L + 'Foot', mapa[L + 'Leg']); elegir(L + 'ToeBase', mapa[L + 'Foot']);
+    elegir(L + 'Shoulder', mapa.Hips, L + 'Arm'); elegir(L + 'Arm', mapa[L + 'Shoulder'] ?? mapa.Hips, L + 'ForeArm'); elegir(L + 'ForeArm', mapa[L + 'Arm'], L + 'Hand'); elegir(L + 'Hand', mapa[L + 'ForeArm']);
+    elegir(L + 'UpLeg', mapa.Hips, L + 'Leg'); elegir(L + 'Leg', mapa[L + 'UpLeg'], L + 'Foot'); elegir(L + 'Foot', mapa[L + 'Leg'], L + 'ToeBase'); elegir(L + 'ToeBase', mapa[L + 'Foot']);
   }
   // (pies sueltos de un rig con IK —el Robot de Quaternius: el pie cuelga de la raíz, no de la pierna—: el más cercano a la
   // punta de la pierna pasa a ser su hijo, con su misma pose de reposo)
@@ -734,15 +740,23 @@ function pjiRigPropio(Nm, mapa) {
   for (const L in mapa._palmas || {}) { const ps = mapa._palmas[L], fa = mapa[L + 'ForeArm'], c = sc3(ps.reduce((s2, i) => add3(s2, H[i].p), [0, 0, 0]), 1 / ps.length), k = H.length;
     H.push({ n: 'pji:' + L + 'Hand', pa: fa, p: c, q: H[fa].q.slice(), mix: null }); for (const i of ps) H[i].pa = k; m2[L + 'Hand'] = k; }
   for (const k in m2) if (m2[k] >= 0) H[m2[k]].mix = k;
-  if (H.length > 255) throw new Error('pji.muchosHuesos');
+  // (como mucho 255 huesos: los personajes de anime, MMD o VRChat traen 300-600 —pelo, pollera, cintas, ayudantes de IK—
+  // y antes «con sus huesos» no cargaba —«Tiene demasiados huesos»— mientras que «desde cero» sí: panel yx3crm92. Se quitan
+  // los que no mueven ningún vértice (y no son del cuerpo ni llevan a uno que sí), y si siguen sobrando, las puntas de las
+  // cadenas que no son del cuerpo pasan su peso al padre, de a una, empezando por las que menos pesan)
+  const dest = pjiReducirHuesos(H, Nm, 255);
   // (en orden: cada padre antes que sus hijos, como recorre el juego el esqueleto)
-  const orden = [], visto = new Uint8Array(H.length), poner = (i) => { if (visto[i]) return; visto[i] = 1; if (H[i].pa >= 0) poner(H[i].pa); orden.push(i); }; H.forEach((h, i) => poner(i));
-  const nuevo = new Int32Array(H.length); orden.forEach((i, k) => { nuevo[i] = k; });
+  const orden = [], visto = new Uint8Array(H.length), poner = (i) => { if (visto[i]) return; visto[i] = 1; if (H[i].pa >= 0) poner(H[i].pa); orden.push(i); }; H.forEach((h, i) => { if (dest[i] === i) poner(i); });
+  const nuevo = new Int32Array(H.length).fill(-1); orden.forEach((i, k) => { nuevo[i] = k; });
   const huesos = orden.map((i) => Object.assign({}, H[i], { pa: H[i].pa >= 0 ? nuevo[H[i].pa] : -1 }));
-  const hb = new Uint8Array(n * 3), hw = new Float32Array(n * 3), o = [0, 1, 2, 3];
+  const hb = new Uint8Array(n * 3), hw = new Float32Array(n * 3), jb = [0, 0, 0, 0], jw = [0, 0, 0, 0], o = [0, 1, 2, 3];
   for (let v = 0; v < n; v++) {
-    o.sort((a, b) => Nm.hw[v * 4 + b] - Nm.hw[v * 4 + a]); const t = (Nm.hw[v * 4 + o[0]] + Nm.hw[v * 4 + o[1]] + Nm.hw[v * 4 + o[2]]) || 1;
-    for (let k = 0; k < 3; k++) { hb[v * 3 + k] = nuevo[Nm.hb[v * 4 + o[k]]]; hw[v * 3 + k] = Nm.hw[v * 4 + o[k]] / t; }
+    // (los pesos de los huesos que se juntaron van a uno solo)
+    let m = 0; for (let c = 0; c < 4; c++) { const w = Nm.hw[v * 4 + c]; if (!(w > 0)) continue; const b = nuevo[dest[Nm.hb[v * 4 + c]]]; let k = 0; while (k < m && jb[k] !== b) k++; if (k < m) jw[k] += w; else { jb[m] = b; jw[m] = w; m++; } }
+    if (!m) { jb[0] = nuevo[dest[Nm.hb[v * 4]]]; jw[0] = 1; m = 1; }
+    for (let c = m; c < 4; c++) { jb[c] = jb[0]; jw[c] = 0; }
+    o.sort((a, b) => jw[b] - jw[a]); const t = (jw[o[0]] + jw[o[1]] + jw[o[2]]) || 1;
+    for (let k = 0; k < 3; k++) { hb[v * 3 + k] = jb[o[k]]; hw[v * 3 + k] = jw[o[k]] / t; }
   }
   // (la punta de cada mano sin dedos: el centro de lo que pesa en ella y en lo que cuelga de ella, para alinearla con la del Hero)
   const puntas = {};
@@ -751,6 +765,33 @@ function pjiRigPropio(Nm, mapa) {
     let s2 = [0, 0, 0], m = 0; for (let v = 0; v < n; v++) if (des.has(hb[v * 3]) && hw[v * 3] > 0.5) { s2 = add3(s2, [Nm.pos[v * 3], Nm.pos[v * 3 + 1], Nm.pos[v * 3 + 2]]); m++; }
     if (m > 3) { const c = sc3(s2, 1 / m); if (dist3(c, huesos[ih].p) > 0.01 * Nm.alto) puntas[ih] = c; } }
   return { huesos, hb, hw, puntas, propio: true, ms: { total: performance.now() - t0 } };
+}
+// a cuál hueso va cada uno (dest[i] = i: se queda): ver pjiRigPropio
+function pjiReducirHuesos(H, Nm, max) {
+  const nb = H.length, dest = Int32Array.from({ length: nb }, (_, i) => i), peso = new Float64Array(nb), n = Nm.pos.length / 3;
+  for (let v = 0; v < n; v++) for (let c = 0; c < 4; c++) { const w = Nm.hw[v * 4 + c]; if (w > 0) peso[Nm.hb[v * 4 + c]] += w; }
+  if (nb <= max) return dest;
+  // 1. se quedan los que pesan, los del cuerpo (mix) y sus antepasados
+  const queda = new Uint8Array(nb), subir = (i) => { for (let k = i; k >= 0 && !queda[k]; k = H[k].pa) queda[k] = 1; };
+  for (let i = 0; i < nb; i++) if (peso[i] > 0 || H[i].mix) subir(i);
+  // (los que se van sin peso: al antepasado más cercano que queda —no mueven nada, da igual—)
+  const arriba = (i) => { let k = i; while (k >= 0 && !queda[k]) k = H[k].pa; return k >= 0 ? k : 0; };
+  for (let i = 0; i < nb; i++) if (!queda[i]) dest[i] = arriba(i);
+  // 2. si siguen sobrando: las puntas que no son del cuerpo, de a una (la que menos pesa primero), al padre
+  let vivos = queda.reduce((a, x) => a + x, 0);
+  if (vivos > max) {
+    const hijos = new Int32Array(nb); for (let i = 0; i < nb; i++) if (queda[i] && H[i].pa >= 0) hijos[H[i].pa]++;
+    const tot = Float64Array.from(peso);
+    while (vivos > max) {
+      let b = -1; for (let i = 0; i < nb; i++) if (queda[i] && !hijos[i] && !H[i].mix && H[i].pa >= 0 && (b < 0 || tot[i] < tot[b])) b = i;
+      if (b < 0) break;
+      const pa = H[b].pa; queda[b] = 0; vivos--; hijos[pa]--; tot[pa] += tot[b];
+      for (let i = 0; i < nb; i++) if (dest[i] === b) dest[i] = pa;
+      dest[b] = pa;
+    }
+  }
+  if (vivos > max) throw new Error('pji.muchosHuesos');
+  return dest;
 }
 // cuaterniones como [x, y, z, w]
 function pjiQdeEjes(ax) {
