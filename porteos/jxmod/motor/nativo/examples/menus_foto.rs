@@ -100,12 +100,14 @@ fn main() {
             // (el glitch del logo)
             j.ini.glitch_forzar(); paso(&mut j, &mut m, 6); foto(&mut m, "glitch"); paso(&mut j, &mut m, 30);
         } else { paso(&mut j, &mut m, 100); }
+        // (JXM_LAN=1: una partida de otro celular en el Wi-Fi, para ver que aparece en la lista de Buscar partida)
+        let _lan = if std::env::var("JXM_LAN").is_ok() { jxmod::lan::Anfitrion::empezar(&serde_json::json!({ "du": "juan12345", "n": "Juan", "s": "Juan · LAN", "m": "RB_Construct", "p": jxmod::lan::PUERTO })).ok() } else { None };
         if hace("paneles") {
             // (cada opción del menú y lo de arriba, tocando en el centro; la foto con la entrada terminada; y volver)
             let nombres = ["nueva", "multi", "social", "tienda", "crear", "personajes", "opciones"];
             for (i, n) in nombres.iter().enumerate() {
                 let (b, _, _) = j.ini.cl.its[i].clone(); let (x, y) = centro(b); tocar(&mut j, &mut m, x, y);
-                paso(&mut j, &mut m, 70); foto(&mut m, n);
+                paso(&mut j, &mut m, 70); if *n == "multi" && _lan.is_some() { std::thread::sleep(std::time::Duration::from_millis(1500)); paso(&mut j, &mut m, 10); } foto(&mut m, n);
                 // (lo que se toca en el panel, para medirlo: tamaños, que no se pisen y que estén adentro de la pantalla)
                 let zs: Vec<String> = j.ini.pn.zonas.iter().map(|(r, a)| format!("{{\"r\":[{:.1},{:.1},{:.1},{:.1}],\"a\":\"{:?}\"}}", r[0], r[1], r[2], r[3], a).replace("\\\"", "'")).collect();
                 std::fs::write(format!("{sal}/{pre}_{w}x{h}_{n}_zonas.json"), format!("[{}]", zs.join(","))).unwrap();

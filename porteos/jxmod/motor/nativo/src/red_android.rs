@@ -120,6 +120,21 @@ impl Teclado {
             env.call_method(&d, jni_str!("getRefreshRate"), jni_sig!("()F"), &[])?.f()
         }).ok()
     }
+    /// el candado de multicast del Wi-Fi (sin él muchos celulares no reciben los anuncios de las partidas de la red)
+    pub fn candado_multicast(&self) {
+        let a = self.act.clone();
+        let _ = con_java(&self.vm, |env| {
+            let ctx = env.call_method(a.as_obj(), jni_str!("getApplicationContext"), jni_sig!("()Landroid/content/Context;"), &[])?.l()?;
+            let s = env.new_string("wifi")?;
+            let wm = env.call_method(&ctx, jni_str!("getSystemService"), jni_sig!("(Ljava/lang/String;)Ljava/lang/Object;"), &[JValue::Object(&s)])?.l()?;
+            if wm.is_null() { return Ok(()); }
+            let t = env.new_string("jxmod-lan")?;
+            let l = env.call_method(&wm, jni_str!("createMulticastLock"), jni_sig!("(Ljava/lang/String;)Landroid/net/wifi/WifiManager$MulticastLock;"), &[JValue::Object(&t)])?.l()?;
+            env.call_method(&l, jni_str!("setReferenceCounted"), jni_sig!("(Z)V"), &[JValue::Bool(false)])?;
+            env.call_method(&l, jni_str!("acquire"), jni_sig!("()V"), &[])?;
+            Ok(())
+        });
+    }
     /// lo escrito, si ya llegó: (id, Some(texto)) aceptado o (id, None) cancelado
     pub fn tomar(&self) -> Option<(i32, Option<String>)> {
         let a = self.act.clone();

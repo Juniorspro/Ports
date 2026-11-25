@@ -204,7 +204,7 @@ impl Juego {
             Pz::Social => { self.ini.pz.abierta = false; self.ini.desde_juego = true; self.pn_abrir(PanelIni::Social { tab: 0 }); }
             Pz::Ajustes => { self.ini.pz.abierta = false; self.ajustes = Some(0); }
             Pz::Borrar => { self.pz_borrar_todo(); self.ini.pz.abierta = false; self.avisar("Se borró todo".into()); }
-            Pz::Salir => { self.ini.pz.abierta = false; self.inicio_abrir(); }
+            Pz::Salir => { self.ini.pz.abierta = false; self.lan_salir(); self.inicio_abrir(); }
             Pz::Arma => { self.ini.pz.abierta = false; self.arma_aj_abrir(); }
             Pz::Tutorial => self.avisar("El tutorial todavía no está en la versión nativa".into()),
             Pz::Guardar | Pz::Cargar => self.avisar("Guardar y cargar el mapa todavía no está en la versión nativa".into()),

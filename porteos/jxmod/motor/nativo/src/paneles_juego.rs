@@ -72,7 +72,7 @@ impl Juego {
     /// abrir un panel (inicioPanel): con su entrada
     pub(super) fn pn_abrir(&mut self, p: PanelIni) {
         let otro = std::mem::discriminant(&p) != self.ini.panel.as_ref().map(std::mem::discriminant).unwrap_or(std::mem::discriminant(&PanelIni::Grieta)) || self.ini.panel.is_none();
-        if let PanelIni::Multi { .. } = p { if self.ini.panel.is_none() { self.abrir_salas(); self.en_red.panel = false; } }
+        if let PanelIni::Multi { .. } = p { if self.ini.panel.is_none() { self.abrir_salas(); self.en_red.panel = false; } self.lan_buscar(); }
         if self.ini.pn.mapa.is_none() { self.ini.pn.mapa = Some(self.mapas.get(self.mapa_i).cloned().filter(|m| self.mapas_inicio().contains(m)).unwrap_or_else(|| self.mapas_inicio().last().cloned().unwrap_or_default())); }
         if self.ini.pn.base.is_none() { self.ini.pn.base = self.ini.pn.mapa.clone(); }
         if otro { self.ini.pn.t0 = self.ini.reloj; }
@@ -116,7 +116,9 @@ impl Juego {
                 self.ini_entrar_sala(&s); } }
             (_, Acc::MasLleno) => { let salas = self.salas_inicio(); if let Some((s, _)) = salas.iter().max_by_key(|x| x.1.len()) { let s = s.clone(); self.ini_entrar_sala(&s); } }
             (_, Acc::CrearServer) => { self.en_red.panel = false; self.toque_salas_crear(); }
-            (_, Acc::Lan) => self.avisar("LAN / Wi-Fi todavía no está en la versión nativa".into()),
+            // (LAN / Wi-Fi: hacer de anfitrión en este celular con el mapa elegido y entrar; las de los demás están en la lista)
+            (_, Acc::Lan) => { let m = self.ini.pn.mapa.clone().unwrap_or_else(|| self.mapas.get(self.mapa_i).cloned().unwrap_or_default());
+                match self.lan_hostear(&m) { Ok(s) => { self.ini_entrar_sala(&s); if let Some(ip) = self.lan_ip() { self.avisar(format!("Partida en el Wi-Fi: los demás la ven en la lista (o escriben {ip})")); } } Err(e) => self.avisar(e) } }
             (_, Acc::Refrescar) => { self.en_red.red.conectar_lista(); self.en_red.red.cargar_salas(); }
             (_, Acc::Buscar) => self.avisar("Para buscar hace falta el teclado del celular".into()),
             (Some(PanelIni::Social { .. }), Acc::Tab(k)) => self.ini.panel = Some(PanelIni::Social { tab: k }),
@@ -144,7 +146,7 @@ impl Juego {
         self.recargar = true; self.ini.abierto = false; self.ini.panel = None; self.ini.pn.zonas.clear(); self.dedos.clear();
     }
     /// las salas de la lista (las oficiales, sólo de los mapas de la versión personal, como la web: MAPAS_RB con JXP)
-    fn salas_inicio(&self) -> Vec<(jxjuego::red::Sala, Vec<String>)> { let mi = self.mapas_inicio(); self.en_red.red.lista_salas().into_iter().filter(|(s, _)| !s.of || mi.contains(&s.m)).collect() }
+    fn salas_inicio(&self) -> Vec<(jxjuego::red::Sala, Vec<String>)> { let mi = self.mapas_inicio(); let mut v = self.lan_salas(); v.extend(self.en_red.red.lista_salas().into_iter().filter(|(s, _)| !s.of || mi.contains(&s.m))); v }
     fn ini_entrar_sala(&mut self, s: &jxjuego::red::Sala) {
         if self.en_red.puente.is_none() { self.avisar("Sin conexión: el multijugador anda en el celular".into()); return; }
         self.recargar = true; self.ini.abierto = false; self.ini.panel = None; self.entrar_sala_con(s, None);

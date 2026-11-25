@@ -61,6 +61,8 @@ fn android_main(app: AndroidApp) {
     if let Some(t) = unsafe { crate::red_android::Teclado::nuevo(app.vm_as_ptr(), app.activity_as_ptr()) } {
         // (el refresco de la pantalla: los gráficos automáticos buscan los cuadros que da —120 en una de 120 Hz—)
         if let Some(r) = t.refresco() { if r > 20.0 { j.refresco = r; } }
+        // (el candado de multicast, la primera vez que se buscan partidas en el Wi-Fi)
+        { let t4 = t.clone(); j.lan.candado = Some(Box::new(move || t4.candado_multicast())); }
         let (t1, t2) = (t.clone(), t);
         j.teclado = Some(crate::comun::Teclado { pedir: Box::new(move |id, ti, ini, max, cl| t1.pedir(id, ti, ini, max, cl)), tomar: Box::new(move || t2.tomar()) });
     }

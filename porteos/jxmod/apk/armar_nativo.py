@@ -20,6 +20,8 @@ MANIFIESTO = """<?xml version="1.0" encoding="utf-8"?>
   <uses-feature android:glEsVersion="0x00020000" android:required="true"/>
   <!-- (el multijugador: el broker MQTT y la tienda de salas) -->
   <uses-permission android:name="android.permission.INTERNET"/>
+  <!-- (la partida en el Wi-Fi: recibir los anuncios por broadcast de las partidas de la red local) -->
+  <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
   <application android:label="%s" android:icon="@mipmap/ic_launcher" android:hasCode="true" android:extractNativeLibs="false"
       android:isGame="true" android:appCategory="game" android:allowBackup="false">
     <activity android:name="%s" android:exported="true" android:screenOrientation="sensorLandscape" android:launchMode="singleTask"

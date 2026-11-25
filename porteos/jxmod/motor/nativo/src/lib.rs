@@ -4,6 +4,8 @@
 pub mod ajustes;
 pub mod armas;
 pub mod comun;
+/// la partida en la red local (lan.js y Lan.java: el broker del anfitrión y los anuncios)
+pub mod lan;
 // (el dibujo 2D de los menús y los íconos de la web)
 pub mod iconos;
 pub mod pincel;
