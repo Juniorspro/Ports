@@ -330,6 +330,8 @@ impl Juego {
     pub fn nuevo(paq: Result<Paquete, String>, letras_json: Option<String>, letras_png: Option<Vec<u8>>, datos: Option<std::path::PathBuf>) -> Juego {
         let placa = datos.as_ref().and_then(|d| std::fs::read_to_string(d.join("motor.txt")).ok()).map(|s| Placa::de_clave(&s)).unwrap_or(Placa::Gl3);
         let aj = Ajustes::leer(datos.as_ref().and_then(|d| std::fs::read_to_string(d.join("ajustes.txt")).ok()).as_deref());
+        // (el idioma elegido; si no hay, el del celular lo pone app.rs con idioma_del_sistema)
+        if let Some(i) = aj.idioma.as_deref().and_then(jxjuego::idiomas::de_codigo) { jxjuego::idiomas::poner(i); }
         let letras = letras_json.and_then(|t| Letras::de_json(&t).ok());
         let letras_px = letras_png.and_then(png_rgba);
         let (paq, error) = match paq { Ok(p) => (Some(p), None), Err(e) => (None, Some(format!("el paquete del juego: {e}"))) };
@@ -376,6 +378,17 @@ impl Juego {
     pub fn motor_pedido(&self) -> Placa { if self.placa.hecha() { self.placa } else { Placa::Gl3 } }
     /// con ventana nueva (el motor nuevo): se carga todo de nuevo
     pub fn al_abrir(&mut self) { self.recargar = true; self.ef.reenviar_marcas(); self.ini_texturas_perdidas(); }
+    /// el idioma del celular (su código, como «es» o «pt»), si no se eligió otro: uno de los 14 o, si no está, inglés (como la web)
+    pub fn idioma_del_sistema(&mut self, cod: Option<&str>) {
+        if self.aj.idioma.is_some() { return; }
+        let Some(c) = cod else { return };
+        jxjuego::idiomas::poner(jxjuego::idiomas::de_codigo(c).unwrap_or(1));
+    }
+    /// elige el idioma (Inicio → Idioma) y lo guarda
+    pub fn elegir_idioma(&mut self, k: usize) {
+        jxjuego::idiomas::poner(k); self.aj.idioma = Some(jxjuego::idiomas::CODIGOS[k.min(13)].to_string());
+        if let Some(d) = &self.datos { let _ = std::fs::write(d.join("ajustes.txt"), self.aj.texto()); }
+    }
 
     // —— el tacto (coordenadas en píxeles de la pantalla) ——
     pub fn dedo_abajo(&mut self, id: i32, x: f32, y: f32, w: f32, h: f32) {

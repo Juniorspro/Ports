@@ -6,6 +6,7 @@
 //! un recorte (lo que se baja en una lista), una transformación (las animaciones: correr, agrandar, inclinar) y una
 //! opacidad general.
 use std::collections::HashMap;
+use jxjuego::idiomas::{self, tr};
 use jxmotor::escena::{Cabecera, Escena, Tex};
 use crate::motor::Motor3d;
 
@@ -145,8 +146,10 @@ impl Atlas {
         let (lw, lh, lpx) = crate::comun::png_rgba(png).ok_or("menus.png no se lee")?;
         let f = |x: &serde_json::Value| x.as_f64().unwrap_or(0.0) as f32;
         let mut caras = vec![];
-        for k in ["o5", "o6", "s4", "s7"] {
+        // (o5, o6: la del menú; s4, s7: la de los textos; x4, x7: las de respaldo, con las letras de los otros idiomas)
+        for k in ["o5", "o6", "s4", "s7", "x4", "x7"] {
             let c = &v["caras"][k]; let mut m = HashMap::new(); let mut kk = HashMap::new();
+            if k.starts_with('x') && c.is_null() { caras.push(Fuente { tam: 32.0, asc: 30.0, desc: 8.0, c: m, k: kk }); continue; }
             for (ch, a) in c["c"].as_object().ok_or("menus.json sin letras")? { if let (Some(ch), Some(a)) = (ch.chars().next(), a.as_array()) { let mut x = [0f32; 7]; for (i, e) in a.iter().take(7).enumerate() { x[i] = f(e); } m.insert(ch, x); } }
             if let Some(o) = c["k"].as_object() { for (par, d) in o { let mut it = par.chars(); if let (Some(a), Some(b)) = (it.next(), it.next()) { kk.insert((a, b), f(d)); } } }
             caras.push(Fuente { tam: f(&c["tam"]), asc: f(&c["asc"]), desc: f(&c["desc"]), c: m, k: kk });
@@ -201,13 +204,25 @@ impl Atlas {
         Ok((Atlas { w, h, blanco: b, disco, anillo, caras, reg, letras, puntas: ra.puntas, punta_chip: ra.chip, logo_m: ra.logo }, px))
     }
     fn cara(&self, c: Cara) -> &Fuente { &self.caras[match c { Cara::O5 => 0, Cara::O6 => 1, Cara::S4 => 2, Cara::S7 => 3 }] }
+    /// la letra `ch` de la cara `c` o, si no la tiene, de la de los textos o la de respaldo (como el navegador con la lista de
+    /// fuentes): (cuál cara, sus medidas)
+    fn glifo(&self, c: Cara, ch: char) -> Option<(usize, [f32; 7])> {
+        let orden: [usize; 3] = match c { Cara::O5 => [0, 2, 4], Cara::O6 => [1, 3, 5], Cara::S4 => [2, 4, 4], Cara::S7 => [3, 5, 5] };
+        for i in orden { if let Some(g) = self.caras[i].c.get(&ch) { return Some((i, *g)); } }
+        self.caras[orden[0]].c.get(&'?').map(|g| (orden[0], *g))
+    }
     /// el ancho de un texto de letra `tam` con `esp` em de espacio entre letras (letter-spacing de CSS: también después de la
     /// última)
     pub fn ancho(&self, c: Cara, tam: f32, esp: f32, s: &str) -> f32 {
+        // (en el idioma elegido: juego/src/idiomas.rs)
+        let s = tr(s);
         // (la sans va sin espaciado entre letras: como las letras de Vista)
         let esp = if matches!(c, Cara::S4 | Cara::S7) { 0.0 } else { esp };
         let f = self.cara(c); let k = tam / f.tam; let mut w = 0.0; let mut ant: Option<char> = None;
-        for ch in s.chars() { let m = f.c.get(&ch).or(f.c.get(&'?')); w += m.map(|m| m[6]).unwrap_or(0.0) * k + esp * tam; if let Some(a) = ant { w += f.k.get(&(a, ch)).copied().unwrap_or(0.0) * k; } ant = Some(ch); }
+        for ch in s.chars() {
+            if let Some((i, m)) = self.glifo(c, ch) { w += m[6] * tam / self.caras[i].tam + esp * tam; }
+            if let Some(a) = ant { w += f.k.get(&(a, ch)).copied().unwrap_or(0.0) * k; } ant = Some(ch);
+        }
         w
     }
     /// lo de arriba y lo de abajo de la línea de base que usa el renglón de CSS (en px, con letra `tam`)
@@ -216,10 +231,15 @@ impl Atlas {
     pub fn base_centrada(&self, c: Cara, tam: f32, lh: f32, y0: f32, alto: f32) -> f32 { let (a, d) = self.metricas(c, tam); y0 + (alto - lh) / 2.0 + (lh - a - d) / 2.0 + a }
     /// el texto partido en renglones que entren en `ancho`
     pub fn renglones(&self, c: Cara, tam: f32, esp: f32, s: &str, ancho: f32) -> Vec<String> {
-        let mut v = vec![];
+        // (traducido antes de cortarlo; se corta entre palabras y, en japonés y tailandés, también entre letras)
+        let s = tr(s); let mut v = vec![]; let blanco = self.ancho(c, tam, esp, " ");
         for parrafo in s.split('\n') {
-            let mut r = String::new();
-            for pal in parrafo.split(' ') { let p = if r.is_empty() { pal.to_string() } else { format!("{r} {pal}") }; if self.ancho(c, tam, esp, &p) > ancho && !r.is_empty() { v.push(std::mem::take(&mut r)); r = pal.to_string(); } else { r = p; } }
+            let (mut r, mut wr) = (String::new(), 0.0);
+            for (esp_antes, pal) in idiomas::piezas(parrafo) {
+                let wp = self.ancho(c, tam, esp, pal); let sep = if esp_antes && !r.is_empty() { blanco } else { 0.0 };
+                if wr + sep + wp > ancho && !r.is_empty() { v.push(std::mem::take(&mut r)); r.push_str(pal); wr = wp; }
+                else { if esp_antes && !r.is_empty() { r.push(' '); } r.push_str(pal); wr += sep + wp; }
+            }
             v.push(r);
         }
         v
@@ -236,10 +256,10 @@ impl Default for Glifos { fn default() -> Self { Glifos { lugar: HashMap::new(),
 impl Glifos {
     /// dónde está (o queda) la letra `ch` de la cara `c` con letra de `tam` px: (x, y, ancho, alto en la textura; corrimiento
     /// de su caja desde el punto de la línea de base, en px)
-    fn de(&mut self, at: &Atlas, c: Cara, ch: char, tam: f32) -> Option<[f32; 6]> {
-        let q = (tam * 4.0).round().clamp(4.0, 4000.0) as u16; let ci = match c { Cara::O5 => 0u8, Cara::O6 => 1, Cara::S4 => 2, Cara::S7 => 3 };
+    fn de(&mut self, at: &Atlas, ci: u8, ch: char, tam: f32) -> Option<[f32; 6]> {
+        let q = (tam * 4.0).round().clamp(4.0, 4000.0) as u16;
         if let Some(r) = self.lugar.get(&(ci, ch, q)) { return Some(*r); }
-        let f = at.cara(c); let g = *f.c.get(&ch).or(f.c.get(&'?'))?; if ch == ' ' || g[2] <= 1.0 { return None; }
+        let f = &at.caras[ci as usize]; let g = *f.c.get(&ch).or(f.c.get(&'?'))?; if ch == ' ' || g[2] <= 1.0 { return None; }
         let t = q as f32 / 4.0; let k = t / f.tam;
         // (la caja en el tamaño pedido, en píxeles enteros desde el punto de la base)
         let (x0, y0) = ((g[4] * k).floor(), (g[5] * k).floor()); let (x1, y1) = (((g[4] + g[2]) * k).ceil(), ((g[5] + g[3]) * k).ceil());
@@ -479,14 +499,16 @@ impl<'a> Pincel<'a> {
     /// un texto con la línea de base en `base`; devuelve el ancho. Cada letra, pintada al tamaño en que se ve (con la escala de
     /// la transformación) y puesta en un píxel entero
     pub fn texto(&mut self, cara: Cara, tam: f32, x: f32, base: f32, c: Col, esp: f32, s: &str) -> f32 {
+        // (en el idioma elegido y, si es árabe, en el orden en que se dibuja: juego/src/idiomas.rs)
+        let s = idiomas::visual(tr(s)); let s = s.as_ref();
         let at = self.at; let f = at.cara(cara); let k = tam / f.tam; let mut px = x; let mut ant: Option<char> = None;
         let esp = if matches!(cara, Cara::S4 | Cara::S7) { 0.0 } else { esp };
         let esc = (self.m[0] * self.m[0] + self.m[1] * self.m[1]).sqrt().max(0.01); let t_pant = tam * esc;
         let plano = self.m[1].abs() < 1e-4 && self.m[2].abs() < 1e-4;
         for ch in s.chars() {
             if let Some(a) = ant { px += f.k.get(&(a, ch)).copied().unwrap_or(0.0) * k; } ant = Some(ch);
-            let Some(g) = f.c.get(&ch).or(f.c.get(&'?')).copied() else { continue };
-            if ch != ' ' && g[2] > 1.0 { if let Some(r) = self.gl.de(at, cara, ch, t_pant) {
+            let Some((ci, g)) = at.glifo(cara, ch) else { continue }; let kg = tam / at.caras[ci].tam;
+            if ch != ' ' && g[2] > 1.0 { if let Some(r) = self.gl.de(at, ci as u8, ch, t_pant) {
                 let l = GLI_LADO as f32; let uv = [[r[0] / l, r[1] / l], [(r[0] + r[2]) / l, r[1] / l], [(r[0] + r[2]) / l, (r[1] + r[3]) / l], [r[0] / l, (r[1] + r[3]) / l]];
                 if plano {
                     // (sin giro: el punto de la base a un píxel entero de la pantalla y la letra 1:1, nítida)
@@ -499,7 +521,7 @@ impl<'a> Pincel<'a> {
                     self.quad(TEX_GLIFOS, [[qx, qy], [qx + qw, qy], [qx + qw, qy + qh], [qx, qy + qh]], uv, [c; 4]);
                 }
             } }
-            px += g[6] * k + esp * tam;
+            px += g[6] * kg + esp * tam;
         }
         px - x
     }
@@ -509,6 +531,7 @@ impl<'a> Pincel<'a> {
     pub fn texto_d(&mut self, cara: Cara, tam: f32, x1: f32, base: f32, c: Col, esp: f32, s: &str) -> f32 { let w = self.at.ancho(cara, tam, esp, s); self.texto(cara, tam, x1 - w, base, c, esp, s) }
     /// un texto que no pasa de `max` (si no entra, cortado con «…»)
     pub fn texto_max(&mut self, cara: Cara, tam: f32, x: f32, base: f32, c: Col, esp: f32, s: &str, max: f32) -> f32 {
+        let s = tr(s);
         if self.at.ancho(cara, tam, esp, s) <= max { return self.texto(cara, tam, x, base, c, esp, s); }
         let mut t: String = s.to_string(); while !t.is_empty() && self.at.ancho(cara, tam, esp, &format!("{t}…")) > max { t.pop(); }
         self.texto(cara, tam, x, base, c, esp, &format!("{}…", t.trim_end()))

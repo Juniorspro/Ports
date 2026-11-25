@@ -48,9 +48,11 @@ pub struct Ajustes {
     /// la resolución dinámica: si el celular no llega a 45 cuadros por segundo, la escena se dibuja a menos píxeles (y vuelve a
     /// la elegida cuando sobra)
     pub dinamica: bool,
+    /// el idioma elegido (su código: «en», «ja»…; si no se eligió, el del celular —o inglés, como la web—)
+    pub idioma: Option<String>,
 }
 impl Default for Ajustes {
-    fn default() -> Self { Ajustes { calidad: 4, res: 100, sombras: true, ao: true, reflejo: true, retoque: true, sens: 12, fov: 70, fps: true, vol: 80, ambiente: true, hora: 12.0, ciclo: false, auto: true, medido: None, hud: 80, pal: 100, hud_pos: String::new(), tut: false, cont: false, dinamica: false } }
+    fn default() -> Self { Ajustes { calidad: 4, res: 100, sombras: true, ao: true, reflejo: true, retoque: true, sens: 12, fov: 70, fps: true, vol: 80, ambiente: true, hora: 12.0, ciclo: false, auto: true, medido: None, hud: 80, pal: 100, hud_pos: String::new(), tut: false, cont: false, dinamica: false, idioma: None } }
 }
 
 /// lo que se puede tocar en el menú, un renglón cada uno
@@ -95,7 +97,7 @@ impl Ajustes {
                 "fps" => a.fps = b, "vol" => if let Some(n) = n { a.vol = n.min(100) }, "ambiente" => a.ambiente = b,
                 "auto" => a.auto = b,
                 "hud" => if let Some(n) = n { a.hud = n.clamp(60, 120) }, "pal" => if let Some(n) = n { a.pal = n.clamp(60, 160) },
-                "hudpos" => a.hud_pos = v.to_string(), "tut" => a.tut = b, "cont" => a.cont = b, "din" => a.dinamica = b,
+                "hudpos" => a.hud_pos = v.to_string(), "idioma" => if jxjuego::idiomas::de_codigo(v).is_some() { a.idioma = Some(v.to_string()) }, "tut" => a.tut = b, "cont" => a.cont = b, "din" => a.dinamica = b,
                 "medido" => if let Some((q, g)) = v.split_once('|') { if let Ok(q) = q.parse::<usize>() { if q < 5 { a.medido = Some((q, g.to_string())) } } },
                 _ => {}
             }
@@ -108,6 +110,7 @@ impl Ajustes {
             self.calidad, self.res, b(self.sombras), b(self.ao), b(self.reflejo), b(self.retoque), self.sens, self.fov, b(self.fps), self.vol, b(self.ambiente), b(self.auto));
         if let Some((q, g)) = &self.medido { t += &format!("medido={q}|{}\n", g.replace('\n', " ")); }
         t += &format!("hud={}\npal={}\ntut={}\ncont={}\ndin={}\n", self.hud, self.pal, b(self.tut), b(self.cont), b(self.dinamica)); if !self.hud_pos.is_empty() { t += &format!("hudpos={}\n", self.hud_pos.replace('\n', "")); }
+        if let Some(i) = &self.idioma { t += &format!("idioma={i}\n"); }
         t
     }
     /// pone una calidad entera (como gfx de la web: cada una con su resolución y sus pasadas)

@@ -12,6 +12,7 @@ pub mod fisica;
 pub mod geo;
 pub mod gorros;
 pub mod identidad;
+pub mod idiomas;
 pub mod gfxauto;
 pub mod flotar;
 pub mod forma;

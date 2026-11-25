@@ -67,6 +67,7 @@ pub fn glifo_no(l: &Letras, u: &mut Vec<f32>, cx: f32, cy: f32, r: f32, col: [f3
 pub fn cruz_x(l: &Letras, u: &mut Vec<f32>, cx: f32, cy: f32, r: f32, g: f32, col: [f32; 4]) { linea(l, u, [cx - r, cy - r], [cx + r, cy + r], g, col); linea(l, u, [cx - r, cy + r], [cx + r, cy - r], g, col); }
 /// un texto que entra en `ancho` (achicado hasta `min` y, si no, cortado con «…»)
 pub fn texto_cabe(l: &Letras, u: &mut Vec<f32>, x: f32, y: f32, tam: f32, ancho: f32, col: [f32; 4], s: &str, centrado: bool) {
+    let s = jxjuego::idiomas::tr(s);
     let mut t = tam; while l.ancho(t, s) > ancho && t > tam * 0.7 { t *= 0.93; }
     let mut txt = s.to_string();
     if l.ancho(t, &txt) > ancho { while !txt.is_empty() && l.ancho(t, &(txt.clone() + "…")) > ancho { txt.pop(); } txt.push('…'); }

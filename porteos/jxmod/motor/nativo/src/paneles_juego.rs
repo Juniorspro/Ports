@@ -166,7 +166,7 @@ impl Juego {
             // (Cancelar: los ajustes vuelven a como estaban al abrir; Aplicar: se guardan y se sigue)
             (_, Acc::AjCancelar) => { if let Some(a) = self.ini.pn.aj_copia.take() { self.aj = a; if let Some(d) = &self.datos { let _ = std::fs::write(d.join("ajustes.txt"), self.aj.texto()); } } self.pn_volver(); }
             (_, Acc::AjAplicar) => { if let Some(d) = &self.datos { let _ = std::fs::write(d.join("ajustes.txt"), self.aj.texto()); } self.ini.pn.aj_copia = Some(self.aj.clone()); self.avisar("Ajustes guardados".into()); }
-            (_, Acc::Idioma(k)) => { if k != 0 { self.avisar("La versión nativa por ahora está en castellano".into()); } else { self.pn_volver(); } }
+            (_, Acc::Idioma(k)) => { self.elegir_idioma(k); self.pn_volver(); }
             (_, Acc::GMod) => { self.pn_volver(); self.ini.abierto = false; self.gmod_abrir(); }
             (_, Acc::CuentaNo) => self.avisar("Lo social se activa cuando la tienda tenga el inicio de sesión con Google.".into()),
             _ => {}
@@ -902,19 +902,20 @@ impl Juego {
             self.pn_cascada(p, t, 0, |p| p.texto_c(Cara::S4, m.ft, c[0] + c[2] / 2.0, (c[1] + hc + pie[1]) / 2.0, PN_T2, 0.0, "No hay avisos por ahora."));
         });
     }
-    /// el idioma (IDIOMAS_RB): la lista de los 14; la nativa por ahora está en castellano
+    /// el idioma (IDIOMAS_RB): la lista de los 14, cada uno con su nombre en su idioma (juego/src/idiomas.rs)
     fn pn_idioma(&mut self, p: &mut Pincel, m: &Pm, t: f32, z: &mut Vec<([f32; 4], Acc)>) {
-        let idiomas = [("ES", "Español"), ("EN", "English"), ("PT", "Português"), ("ID", "Bahasa Indonesia"), ("MS", "Bahasa Melayu"), ("FIL", "Filipino"), ("JA", "Japanese"), ("TH", "Thai"), ("TR", "Türkçe"), ("AR", "Arabic"), ("RU", "Russian"), ("UK", "Ukrainian"), ("FR", "Français"), ("DE", "Deutsch")];
+        use jxjuego::idiomas::{actual, CODIGOS, NOMBRES};
+        let idiomas: Vec<(String, &str)> = CODIGOS.iter().zip(NOMBRES).map(|(c, n)| (c.to_uppercase(), n)).collect(); let elegido = actual();
         self.pn_marco(p, m, t, |p, c| {
             let (_, hc) = self.pn_cabecera(p, m, c, "!", Some(("mundo", AMA)), "Idioma", t);
             let pie_h = m.ph + m.u * 1.5 + 1.0; let pie = self.pn_pie(p, m, c, pie_h, t, z);
             let cu = [c[0] + m.u * 1.5, c[1] + hc + m.u, c[2] - m.u * 3.0, pie[1] - c[1] - hc - m.u * 2.0];
             let n = ((cu[2] / (m.ft * 11.0)).floor() as usize).clamp(1, 4); let bw = (cu[2] - (n - 1) as f32 * m.u) / n as f32; let bh = m.ph.min((cu[3] - 4.0 * m.u * 0.5) / (idiomas.len().div_ceil(n)) as f32 - m.u * 0.5);
-            for (k, (cod, nom)) in idiomas.iter().enumerate() { let r = [cu[0] + (k % n) as f32 * (bw + m.u), cu[1] + (k / n) as f32 * (bh + m.u * 0.5), bw, bh]; let sel = k == 0;
+            for (k, (cod, nom)) in idiomas.iter().enumerate() { let r = [cu[0] + (k % n) as f32 * (bw + m.u), cu[1] + (k / n) as f32 * (bh + m.u * 0.5), bw, bh]; let sel = k == elegido; let nom = jxjuego::idiomas::unir_arabe(nom); let (cod, nom) = (cod.as_str(), nom.as_str());
                 self.pn_cascada(p, t, k, |p| { p.rect(r[0], r[1], r[2], r[3], if sel { AMA } else { PN_PL2 }); p.borde(r[0], r[1], r[2], r[3], 1.0, if sel { AMA } else { PN_LIN });
                     let wc = p.at.ancho(Cara::S7, m.fs, 0.04, cod) + 12.0; p.rect(r[0] + 8.0, r[1] + (r[3] - m.fs * 1.5) / 2.0, wc, m.fs * 1.5, if sel { NEGRO } else { PN_POZO });
                     p.texto(Cara::S7, m.fs, r[0] + 14.0, p.at.base_centrada(Cara::S7, m.fs, m.fs, r[1], r[3]), if sel { AMA } else { PN_T2 }, 0.04, cod);
-                    p.texto_max(Cara::S4, m.fs, r[0] + 16.0 + wc, p.at.base_centrada(Cara::S4, m.fs, m.fs * 1.2, r[1], r[3]), if sel { NEGRO } else { TX }, 0.0, nom, r[2] - wc - 24.0); });
+                    jxjuego::idiomas::crudo(|| p.texto_max(Cara::S4, m.fs, r[0] + 16.0 + wc, p.at.base_centrada(Cara::S4, m.fs, m.fs * 1.2, r[1], r[3]), if sel { NEGRO } else { TX }, 0.0, nom, r[2] - wc - 24.0)); });
                 zona(p, z, r, Acc::Idioma(k)); }
         });
     }

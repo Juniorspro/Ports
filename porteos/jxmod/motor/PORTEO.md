@@ -86,7 +86,7 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | deposito.js (el menú 3D alternativo), menu.js (la web lo arma pero no lo muestra) | ✘ | |
 | controles.js | ◐ (Ajustes → Controles: el tamaño de los botones y el de la palanca, y el editor de los botones de la pantalla —arrastrar para moverlos, dos dedos o «−» y «+» para agrandarlos, a pie y en vehículo, de fábrica, cancelar y guardar en ajustes.txt—; lo que se movió no ocupa lugar en las columnas, como la web. Falta: la tienda de controles; las teclas no hacen falta en el celular) | nativo/hud_web.rs, nativo/ajustes.rs |
 | tutorial.js | ✔ (los pasos de los botones que se ven: el velo con el hueco, el borde azul titilando y la tarjeta con Anterior, Siguiente y Saltear; sale solo la primera vez y se vuelve a ver desde la pausa; en castellano, como toda la nativa) | nativo/tutorial_juego.rs |
-| idiomas.js, idiomas3.js | ✘ | (la nativa está en castellano) |
+| idiomas.js, idiomas3.js | ✔ | `juego/src/idiomas.rs`: los mismos 14 idiomas (los textos de la web —idiomas.js, idiomas3.js, tutorial.js, social.js— con `herramientas/idiomas_nativo.mjs`, más 190 propios de la nativa en `idiomas_nativo.tsv`); las letras de dibujo traducen solas cada texto; japonés, tailandés, árabe (unido y de derecha a izquierda) y cirílico con letras de respaldo en los atlas (`herramientas/letras_extra.py`); se elige en Inicio → Idioma y si no, el del celular |
 | iconos.js, novedades.js | ✔ | nativo/iconos.rs, paneles_juego.rs |
 | musica.js, fondovideo.js, milogo.js, iconoapp.js | ✘ | (el fondo del inicio usa las fotos de las escenas, no el video) |
 | camlibre.js | ✔ | nativo/jugabilidad.rs |

@@ -55,6 +55,8 @@ fn android_main(app: AndroidApp) {
     let letras = activo(&app, "ui/letras.json").and_then(|b| String::from_utf8(b).ok());
     let rangos = paq.as_ref().map(|p| p.rangos("a:")).unwrap_or_default();
     let mut j = Juego::nuevo(paq, letras, activo(&app, "ui/letras.png"), datos);
+    // (el idioma del celular, si no se eligió otro en Idioma)
+    j.idioma_del_sistema(app.config().language().as_deref());
     // (el multijugador: las conexiones al broker y a la tienda van por Java —TLS con los certificados del sistema—)
     j.en_red.puente = Some(unsafe { crate::red_android::Java::de_vm(app.vm_as_ptr()) }.puente());
     // (los addons de GMod: bajar de la tienda —binario— y la carpeta del celular donde se pueden dejar .gma)

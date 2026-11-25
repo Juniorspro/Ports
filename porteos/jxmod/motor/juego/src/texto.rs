@@ -4,7 +4,9 @@
 use serde_json::Value;
 use std::collections::HashMap;
 
-pub struct Letras { lado: (f32, f32), tam: f32, pub alto: f32, blanco: (f32, f32), c: HashMap<char, [f32; 7]>, disco: [f32; 4], anillo: [f32; 4] }
+/// (por letra: x, y, ancho, alto en el atlas; corrimiento y avance en px de `tam`; la escala de su dibujo —las de otros
+/// idiomas van más chicas en el atlas—)
+pub struct Letras { lado: (f32, f32), tam: f32, pub alto: f32, blanco: (f32, f32), c: HashMap<char, [f32; 8]>, disco: [f32; 4], anillo: [f32; 4] }
 
 impl Letras {
     pub fn de_json(t: &str) -> Result<Letras, String> {
@@ -12,7 +14,7 @@ impl Letras {
         let f = |x: &Value| x.as_f64().unwrap_or(0.0) as f32;
         let mut c = HashMap::new();
         for (k, m) in v["c"].as_object().ok_or("letras sin caracteres")? {
-            if let (Some(ch), Some(a)) = (k.chars().next(), m.as_array()) { let mut x = [0f32; 7]; for (i, e) in a.iter().take(7).enumerate() { x[i] = f(e); } c.insert(ch, x); }
+            if let (Some(ch), Some(a)) = (k.chars().next(), m.as_array()) { let mut x = [0f32; 8]; x[7] = 1.0; for (i, e) in a.iter().take(8).enumerate() { x[i] = f(e); } c.insert(ch, x); }
         }
         let r4 = |k: &str| { let b = f(&v["blanco"][0]); let mut r = [b, b, 0.0, 0.0]; if let Some(a) = v[k].as_array() { for (i, e) in a.iter().take(4).enumerate() { r[i] = f(e); } } r };
         Ok(Letras { lado: (f(&v["lado"][0]), f(&v["lado"][1])), tam: f(&v["tam"]), alto: f(&v["alto"]), blanco: (f(&v["blanco"][0]), f(&v["blanco"][1])), c,
@@ -42,14 +44,14 @@ impl Letras {
         self.parte(v, x, y + h - ra, ra, ra, q(0.0, 1.0), col); self.parte(v, x + w - ra, y + h - ra, ra, ra, q(1.0, 1.0), col);
         self.rect(v, x + ra, y, w - 2.0 * ra, ra, col); self.rect(v, x, y + ra, w, h - 2.0 * ra, col); self.rect(v, x + ra, y + h - ra, w - 2.0 * ra, ra, col);
     }
-    /// el ancho de un texto de `tam` píxeles de alto
-    pub fn ancho(&self, tam: f32, s: &str) -> f32 { let k = tam / self.tam; s.chars().map(|ch| self.c.get(&ch).or(self.c.get(&'?')).map(|m| m[6]).unwrap_or(0.0) * k).sum() }
+    /// el ancho de un texto de `tam` píxeles de alto (en el idioma elegido: idiomas.rs)
+    pub fn ancho(&self, tam: f32, s: &str) -> f32 { let s = crate::idiomas::tr(s); let k = tam / self.tam; s.chars().map(|ch| self.c.get(&ch).or(self.c.get(&'?')).map(|m| m[6]).unwrap_or(0.0) * k).sum() }
     /// un texto con su borde de arriba en `y`; devuelve el ancho
     pub fn texto(&self, v: &mut Vec<f32>, x: f32, y: f32, tam: f32, col: [f32; 4], s: &str) -> f32 {
-        let k = tam / self.tam; let mut px = x;
+        let s = crate::idiomas::visual(crate::idiomas::tr(s)); let k = tam / self.tam; let mut px = x;
         for ch in s.chars() {
             let Some(m) = self.c.get(&ch).or(self.c.get(&'?')) else { continue };
-            if ch != ' ' { Self::quad(v, px + m[4] * k, y + m[5] * k, m[2] * k, m[3] * k, m[0] / self.lado.0, m[1] / self.lado.1, (m[0] + m[2]) / self.lado.0, (m[1] + m[3]) / self.lado.1, col); }
+            if ch != ' ' { Self::quad(v, px + m[4] * k, y + m[5] * k, m[2] * k * m[7], m[3] * k * m[7], m[0] / self.lado.0, m[1] / self.lado.1, (m[0] + m[2]) / self.lado.0, (m[1] + m[3]) / self.lado.1, col); }
             px += m[6] * k;
         }
         px - x

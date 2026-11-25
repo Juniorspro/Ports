@@ -1,11 +1,17 @@
 # El atlas de letras de JXMod nativo: ASCII y lo del castellano (á é í ó ú ñ ü ¿ ¡ · × …) en DejaVu Sans Bold (licencia
 # libre de DejaVu/Bitstream Vera: CREDITOS.md), blancas sobre transparente, y sus medidas. La app lo dibuja con el motor
 # (el contador de fps, los menús, el HUD). Uso: python3 -I herramientas/atlas_letras.py CARPETA  → letras.png, letras.json
-import json, os, sys
+import importlib.util, json, os, sys
 from PIL import Image, ImageDraw, ImageFont
 FUENTE = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
-TAM, LADO = 40, 1024
+TAM, LADO = 40, 2048
+# (las de respaldo van más chicas —a TAM_X px— para que el atlas no pase de 2048 × 1024; cada una lleva su escala)
+TAM_X = 28
 CARS = [chr(c) for c in range(32, 127)] + list('áéíóúñüÁÉÍÓÚÑÜ¿¡·×…→←↑↓°º«»—∞ª−')
+# (y las de los otros idiomas —letras_extra.py—: las que DejaVu no tiene, de su fuente libre de respaldo; con -I no se
+# importa de la carpeta, por eso así)
+_e = importlib.util.spec_from_file_location('letras_extra', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'letras_extra.py')); EXTRA = importlib.util.module_from_spec(_e); _e.loader.exec_module(EXTRA)
+CARS += [c for c in EXTRA.extra(set(CARS))]
 def main():
     out = sys.argv[1]; os.makedirs(out, exist_ok=True)
     f = ImageFont.truetype(FUENTE, TAM)
@@ -14,12 +20,23 @@ def main():
     # (un cuadrado blanco arriba a la izquierda: los rectángulos lisos del HUD usan esa parte)
     d.rectangle([0, 0, 7, 7], fill=(255, 255, 255, 255))
     x, y, fila = 12, 0, asc + desc + 4; met = {}
+    from fontTools.ttLib import TTFont
+    tiene = set(TTFont(FUENTE).getBestCmap()); otras = {}
     for c in CARS:
-        b = f.getbbox(c); w = max(1, b[2] - b[0]); h = max(1, b[3] - b[1]); av = f.getlength(c)
-        if x + w + 4 > LADO: x = 0; y += fila
-        if c != ' ': d.text((x - b[0], y - b[1]), c, font=f, fill=(255, 255, 255, 255))
-        met[c] = [x, y, w, h, b[0], b[1], round(av, 2)]
-        x += w + 4
+        ff, sw = f, 0
+        if ord(c) not in tiene and c != ' ':
+            r = EXTRA.fuente(c, True)
+            if not r: continue
+            if r[0] not in otras: otras[r[0]] = ImageFont.truetype(r[0], TAM_X, layout_engine=ImageFont.Layout.BASIC)
+            ff, sw = otras[r[0]], (1 if r[1] else 0)
+        # (las de respaldo, desde su línea de base: así quedan en la misma que las de DejaVu, aunque cada fuente tenga otro alto)
+        e = TAM / TAM_X if ff is not f else 1; an = 'la' if e == 1 else 'ls'
+        b = ff.getbbox(c, anchor=an, stroke_width=sw); w = max(1, b[2] - b[0]); h = max(1, b[3] - b[1]); av = ff.getlength(c) + sw
+        if x + w + 4 > LADO: x = 0; y += fila; fila = 0
+        if c != ' ': d.text((x - b[0], y - b[1]), c, font=ff, fill=(255, 255, 255, 255), anchor=an, stroke_width=sw, stroke_fill=(255, 255, 255, 255))
+        # (x, y, ancho, alto en el atlas; corrimiento desde arriba del renglón y avance, en px de TAM; y la escala si es de respaldo)
+        met[c] = [x, y, w, h, round(b[0] * e, 2), round(b[1] * e + (asc if e != 1 else 0), 2), round(av * e, 2)] + ([round(e, 4)] if e != 1 else [])
+        x += w + 4; fila = max(fila, h + 4)
     # (un disco y un anillo lisos, con el borde suave: la palanca, los botones redondeados —sus esquinas— y los íconos)
     y += fila; R = 48; formas = {}
     for k, (nombre, grosor) in enumerate((('disco', 0), ('anillo', 7))):

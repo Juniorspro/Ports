@@ -2,7 +2,7 @@
 //! tocando de verdad (dedo_abajo / dedo_arriba_en en el centro de cada cosa), para compararlas con las de la web. Escribe
 //! también las medidas del menú clásico (medidas_<tamaño>.json) para compararlas con las de la web (clEncajar).
 //! Uso: menus_foto CARPETA [ANCHOxALTO,…]   (JXM_MOTOR=vk|gl2; JXM_MENUS: la carpeta con ui/menus.*, fondos/ y carga/;
-//! JXM_SOLO=home,paneles,pausa para hacer sólo eso)
+//! JXM_SOLO=home,paneles,pausa para hacer sólo eso; JXM_IDIOMA=en, ja, ar…: en ese idioma)
 use glow::HasContext;
 use jxjuego::paquete::Paquete;
 use jxmod::comun::{Juego, Placa};
@@ -55,6 +55,8 @@ fn main() {
     let _ = std::fs::write(datos.join("nombre.txt"), "NijulaX");
     let lj = std::fs::read_to_string(Path::new(&let_).join("letras.json")).ok(); let lp = std::fs::read(Path::new(&let_).join("letras.png")).ok();
     let mut j = Juego::nuevo(paq, lj, lp, Some(datos.clone()));
+    // (JXM_IDIOMA=en|ja|ar…: las fotos en ese idioma)
+    if let Some(i) = std::env::var("JXM_IDIOMA").ok().and_then(|c| jxjuego::idiomas::de_codigo(&c)) { jxjuego::idiomas::poner(i); }
     j.dt_fijo = Some(1.0 / 60.0); j.en_uso = if vk { Placa::Vulkan } else if gl2 { Placa::Gl2 } else { Placa::Gl3 };
     let base = menus.clone(); j.inicio_lector(Box::new(move |n| std::fs::read(Path::new(&base).join(n)).ok()));
     let mut tam_vk = (mw, mh);
