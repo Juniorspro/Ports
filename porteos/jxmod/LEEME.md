@@ -5436,7 +5436,15 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
     - Todos los roles del servidor están en la posición 1, así que la jerarquía la decide la antigüedad y JXBot, el
       más nuevo, queda último. Para dar «Miembro» hay que arrastrar JXBot arriba en Ajustes → Roles.
 
-## Sin publicar todavía — lo de «Bugs y sugerencias» después de la 3.9.12 (25/11)
+## JXMod 3.9.13: las ventanas de los mods, las texturas como en GMod y lo del panel del 23–24/11
+
+- Publicada con el paquete pk39e. **Sólo cambia el código del juego:** `version.json` 3913 con `"ota": {"apkMin": 3912}`:
+  quien tiene la 3.9.12 se actualiza por partes bajando sólo `index.html` (5,2 MB; `pk.bin` y los fondos, iguales).
+  `web/ota/` comprobada con la llave de la firma oficial (6/6: HMAC bien y descifradas iguales), `ota.sh` 3/3. APK 3.9.13
+  (versionCode 26112505, `VERSION_PROPIA` 3913) con la misma firma (SHA-256 04:4A:87:38…), `correr.sh` 12/12, las manos
+  con la cámara adentro y `ota_base.json` con las 6 huellas iguales a las de `web/ota/ota.json`. Web con código: pide el
+  código, muestra 3.9.13, uno inventado no entra, el juego no queda en claro (ni en `index.html` ni en `juego.bin`), sin
+  errores; `suelto.json` 3913. Novedades: 27 versiones.
 
 Los posts nuevos del panel (23 y 24/11) y los errores de JS que mandan los juegos con la 3.9.12.
 
