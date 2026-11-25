@@ -133,12 +133,6 @@ impl Prefs {
 /// los botones propios (Boton::Pj): el del celular (Personaje y Arma en la mano se abren desde la pausa, como en la web)
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Bp { Celular }
-/// dónde van: el del celular (data-btn=celular, el ícono iMeme), redondo, en la columna del sistema (hudorden.js: pausa,
-/// chat, celular; los que se ven van sin huecos: sin chat, abajo de la pausa), con el paso de la pausa al MOD
-pub(super) fn botones(w: f32, h: f32, v: &mut Vec<Btn>) {
-    let k = ((w / 1280.0) * (h / 720.0)).sqrt() * 0.776; let (cx, cy, s) = super::pausa_juego::boton_pausa(w, h);
-    v.push(Btn { b: Boton::Pj(Bp::Celular), x: cx, y: cy + s + (18.0 + 10.0) * k, w: s, h: s, redondo: true });
-}
 
 /// la pestaña del panel de Personaje (RBM.pjTab: personajes o gorros) y lo que se busca en cada una
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
@@ -696,9 +690,6 @@ impl Juego {
     pub(crate) fn pjs_hud(&self, l: &Letras, u: &mut Vec<f32>, wf: f32, hf: f32, t: f32) -> Vec<(i64, Vec<f32>)> {
         let mut otras = vec![];
         if self.mapa.is_none() { return otras; }
-        // (el ícono del botón del celular)
-        if self.pj_visible(Bp::Celular) && !self.jg.sin_hud() && self.pjs.panel.is_none() { if let Some(b) = botones_pj(wf, hf).into_iter().find(|b| b.b == Boton::Pj(Bp::Celular)) {
-            let mut v = vec![]; let lado = b.h * 0.56; rect_uv(&mut v, b.x - lado / 2.0, b.y - lado / 2.0, lado, lado, uv_celda(ico_idx("celular"), ICO, (ICO_COLS * ICO) as f32, self.atlas_alto(ICONOS.len())), [1.0; 4]); otras.push((TEX_ICO, v)); } }
         self.celu_hud(l, u, wf, hf, t, &mut otras);
         self.emo_hud(l, u, wf, hf, t, &mut otras);
         self.panel_pj_hud(l, u, wf, hf, &mut otras);
@@ -719,7 +710,6 @@ impl Juego {
         }
     }
 }
-fn botones_pj(w: f32, h: f32) -> Vec<Btn> { let mut v = vec![]; botones(w, h, &mut v); v }
 
 // ---------------- la calidad de entrada por el modelo del celular (celulares.js) ----------------
 impl Juego {

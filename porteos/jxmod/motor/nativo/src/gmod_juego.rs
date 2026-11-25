@@ -526,7 +526,7 @@ impl Juego {
         let arr = [der[1] * fw[2] - der[2] * fw[1], der[2] * fw[0] - der[0] * fw[2], der[0] * fw[1] - der[1] * fw[0]];
         let gm_i = self.gmod.arma;
         let vivo = !self.muerto && self.jug.vida > 0.0;
-        let en = Entrada { ..self.entrada(hf) };
+        let en = Entrada { ..self.entrada(wf, hf) };
         let (d1, d2) = (self.apretado(Boton::Disparo) && self.menu.is_none(), self.apretado(Boton::Disparo2) && self.menu.is_none());
         let teclas: Vec<String> = [(Boton::Recargar, "KeyR"), (Boton::Usar, "KeyE"), (Boton::Saltar, "Space"), (Boton::Agachar, "ControlLeft")].iter().filter(|(b, _)| self.apretado(*b)).map(|(_, k)| k.to_string()).collect();
         let ui = self.menu.is_some() || self.ajustes.is_some() || self.gmod.panel;

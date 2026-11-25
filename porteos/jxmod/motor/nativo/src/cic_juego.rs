@@ -271,7 +271,7 @@ impl Juego {
     /// el anillo de la carga alrededor del botón y los segundos de espera
     pub(super) fn cic_hud(&self, l: &Letras, u: &mut Vec<f32>, wf: f32, hf: f32, t: f32) {
         if !self.cic_hay() || self.vehs.jugador.is_some() { return; }
-        let (x, y) = pos_boton(wf, hf, Boton::Jg(Bj::Ciclope)); let r = hf * 0.11 * 1.25 / 2.0;
+        let Some(b) = botones(wf, hf).into_iter().find(|b| b.b == Boton::Jg(Bj::Ciclope)) else { return }; let (x, y, r) = (b.x, b.y, b.w / 2.0);
         let k = if self.jg.cic.apretado && !self.jg.cic.usada { (self.jg.cic.carga / CARGA).clamp(0.0, 1.0) } else { 0.0 };
         if k > 0.0 { let n = 32; for i in 0..((n as f32 * k) as usize) { let a = -std::f32::consts::FRAC_PI_2 + i as f32 / n as f32 * std::f32::consts::TAU; l.disco(u, x + a.cos() * (r + hf * 0.012), y + a.sin() * (r + hf * 0.012), hf * 0.008, [1.0, 0.23, 0.19, 1.0]); } }
         if self.jg.cic.espera > 0.0 { let s = format!("{}", self.jg.cic.espera.ceil()); let tt = t * 0.9; let an = l.ancho(tt, &s); l.disco(u, x, y, r, [0.0, 0.0, 0.0, 0.45]); l.texto_sombra(u, x - an / 2.0, y - tt * 0.55, tt, [1.0; 4], &s); }

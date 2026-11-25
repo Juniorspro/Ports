@@ -157,7 +157,7 @@ fn main() {
         let _ = beto.entrar(&Sala::oficial(&mapa), None); beto.empezar(None);
         let caja = j.catalogo.iter().flat_map(|c| c.1.iter()).find(|n| n.to_lowercase().contains("crate")).cloned().unwrap_or_else(|| j.catalogo[0].1[0].clone());
         // (el panel de salas y la oficial de este mapa)
-        let (sx, sy) = pos_boton(wf, hf, Boton::Salas); toque(&mut j, 60, sx, sy); paso(&mut j, &mut m, 3);
+        j.abrir_salas(); paso(&mut j, &mut m, 3);
         let salas = j.en_red.red.lista_salas(); let k = salas.iter().position(|(s, _)| s.m == mapa && s.of).expect("sin la sala oficial");
         j.en_red.scroll = (k as f32 - 1.0).max(0.0) * hf * 0.085; paso(&mut j, &mut m, 1); foto(&mut m, "8a_salas");
         let (_, bs) = panel_salas_geo(wf, hf, salas.len(), j.en_red.scroll, false); let r = bs.iter().find(|x| x.0 == BtnSala::Sala(k)).expect("la fila no se ve").1;
@@ -473,12 +473,11 @@ fn main() {
     }
     // el otro mapa: caminar 6 s para adelante y a la derecha (choca con lo que haya)
     // Ajustes: abrirlo (pausa), calidad Medio (la 3: la 0 es Automático), cerrar y ver la escena; abrir otra vez, Ultra, y en «Motor y mapa» el otro mapa
-    let (ax, ay) = jxmod::comun::pos_boton(wf, hf, jxmod::comun::Boton::Ajustes);
-    toque(&mut j, 20, ax, ay); paso(&mut j, &mut m, 2); foto(&mut m, "3d_ajustes");
+    j.abrir_ajustes(); paso(&mut j, &mut m, 2); foto(&mut m, "3d_ajustes");
     let (x, y) = j.pos_ajuste(wf, hf, 0, Some(0), 3); toque(&mut j, 21, x, y); paso(&mut j, &mut m, 2); foto(&mut m, "3e_ajustes_medio");
     println!("ajustes Medio: {:?}", j.aj);
     toque(&mut j, 22, x0 + pw - hf * 0.05, y0 + hf * 0.04); paso(&mut j, &mut m, 3); foto(&mut m, "3f_escena_medio");
-    toque(&mut j, 23, ax, ay); let (x, y) = j.pos_ajuste(wf, hf, 0, Some(0), 5); toque(&mut j, 24, x, y);
+    j.abrir_ajustes(); let (x, y) = j.pos_ajuste(wf, hf, 0, Some(0), 5); toque(&mut j, 24, x, y);
     let (x, y) = j.pos_ajuste(wf, hf, 1, None, 0); toque(&mut j, 25, x, y); paso(&mut j, &mut m, 2); foto(&mut m, "3g_ajustes_controles");
     let (x, y) = j.pos_ajuste(wf, hf, 3, None, 0); toque(&mut j, 26, x, y); paso(&mut j, &mut m, 2); foto(&mut m, "3h_ajustes_motor");
     println!("ajustes Ultra: {:?} · abierto {:?}", j.aj, j.ajustes);

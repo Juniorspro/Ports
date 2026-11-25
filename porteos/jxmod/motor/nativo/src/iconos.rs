@@ -282,30 +282,59 @@ fn color_de(v: &str) -> Option<[f32; 3]> {
 /// un ícono de color en un cuadrado de `lado` píxeles (RGBA, cada figura encima de la anterior)
 pub fn pintar_color(nombre: &str, lado: usize) -> Option<Vec<u8>> {
     let (_, svg) = COLOR.iter().find(|g| g.0 == nombre)?;
+    Some(pintar_svg(svg, lado))
+}
+/// un SVG entero (con su viewBox; 24 si no dice) en un cuadrado de `lado` píxeles, RGBA. Lo de cada figura: su relleno, su
+/// trazo y el ancho del trazo, o los del `<g>` que la envuelve (también su `rotate(a cx cy)` y su `opacity`): así se pintan
+/// los íconos del HUD de hud.js (HUD_SVG), que traen colores y grupos girados
+pub fn pintar_svg(svg: &str, lado: usize) -> Vec<u8> {
     let vb: f32 = svg.split("viewBox=\"").nth(1).and_then(|r| r.split('"').next()).and_then(|r| r.split_whitespace().nth(2)).and_then(|x| x.parse().ok()).unwrap_or(24.0);
     let k = lado as f32 / vb; let mut o = vec![0f32; lado * lado * 4];
-    let mut pila: Vec<Option<[f32; 3]>> = vec![];
+    // (lo heredado de los grupos: relleno —None: no dice; Some(None): «none»—, trazo, ancho, giro y opacidad)
+    #[derive(Clone, Copy, Default)]
+    struct G { fill: Option<Option<[f32; 3]>>, stroke: Option<Option<[f32; 3]>>, sw: Option<f32>, rot: Option<(f32, f32, f32)>, op: f32 }
+    let mut pila: Vec<G> = vec![G { op: 1.0, ..Default::default() }];
+    let giro = |t: &str| -> Option<(f32, f32, f32)> { let r = t.split("rotate(").nth(1)?.split(')').next()?; let v: Vec<f32> = r.split(|c: char| c == ',' || c.is_whitespace()).filter(|x| !x.is_empty()).filter_map(|x| x.parse().ok()).collect(); Some((v.first().copied()?, v.get(1).copied().unwrap_or(0.0), v.get(2).copied().unwrap_or(0.0))) };
     for parte in svg.split('<').skip(1) {
-        if parte.starts_with("/g") { pila.pop(); continue; }
+        if parte.starts_with("/g") { if pila.len() > 1 { pila.pop(); } continue; }
         let (tag, resto) = parte.split_once(|c: char| c.is_whitespace() || c == '/' || c == '>').unwrap_or((parte, ""));
         let a = atributos(resto); let at = |n: &str| a.iter().find(|x| x.0 == n).map(|x| x.1);
-        if tag == "g" { pila.push(at("fill").and_then(color_de)); continue; }
-        let relleno = match at("fill") { Some(v) => color_de(v), None => pila.iter().rev().find_map(|x| *x).or(Some([0.0; 3])) };
-        let trazo = at("stroke").and_then(color_de); let tw = at("stroke-width").and_then(|x| x.parse::<f32>().ok()).unwrap_or(1.0) * k / 2.0;
+        let arriba = *pila.last().unwrap();
+        if tag == "g" {
+            let mut g = arriba;
+            if let Some(v) = at("fill") { g.fill = Some(color_de(v)); }
+            if let Some(v) = at("stroke") { g.stroke = Some(color_de(v)); }
+            if let Some(v) = at("stroke-width").and_then(|x| x.parse().ok()) { g.sw = Some(v); }
+            if let Some(r) = at("transform").and_then(giro) { g.rot = Some(r); }
+            if let Some(v) = at("opacity").and_then(|x| x.parse::<f32>().ok()) { g.op *= v; }
+            if !parte.trim_end().ends_with("/>") { pila.push(g); }
+            continue;
+        }
+        let relleno = match at("fill") { Some(v) => color_de(v), None => match arriba.fill { Some(f) => f, None => Some([0.0; 3]) } };   // (sin decir nada, negro: como SVG)
+        let trazo = match at("stroke") { Some(v) => color_de(v), None => arriba.stroke.flatten() };
+        let tw = at("stroke-width").and_then(|x| x.parse::<f32>().ok()).or(arriba.sw).unwrap_or(1.0) * k / 2.0;
+        let op = arriba.op * at("opacity").and_then(|x| x.parse::<f32>().ok()).unwrap_or(1.0);
+        let rot = at("transform").and_then(giro).or(arriba.rot);
         let cs: Vec<(Vec<[f32; 2]>, bool)> = match tag {
             "path" => camino(at("d").unwrap_or("")),
             "circle" => vec![(elipse(num(&a, "cx"), num(&a, "cy"), num(&a, "r"), num(&a, "r")), true)],
+            "ellipse" => vec![(elipse(num(&a, "cx"), num(&a, "cy"), num(&a, "rx"), num(&a, "ry")), true)],
             "rect" => { let f = figuras(&format!("<rect {resto}"), true); f.into_iter().flat_map(|x| x.contornos).collect() }
             _ => continue,
         };
-        let cs: Vec<(Vec<[f32; 2]>, bool)> = cs.into_iter().map(|(c, z)| (c.into_iter().map(|p| [p[0] * k, p[1] * k]).collect(), z)).collect();
+        let (sn, cn) = rot.map(|r| r.0.to_radians().sin_cos()).unwrap_or((0.0, 1.0)); let (rx, ry) = rot.map(|r| (r.1, r.2)).unwrap_or((0.0, 0.0));
+        let cs: Vec<(Vec<[f32; 2]>, bool)> = cs.into_iter().map(|(c, z)| (c.into_iter().map(|p| { let (dx, dy) = (p[0] - rx, p[1] - ry); [(rx + dx * cn - dy * sn) * k, (ry + dx * sn + dy * cn) * k] }).collect(), z)).collect();
+        let mut caja = [f32::MAX, f32::MAX, f32::MIN, f32::MIN]; for (c, _) in &cs { for p in c { caja[0] = caja[0].min(p[0]); caja[1] = caja[1].min(p[1]); caja[2] = caja[2].max(p[0]); caja[3] = caja[3].max(p[1]); } }
+        let m = tw + 2.0;
         for y in 0..lado { for x in 0..lado {
             let p = [x as f32 + 0.5, y as f32 + 0.5];
-            let mut capa = |col: [f32; 3], cob: f32| { if cob <= 0.0 { return; } let j = (y * lado + x) * 4; let da = o[j + 3]; let oa = cob + da * (1.0 - cob);
+            if p[0] < caja[0] - m || p[0] > caja[2] + m || p[1] < caja[1] - m || p[1] > caja[3] + m { continue; }
+            let mut capa = |col: [f32; 3], cob: f32| { let cob = cob * op; if cob <= 0.0 { return; } let j = (y * lado + x) * 4; let da = o[j + 3]; let oa = cob + da * (1.0 - cob);
                 for c in 0..3 { o[j + c] = if oa > 0.0 { (col[c] * cob + o[j + c] * da * (1.0 - cob)) / oa } else { 0.0 }; } o[j + 3] = oa; };
             if let Some(col) = relleno { let mut n = 0; for sy in 0..4 { for sx in 0..4 { if vueltas([x as f32 + (sx as f32 + 0.5) / 4.0, y as f32 + (sy as f32 + 0.5) / 4.0], &cs) != 0 { n += 1; } } } capa(col, n as f32 / 16.0); }
             if let Some(col) = trazo { let mut d = f32::MAX; for (c, _) in &cs { for i in 1..c.len() { d = d.min(dist_seg(p, c[i - 1], c[i])); } } capa(col, (tw - d + 0.5).clamp(0.0, 1.0)); }
         } }
     }
-    Some(o.chunks_exact(4).flat_map(|c| [(c[0] * 255.0) as u8, (c[1] * 255.0) as u8, (c[2] * 255.0) as u8, (c[3] * 255.0 + 0.5) as u8]).collect())
+    o.chunks_exact(4).flat_map(|c| [(c[0] * 255.0) as u8, (c[1] * 255.0) as u8, (c[2] * 255.0) as u8, (c[3] * 255.0 + 0.5) as u8]).collect()
 }
+

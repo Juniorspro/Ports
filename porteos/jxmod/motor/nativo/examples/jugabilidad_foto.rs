@@ -2,7 +2,7 @@
 //! pared de RB_Construct a 100 km/h (como pruebas/destruccion.mjs), una explosión al costado de otro auto, una nuclear
 //! (Little Boy) vista de lejos, la catapulta, la bomba de Rick Prime, la patada, la linterna, la cámara libre, volar, el
 //! muñeco, el SCP, el Cíclope y Pepe (forzado con JXM_PEPE). Saca fotos de cada cosa y escribe los números.
-//! Uso: jugabilidad_foto CARPETA [ANCHO ALTO]  (JXM_WWW, JXM_LETRAS y JXM_MOTOR como foto.rs; JXM_SOLO=destruccion,nuclear,…)
+//! Uso: jugabilidad_foto CARPETA [ANCHO ALTO]  (JXM_WWW, JXM_LETRAS y JXM_MOTOR como foto.rs; JXM_SOLO=destruccion,nuclear,hud,…)
 use glow::HasContext;
 use jxjuego::paquete::Paquete;
 use jxmod::comun::{Juego, Placa};
@@ -94,6 +94,15 @@ fn main() {
         boton(&mut j, Boton::Jg(Bj::Patada)); paso(&mut j, &mut m, 14); foto(&mut m, "patada_primera"); paso(&mut j, &mut m, 3);
         let v = id.and_then(|i| j.fis.cuerpo(i)).map(|b| b.vel).unwrap_or_default(); println!("patada: la caja sale a {:.2} m/s (la web: hasta 9 m/s, más arriba)", (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt());
         paso(&mut j, &mut m, 60);
+    }
+    if hace("hud") {
+        // el HUD como la web (hud_web.rs): la barra de armas abierta en fila arriba a la derecha, la Pistol con sus balas en el
+        // recuadro del arma, y la linterna y la cámara libre prendidas (amarillas, con el ícono negro)
+        boton(&mut j, Boton::Arma); paso(&mut j, &mut m, 2); foto(&mut m, "hud_barra");
+        let k = jxmod::armas::ARMAS.iter().position(|a| a.n == "Pistol").unwrap_or(1); boton(&mut j, Boton::ArmaN(k)); paso(&mut j, &mut m, 200); foto(&mut m, "hud_balas");
+        boton(&mut j, Boton::Jg(Bj::Linterna)); boton(&mut j, Boton::Jg(Bj::CamLibre)); boton(&mut j, Boton::Jg(Bj::CamL)); paso(&mut j, &mut m, 3); foto(&mut m, "hud_prendidos");
+        boton(&mut j, Boton::Jg(Bj::CamLibre)); boton(&mut j, Boton::Jg(Bj::Linterna)); paso(&mut j, &mut m, 3);
+        println!("hud: arma {} · balas {:?} · linterna {} · cámara libre {}", j.armas.def().n, j.armas.balas.get(k), j.jg.lint, j.jg.clib.menu);
     }
     if hace("linterna") {
         boton(&mut j, Boton::Jg(Bj::Linterna)); j.poner_ojos([base[0], base[1] + 0.72, base[2]], j.jug.yaw, -0.5); paso(&mut j, &mut m, 3); foto(&mut m, "linterna"); println!("linterna: {}", j.jg.lint); boton(&mut j, Boton::Jg(Bj::Linterna)); j.jug.noclip = false;

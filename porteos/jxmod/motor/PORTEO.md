@@ -80,7 +80,7 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 ## Menús e interfaz
 | web | estado | nativa |
 |---|---|---|
-| hud.js, hudorden.js, ui.js | ◐ (el botón de pausa, el menú de pausa y la pantalla de carga; MOD al lado de la pausa) | comun.rs, nativo/pausa_juego.rs |
+| hud.js, hudorden.js, ui.js | ◐ (el HUD como la web: la disposición nueva de hudV2Pos —arriba a la izquierda los grupos del sistema y de crear sin huecos, arriba a la derecha el arma con sus balas, la cámara, los emotes, borrar, la cámara libre y la linterna, abajo a la derecha saltar, disparar y los demás—, los íconos de HUD_SVG pintados en Rust, los colores, apretado y prendido, la barra de armas en fila, la palanca quieta, la mira, el aviso y la vida; el botón de pausa, el menú de pausa y la pantalla de carga. Falta: el menú de objetos y los paneles con el estilo de ui.js) | comun.rs, nativo/hud_web.rs, nativo/pausa_juego.rs |
 | inicio.js, clasico.js, paneles.js | ✔ (sin la mancha de tinta ni el deslizamiento de la marca amarilla de las pestañas) | nativo/inicio_juego.rs, paneles_juego.rs, pincel.rs |
 | rbmenus.js, panel_juego.js | ◐ (salas y Personajes; el formulario de Crear server y el latido al panel, no) | nativo/paneles_juego.rs |
 | deposito.js (el menú 3D alternativo), menu.js (la web lo arma pero no lo muestra) | ✘ | |

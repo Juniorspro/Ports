@@ -81,7 +81,7 @@ impl EnRed {
 
 impl Juego {
     /// abrir el panel de salas (conectarse a la lista)
-    pub(super) fn abrir_salas(&mut self) {
+    pub fn abrir_salas(&mut self) {
         self.en_red.panel = true; self.en_red.scroll = 0.0; self.menu = None;
         if self.en_red.puente.is_none() { self.avisar("Sin conexión: el multijugador anda en el celular".into()); }
         self.en_red.red.conectar_lista(); self.en_red.red.cargar_salas();

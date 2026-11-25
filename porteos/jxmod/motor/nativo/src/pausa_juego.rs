@@ -22,20 +22,14 @@ pub enum Pz { Boton, Seguir, Cerrar, Personaje, Arma, Social, Ajustes, Tutorial,
 #[derive(Default)]
 pub struct Pausa { pub abierta: bool, t0: f32, zonas: Vec<([f32; 4], Pz)>, dedo: Option<(i32, Option<Pz>)>, apretado: Option<Pz>, golpe: Option<(Pz, f32)> }
 
-/// la escala de los botones de arriba a la izquierda (HUD_V2 de hud.js: la referencia de 1280 × 720 que mezcla ancho y alto,
-/// con el tamaño de fábrica: 46 px de botón en 873 × 402, como la web)
-fn escala_zona(w: f32, h: f32) -> f32 { ((w / 1280.0) * (h / 720.0)).sqrt() * 0.776 }
 /// el botón de pausa: el primero de la columna del sistema (hudorden.js), en la esquina —20 unidades del borde—, redondo, de
-/// 96 unidades y nunca menos de 44 px
+/// 96 unidades y nunca menos de 44 px (hud_web.rs: la zona de arriba a la izquierda de la web)
 pub fn boton_pausa(w: f32, h: f32) -> (f32, f32, f32) {
-    let k = escala_zona(w, h); let s = (96.0 * k).max(44.0); let c = 20.0 * k + s / 2.0;
-    (c, c, s)
+    let [x, y, s] = super::hud_web::disposicion(w, h, 0).1; (x, y, s)
 }
-/// el botón MOD (el menú MOD de jugabilidad.rs): en la columna de crear, al lado de la del sistema (20 + 96 + 18 + 10
-/// unidades), en la primera fila
+/// el botón MOD (el menú MOD de jugabilidad.rs): en el grupo de crear, después de Objetos (hud_web.rs)
 pub fn boton_mod(w: f32, h: f32) -> (f32, f32, f32) {
-    let k = escala_zona(w, h); let (cx, cy, s) = boton_pausa(w, h);
-    (cx + s / 2.0 + (18.0 + 10.0) * k + s / 2.0, cy, s)
+    super::hud_web::disposicion(w, h, 0).0.into_iter().find(|b| b.b == super::Boton::Jg(super::jugabilidad::Bj::Mod)).map(|b| (b.x, b.y, b.w)).unwrap_or((0.0, 0.0, 0.0))
 }
 
 impl Juego {
@@ -56,7 +50,6 @@ impl Juego {
             let mut p = Pincel::nuevo(at, &mut ico, &mut gl);
             if cargando { self.pz_carga(&mut p, wf, hf); }
             else {
-                if ver_boton && !self.ini.pz.abierta && self.ini.panel.is_none() { self.pz_boton(&mut p, wf, hf); }
                 if self.ini.pz.abierta && self.ini.panel.is_none() { self.pz_dibujar(&mut p, wf, hf); }
                 if let Some(pn) = self.ini.panel.clone() { p.rect(0.0, 0.0, wf, hf, rgba(0x050608, 0.55)); self.pn_dibujar(&mut p, &pn, wf, hf); }
             }
@@ -71,12 +64,11 @@ impl Juego {
         let r = Personaje::cargar(paq, &self.skin, 0, 512, &mut self.pj_cargados).or_else(|_| Personaje::cargar(paq, "Hero", 0, 512, &mut self.pj_cargados));
         if let Ok((mut pj, esc)) = r { if let Some((a, b)) = &self.nado { let _ = pj.nado(a, b); } if m.cargar(&esc).is_ok() { self.pj = Some(pj); } }
     }
-    /// el botón redondo de pausa (los dos palitos)
-    fn pz_boton(&self, p: &mut Pincel, w: f32, h: f32) {
-        let (cx, cy, s) = boton_pausa(w, h); let ap = self.ini.pz.apretado == Some(Pz::Boton);
-        p.disco(cx, cy, s / 2.0, if ap { con_a(AMA, 0.85) } else { [0.18, 0.19, 0.22, 0.62] }); p.anillo(cx, cy, s / 2.0, [1.0, 1.0, 1.0, 0.22]);
-        let l = s * 0.42; let (bw, bh) = (l * 4.0 / 24.0, l * 14.0 / 24.0); let c = if ap { NEGRO } else { [1.0; 4] };
-        p.caja(cx - l * 5.5 / 24.0 - bw / 2.0, cy - bh / 2.0, bw, bh, bw * 0.3, c); p.caja(cx + l * 5.5 / 24.0 - bw / 2.0, cy - bh / 2.0, bw, bh, bw * 0.3, c);
+    /// el botón de pausa: si se ve y si está apretado (lo dibuja hud_web.rs, con los demás botones y el ícono de la web)
+    pub(super) fn pausa_boton(&self) -> Option<bool> {
+        let cargando = (self.recargar && self.mapa.is_none()) || self.gfxa.midiendo();
+        let ver = !cargando && !self.pjs.panel() && self.mapa.is_some() && self.menu.is_none() && self.ajustes.is_none() && self.npc_panel.is_none() && !self.en_red.panel && !self.gmod.panel && !self.emotes_panel && !self.jg.panel() && !self.jg.sin_hud() && !self.ini.pz.abierta && self.ini.panel.is_none();
+        ver.then_some(self.ini.pz.apretado == Some(Pz::Boton))
     }
     /// la pausa: el velo, la caja, Seguir, las tarjetas y el pie
     fn pz_dibujar(&mut self, p: &mut Pincel, w: f32, h: f32) {
