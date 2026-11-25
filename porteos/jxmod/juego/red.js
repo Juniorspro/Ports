@@ -641,6 +641,8 @@ function recibirMundo(id, d) {
   if (d && 'e' in d) entidadesRecibir(id, d.e);
   if (d && Array.isArray(d.md)) { RED.mdDe = RED.mdDe || new Map(); RED.mdDe.set(id, d.md); const R2 = RED.remotos.get(id); if (R2) smDeOtro(R2, d.md); }
   if (d && Array.isArray(d.o)) for (const x of d.o.slice(0, 300)) {
+    // (un prop importado por el otro que no tengo: se le pide y aparece cuando llega y se arma)
+    if (Array.isArray(x) && typeof x[1] === 'string' && /^pri:/.test(x[1]) && !DATA.pfPorNombre[x[1]] && typeof priAsegurar === 'function') priAsegurar(x[1], id);
     if (!Array.isArray(x) || typeof x[1] !== 'string' || !DATA.pfPorNombre[x[1]]) continue;
     const key = id + ':' + (x[0] | 0); vivos.add(key);
     let o = RED.objs.get(key);
@@ -724,6 +726,7 @@ function recibirHecho(d) {
   } else if (d.k === 'meme' || d.k === 'memed') { memeRed(d);
   } else if (d.k === 'pjq' || d.k === 'pjd') { if (typeof pjiRed === 'function') pjiRed(d);   // (personajes importados: pedido y pedazos)
   } else if (d.k === 'acq' || d.k === 'acd') { if (typeof accRed === 'function') accRed(d);   // (accesorios importados para la cabeza)
+  } else if (d.k === 'prq' || d.k === 'prd') { if (typeof priRed === 'function') priRed(d);   // (props importados: propimportar.js)
   } else if (d.k === 'chatcorr' && typeof d.id === 'string' && typeof d.t === 'string') { chatCambiar(d.id.slice(0, 12), censurar(limpio(d.t, 120)), d.i);
   } else if (d.k === 'jnt' || d.k === 'jntP' || d.k === 'jntS') { juntosRed(d);
   } else if (d.k === 'bocina') { bocinaRed(d);

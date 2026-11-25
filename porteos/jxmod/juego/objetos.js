@@ -140,6 +140,7 @@ function crearObjeto(nombre, pos, q, opt) {
   opt = opt || {};
   if (!DATA.pfPorNombre[nombre] && /^gm:/.test(nombre) && typeof gmPrefab === 'function') gmPrefab(nombre);
   if (!DATA.pfPorNombre[nombre] && /^gmveh:/.test(nombre) && typeof gmvehPrefab === 'function') gmvehPrefab(nombre.slice(6));   // (un vehículo de un addon de GMod)   // (un modelo de un addon de GMod: se convierte la primera vez)
+  if (!DATA.pfPorNombre[nombre] && /^pri:/.test(nombre) && typeof priAsegurar === 'function') priAsegurar(nombre);   // (un prop importado sin armar —un mundo guardado—: se arma para la próxima)
   const key = DATA.pfPorNombre[nombre]; if (!key) return null;
   const arb = DATA.pf[key], F = formaDe(nombre);
   const md = new Modelo(arb); md.p[0] = [0, 0, 0];
