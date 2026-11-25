@@ -473,27 +473,36 @@ public final class Inicio extends Activity {
         }
     }
 
+    /** abre WhatsApp (o WhatsApp Business) en su pantalla principal */
+    void abrirWhatsApp() {
+        for (String p : WhatsApp.instalados(getPackageManager())) { Intent i = getPackageManager().getLaunchIntentForPackage(p); if (i != null) { try { startActivity(i); return; } catch (ActivityNotFoundException e) { /* el otro */ } } }
+    }
     void jsDesdeHilo(final String codigo) { runOnUiThread(new Runnable() { @Override public void run() { js(codigo); } }); }
     /** un video del editor, de a pedazos: al último va a la galería (Películas/Stickerazo) y se abre «Compartir» */
     boolean videoParte(String nombre, String b64, boolean primero, boolean ultimo) {
-        if (nombre == null || !nombre.matches("[a-z0-9_]{1,40}\\.(mp4|webm)")) return false;
+        if (nombre == null || !nombre.matches("[a-z0-9_]{1,40}\\.(mp4|webm|png|wav)")) return false;
         File f = new File(Fotos.carpeta(this), nombre);
         try { OutputStream o = new FileOutputStream(f, !primero); try { o.write(Base64.decode(b64, Base64.DEFAULT)); } finally { o.close(); } }
         catch (IOException | IllegalArgumentException e) { Log.w(TAG, "video: " + e); return false; }
         if (!ultimo) return true;
-        final String tipo = nombre.endsWith(".mp4") ? "video/mp4" : "video/webm";
+        final String tipo = nombre.endsWith(".mp4") ? "video/mp4" : nombre.endsWith(".png") ? "image/png" : nombre.endsWith(".wav") ? "audio/wav" : "video/webm";
+        final boolean esVideo = tipo.startsWith("video/");
+        final Uri coleccion = esVideo ? MediaStore.Video.Media.EXTERNAL_CONTENT_URI : tipo.startsWith("image/") ? MediaStore.Images.Media.EXTERNAL_CONTENT_URI : MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
+        final String carpeta = esVideo ? "Movies/Stickerazo" : tipo.startsWith("image/") ? "Pictures/Stickerazo" : "Music/Stickerazo";
         if (Build.VERSION.SDK_INT >= 29) {
             try {
-                ContentValues v = new ContentValues(); v.put(MediaStore.Video.Media.DISPLAY_NAME, nombre); v.put(MediaStore.Video.Media.MIME_TYPE, tipo);
-                v.put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/Stickerazo"); v.put(MediaStore.Video.Media.IS_PENDING, 1);
-                Uri u = getContentResolver().insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, v);
+                ContentValues v = new ContentValues(); v.put(MediaStore.MediaColumns.DISPLAY_NAME, nombre); v.put(MediaStore.MediaColumns.MIME_TYPE, tipo);
+                v.put(MediaStore.MediaColumns.RELATIVE_PATH, carpeta); v.put(MediaStore.MediaColumns.IS_PENDING, 1);
+                Uri u = getContentResolver().insert(coleccion, v);
                 if (u != null) {
                     OutputStream o = getContentResolver().openOutputStream(u); FileInputStream in = new FileInputStream(f);
                     try { byte[] b = new byte[1 << 16]; int k; while ((k = in.read(b)) > 0) o.write(b, 0, k); } finally { in.close(); if (o != null) o.close(); }
-                    v.clear(); v.put(MediaStore.Video.Media.IS_PENDING, 0); getContentResolver().update(u, v, null, null);
+                    v.clear(); v.put(MediaStore.MediaColumns.IS_PENDING, 0); getContentResolver().update(u, v, null, null);
                 }
             } catch (Exception e) { Log.w(TAG, "galería: " + e); }
         }
+        // (lo que va al editor de WhatsApp —wa_…— no abre «Compartir»: la página muestra los pasos y abre WhatsApp)
+        if (!esVideo || nombre.startsWith("wa_")) return true;
         final Uri u = Fotos.uri(nombre);
         runOnUiThread(new Runnable() { @Override public void run() {
             Intent i = new Intent(Intent.ACTION_SEND); i.setType(tipo); i.putExtra(Intent.EXTRA_STREAM, u); i.setClipData(ClipData.newRawUri("", u)); i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);

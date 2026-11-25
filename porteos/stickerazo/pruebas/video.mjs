@@ -80,6 +80,19 @@ const [dl] = await Promise.all([p.waitForEvent('download', { timeout: 60000 }).c
 let tam = 0, nombre = ''; if (dl) { const ruta = SAL + '/' + dl.suggestedFilename(); await dl.saveAs(ruta); tam = fs.statSync(ruta).size; nombre = ruta; }
 ok(tam > 50000, 'el video con sonido se graba', { nombre: path.basename(nombre), tam });
 if (nombre) { const { execSync } = await import('child_process'); try { console.log('   ffprobe:', execSync(`ffprobe -v error -show_entries stream=codec_type,codec_name,r_frame_rate,width,height -of csv=p=0 "${nombre}"`).toString().trim().replace(/\n/g, ' | ')); } catch (e) { console.log('   ffprobe falló'); } }
+// 11. para el editor de WhatsApp: 5 s con sonido (video) y la imagen con 10 s de audio, con la guía
+await E(() => window.__vv().irA(1)); await p.click('#vVideo [data-a="exportar"]'); await espera(300);
+const [d5] = await Promise.all([p.waitForEvent('download', { timeout: 60000 }).catch(() => null), p.click('#modal [data-e="wa5"]')]);
+let r5 = null; if (d5) { const ruta = SAL + '/' + d5.suggestedFilename(); await d5.saveAs(ruta); const { execSync } = await import('child_process'); r5 = { nombre: path.basename(ruta), dur: +execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${ruta}"`).toString().trim(), audio: execSync(`ffprobe -v error -select_streams a -show_entries stream=codec_name -of csv=p=0 "${ruta}"`).toString().trim() }; }
+await p.waitForSelector('#modal .vvGuia', { timeout: 10000 }).catch(() => {}); await foto('guia_video');
+ok(r5 && r5.dur > 4.5 && r5.dur < 5.6 && !!r5.audio && /^wa_sticker_sonido/.test(r5.nombre), 'sticker con sonido: video de 5 s con audio', r5);
+ok(await p.isVisible('#modal .vvGuia'), 'aparecen los pasos para WhatsApp');
+await p.click('#modal [data-x="0"]'); await espera(200);
+await p.click('#vVideo [data-a="exportar"]'); await espera(300);
+const bajadas = []; const oye = (d) => bajadas.push(d); p.on('download', oye);
+await p.click('#modal [data-e="wa10"]'); await p.waitForSelector('#modal .vvGuia', { timeout: 20000 }).catch(() => {}); await espera(800); p.off('download', oye);
+const info = []; for (const d of bajadas) { const ruta = SAL + '/' + d.suggestedFilename(); await d.saveAs(ruta); info.push({ n: path.basename(ruta), kb: Math.round(fs.statSync(ruta).size / 1024) }); }
+ok(info.some((x) => /\.png$/.test(x.n)) && info.some((x) => /\.wav$/.test(x.n)), 'quieto con audio: la imagen y el audio', info); await foto('guia_quieto');
 ok(!err.length, 'sin errores de JS', err.slice(0, 5));
 await b.close(); srv.close(); com.close && com.close();
 console.log(fallas ? `${fallas} FALLAS` : 'TODO BIEN'); process.exit(fallas ? 1 : 0);

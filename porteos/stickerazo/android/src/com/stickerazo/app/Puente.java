@@ -36,6 +36,7 @@ final class Puente {
             app.jsDesdeHilo("window.__szAudio && window.__szAudio(" + org.json.JSONObject.quote(id) + "," + org.json.JSONObject.quote(r) + ")");
         } }, "audio").start();
     }
+    @JavascriptInterface public void abrirWhatsApp() { app.runOnUiThread(new Runnable() { @Override public void run() { app.abrirWhatsApp(); } }); }
     @JavascriptInterface public boolean videoParte(String nombre, String b64, boolean primero, boolean ultimo) { return app.videoParte(nombre, b64, primero, ultimo); }
     @JavascriptInterface public boolean estaEnWhatsApp(String id) { return Almacen.idValido(id) && WhatsApp.agregado(app, id); }
     @JavascriptInterface public boolean hayWhatsApp() { return !WhatsApp.instalados(app.getPackageManager()).isEmpty(); }

@@ -350,12 +350,16 @@ function hojaExportar() {
   const largo = Math.min(MAX_ST, V.dur - V.t > 1 ? V.dur - V.t : V.dur);
   const m = H.modal(`<div class="hoja vvHojaA"><h3>Exportar</h3>
     <button class="vvFuente" data-e="st"><b class="vvPunto" style="background:var(--ama)"></b><span><b>Sticker animado</b><small>Para WhatsApp: ${largo.toFixed(1)} s desde ${V.t > 0.05 && V.dur - V.t > 1 ? 'el cabezal' : 'el principio'} (hasta 10 s)</small></span></button>
-    <button class="vvFuente" data-e="stson"><b class="vvPunto" style="background:var(--rosa)"></b><span><b>Sticker con sonido</b><small>Cuadrado con su audio, como video (WhatsApp todavía no tiene stickers con sonido para las apps)</small></span></button>
+    <button class="vvFuente" data-e="wa5"><b class="vvPunto" style="background:var(--rosa)"></b><span><b>Sticker con sonido (WhatsApp)</b><small>5 s en movimiento con su audio: WhatsApp le deja el sonido al hacerlo sticker</small></span></button>
+    <button class="vvFuente" data-e="wa10"><b class="vvPunto" style="background:#ff7a1a"></b><span><b>Sticker quieto con 10 s de audio</b><small>La imagen del cabezal y su audio, listos para el editor de WhatsApp</small></span></button>
     <button class="vvFuente" data-e="mp4"><b class="vvPunto" style="background:#3ec7ff"></b><span><b>Video con sonido</b><small>MP4 a 60 cuadros, ${fmt(V.dur)}</small></span></button></div>`);
   m.querySelector('.vvHojaA').onclick = async (ev) => {
     const b = ev.target.closest('[data-e]'); if (!b) return; H.cerrarModal();
-    if (b.dataset.e === 'st') return exportarSticker(V.dur - V.t > 1 ? V.t : 0, largo);
-    return exportarVideo(b.dataset.e === 'stson');
+    const desde = V.dur - V.t > 1 ? V.t : 0;
+    if (b.dataset.e === 'st') return exportarSticker(desde, largo);
+    if (b.dataset.e === 'wa5') return exportarVideo(true, { desde, max: 5, nombre: 'wa_sticker_sonido' });
+    if (b.dataset.e === 'wa10') return exportarQuietoConAudio(desde);
+    return exportarVideo(false);
   };
 }
 // un cuadro de la composición en un momento (el video, buscado a ese momento)
@@ -391,23 +395,24 @@ export async function exportarSticker(desde, largo) {
   } catch (e) { H.cerrarModal(); H.aviso('No se pudo: ' + e.message); }
 }
 // el video con sonido, grabando la composición en tiempo real (60 cuadros por segundo) con el audio mezclado
-async function exportarVideo(cuadrado) {
+async function exportarVideo(cuadrado, op = {}) {
+  const desde = op.desde || 0;
   pausa(); const W = cuadrado ? 512 : (V.formato === '1:1' ? 720 : 720), Hh = cuadrado ? 512 : (V.formato === '1:1' ? 720 : 1280);
   const tipos = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'], tipo = tipos.find((x) => window.MediaRecorder && MediaRecorder.isTypeSupported(x));
   if (!tipo) return H.aviso('Este celular no sabe grabar video desde la app');
-  const largo = cuadrado ? Math.min(V.dur, MAX_ST) : V.dur, c = lienzo(W, Hh), g = c.getContext('2d'), ctx = audioCtx(); await ctx.resume();
+  const largo = Math.max(0.5, Math.min(V.dur - desde, op.max || (cuadrado ? MAX_ST : V.dur))), c = lienzo(W, Hh), g = c.getContext('2d'), ctx = audioCtx(); await ctx.resume();
   const dest = ctx.createMediaStreamDestination(), flujo = c.captureStream(60); for (const pista of dest.stream.getAudioTracks()) flujo.addTrack(pista);
   const rec = new MediaRecorder(flujo, { mimeType: tipo, videoBitsPerSecond: cuadrado ? 2_500_000 : 8_000_000, audioBitsPerSecond: 160_000 }), trozos = [];
   rec.ondataavailable = (e) => { if (e.data && e.data.size) trozos.push(e.data); };
   const m = H.modal(`<div class="hoja"><div class="progreso"><div class="rueda"></div><b id="vvP">Grabando el video…</b><span>Tarda lo que dura el video</span></div></div>`), txt = m.querySelector('#vvP');
-  const vid = V.video; const when = ctx.currentTime + 0.25, srcs = programar(ctx, dest, 0, when);
+  const vid = V.video; const when = ctx.currentTime + 0.25, srcs = programar(ctx, dest, desde, when);
   rec.start(250);
-  if (vid) { vid.currentTime = 0; await new Promise((ok) => setTimeout(ok, 220)); vid.play().catch(() => {}); }
+  if (vid && desde < V.base.dur) { vid.currentTime = desde; await new Promise((ok) => setTimeout(ok, 220)); vid.play().catch(() => {}); }
   await new Promise((ok) => {
     const paso = () => {
       const t = ctx.currentTime - when;
-      if (vid && t < V.base.dur && Math.abs(vid.currentTime - t) > 0.2) vid.currentTime = Math.max(0, t);
-      componer(g, W, Hh, Math.max(0, t), vid); txt.textContent = `Grabando el video… ${Math.round(clamp(t / largo, 0, 1) * 100)}%`;
+      const ta = desde + Math.max(0, t); if (vid && ta < V.base.dur && Math.abs(vid.currentTime - ta) > 0.2) vid.currentTime = ta;
+      componer(g, W, Hh, ta, vid); txt.textContent = `Grabando el video… ${Math.round(clamp(t / largo, 0, 1) * 100)}%`;
       if (t >= largo) return ok(); requestAnimationFrame(paso);
     };
     requestAnimationFrame(paso);
@@ -415,5 +420,39 @@ async function exportarVideo(cuadrado) {
   for (const s of srcs) { try { s.stop(); } catch (e) { /* ya paró */ } } if (vid) vid.pause();
   await new Promise((ok) => { rec.onstop = ok; rec.stop(); });
   const blob = new Blob(trozos, { type: tipo.split(';')[0] }); H.cerrarModal();
-  await H.guardarVideo(blob, cuadrado ? 'sticker_con_sonido' : 'video');
+  const ok = await H.guardarVideo(blob, op.nombre || (cuadrado ? 'sticker_con_sonido' : 'video'));
+  if (op.nombre && ok) guiaWhatsApp('video');
+}
+// ---------------- stickers con sonido en WhatsApp ----------------
+// (WhatsApp todavía no deja que las apps agreguen stickers con sonido a sus packs —su equipo dijo que está en sus planes—;
+// su editor sí los hace: de un video se queda con 5 s de sonido, y a una imagen se le pueden poner hasta 10 s de audio.
+// Acá se deja todo listo y primero en la galería, y se abre WhatsApp con los pasos)
+async function exportarQuietoConAudio(desde) {
+  pausa(); const largo = Math.max(0.5, Math.min(10, V.dur - desde));
+  const m = H.modal(`<div class="hoja"><div class="progreso"><div class="rueda"></div><b>Preparando la imagen y el audio…</b></div></div>`); void m;
+  const vid = V.video ? Object.assign(document.createElement('video'), { src: V.video.src, muted: true, playsInline: true, preload: 'auto' }) : null;
+  if (vid) await new Promise((ok) => { vid.onloadeddata = ok; vid.onerror = ok; });
+  const png = await aBlob(await cuadroEn(desde, LADO, LADO, vid), 'image/png');
+  const sr = 44100, off = new OfflineAudioContext(2, Math.ceil(largo * sr), sr); programar(off, off.destination, desde, 0);
+  const wav = wavDe(await off.startRendering());
+  const a = await H.guardarArchivo(png, 'wa_sticker_imagen', 'png'), b = await H.guardarArchivo(wav, 'wa_sticker_audio', 'wav'); H.cerrarModal();
+  if (a && b) guiaWhatsApp('quieto'); else H.aviso('No se pudo guardar');
+}
+function wavDe(buf) {
+  const n = buf.length, ch = buf.numberOfChannels, d = new DataView(new ArrayBuffer(44 + n * ch * 2)), txt = (o, s) => { for (let i = 0; i < s.length; i++) d.setUint8(o + i, s.charCodeAt(i)); };
+  txt(0, 'RIFF'); d.setUint32(4, 36 + n * ch * 2, true); txt(8, 'WAVEfmt '); d.setUint32(16, 16, true); d.setUint16(20, 1, true); d.setUint16(22, ch, true);
+  d.setUint32(24, buf.sampleRate, true); d.setUint32(28, buf.sampleRate * ch * 2, true); d.setUint16(32, ch * 2, true); d.setUint16(34, 16, true); txt(36, 'data'); d.setUint32(40, n * ch * 2, true);
+  const cs = Array.from({ length: ch }, (_, k) => buf.getChannelData(k)); let o = 44;
+  for (let i = 0; i < n; i++) for (let k = 0; k < ch; k++) { d.setInt16(o, Math.round(clamp(cs[k][i], -1, 1) * 32767), true); o += 2; }
+  return new Blob([d.buffer], { type: 'audio/wav' });
+}
+function guiaWhatsApp(tipo) {
+  const pasos = tipo === 'video'
+    ? ['Abrí un chat y tocá el ícono de stickers', 'Tocá «Crear» y elegí el video de Stickerazo (es el primero de la galería)', 'Recortalo si querés y guardalo: WhatsApp le deja el sonido']
+    : ['Abrí un chat, tocá el ícono de stickers y después «Crear»', 'Elegí la imagen de Stickerazo (la primera de la galería)', 'Tocá el ícono de ondas → «Elegir audio» → el de Stickerazo', 'Guardalo y mandalo: suena al tocarlo'];
+  const m = H.modal(`<div class="hoja vvGuia"><h3>¡Listo para WhatsApp!</h3><p class="vvNota">Ya está ${tipo === 'video' ? 'el video' : 'la imagen y el audio'} en tu celu. En WhatsApp:</p>
+    <ol>${pasos.map((p) => `<li>${p}</li>`).join('')}</ol><p class="vvNota">WhatsApp lo está habilitando de a poco: si no ves el ícono de ondas, todavía no te llegó.</p>
+    <div class="botones"><button class="sec" data-x="0">Después</button><button class="pri" data-x="1">Abrir WhatsApp</button></div></div>`);
+  m.querySelector('[data-x="0"]').onclick = () => H.cerrarModal();
+  m.querySelector('[data-x="1"]').onclick = () => { H.cerrarModal(); if (window.SZN && window.SZN.abrirWhatsApp) window.SZN.abrirWhatsApp(); else H.aviso('Abrí WhatsApp desde el celular'); };
 }
