@@ -317,7 +317,9 @@ function pzEncajar() {
   }
 }
 function abrirEmotes() { UI.abierto = 'emotes'; $('emotes').classList.remove('oc'); soltarPuntero(); }
-function abrirChat() { const c = $('chatIn'); c.placeholder = T('ch.escribi'); c.classList.remove('oc'); c.focus(); soltarPuntero(); UI.abierto = 'chat'; }
+// (en el celu se abre para leer —el historial entero, para subir y leer—: el teclado sale recién al tocar el campo. Bugs y
+// sugerencias 2b52vbp2: «que se pueda abrir sin que se ponga el teclado, para ver los chats»; en la PC, listo para escribir)
+function abrirChat() { const c = $('chatIn'); c.placeholder = T('ch.escribi'); c.classList.remove('oc'); if (!ENT.tactil) c.focus(); soltarPuntero(); UI.abierto = 'chat'; }
 // el chat de texto (Bugs y sugerencias, «un mejor chat, está muy sencillo»): cada mensaje con su fondo, el nombre con el
 // color de esa persona (siempre el mismo), lo tuyo y lo del juego distinguidos, y resaltado si te nombran. Cerrado se ven
 // los últimos y se desvanecen; abierto (Enter o el botón del chat) queda el historial entero con la hora, para subir y
@@ -473,7 +475,8 @@ const cajaDe = (p) => (p.classList.contains('panel') ? p.querySelector('.caja') 
 addEventListener('pointerdown', (e) => {
   if (!UI.abierto) return;
   const t = e.target;
-  if (UI.abierto === 'chat') { if (t !== $('chatIn')) { $('chatIn').classList.add('oc'); $('chatIn').blur(); UI.abierto = null; } return; }
+  if (UI.abierto === 'chat') { if (t !== $('chatIn') && !(t.closest && t.closest('#chat'))) {   // (tocar el historial para subir y leer no lo cierra)
+    $('chatIn').classList.add('oc'); $('chatIn').blur(); UI.abierto = null; } return; }
   const p = panelAbierto(); if (!p) return;
   if (t.closest && t.closest('[data-btn], .modmBt')) return;   // (los botones de la pantalla abren y cierran lo suyo)
   if (cajaDe(p).contains(t)) return;
