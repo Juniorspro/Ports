@@ -288,6 +288,7 @@ function borrarApuntado() {
   const h = raycast(CAM.pos, CAM.fwd, 60, JUG.vehiculo ? JUG.vehiculo.b : null), o = h && h.body && h.body.obj;
   const e = entidadApuntada(h ? h.t : 60);
   if (e) { entidadQuitar(e); entidadRed('entb', e); sonar('Click', null, 0.6, 0.8); aviso(T('borrado') + ': ' + (T('ent.' + e.t) !== 'ent.' + e.t ? T('ent.' + e.t) : e.t), 1); return; }
+  if (h && h.body && h.body.gmRag && typeof gmrgQuitar === 'function') { gmrgQuitar(h.body.gmRag); sonar('Click', null, 0.6, 0.8); aviso(T('borrado') + ': ' + T('gm.muneco'), 1); return; }   // (un muñeco de cualquier modelo: gmod_rag.js)
   if (h && h.body && h.body.npc && typeof npcQuitar === 'function') { npcQuitar(h.body.npc); sonar('Click', null, 0.6, 0.8); aviso(T('borrado') + ': NPC', 1); return; }
   // (un NPC tirado o un muñeco de trapo: el rayo pega en una pieza de su cuerpo)
   { const P = h && h.body && h.body.persona; if (P && P.npc && !P.npcRem && P !== JUG.cuerpo && typeof npcQuitar === 'function') { npcQuitar(P); sonar('Click', null, 0.6, 0.8); aviso(T('borrado') + ': ' + (P.muneco ? T('gm.muneco') : 'NPC'), 1); return; } }

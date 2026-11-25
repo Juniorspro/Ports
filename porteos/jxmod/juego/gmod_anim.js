@@ -113,6 +113,7 @@ function gmanPaso(dt) {
     if (gmanAuto(e)) { a.t += dt * a.rate; a.ult = TIEMPO.t; }
   }
   try { gmanRedPaso(dt); } catch (x) { gmaErr('animación (red): ' + ((x && x.message) || x)); }
+  if (typeof gmrgPaso === 'function') gmrgPaso();   // (los muñecos de cualquier modelo: gmod_rag.js)
   if (typeof gmbContextoPaso === 'function') { try { gmbContextoPaso(); } catch (x) {} }   // (el botón de ejecutar: gmod_panel.js)
   // (los modelos de personaje que se dibujaban y ya no: se sueltan)
   if (GMAN.cuadro % 120 === 0) for (const e of GMAN.pvs || []) if (!e.vivo) { GMAN.pvs.delete(e); e.anPv = null; }
@@ -150,6 +151,7 @@ function gmanCuadros(d, st) {
 // las matrices de los huesos de una entidad (con su bonemerge), una vez por cuadro y por lugar
 function gmanHuesos(e, prof) {
   const d = gmanDefDe(e); if (!d) return null;
+  if (e.ragGen && typeof gmrgHuesos === 'function') return gmrgHuesos(e, d);   // (un muñeco de trapo: los huesos salen de sus cuerpos)
   const merge = !!(e.efectos & 1) && e.padre && e.padre.vivo !== false && (prof || 0) < 8;
   const Hp = merge ? gmanHuesosDe(e.padre, (prof || 0) + 1) : null;
   const st = d.virt ? null : gmanEstado(e);
@@ -356,7 +358,7 @@ function gmanEsperando(e) {
 }
 function gmanAnimada(e) {
   if (!(e instanceof LEnt) || e.P || e.nb || !e.modelo) return false;
-  if (!(e.an || ((e.efectos & 1) && e.padre) || GMAN_VIRT.test(gmanRuta(e.modelo)))) return false;
+  if (!(e.an || e.ragGen || ((e.efectos & 1) && e.padre) || GMAN_VIRT.test(gmanRuta(e.modelo)))) return false;   // (ragGen: un muñeco de cualquier modelo, gmod_rag.js)
   return !!gmanDefDe(e);
 }
 // (SetMaterial con un material que no se ve —«null», como hace BSMod con el jugador durante la ejecución—)
