@@ -55,26 +55,40 @@ fn main() {
     if std::env::var("JXM_DIN").as_deref() == Ok("0") { j.aj.dinamica = false; }
     if let Ok(mp) = std::env::var("JXM_MAPA") { assert!(j.poner_mapa(&mp), "no existe el mapa {mp}"); }
     let cpu = std::cell::Cell::new(0.0f64);
-    let paso = |j: &mut Juego, m: &mut Motor3d| -> f64 { let t = Instant::now(); unsafe { j.cuadro(m, w, h, &placa).expect("cuadro"); cpu.set(cpu.get() + t.elapsed().as_secs_f64() * 1000.0); m.esperar(); } let ms = t.elapsed().as_secs_f64() * 1000.0; j.medir(ms as f32); ms };
+    // (JXM_AB=1: los cuadros se alternan entre A —lo de siempre— y B —lo que se prueba, ver jxmotor::gpu::AB— y se miden aparte)
+    let ab = std::env::var_os("JXM_AB").is_some(); let ab_t = std::cell::Cell::new([0.0f64; 2]); let ab_n = std::cell::Cell::new([0u32; 2]); let medir_ab = std::cell::Cell::new(false);
+    let paso = |j: &mut Juego, m: &mut Motor3d| -> f64 { let t = Instant::now();
+        let b = ab && !jxmotor::gpu::ab(); if ab { jxmotor::gpu::AB.store(b, std::sync::atomic::Ordering::Relaxed); } unsafe { j.cuadro(m, w, h, &placa).expect("cuadro"); cpu.set(cpu.get() + t.elapsed().as_secs_f64() * 1000.0); m.esperar(); } let ms = t.elapsed().as_secs_f64() * 1000.0; j.medir(ms as f32);
+        if medir_ab.get() { let k = b as usize; let mut tt = ab_t.get(); tt[k] += ms; ab_t.set(tt); let mut nn = ab_n.get(); nn[k] += 1; ab_n.set(nn); }
+        ms };
     for _ in 0..90 { paso(&mut j, &mut m); }
     let mut ojos = [j.jug.pos[0], j.jug.pos[1] + 0.72, j.jug.pos[2]];
+    let seguido = std::env::var_os("JXM_SEGUIDO").is_some(); let mut seg: Vec<f64> = vec![];
     // (JXM_AGUA=1: mirando el agua del mapa desde su orilla, un poco arriba)
     if std::env::var_os("JXM_AGUA").is_some() { if let Some(a) = j.mapa.as_ref().and_then(|m| m.esc.c.agua.clone()) { if let Some(pr) = a.prof.as_ref() {
         ojos = [pr.x0 + pr.w * 0.5, a.y + 2.6, pr.z0 + pr.h * 0.5]; println!("agua: y {:.2} · de {:.1},{:.1} a {:.1},{:.1}", a.y, pr.x0, pr.z0, pr.x0 + pr.w, pr.z0 + pr.h); } } }
-    cpu.set(0.0); if let Motor3d::Gl(g, _) = &mut m { if let Some(f) = g.fases.as_mut() { f.1.clear(); } } let mut total = 0.0; let mut n = 0; let mut peor = 0f64; let mut por_vista = vec![];
+    cpu.set(0.0); if let Motor3d::Gl(g, _) = &mut m { if let Some(f) = g.fases.as_mut() { f.1.clear(); } g.fases_b.clear(); } medir_ab.set(true); let mut total = 0.0; let mut n = 0; let mut peor = 0f64; let mut por_vista = vec![];
     for (k, yaw) in [0.0f32, 90.0, 180.0, 270.0].iter().enumerate() {
         j.poner_ojos(ojos, yaw.to_radians(), if std::env::var_os("JXM_AGUA").is_some() { -0.35 } else { -0.05 });
         for _ in 0..8 { paso(&mut j, &mut m); }
         let mut s = 0.0; for _ in 0..20 { let ms = paso(&mut j, &mut m); s += ms; peor = peor.max(ms); }
         total += s; n += 20; por_vista.push(s / 20.0);
+        // (JXM_SEGUIDO: además, 20 cuadros seguidos sin esperar a la placa en cada uno —como el juego, que no espera—: el ritmo real)
+        if seguido { let t = Instant::now(); for _ in 0..20 { unsafe { j.cuadro(&mut m, w, h, &placa).expect("cuadro"); } j.medir(16.0); } unsafe { m.esperar(); } seg.push(t.elapsed().as_secs_f64() * 1000.0 / 20.0); }
         if k == 0 { if let Ok(f) = std::env::var("JXM_FOTO") { guardar(&mut m, w, h, &f); } }
     }
     let prom = total / n as f64; println!("de eso, armar el cuadro (CPU, hasta mandarlo): {:.1} ms", cpu.get() / (n as f64 + 32.0));
     println!("{} · {}x{} · calidad {} res {}% sombras {} ao {} reflejo {} retoque {} · {}", placa, w, h, cal, j.aj.res, j.aj.sombras, j.aj.ao, j.aj.reflejo, j.aj.retoque, std::env::var("JXM_MAPA").unwrap_or("el de siempre".into()));
     println!("cuadro {:.1} ms = {:.1} fps (por vista: {}) · peor {:.0} ms · resolución dinámica {:.0} % · cpu juego {:?}", prom, 1000.0 / prom, por_vista.iter().map(|x| format!("{x:.1}")).collect::<Vec<_>>().join(" / "), peor, j.drs * 100.0, j.perf);
     if let Some((t, d)) = m.tiempos() { println!("placa {t:.1} ms: {d}"); }
+    if seguido { let p = seg.iter().sum::<f64>() / seg.len() as f64; println!("seguido (sin esperar cada cuadro): {p:.1} ms = {:.1} fps (por vista: {})", 1000.0 / p, seg.iter().map(|x| format!("{x:.1}")).collect::<Vec<_>>().join(" / ")); }
     if std::env::var_os("JXM_RESUMEN").is_some() { println!("{}", m.resumen()); }
-    if let Motor3d::Gl(g, _) = &m { if let Some((_, v)) = &g.fases { println!("fases (ms por cuadro): {}", v.iter().map(|(k, ms)| format!("{k} {:.1}", ms / (n as f64 + 32.0))).collect::<Vec<_>>().join(" · ")); } }
+    if let Motor3d::Gl(g, _) = &m { if let Some((_, v)) = &g.fases {
+        let d = if ab { (n as f64 + 32.0) / 2.0 } else { n as f64 + 32.0 };
+        println!("fases (ms por cuadro){}: {}", if ab { " A" } else { "" }, v.iter().map(|(k, ms)| format!("{k} {:.1}", ms / d)).collect::<Vec<_>>().join(" · "));
+        if ab { println!("fases (ms por cuadro) B: {}", g.fases_b.iter().map(|(k, ms)| format!("{k} {:.1}", ms / d)).collect::<Vec<_>>().join(" · ")); }
+    } }
+    if ab { let (t, nn) = (ab_t.get(), ab_n.get()); let (a, b) = (t[0] / nn[0].max(1) as f64, t[1] / nn[1].max(1) as f64); println!("A/B: A {a:.1} ms · B {b:.1} ms · B − A = {:+.1} ms ({:+.1} %)", b - a, (b - a) / a * 100.0); }
 }
 
 fn guardar(m: &mut Motor3d, w: i32, h: i32, ruta: &str) {

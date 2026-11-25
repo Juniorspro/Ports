@@ -41,9 +41,9 @@ struct Destino { fb: glow::Framebuffer, color: glow::Texture, prof: Option<glow:
 
 // los uniformes, por número (buscarlos por nombre en cada dibujo cuesta)
 #[derive(Clone, Copy)]
-enum U { Mat, NieS, Sesgo, VP, M, SVP, Mn, Sc, St, C, Em, Modo, S1, S3, Sol, SolC, AmbS, AmbG, NieC, Nie, Cam, Expo, Sombra, Clip, B, LP, LC, LD, LN, LE, F, H, S, Bq, D, RefInv, Tiempo, Top, Mid, Bot, Exp, Tinte, Dia, CieloK, TieneCubo, Radio, Inv, Fuerza, Retoque, Der, Arr, RefrOn, RefrK, IVP, SVP2, Sesgo2, Ti, Ti2, Ti3, AOk, NC }
-const NU: usize = U::NC as usize + 1;
-const NOMBRES: [&str; NU] = ["uMat", "uNieS", "uSesgo", "uVP", "uM", "uSVP", "uMn", "uSc", "uSt", "uC", "uEm", "uModo", "uS1", "uS3", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNie", "uCam", "uExpo", "uSombra", "uClip", "uB", "uLP", "uLC", "uLD", "uLN", "uLE", "uF", "uH", "uS", "uBq", "uD", "uRefInv", "uTiempo", "uTop", "uMid", "uBot", "uExp", "uTinte", "uDia", "uCieloK", "uTieneCubo", "uRadio", "uInv", "uFuerza", "uRetoque", "uDer", "uArr", "uRefrOn", "uRefrK", "uIVP", "uSVP2", "uSesgo2", "uTi", "uTi2", "uTi3", "uAOk", "uNC"];
+enum U { Mat, NieS, Sesgo, VP, M, SVP, Mn, Sc, St, C, Em, Modo, S1, S3, Sol, SolC, AmbS, AmbG, NieC, Nie, Cam, Expo, Sombra, Clip, B, LP, LC, LD, LN, LE, F, H, S, Bq, D, RefInv, Tiempo, Top, Mid, Bot, Exp, Tinte, Dia, CieloK, TieneCubo, Radio, Inv, Fuerza, Retoque, Der, Arr, RefrOn, RefrK, IVP, SVP2, Sesgo2, Ti, Ti2, Ti3, AOk, NC, Ray0, RayX, RayY, Zl }
+const NU: usize = U::Zl as usize + 1;
+const NOMBRES: [&str; NU] = ["uMat", "uNieS", "uSesgo", "uVP", "uM", "uSVP", "uMn", "uSc", "uSt", "uC", "uEm", "uModo", "uS1", "uS3", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNie", "uCam", "uExpo", "uSombra", "uClip", "uB", "uLP", "uLC", "uLD", "uLN", "uLE", "uF", "uH", "uS", "uBq", "uD", "uRefInv", "uTiempo", "uTop", "uMid", "uBot", "uExp", "uTinte", "uDia", "uCieloK", "uTieneCubo", "uRadio", "uInv", "uFuerza", "uRetoque", "uDer", "uArr", "uRefrOn", "uRefrK", "uIVP", "uSVP2", "uSesgo2", "uTi", "uTi2", "uTi3", "uAOk", "uNC", "uRay0", "uRayX", "uRayY", "uZl"];
 struct Prog { p: glow::Program, u: Vec<Option<glow::UniformLocation>>, piel: bool, corte: bool }
 impl Prog {
     fn u(&self, k: U) -> Option<&glow::UniformLocation> { self.u[k as usize].as_ref() }
@@ -63,7 +63,7 @@ layout(location = 6) in vec4 iM0; layout(location = 7) in vec4 iM1; layout(locat
 #else
 #define MM uM
 #endif
-out vec3 vW; out vec3 vN; out vec2 vU; out vec2 vL; out vec4 vS; out vec4 vS2; out float vMz;
+out vec3 vW; out vec3 vN; out vec2 vU; out vec2 vL; out vec3 vS; out vec3 vS2; out float vMz;
 invariant gl_Position;
 void main() {
   vec3 p = uMn + aP * uSc, n = aN.xyz;
@@ -76,7 +76,9 @@ void main() {
   vMz = aN.w; vW = w.xyz; vN = mat3(M) * n; vU = aU * uSt.xy + uSt.zw; vL = aL;
   // (la sombra se lee corrida por la normal un píxel y medio de la sombra: sin acné y sin despegar la sombra de lo que toca)
   vec3 nn = normalize(vN + vec3(1e-6));
-  vS = uSVP * vec4(w.xyz + nn * uSesgo.y, 1.0); vS2 = uSVP2 * vec4(w.xyz + nn * uSesgo2.y, 1.0);
+  // (las matrices de la sombra son ortográficas —w siempre 1— y vienen ya llevadas de −1..1 a 0..1: sin dividir ni corregir
+  // en cada píxel, y dos números menos por cascada para repartir)
+  vS = (uSVP * vec4(w.xyz + nn * uSesgo.y, 1.0)).xyz; vS2 = (uSVP2 * vec4(w.xyz + nn * uSesgo2.y, 1.0)).xyz;
   gl_Position = uVP * w;
 }"#;
 const FS_LUZ: &str = r#"#version 300 es
@@ -89,11 +91,21 @@ uniform vec3 uTop, uMid, uBot; uniform vec2 uExp; uniform float uCieloK;
 uniform vec4 uLP[12], uLC[12], uLD[12]; uniform int uLN, uLE;
 // la oclusión ambiental (calculada antes, de la pasada de profundidad): x, y el paso de un píxel de la escena; z la fuerza
 uniform sampler2D uAO; uniform vec4 uAOk;
-in vec3 vW; in vec3 vN; in vec2 vU; in vec2 vL; in vec4 vS; in vec4 vS2; in float vMz; out vec4 o;
+in vec3 vW; in vec3 vN; in vec2 vU; in vec2 vL; in vec3 vS; in vec3 vS2; in float vMz; out vec4 o;
 const float PI = 3.14159265;
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
-vec3 cieloCol(vec3 d) { float y = d.y; vec3 c = y > 0.0 ? mix(uMid, uTop, pow(y, uExp.x)) : mix(uMid, uBot, pow(-y, uExp.y)); return pow(c, vec3(2.2)) * uCieloK; }
+// (x^2,2 y x^(1/2,2) con tres raíces en vez de pow —logaritmo y exponencial—: el mismo color, menos de 0,2 de un nivel de
+// 8 bits de diferencia; la raíz es una sola instrucción)
+#ifdef DBG_POW
+vec3 dec(vec3 x) { return pow(max(x, 0.0), vec3(2.2)); }
+vec3 enc(vec3 x) { return pow(max(x, 0.0), vec3(1.0 / 2.2)); }
+#else
+vec3 dec(vec3 x) { x = max(x, 0.0); vec3 a = sqrt(x), b = sqrt(a), c = sqrt(b); return x * x * (0.73929934 * b + 0.34228227 * c - 0.0593772 * a - 0.0226474); }
+vec3 enc(vec3 x) { x = max(x, 0.0); vec3 a = sqrt(x), b = sqrt(a), c = sqrt(b); return 0.93020244 * a + 0.14337668 * b - 0.02588437 * c - 0.04836126 * x; }
+#endif
+// (una sola potencia: con ?: entre dos expresiones se calculan las dos)
+vec3 cieloCol(vec3 d) { bool ar = d.y > 0.0; vec3 c = mix(uMid, ar ? uTop : uBot, pow(abs(d.y), ar ? uExp.x : uExp.y)); return dec(c) * uCieloK; }
 vec3 brdf(vec3 n, vec3 v, vec3 l, vec3 dif, vec3 f0, float a) {
   float nl = dot(n, l); if (nl <= 0.0) return vec3(0.0);
   vec3 h = normalize(l + v); float nh = max(dot(n, h), 0.0), nv = max(dot(n, v), 1e-3), lh = max(dot(l, h), 0.0);
@@ -115,7 +127,7 @@ float pcf(vec3 q, float k, float b) {
 float sombra(float nd) {
   if (uSombra < 0.5) return 1.0;
   float inc = 1.0 + 2.0 * (1.0 - nd);
-  vec3 q0 = vS.xyz / vS.w * 0.5 + 0.5, q1 = vS2.xyz / vS2.w * 0.5 + 0.5;
+  vec3 q0 = vS, q1 = vS2;
   float g = max(abs(q0.x - 0.5), abs(q0.y - 0.5)) * 2.0;
   bool lejos = q1.x <= 0.0 || q1.y <= 0.0 || q1.x >= 1.0 || q1.y >= 1.0 || q1.z >= 1.0;
   if (g < 0.97 && q0.z < 1.0) {
@@ -132,14 +144,22 @@ void main() {
   if (vW.y < uClip) discard;   // (el reflejo: sólo lo de arriba del agua)
 #endif
   vec4 t;
+#ifdef DBG_SIN_RAMAS
+  t = texture(uT, vU);
+#else
   if ((uModo & 16) != 0) { vec4 kc = texture(uT, vU); t = vec4(texture(uT1, vU * uS1.xy).rgb * kc.r + texture(uT2, vU * uS1.zw).rgb * kc.g + texture(uT3, vU * uS3).rgb * kc.b, 1.0); }   // (terreno: control y tres capas)
   else if ((uModo & 8) != 0) t = mix(texture(uT, vU), texture(uT1, vU), clamp(vMz, 0.0, 1.0));   // (dos texturas mezcladas por vértice)
   else t = texture(uT, vU);
+#endif
   t *= uC;
   // la pintura en dos tonos (las armas de JXMod, armasjx.js): lo gris de la textura con un color y lo de color (los
   // acentos) con otro, que además brilla; con un solo tono, el brillo de la textura de ese color (Modelo.tinte)
   vec3 emAc = vec3(0.0);
+#ifdef DBG_SIN_RAMAS
+  if (false) {
+#else
   if (uTi2.a > 0.0) {
+#endif
     float lu = dot(t.rgb, vec3(0.299, 0.587, 0.114)), sat = max(t.r, max(t.g, t.b)) - min(t.r, min(t.g, t.b));
     float kA = smoothstep(uTi3.a, uTi3.a + 0.16, sat);
     vec3 cu = mix(t.rgb, vec3(lu) * uTi.rgb, uTi.a), ac = mix(t.rgb, vec3(lu) * uTi2.rgb, uTi2.a);
@@ -149,9 +169,9 @@ void main() {
   if ((uModo & 2) != 0 && t.a < 0.5) discard;
 #endif
   vec3 col;
-  if ((uModo & 4) != 0) col = pow(t.rgb, vec3(2.2)) * 1.4;   // (sin luz)
+  if ((uModo & 4) != 0) col = dec(t.rgb) * 1.4;   // (sin luz)
   else {
-    vec3 alb = pow(t.rgb, vec3(2.2)), ng = normalize(vN); if (!gl_FrontFacing) ng = -ng;
+    vec3 alb = dec(t.rgb), ng = normalize(vN); if (!gl_FrontFacing) ng = -ng;
     bool fol = (uModo & 64) != 0, lm = (uModo & 1) != 0;
     vec3 n = fol ? normalize(mix(ng, vec3(0.0, 1.0, 0.0), 0.55)) : ng, v = normalize(uCam - vW);
     float rough = uMat.x, metal = uMat.y, a = max(rough * rough, 0.004), nl = dot(n, uSol), sh = 1.0;
@@ -159,11 +179,18 @@ void main() {
     // (la oclusión ambiental oscurece sólo la luz que viene de todos lados —el cielo, la del mapa—: el sol y las luces, no; con
     // el suavizado de cuatro lecturas)
     float aoK = 1.0;
-    if (uAOk.z > 0.0) { vec2 su = gl_FragCoord.xy * uAOk.xy, tx = 0.75 / vec2(textureSize(uAO, 0));
+#ifdef DBG_SIN_AO
+    if (false) {
+#else
+    if (uAOk.z > 0.0) {
+#endif
+      vec2 su = gl_FragCoord.xy * uAOk.xy, tx = 0.75 / vec2(textureSize(uAO, 0));
       aoK = mix(1.0, 0.25 * (texture(uAO, su - tx).r + texture(uAO, su + tx).r + texture(uAO, su + vec2(tx.x, -tx.y)).r + texture(uAO, su + vec2(-tx.x, tx.y)).r), uAOk.z); }
-    if (lm) { lmL = pow(texture(uLM, vL).rgb, vec3(2.2)) * 4.0; col = dif * lmL * aoK; }   // (la luz horneada del mapa, en vez del sol y el cielo)
+    if (lm) { lmL = dec(texture(uLM, vL).rgb) * 4.0; col = dif * lmL * aoK; }   // (la luz horneada del mapa, en vez del sol y el cielo)
 #ifdef DBG_SIN_SOMBRA
     else { sh = 1.0; col = brdf(n, v, uSol, dif, f0, a) * uSolC * sh; }
+#elif defined(DBG_SIN_BRDF)
+    else { sh = nl > 0.0 ? sombra(max(nl, 0.0)) : 0.0; col = dif * max(nl, 0.0) * uSolC * sh; }
 #else
     else { sh = nl > 0.0 ? sombra(max(nl, 0.0)) : 0.0; col = brdf(n, v, uSol, dif, f0, a) * uSolC * sh; }
 #endif
@@ -182,7 +209,11 @@ void main() {
 #endif
     // luz del cielo: difusa (hemisferio) y reflejo (el cielo en la dirección reflejada, más borroso cuanto más áspero)
     vec3 rf = reflect(-v, n), amb, env; float nv = max(dot(n, v), 1e-3);
+#ifdef DBG_SIN_CIELO
+    if (lm) { amb = vec3(0.0); env = lmL * 0.5; } else { amb = mix(uAmbG, uAmbS, n.y * 0.5 + 0.5); env = amb; }
+#else
     if (lm) { amb = vec3(0.0); env = lmL * 0.5; } else { amb = mix(uAmbG, uAmbS, n.y * 0.5 + 0.5); env = mix(cieloCol(rf), amb, clamp(rough * 1.15, 0.0, 1.0)); }
+#endif
     float hor = clamp(1.0 + 1.3 * dot(rf, ng), 0.0, 1.0); env *= hor * hor;
     float q1 = 1.0 - nv, q2 = q1 * q1; vec3 Fr = f0 + (max(vec3(1.0 - rough), f0) - f0) * (q2 * q2 * q1);
     col += (dif * amb + env * Fr * mix(1.0, sh * 0.6 + 0.4, metal)) * aoK + uEm * 1.6;
@@ -199,7 +230,7 @@ void main() {
 #ifdef DBG_SIN_GAMMA
   o = vec4(aces(col * uExpo), t.a);
 #else
-  o = vec4(pow(aces(col * uExpo), vec3(1.0 / 2.2)) + (ign(gl_FragCoord.xy) - 0.5) / 255.0, t.a);
+  o = vec4(enc(aces(col * uExpo)) + (ign(gl_FragCoord.xy) - 0.5) / 255.0, t.a);
 #endif
 }"#;
 const VS_SOMBRA: &str = r#"#version 300 es
@@ -233,7 +264,7 @@ precision highp float;
 uniform sampler2D uN, uRef, uP, uRefr; uniform highp sampler2D uRefrP; uniform highp sampler2DArray uNA;
 uniform vec4 uF, uH, uS, uBq; uniform vec2 uD, uRefInv; uniform float uTiempo, uExpo, uRefrOn, uRefrK, uNC;
 uniform vec3 uSol, uSolC, uAmbS, uAmbG, uCam;
-in vec3 vW; in vec3 vN; in vec2 vU; in vec2 vL; in vec4 vS; in float vMz; out vec4 o;
+in vec3 vW; in vec3 vN; in vec2 vU; in vec2 vL; in vec3 vS; in float vMz; out vec4 o;
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
 void main() {
   float dCam = distance(vW, uCam); vec3 v = normalize(uCam - vW);
@@ -283,40 +314,61 @@ const FS_CIELO: &str = r#"#version 300 es
 precision highp float; uniform mat4 uIVP; uniform vec3 uSol, uNieC; uniform float uExpo; in vec2 vP; out vec4 o;
 uniform samplerCube uCubo; uniform vec3 uTop, uMid, uBot, uTinte; uniform vec2 uExp; uniform float uDia, uCieloK; uniform int uTieneCubo;
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
+// (x^2,2 y x^(1/2,2) con tres raíces en vez de pow —logaritmo y exponencial—: el mismo color, menos de 0,2 de un nivel de
+// 8 bits de diferencia; la raíz es una sola instrucción)
+#ifdef DBG_POW
+vec3 dec(vec3 x) { return pow(max(x, 0.0), vec3(2.2)); }
+vec3 enc(vec3 x) { return pow(max(x, 0.0), vec3(1.0 / 2.2)); }
+#else
+vec3 dec(vec3 x) { x = max(x, 0.0); vec3 a = sqrt(x), b = sqrt(a), c = sqrt(b); return x * x * (0.73929934 * b + 0.34228227 * c - 0.0593772 * a - 0.0226474); }
+vec3 enc(vec3 x) { x = max(x, 0.0); vec3 a = sqrt(x), b = sqrt(a), c = sqrt(b); return 0.93020244 * a + 0.14337668 * b - 0.02588437 * c - 0.04836126 * x; }
+#endif
+
 void main() {
   vec4 a = uIVP * vec4(vP, -1.0, 1.0), b = uIVP * vec4(vP, 1.0, 1.0); vec3 d = normalize(b.xyz / b.w - a.xyz / a.w);
   if (uTieneCubo > 0) {
     // (el cielo del mapa, como en WebGL: el degradé y la caja —una imagen ya terminada, sin tono— con su tinte)
-    vec3 g = d.y > 0.0 ? mix(uMid, uTop, pow(d.y, uExp.x)) : mix(uMid, uBot, pow(-d.y, uExp.y));
+    bool ar = d.y > 0.0; vec3 g = mix(uMid, ar ? uTop : uBot, pow(abs(d.y), ar ? uExp.x : uExp.y));
     vec3 c = uTieneCubo > 1 ? mix(g, texture(uCubo, d).rgb * uTinte, uDia) : g;
-    c = pow(c, vec3(2.2)) * uCieloK;
-    o = vec4(pow(min(c, vec3(1.0)), vec3(1.0 / 2.2)), 1.0); return;
+    c = dec(c) * uCieloK;
+    o = vec4(enc(min(c, vec3(1.0))), 1.0); return;
   }
   vec3 cen = vec3(0.16, 0.36, 0.78), hor = vec3(0.62, 0.74, 0.88);
   vec3 c = mix(hor, cen, pow(clamp(d.y, 0.0, 1.0), 0.45)); if (d.y < 0.0) c = mix(hor, uNieC, clamp(-d.y * 4.0, 0.0, 1.0));
   c += vec3(1.0, 0.92, 0.75) * pow(max(dot(d, uSol), 0.0), 600.0) * 6.0;
-  o = vec4(pow(aces(c * uExpo * 1.1), vec3(1.0 / 2.2)), 1.0);
+  o = vec4(enc(aces(c * uExpo * 1.1)), 1.0);
 }"#;
 
 const FS_AO: &str = r#"#version 300 es
-precision highp float; uniform highp sampler2D uProf; uniform mat4 uIVP, uVP; uniform vec3 uCam; uniform float uRadio; in vec2 vP; out vec4 o;
-vec3 mundo(vec2 uv) { vec4 p = uIVP * vec4(uv * 2.0 - 1.0, texture(uProf, uv).r * 2.0 - 1.0, 1.0); return p.xyz / p.w; }
+precision highp float; uniform highp sampler2D uProf; uniform mat4 uVP; uniform vec3 uCam, uRay0, uRayX, uRayY; uniform vec2 uZl; uniform float uRadio; in vec2 vP; out vec4 o;
+// (el punto del mundo de un píxel: el rayo de la cámara por ese lugar de la pantalla —cambia en línea con la posición— por lo
+// hondo que dice la profundidad; da lo mismo que la inversa de la matriz, con muchas menos cuentas por muestra)
+vec3 rayo(vec2 uv) { return uRay0 + uv.x * uRayX + uv.y * uRayY; }
+float hondo(float z) { return uZl.x / (z * 2.0 - 1.0 - uZl.y); }
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
+// (la espiral: para cada muestra h = (i + ½) / 8, √(1 − h), √h y cuánto se aleja —0,2 a 1 con h²—, ya calculados)
+const float CC[8] = float[8](0.9682458, 0.9013878, 0.8291562, 0.7500000, 0.6614378, 0.5590170, 0.4330127, 0.2500000);
+const float SS[8] = float[8](0.2500000, 0.4330127, 0.5590170, 0.6614378, 0.7500000, 0.8291562, 0.9013878, 0.9682458);
+const float KK[8] = float[8](0.2031250, 0.2281250, 0.2781250, 0.3531250, 0.4531250, 0.5781250, 0.7281250, 0.9031250);
 void main() {
-  vec2 uv = vP * 0.5 + 0.5;
-  if (texture(uProf, uv).r >= 0.99999) { o = vec4(1.0); return; }   // (el cielo)
-  vec3 w = mundo(uv), n = normalize(cross(dFdx(w), dFdy(w)));
+  vec2 uv = vP * 0.5 + 0.5; float z0 = texture(uProf, uv).r;
+  if (z0 >= 0.99999) { o = vec4(1.0); return; }   // (el cielo)
+  vec3 w = uCam + rayo(uv) * hondo(z0), n = normalize(cross(dFdx(w), dFdy(w)));
   if (dot(n, uCam - w) < 0.0) n = -n;
   vec3 t = normalize(abs(n.y) < 0.9 ? cross(n, vec3(0.0, 1.0, 0.0)) : cross(n, vec3(1.0, 0.0, 0.0))), b = cross(n, t);
   float a0 = ign(gl_FragCoord.xy) * 6.2831853, r = uRadio * clamp(distance(w, uCam) * 0.1, 0.3, 1.0), occ = 0.0;
+  // (el ángulo de cada muestra gira el ángulo de oro desde el anterior: se rota el par coseno-seno en vez de calcularlos)
+  vec2 cs = vec2(cos(a0), sin(a0)); const vec2 G = vec2(-0.7373688, 0.6754903);
   for (int i = 0; i < 8; i++) {
     // (una espiral en la media esfera de la normal, cada vez más lejos: 8 muestras con el ruido de cada píxel y el suavizado
     // de 4 de la pasada de poner alcanzan)
-    float h = (float(i) + 0.5) / 8.0, ang = a0 + float(i) * 2.3999632, c = sqrt(1.0 - h), sn = sqrt(h);
-    vec3 s = w + (t * cos(ang) * sn + b * sin(ang) * sn + n * c) * r * mix(0.2, 1.0, h * h);
-    vec4 q = uVP * vec4(s, 1.0); vec2 su = q.xy / q.w * 0.5 + 0.5;
-    if (q.w <= 0.0 || su.x < 0.0 || su.y < 0.0 || su.x > 1.0 || su.y > 1.0) continue;
-    vec3 d = mundo(su);
+    vec3 s = w + (t * (cs.x * SS[i]) + b * (cs.y * SS[i]) + n * CC[i]) * (r * KK[i]);
+    cs = vec2(cs.x * G.x - cs.y * G.y, cs.x * G.y + cs.y * G.x);
+    vec4 q = uVP * vec4(s, 1.0);
+    if (q.w <= 0.0) continue;
+    vec2 su = q.xy / q.w * 0.5 + 0.5;
+    if (su.x < 0.0 || su.y < 0.0 || su.x > 1.0 || su.y > 1.0) continue;
+    vec3 d = uCam + rayo(su) * hondo(texture(uProf, su).r);
     if (distance(d, uCam) < distance(s, uCam) - 0.02) occ += smoothstep(0.0, 1.0, r / max(distance(d, w), 1e-3));
   }
   float ao = 1.0 - occ / 8.0;
@@ -334,6 +386,7 @@ const FS_FINAL: &str = r#"#version 300 es
 precision highp float; uniform highp sampler2D uEsc; uniform float uRetoque, uFuerza; uniform vec2 uInv; in vec2 vP; out vec4 o;
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 void main() {
+  // (texture y no texelFetch aunque la escena sea del tamaño de la pantalla: en llvmpipe texelFetch es más lento)
   vec2 uv = vP * 0.5 + 0.5; vec3 c = texture(uEsc, uv).rgb;
   // (la escena a menos píxeles —la resolución dinámica—: un poco de nitidez, contra lo de alrededor —dos lecturas a medio
   // píxel en diagonal, cada una el promedio de cuatro—)
@@ -408,7 +461,7 @@ precision mediump float; in vec2 vU; in vec4 vC; uniform sampler2D uT; out vec4 
 
 /// la fuente con unas definiciones después de `#version`
 fn con_defs(src: &str, defs: &str) -> String {
-    let extra: String = std::env::var("JXM_FS_DEFS").map(|v| v.split(',').filter(|x| !x.is_empty()).map(|x| format!("#define {x}\n")).collect()).unwrap_or_default();
+    let extra: String = std::env::var(if DEFS_B.load(std::sync::atomic::Ordering::Relaxed) { "JXM_FS_DEFS_B" } else { "JXM_FS_DEFS" }).map(|v| v.split(',').filter(|x| !x.is_empty()).map(|x| format!("#define {x}\n")).collect()).unwrap_or_default();
     let (a, b) = src.split_once('\n').unwrap(); format!("{a}\n{defs}{extra}{b}") }
 
 unsafe fn programa(gl: &glow::Context, vs: &str, fs: &str, defs: &str) -> Result<Prog, String> {
@@ -439,6 +492,30 @@ unsafe fn textura(gl: &glow::Context, w: u32, h: u32, px: &[u8], repetir: bool, 
     t
 }
 unsafe fn destino(gl: &glow::Context, w: i32, h: i32) -> Destino { destino_con(gl, w, h, false) }
+/// el banco A/B (examples/rendimiento con JXM_AB): los cuadros se alternan entre la forma de siempre (A) y la que se prueba (B),
+/// así lo que cambia la máquina entre corridas les toca igual a las dos; el código a probar pregunta `ab()`
+pub static AB: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub fn ab() -> bool { AB.load(std::sync::atomic::Ordering::Relaxed) }
+/// (en un cuadro B, si JXM_PRUEBA nombra esta prueba)
+pub fn prueba(n: &str) -> bool { ab() && std::env::var("JXM_PRUEBA").map_or(false, |v| v.split(',').any(|x| x == n)) }
+/// (mientras se arman los programas B: los defines de prueba salen de JXM_FS_DEFS_B)
+static DEFS_B: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// una matriz de sombra (ortográfica: su w da siempre 1) que en vez de −1..1 da 0..1 —la posición en el mapa de sombras y su
+/// profundidad—: cada fila x, y, z pasa a la mitad de ella más la mitad de la fila w
+fn a_01(m: &M4) -> M4 { let mut r = *m; for c in 0..4 { for i in 0..3 { r[c * 4 + i] = 0.5 * m[c * 4 + i] + 0.5 * m[c * 4 + 3]; } } r }
+/// para rehacer el mundo desde la profundidad sin la inversa por píxel: el ojo, el rayo por cada punto de la pantalla (uv de
+/// 0 a 1: r0 + u·rx + v·ry, medido para que la w de recorte crezca 1 por unidad) y lo que pasa de la profundidad (−1..1) a la
+/// distancia por ese rayo: t = zl[0] / (z − zl[1])
+fn rayos(vp: &M4) -> ([f32; 3], [f32; 3], [f32; 3], [f32; 3], [f32; 2]) {
+    let iv = mat::inv(vp);
+    let un = |x: f32, y: f32, z: f32| { let v = [iv[0] * x + iv[4] * y + iv[8] * z + iv[12], iv[1] * x + iv[5] * y + iv[9] * z + iv[13], iv[2] * x + iv[6] * y + iv[10] * z + iv[14], iv[3] * x + iv[7] * y + iv[11] * z + iv[15]]; [v[0] / v[3], v[1] / v[3], v[2] / v[3]] };
+    let fw = |p: [f32; 3], w: f32| vp[3] * p[0] + vp[7] * p[1] + vp[11] * p[2] + vp[15] * w;
+    let rayo = |x: f32, y: f32| { let (a, b) = (un(x, y, -1.0), un(x, y, 1.0)); let d = mat::sub(b, a); let k = fw(d, 0.0); ([d[0] / k, d[1] / k, d[2] / k], a) };
+    let (r0, a) = rayo(-1.0, -1.0); let (r1, _) = rayo(1.0, -1.0); let (r2, _) = rayo(-1.0, 1.0);
+    let s = -fw(a, 1.0); let ojo = [a[0] + r0[0] * s, a[1] + r0[1] * s, a[2] + r0[2] * s];
+    let b = vp[2] * ojo[0] + vp[6] * ojo[1] + vp[10] * ojo[2] + vp[14]; let k = vp[2] * r0[0] + vp[6] * r0[1] + vp[10] * r0[2];
+    (ojo, r0, mat::sub(r1, r0), mat::sub(r2, r0), [b, k])
+}
 /// un destino de color (RGBA8) y profundidad; con `prof_tex`, la profundidad en una textura que se puede leer (la oclusión)
 unsafe fn destino_con(gl: &glow::Context, w: i32, h: i32, prof_tex: bool) -> Destino {
     let color = gl.create_texture().unwrap(); gl.bind_texture(glow::TEXTURE_2D, Some(color));
@@ -511,6 +588,10 @@ pub struct Motor {
     ao_luz: bool, esc_wh: (f32, f32),
     /// (JXM_FASES: lo que tarda cada pasada, esperando a la placa en cada una —para medir, no para jugar—)
     pub fases: Option<(std::time::Instant, Vec<(&'static str, f64)>)>,
+    /// (las fases de los cuadros B del banco A/B: ver `AB`)
+    pub fases_b: Vec<(&'static str, f64)>,
+    /// (los programas de la luz con JXM_FS_DEFS_B, para los cuadros B del banco A/B)
+    luz_b: Option<Box<[Prog; 6]>>,
     pub mapa: String,
 }
 
@@ -527,6 +608,12 @@ impl Motor {
         // antes de pintarlo)
         // (la pasada de profundidad: el mismo sombreado de vértices que la de luz —las mismas posiciones— y nada de color)
         let p_pre = programa(&gl, VS_LUZ, FS_SOMBRA, "")?; let p_pre_piel = programa(&gl, VS_LUZ, FS_SOMBRA, "#define PIEL\n")?; let p_pre_inst = programa(&gl, VS_LUZ, FS_SOMBRA, "#define INST\n")?;
+        let luz_b = if std::env::var_os("JXM_FS_DEFS_B").is_some() {
+            DEFS_B.store(true, std::sync::atomic::Ordering::Relaxed);
+            let r = (|| -> Result<[Prog; 6], String> { Ok([programa(&gl, VS_LUZ, FS_LUZ, "")?, programa(&gl, VS_LUZ, FS_LUZ, "#define PIEL\n")?, programa(&gl, VS_LUZ, FS_LUZ, "#define INST\n")?,
+                programa(&gl, VS_LUZ, FS_LUZ, "#define CORTE\n")?, programa(&gl, VS_LUZ, FS_LUZ, "#define PIEL\n#define CORTE\n")?, programa(&gl, VS_LUZ, FS_LUZ, "#define INST\n#define CORTE\n")?]) })();
+            DEFS_B.store(false, std::sync::atomic::Ordering::Relaxed); Some(Box::new(r?))
+        } else { None };
         let p_luz_c = programa(&gl, VS_LUZ, FS_LUZ, "#define CORTE\n")?; let p_luz_piel_c = programa(&gl, VS_LUZ, FS_LUZ, "#define PIEL\n#define CORTE\n")?; let p_luz_inst_c = programa(&gl, VS_LUZ, FS_LUZ, "#define INST\n#define CORTE\n")?;
         let p_sombra_inst = programa(&gl, VS_SOMBRA, FS_SOMBRA, "#define INST\n")?;
         let inst_buf = gl.create_buffer()?;
@@ -562,7 +649,7 @@ impl Motor {
         Ok(Motor { gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
             p_luz, p_luz_piel, p_luz_c, p_luz_piel_c, p_luz_inst_c, p_pre, p_pre_piel, p_pre_inst, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_lin, p_ui, ui, p_luz_inst, p_sombra_inst, inst_buf, part, marcas, ao_rt: None, refr_rt: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], svp2: mat::id(), sesgo2: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
             opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new(), ranuras: Vec::new(), instancias: std::env::var("JXM_SIN_INST").is_err(),
-            ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])) })
+            ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), fases_b: vec![], luz_b })
     }
 
     /// sube a la placa los recursos nuevos (los que ya estaban con el mismo número se reemplazan)
@@ -733,7 +820,7 @@ impl Motor {
     unsafe fn luces(&self, p: &Prog, vp: &M4, clip: f32) {
         let gl = &self.gl; let c = self.c.as_ref().unwrap(); let l = &c.luz; let s = self.sol(); let cp = &c.pos;
         gl.use_program(Some(p.p));
-        gl.uniform_matrix_4_f32_slice(p.u(U::VP), false, vp); gl.uniform_matrix_4_f32_slice(p.u(U::SVP), false, &self.svp); gl.uniform_matrix_4_f32_slice(p.u(U::SVP2), false, &self.svp2);
+        gl.uniform_matrix_4_f32_slice(p.u(U::VP), false, vp); gl.uniform_matrix_4_f32_slice(p.u(U::SVP), false, &a_01(&self.svp)); gl.uniform_matrix_4_f32_slice(p.u(U::SVP2), false, &a_01(&self.svp2));
         gl.uniform_3_f32(p.u(U::Sol), s[0], s[1], s[2]); gl.uniform_3_f32(p.u(U::SolC), l.sol_c[0], l.sol_c[1], l.sol_c[2]);
         gl.uniform_3_f32(p.u(U::AmbS), l.amb_s[0], l.amb_s[1], l.amb_s[2]); gl.uniform_3_f32(p.u(U::AmbG), l.amb_g[0], l.amb_g[1], l.amb_g[2]);
         gl.uniform_3_f32(p.u(U::NieC), l.nie.c[0], l.nie.c[1], l.nie.c[2]); gl.uniform_3_f32(p.u(U::Nie), l.nie.a, l.nie.b, if l.nie.m > 0.0 { l.nie.m } else { 1.0 });
@@ -841,6 +928,7 @@ impl Motor {
             }
             None => gl.uniform_1_i32(p.u(U::TieneCubo), 0),
         }
+        if prueba("sin_cielo") { return; }
         gl.depth_mask(false); gl.bind_vertex_array(None); gl.draw_arrays(glow::TRIANGLES, 0, 3); gl.depth_mask(true);
     }
 
@@ -1025,8 +1113,11 @@ impl Motor {
         gl.bind_framebuffer(glow::FRAMEBUFFER, Some(ao.fb)); gl.viewport(0, 0, aw, ah);
         gl.disable(glow::DEPTH_TEST); gl.depth_mask(false);
         let p = &self.p_ao; gl.use_program(Some(p.p));
-        gl.uniform_matrix_4_f32_slice(p.u(U::IVP), false, &mat::inv(vp)); gl.uniform_matrix_4_f32_slice(p.u(U::VP), false, vp);
-        gl.uniform_3_f32(p.u(U::Cam), cp[0], cp[1], cp[2]); gl.uniform_1_f32(p.u(U::Radio), 0.7);
+        let (ojo, r0, rx, ry, zl) = rayos(vp); let _ = cp;
+        gl.uniform_matrix_4_f32_slice(p.u(U::VP), false, vp);
+        gl.uniform_3_f32(p.u(U::Cam), ojo[0], ojo[1], ojo[2]); gl.uniform_1_f32(p.u(U::Radio), 0.7);
+        gl.uniform_3_f32(p.u(U::Ray0), r0[0], r0[1], r0[2]); gl.uniform_3_f32(p.u(U::RayX), rx[0], rx[1], rx[2]); gl.uniform_3_f32(p.u(U::RayY), ry[0], ry[1], ry[2]);
+        gl.uniform_2_f32(p.u(U::Zl), zl[0], zl[1]);
         gl.active_texture(glow::TEXTURE9); gl.bind_texture(glow::TEXTURE_2D, Some(prof));
         gl.bind_vertex_array(None); gl.draw_arrays(glow::TRIANGLES, 0, 3);
         gl.active_texture(glow::TEXTURE9); gl.bind_texture(glow::TEXTURE_2D, None); gl.active_texture(glow::TEXTURE0);
@@ -1053,6 +1144,16 @@ impl Motor {
     pub unsafe fn dibujar(&mut self, salida: Option<glow::Framebuffer>, w: i32, h: i32) {
         self.dibujos = 0;
         if self.c.is_none() { let gl = &self.gl; gl.bind_framebuffer(glow::FRAMEBUFFER, salida); gl.viewport(0, 0, w, h); gl.clear_color(0.0, 0.0, 0.0, 1.0); gl.clear(glow::COLOR_BUFFER_BIT); return; }
+        let cambiar = ab() && self.luz_b.is_some(); if cambiar { self.cambiar_luz_b(); }
+        self.dibujar_escena(salida, w, h);
+        if cambiar { self.cambiar_luz_b(); }
+    }
+    fn cambiar_luz_b(&mut self) {
+        let Some(b) = self.luz_b.as_mut() else { return };
+        std::mem::swap(&mut self.p_luz, &mut b[0]); std::mem::swap(&mut self.p_luz_piel, &mut b[1]); std::mem::swap(&mut self.p_luz_inst, &mut b[2]);
+        std::mem::swap(&mut self.p_luz_c, &mut b[3]); std::mem::swap(&mut self.p_luz_piel_c, &mut b[4]); std::mem::swap(&mut self.p_luz_inst_c, &mut b[5]);
+    }
+    unsafe fn dibujar_escena(&mut self, salida: Option<glow::Framebuffer>, w: i32, h: i32) {
         { let gl = &self.gl; gl.enable(glow::DEPTH_TEST); gl.depth_func(glow::LEQUAL); gl.disable(glow::BLEND); gl.disable(glow::CULL_FACE); }
         self.marca("antes");
         if self.op.sombras && (self.sombra.is_none() || self.cuadro % self.op.sombra_cada.max(1) as u64 == 0) { self.pasada_sombra(); }
@@ -1084,6 +1185,7 @@ impl Motor {
             pre.sort_by_key(|&i| { let it = &self.items[i]; (!it.h.is_empty(), lejos(i), it.m, it.s0, it.mat) });
             self.gl.color_mask(false, false, false, false);
             self.dibujos += self.dibujar_lista_con(&pre, &vp, -1e9, true, true);
+            self.marca("prepaso");
             // (las pruebas de las cajas, contra la profundidad que quedó: el resultado se usa en el cuadro siguiente)
             self.oclu_probar(&vp, &cand);
             self.gl.color_mask(true, true, true, true);
@@ -1212,6 +1314,7 @@ impl Motor {
     pub unsafe fn marca(&mut self, n: &'static str) {
         let Some((t, v)) = self.fases.as_mut() else { return };
         self.gl.finish(); let ms = t.elapsed().as_secs_f64() * 1000.0; *t = std::time::Instant::now();
+        let v = if ab() { &mut self.fases_b } else { v };
         match v.iter_mut().find(|x| x.0 == n) { Some(x) => x.1 += ms, None => v.push((n, ms)) }
     }
     pub fn resumen(&self) -> String {
