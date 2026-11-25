@@ -150,7 +150,9 @@ impl Juego {
             (_, Acc::CrearEmpezar) => { let m = self.ini.pn.base.clone().unwrap_or_default(); self.ini_empezar(&m); self.jug.noclip = true; self.avisar("Volá libre y armá tu mapa con el menú de props".into()); }
             (Some(PanelIni::Opciones { .. }), Acc::AjTab(k)) => self.ini.panel = Some(PanelIni::Opciones { tab: k, scroll: 0.0 }),
             (_, Acc::Aj(f, k)) => { let pe = match &self.ini.panel { Some(PanelIni::Opciones { tab, .. }) => *tab, _ => 0 }; if let Some(c) = ajustes::claves(pe).get(f).copied() {
-                match c { Clave::Motor => self.elegir_motor(k), Clave::Botones if k == 0 => { if self.mapa.is_some() { self.pn_volver(); self.ini.abierto = false; } self.ed_abrir(); }
+                match c { Clave::Motor => self.elegir_motor(k), Clave::Botones if k == 0 => { if self.mapa.is_some() { self.ini.panel = None; self.ini.desde_juego = false; self.ini.abierto = false; } self.ed_abrir(); }
+                    // (jugando, el mapa cambia ya —como el Ajustes de antes—; en el menú, es el de la próxima partida)
+                    Clave::Mapa if self.ini.desde_juego => { if k != self.mapa_i && k < self.mapas.len() { self.mapa_i = k; self.recargar = true; self.ini.panel = None; self.ini.desde_juego = false; if let Some(d) = &self.datos { let _ = std::fs::write(d.join("mapa.txt"), &self.mapas[k]); } } }
                     Clave::Mapa => { if let Some(m) = self.mapas.get(k).cloned() { self.ini.pn.mapa = Some(m); } }
                     _ => { self.aj.elegir(c, k); if let Some(d) = &self.datos { let _ = std::fs::write(d.join("ajustes.txt"), self.aj.texto()); } } } } }
             (_, Acc::Listo) => self.pn_volver(),

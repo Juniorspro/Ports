@@ -201,7 +201,8 @@ impl Juego {
             Pz::Seguir | Pz::Cerrar => self.ini.pz.abierta = false,
             Pz::Personaje => { self.ini.pz.abierta = false; if self.mapa.is_some() { self.pj_abrir_desde_pausa(); } else { self.ini.desde_juego = true; self.pn_abrir(PanelIni::Personajes { tab: 0, scroll: 0.0 }); } }
             Pz::Social => { self.ini.pz.abierta = false; self.ini.desde_juego = true; self.pn_abrir(PanelIni::Social { tab: 0 }); }
-            Pz::Ajustes => { self.ini.pz.abierta = false; self.ajustes = Some(0); }
+            // (el mismo Ajustes del menú principal, como la web; Volver vuelve a la pausa)
+            Pz::Ajustes => { self.ini.pz.abierta = false; self.ini.desde_juego = true; self.pn_abrir(super::paneles_juego::PanelIni::Opciones { tab: 0, scroll: 0.0 }); }
             Pz::Borrar => { self.pz_borrar_todo(); self.ini.pz.abierta = false; self.avisar("Se borró todo".into()); }
             Pz::Salir => { self.ini.pz.abierta = false; self.lan_salir(); self.inicio_abrir(); }
             Pz::Arma => { self.ini.pz.abierta = false; self.arma_aj_abrir(); }

@@ -446,7 +446,9 @@ impl super::Juego {
     }
     fn ed_salir(&mut self, guardar: bool) {
         if guardar { self.aj.hud_pos = texto_propios(&self.ed.borrador); if let Some(d) = &self.datos { let _ = std::fs::write(d.join("ajustes.txt"), self.aj.texto()); } self.avisar("Botones guardados".into()); }
-        self.ed = Editor::default(); poner_propios(&leer_propios(&self.aj.hud_pos)); self.ajustes = Some(1);
+        self.ed = Editor::default(); poner_propios(&leer_propios(&self.aj.hud_pos));
+        // (de vuelta a Ajustes → Controles, el de la web; Volver vuelve a la pausa)
+        if self.mapa.is_some() { self.ini.desde_juego = true; self.pn_abrir(super::paneles_juego::PanelIni::Opciones { tab: 1, scroll: 0.0 }); } else { self.ajustes = Some(1); }
     }
     /// dónde está ahora cada uno de los que se editan en este modo (centro y tamaño en px)
     fn ed_lugares(&self, w: f32, h: f32) -> Vec<(&'static str, f32, f32, f32)> {
