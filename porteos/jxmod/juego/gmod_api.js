@@ -903,6 +903,23 @@ function gmaEntPersona(P) {
   return e;
 }
 function gmaPersonaFuera(P) { const e = GMA.entPorObj.get(P); if (!e) return; e.vivo = false; GMA.ents.delete(e.id); GMA.entPorObj.delete(P); }
+// una traza de Lua no toca el piso del que sale (como en Source): los triángulos del mapa se tocan por los dos lados y desde
+// t = 0, y la traza de Bon the Rabbit desde sus pies hacia arriba («¿hay techo bajo?», util.TraceLine con filter = self)
+// tocaba el piso a 0 unidades: se agachaba siempre, en pleno campo (panel 3ydzqpjd). Un rayo que sube y toca un triángulo
+// acostado a menos de 6 cm de donde sale es el piso que tiene debajo (o en el que está apenas hundido): sigue de largo
+function gmaRayoLua(o, d, L, ign) {
+  const h = raycast(o, d, L, ign || null), TN = MUNDO.TN;
+  if (d.y <= 0.2) return h;
+  let base = 0, r = h;
+  for (let k = 0; k < 3; k++) {
+    if (!r || r.body || !r.stat || r.stat.tri === undefined || r.t >= 0.06 || Math.abs(TN[r.stat.tri * 3 + 1]) <= 0.6) break;
+    base += r.t + 0.002; if (base >= L) return null;
+    r = raycast(vadd(o, vscale(d, base)), d, L - base, ign || null);
+  }
+  if (r === h) return h;
+  if (!r) return null;
+  r.t += base; r.p = vadd(o, vscale(d, r.t)); return r;
+}
 function gmaIgnorar(f) {   // el filtro de una traza → cuerpos a ignorar
   const S = new Set(), add = (x) => { if (x instanceof LEnt && x.o) S.add(x.o.b); };
   if (f instanceof LuaTable) { for (const k of f.claves()) add(f.get(k)); } else add(f);
@@ -1367,7 +1384,22 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
     const mx = t.get('maxs') instanceof LVec ? t.get('maxs') : null, ex = mx ? Math.max(Math.abs(mx.x), Math.abs(mx.y), Math.abs(mx.z)) * GS : 0, h = Math.max(ex, 0.02);
     return gmaTraza(vadd(s, v3(0, h, 0)), v3(0, -1, 0), 2 * h, ign);
   };
-  const traza = (t, hull) => { const s = t.get('start') instanceof LVec ? vG(t.get('start')) : CAM.pos.clone(), e = t.get('endpos') instanceof LVec ? vG(t.get('endpos')) : vadd(s, CAM.fwd), d = vsub(e, s), L = d.len(); if (L < 1e-5) return trazaCero(t, s, gmaIgnorar(t.get('filter'))); return gmaTraza(s, d.scale(1 / L), L, gmaIgnorar(t.get('filter'))); };
+  // (TraceHull: la caja se mira con una línea por su centro y otra cerca de su techo, no una sola por el punto de partida —los
+  // pies de quien la tira—. Bon the Rabbit se agacha si la caja de parado, hasta 72 unidades, choca adelante y la de agachado,
+  // hasta 36, no: con una línea por el piso las dos eran la misma y nunca pasaba bajo una mesa)
+  const traza = (t, hull) => {
+    const s = t.get('start') instanceof LVec ? vG(t.get('start')) : CAM.pos.clone(), e = t.get('endpos') instanceof LVec ? vG(t.get('endpos')) : vadd(s, CAM.fwd), d = vsub(e, s), L = d.len(), ign = gmaIgnorar(t.get('filter'));
+    if (L < 1e-5) return trazaCero(t, s, ign);
+    d.scale(1 / L);
+    const mn = hull && t.get('mins') instanceof LVec ? t.get('mins') : null, mx = hull && t.get('maxs') instanceof LVec ? t.get('maxs') : null;
+    if (!mn || !mx) return gmaTraza(s, d, L, ign, gmaRayoLua(s, d, L, ign));
+    // (si va para arriba o para abajo, la línea sale de la cara de la caja que va adelante: la de abajo para ver si hay piso
+    // —como antes, desde los pies—, la de arriba para ver si hay techo)
+    const vert = Math.abs(d.y) > 0.5, c = vGr(new LVec((mn.x + mx.x) / 2, (mn.y + mx.y) / 2, vert ? (d.y > 0 ? mx.z : mn.z) : (mn.z + mx.z) / 2)), alto = (mx.z - mn.z) * GS;
+    let h = gmaRayoLua(vadd(s, c), d, L, ign);
+    if (!vert && alto > 0.3) { const k = gmaRayoLua(vadd(s, v3(c.x, (mx.z - 1) * GS, c.z)), d, h ? h.t : L, ign); if (k && (!h || k.t < h.t)) h = k; }
+    return gmaTraza(s, d, L, ign, h || false);
+  };
   def(util, 'TraceLine', (t) => traza(t)); def(util, 'TraceHull', (t) => traza(t, true)); def(util, 'TraceEntity', (t) => traza(t, true));
   def(util, 'QuickTrace', (o, d, f) => { const s = vG(o), dd = vGr(d), L = dd.len() || 1e-6; return gmaTraza(s, dd.scale(1 / L), L, gmaIgnorar(f)); });
   def(util, 'GetPlayerTrace', (p, d) => { const t = new LuaTable(); t.set('start', V(CAM.pos)); t.set('endpos', V(vadd(CAM.pos, vscale(d instanceof LVec ? dG(d).norm() : CAM.fwd, 32768 * GS)))); t.set('filter', GMA.jug); return t; });
