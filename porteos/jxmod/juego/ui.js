@@ -136,19 +136,20 @@ function spawnDibujar() {
   });
   spawnGrilla(C, subs);
   if (C.n === 'Props' && (subs[UI.sub] || {}).opc && !q) { spawnOpcPie(pie); return; }
-  if (C.n === 'Weapons') pie.innerHTML = `<label><input type="checkbox" id="chProp" ${UI.comoProp ? 'checked' : ''}>${esc(T('sp.comoProp'))}</label>`;
+  if (C.n === 'Weapons') pie.innerHTML = `<label><input type="checkbox" id="chProp" ${UI.comoProp ? 'checked' : ''}>${esc(T('sp.comoProp'))}</label><label title="${esc(T('mun.limitadaAyuda'))}"><input type="checkbox" id="chMun" ${PREFS.municionLimitada ? 'checked' : ''}>${esc(T('mun.limitada'))}</label><span class="spPuso" id="spPuso"></span>`;
   else pie.innerHTML = `<label><input type="checkbox" id="chFr" ${UI.freeze ? 'checked' : ''}>${esc(T('sp.congelado'))}</label><span class="spPuso" id="spPuso"></span>`;
   const a = $('chProp'), c = $('chFr');
   if (a) a.onchange = () => (UI.comoProp = a.checked);
+  { const m = $('chMun'); if (m) m.onchange = () => { PREFS.municionLimitada = m.checked; guardarPrefs(); if (m.checked && typeof munReiniciar === 'function') munReiniciar(); if (typeof hudArma === 'function' && JUEGO.estado === 'juego') hudArma(); aviso(T(m.checked ? 'mun.limitadaSi' : 'mun.limitadaNo'), 2.5); }; }
   if (c) c.onchange = () => (UI.freeze = c.checked);
 }
 // las categorías de una pestaña (en Props, la sección Mods primero) y sus nombres
 // (en Props, primero las Opciones de JXMod —lo que antes eran los mods oficiales— y después los mods de la gente que
 // ponen cosas)
 // (la versión personal —JXP, gmod_personal.js—: arriba de todo, los spawnlists de GMod en su árbol)
-function spawnSubs(C) { return C.n === 'Props' ? [...(JXP ? jxpSubs() : []), { n: 'Opciones', opc: true, it: opcionesJX().sort((a, b) => ofOrden(a) - ofOrden(b)).map((m) => m.id) }, { n: 'Mods', mods: true, it: modsAssets().map((m) => m.id) }, ...(typeof PRI !== 'undefined' ? [{ n: 'Importados', pri: true, it: ['pri+', ...PRI.lista.map((m) => 'pri:' + m.id)] }] : []), ...C.sub] : C.sub; }
-function spawnCatNom(s) { if (s.opc) return T('sp.opciones'); if (s.pri) return T('sp.propImport'); if (s.mods) return T('mm.mods'); if (s.rb) { const t = T('pc.' + s.n); return t === 'pc.' + s.n ? s.n : t; } return s.n; }
-function propNom(it) { if (/^(npc|rag):/.test(it)) return skinNom(it.slice(4)); if (/^pri:/.test(it) && typeof priNombre === 'function') return priNombre(it); if (it === 'pri+') return T('pri.importar'); if (/^pj(npc|rag):/.test(it)) { const m = typeof PJI !== 'undefined' && PJI.lista.find((x) => x.id === it.slice(6)); return (m ? m.n : it.slice(6)) + ' (' + (/^pjnpc:/.test(it) ? 'NPC' : T('gm.muneco')) + ')'; } if (/^gm:/.test(it)) return gmNombre(it); if (/^gmnpcm:/.test(it)) return gmNombre('gm:' + it.slice(7)) + ' (NPC)'; if (/^gmrag:/.test(it)) return gmNombre('gm:' + it.slice(6)) + ' (' + T('gm.muneco') + ')'; if (/^gmpm:/.test(it)) return gmNombre('gm:' + it.slice(5)); if (/^gmnpc:/.test(it)) return gmListaNombre('NPC', it.slice(6)); if (/^gmveh:/.test(it)) return gmListaNombre('Vehicles', it.slice(6)); if (/^gm(ent|swep):/.test(it) && typeof gmaNomClase === 'function') return gmaNomClase(it); if (/^NK_/.test(it) && typeof nukeNom === 'function') return nukeNom(it); const k = 'pr.' + it, t = T(k); return t === k ? it : t; }
+function spawnSubs(C) { if (C.n === 'Weapons' && typeof munItems === 'function') return [...C.sub, { n: 'Municion', mun: true, it: munItems() }]; return C.n === 'Props' ? [...(JXP ? jxpSubs() : []), { n: 'Opciones', opc: true, it: opcionesJX().sort((a, b) => ofOrden(a) - ofOrden(b)).map((m) => m.id) }, { n: 'Mods', mods: true, it: modsAssets().map((m) => m.id) }, ...(typeof PRI !== 'undefined' ? [{ n: 'Importados', pri: true, it: ['pri+', ...PRI.lista.map((m) => 'pri:' + m.id)] }] : []), ...C.sub] : C.sub; }
+function spawnCatNom(s) { if (s.opc) return T('sp.opciones'); if (s.mun) return T('mun.cat'); if (s.pri) return T('sp.propImport'); if (s.mods) return T('mm.mods'); if (s.rb) { const t = T('pc.' + s.n); return t === 'pc.' + s.n ? s.n : t; } return s.n; }
+function propNom(it) { if (/^(npc|rag):/.test(it)) return skinNom(it.slice(4)); if (/^mun:/.test(it) && typeof munNombre === 'function') return munNombre(it); if (/^pri:/.test(it) && typeof priNombre === 'function') return priNombre(it); if (it === 'pri+') return T('pri.importar'); if (/^pj(npc|rag):/.test(it)) { const m = typeof PJI !== 'undefined' && PJI.lista.find((x) => x.id === it.slice(6)); return (m ? m.n : it.slice(6)) + ' (' + (/^pjnpc:/.test(it) ? 'NPC' : T('gm.muneco')) + ')'; } if (/^gm:/.test(it)) return gmNombre(it); if (/^gmnpcm:/.test(it)) return gmNombre('gm:' + it.slice(7)) + ' (NPC)'; if (/^gmrag:/.test(it)) return gmNombre('gm:' + it.slice(6)) + ' (' + T('gm.muneco') + ')'; if (/^gmpm:/.test(it)) return gmNombre('gm:' + it.slice(5)); if (/^gmnpc:/.test(it)) return gmListaNombre('NPC', it.slice(6)); if (/^gmveh:/.test(it)) return gmListaNombre('Vehicles', it.slice(6)); if (/^gm(ent|swep):/.test(it) && typeof gmaNomClase === 'function') return gmaNomClase(it); if (/^NK_/.test(it) && typeof nukeNom === 'function') return nukeNom(it); const k = 'pr.' + it, t = T(k); return t === k ? it : t; }
 // la grilla: la categoría elegida o lo que coincide con la búsqueda en toda la pestaña
 function spawnGrilla(C, subs) {
   const gr = $('grilla'); gr.innerHTML = ''; const q = (UI.q || '').trim().toLowerCase();
@@ -171,6 +172,8 @@ function spawnGrilla(C, subs) {
     else {
       const ico = C.n === 'Weapons' ? 'W_' + it : it === 'Box2' ? 'Box2_2' : it;
       // (los props importados —propimportar.js—: el botón de importar y cada uno con su retrato y una cruz para borrarlo)
+      // (las cajas de munición —municion.js—: el modelo de HL2 de cada una)
+      if (/^mun:/.test(it)) { munPrecargar(); const g = 'gm:' + munModeloDe(it); d.innerHTML = `<img src="${gmIcono(g)}" data-gm="${esc(g)}" loading="lazy"><span>${esc(propNom(it))}</span>`; d.onclick = () => spawnElegir(C.n, it); gr.appendChild(d); continue; }
       if (it === 'pri+') { d.classList.add('itPri'); d.innerHTML = `${glifo('subir')}<span>${esc(T('pri.importar'))}</span>`; d.onclick = () => priElegirArchivos(); gr.appendChild(d); continue; }
       if (/^pri:/.test(it)) { const m = PRI.lista.find((x) => 'pri:' + x.id === it); d.classList.add('itPri'); d.innerHTML = `<img src="${m && m.img ? esc(m.img) : icoSrc('ico:mod')}" loading="lazy"><span dir="auto">${esc(propNom(it))}</span><button class="itX" title="${esc(T('pri.borrar'))}">${glifo('no')}</button>`;
         d.querySelector('.itX').onclick = (e) => { e.stopPropagation(); priBorrar(it.slice(4)).then(() => spawnDibujar()); }; }
@@ -215,6 +218,7 @@ function spawnAbrirMods(id) {
 }
 function spawnElegir(tab, nombre) {
   if (typeof censPermite === 'function' && !censPermite(nombre)) return;   // (en un server oficial, nada de un mod censurado)
+  if (/^mun:/.test(nombre)) { if (JUEGO.estado === 'juego' && typeof munPoner1 === 'function') munPoner1(nombre).then((o) => { const e = $('spPuso'); if (o && e) { UI.puestos = (UI.puestos || 0) + 1; e.textContent = `${T('sp.puesto')}: ${propNom(nombre)}${UI.puestos > 1 ? ' (' + UI.puestos + ')' : ''}`; e.classList.remove('ve'); void e.offsetWidth; e.classList.add('ve'); } }); return; }   // (una caja de munición)
   if (typeof gmModeloEsperar === 'function' && gmModeloEsperar(nombre, () => spawnElegir(tab, nombre))) return;   // (un modelo de addon que se está leyendo del disco: se pone al llegar)
   if (JXP && jxpModeloEsperar(nombre, () => spawnElegir(tab, nombre))) return;
   if (typeof priEsperar === 'function' && priEsperar(nombre, () => spawnElegir(tab, nombre))) return;   // (un prop importado: se arma su modelo y se pone al terminar)   // (versión personal: un modelo de los spawnlists de GMod que se está bajando)

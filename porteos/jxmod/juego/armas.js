@@ -60,7 +60,8 @@ function hudArma() {
   const n = ARM.lista[ARM.i], D = DEF_ARMAS[n];
   const icA = (d, x) => icono(d.ic) || (/^ico:/.test(d.ic || '') ? icoSrc(d.ic) : '') || icono('W_' + x);
   $('iArma').src = icA(D, n); $('nArma').textContent = D.nom || n;
-  $('muni').textContent = D.car ? `${ARM.balas[n]} | ∞` : '';
+  // (la reserva: infinita, o la del tipo de munición con la munición limitada —municion.js—)
+  { const r = typeof munReservaNativa === 'function' ? munReservaNativa(n) : null; $('muni').textContent = D.car ? `${ARM.balas[n]} | ${r === null ? '∞' : r}` : ''; }
   const b = $('barra'); b.innerHTML = '';
   ARM.lista.forEach((x, k) => { const d = document.createElement('div'); d.className = 'ra' + (k === ARM.i ? ' sel' : ''); d.innerHTML = `<img src="${icA(DEF_ARMAS[x], x)}">${esc(DEF_ARMAS[x].nom || x)}`; d.onclick = () => { elegirArma(k); }; b.appendChild(d); });
   if (ARM.calla) return;   // (la cambió el Lua de un mod —Player:SelectWeapon—: como en GMod, sin la barra de armas)
@@ -186,6 +187,7 @@ function recargar() {
   const n = ARM.lista[ARM.i], D = DEF_ARMAS[n];
   if (D && D.tipo === 'gmswep') { if (typeof GMA !== 'undefined') { GMA.pedirRecarga = true; GMA.recargaPulso = TIEMPO.t + 0.12; } return; }   // (y la R apretada un instante: la TFA Base recarga al soltarla)   // (el arma de un mod recarga con su SWEP:Reload: también desde el botón de la pantalla)
   if (!D.car || ARM.balas[n] >= D.car || ARM.recargando > 0) return;
+  if (typeof munReservaNativa === 'function' && munReservaNativa(n) === 0) { sonar('Click', null, 0.5, 0.7); return; }   // (sin reserva: el clic vacío)
   const dur = ARM.v && D.recarga ? vistaTocar(ARM.v, D.recarga) : 1.2;
   ARM.recargando = Math.max(0.6, Math.min(4, dur)); ARM.ocup = ARM.recargando;   // (la .357 de HL2 tarda 3,7 s)
   if (D.sR) sonar(azarDe(D.sR), null, 0.7);
@@ -373,10 +375,11 @@ function sacarFoto() {
 // las de fuego del juego (las que se apuntan; el rifle de francotirador tiene su mira telescópica)
 const armaDeFuego = (D) => !!D && (D.tipo === 'bala' || D.tipo === 'perdigones') && !D.mira && !!D.nodo;
 function armasPaso(dt) {
+  if (typeof munPaso === 'function') munPaso();   // (las cajas de munición que se pisan: municion.js)
   ARM.t -= dt; if (ARM.ocup > 0) ARM.ocup -= dt;
   { const D0 = DEF_ARMAS[ARM.lista[ARM.i]], si = ARM.apunta && armaDeFuego(D0) && !(ARM.recargando > 0) && !(ARM.ocup > 0 && !(ARM.apK > 0.02)) && !JUG.tercera && JUG.vivo && !JUG.vehiculo && !UI.abierto ? 1 : 0;
     ARM.apK = (ARM.apK || 0) + (si - (ARM.apK || 0)) * Math.min(1, dt * 14); if (ARM.apK < 0.002 && !si) ARM.apK = 0; }   // (entra y sale en ~0,2 s)
-  if (ARM.recargando > 0) { ARM.recargando -= dt; if (ARM.recargando <= 0) { const n = ARM.lista[ARM.i]; ARM.balas[n] = DEF_ARMAS[n].car; hudArma(); } }
+  if (ARM.recargando > 0) { ARM.recargando -= dt; if (ARM.recargando <= 0) { const n = ARM.lista[ARM.i]; ARM.balas[n] = typeof munRecargaNativa === 'function' ? munRecargaNativa(n, ARM.balas[n], DEF_ARMAS[n].car) : DEF_ARMAS[n].car; hudArma(); } }
   if (ARM.barraT > 0) { ARM.barraT -= dt; if (ARM.barraT <= 0) { $('barra').classList.add('oc'); $('arribaDe').style.visibility = ''; } }
   if (ARM.golpeT > 0) { ARM.golpeT -= dt; if (ARM.golpeT <= 0) golpeAplicar(ARM.golpeD); }
   const n = ARM.lista[ARM.i], D = DEF_ARMAS[n];

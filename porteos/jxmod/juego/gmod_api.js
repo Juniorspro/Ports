@@ -468,7 +468,8 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   P('GetWeapon', (p, c) => (GMA.armasJug && GMA.armasJug.get(String(c))) || (gmaFantasma() && gmaFantasma().clase === String(c) ? gmaFantasma() : null) || NULL_ENT); P('GetWeapons', () => R.tab([...(GMA.armasJug || new Map()).values()])); P('SelectWeapon', (p, c) => { if (c instanceof LEnt) c = c.clase; const w = GMA.armasJug && GMA.armasJug.get(String(c)); if (w) { if (DEF_ARMAS['gm:' + c]) elegirArmaCallado('gm:' + c); } else { const n = HL2_ARMAS[String(c)] || (typeof c === 'string' && c.startsWith('jx_') ? c.slice(3) : null); if (n && ARM.lista.includes(n)) elegirArmaCallado(n); } }); P('SetActiveWeapon', () => {});
   // (la velocidad «retrasada» del jugador: The Flash y otros la multiplican por la velocidad; sin ella, error en cada cuadro)
   P('GetLaggedMovementValue', () => GMA.lagMov ?? 1); P('SetLaggedMovementValue', (p, v) => { GMA.lagMov = num(v, 1); });
-  P('GetAmmoCount', () => 999); P('GiveAmmo', () => {}); P('RemoveAmmo', () => {}); P('SetAmmo', () => {}); P('StripAmmo', () => {});
+  // (la munición: municion.js; con la limitada apagada GetAmmoCount da 999, como siempre)
+  P('GetAmmoCount', (p, t) => munCuenta(t)); P('GiveAmmo', (p, n, t) => munDar(t, +n)); P('RemoveAmmo', (p, n, t) => { munQuitar(t, +n); }); P('SetAmmo', (p, n, t) => { munPoner(t, +n); }); P('StripAmmo', () => { MUN.res.clear(); munHud(); });
   P('GetEyeTrace', () => gmaTraza(gmaOjo(), gmaApunta(), 32768 * GS, null)); P('GetEyeTraceNoCursor', () => gmaTraza(gmaOjo(), gmaApunta(), 32768 * GS, null));
   P('CheckLimit', () => true); P('GetCount', () => 0); P('AddCount', () => {}); P('AddCleanup', () => {}); P('LimitHit', () => {});
   P('ShouldDrawLocalPlayer', () => !!(typeof JUG !== 'undefined' && JUG.tercera)); P('GetShootPos', (p) => V(p && p !== yo() && p.P ? vadd(p.P.pos, v3(0, 0.7, 0)) : gmaOjo())); P('GetAimVector', (p) => Vd(p && p !== yo() && p.P ? Quat.axis(0, 1, 0, p.P.yaw || 0).rot(v3(0, 0, 1)) : gmaApunta())); P('SetEyeAngles', (p, a) => { const f = dG(new LVec(...angMat(a)[0])); JUG.yaw = Math.atan2(f.x, f.z); JUG.pitch = clamp(-Math.asin(clamp(f.y, -1, 1)), -1.55, 1.55); });
@@ -491,11 +492,12 @@ function gmaApiEntidades(R, G, ENT_M, PLY_M, WEP_M, NPC_M, PHY_M, def, tabla, nu
   P('LastHitGroup', () => 0); P('GetRagdollEntity', () => NULL_ENT); P('GetEyeTraceNoCursor', () => gmaTraza(CAM.pos, CAM.fwd, 32768 * GS, null)); P('IsTyping', () => false); P('IsSpeaking', () => false); P('IsMuted', () => false); P('SetNoTarget', () => {}); P('GodEnable', () => {}); P('GodDisable', () => {}); P('HasGodMode', () => !!JUEGO.dios);
   // ---- armas (SWEP) ----
   W('Clip1', (w) => w.clip1 ?? -1); W('Clip2', (w) => w.clip2 ?? -1); W('SetClip1', (w, n) => { w.clip1 = num(n, 0); }); W('SetClip2', (w, n) => { w.clip2 = num(n, 0); });
-  W('GetPrimaryAmmoType', () => 1); W('GetSecondaryAmmoType', () => -1); W('Ammo1', () => 999); W('Ammo2', () => 999); W('GetMaxClip1', (w) => gmaSwepPrim(w, 'ClipSize') ?? -1); W('GetMaxClip2', () => -1);
+  W('GetPrimaryAmmoType', (w) => munId(gmaSwepPrim(w, 'Ammo'))); W('GetSecondaryAmmoType', (w) => munId(gmaSwepSec(w, 'Ammo'))); W('Ammo1', (w) => munCuenta(gmaSwepPrim(w, 'Ammo'))); W('Ammo2', (w) => munCuenta(gmaSwepSec(w, 'Ammo'))); W('GetMaxClip1', (w) => gmaSwepPrim(w, 'ClipSize') ?? -1); W('GetMaxClip2', () => -1);
   W('SetNextPrimaryFire', (w, t) => { w.nextP = num(t, 0); }); W('GetNextPrimaryFire', (w) => w.nextP || 0); W('SetNextSecondaryFire', (w, t) => { w.nextS = num(t, 0); }); W('GetNextSecondaryFire', (w) => w.nextS || 0);
   W('SendWeaponAnim', (w, act) => gmaAnimVista(w, act)); W('SetHoldType', (w, h) => { w.hold = h; }); W('SetWeaponHoldType', (w, h) => { w.hold = h; }); W('GetHoldType', (w) => w.hold || 'pistol');
   W('DefaultReload', (w, act) => {   // (como en GMod: la animación de recarga de la vista —y la del cuerpo— y el cargador lleno cuando termina)
     const max = gmaSwepPrim(w, 'ClipSize'); if (max === undefined || max < 0 || w.clip1 >= max || w.recarga) return false;
+    if (munLimitada() && munCuenta(gmaSwepPrim(w, 'Ammo')) <= 0) return false;   // (sin reserva de su munición: no recarga)
     gmaAnimVista(w, typeof act === 'number' ? act : GMA.R.G.get('ACT_VM_RELOAD'));
     const v = GMA.swep === w && typeof gmvVista === 'function' && gmvVista(), d = v && v.clip ? v.clip.d / (v.vel || 1) : 0;
     w.recarga = TIEMPO.t + (d > 0.3 && d < 6 ? d : 1.4); w.nextP = Math.max(w.nextP || 0, w.recarga); w.nextS = Math.max(w.nextS || 0, w.recarga);
@@ -1158,6 +1160,7 @@ function gmaDarArma(clase, dado) {
   let w = GMA.armasJug.get(clase);
   if (!w) {
     w = new LEnt(clase, 'arma'); w.dueño = GMA.jug; const cs = gmaSwepPrim(w, 'ClipSize'), dc = gmaSwepPrim(w, 'DefaultClip'); w.clip1 = cs === undefined || cs < 0 ? -1 : dc === undefined || dc < 0 ? cs : Math.min(cs, dc); w.creado = true;   // (DefaultClip -1 —ArcCW—: lleno, la reserva acá no se acaba)
+    if (cs > 0 && dc > cs) munDar(gmaSwepPrim(w, 'Ammo'), dc - cs);   // (como Player:Give de GMod: lo que sobra del DefaultClip va a la reserva)
     const c = claseTabla(clase, 'S'); w.vm = c && buscarEnClase(c, 'ViewModel'); w.wm = c && buscarEnClase(c, 'WorldModel');
     GMA.armasJug.set(clase, w);
     const base = gmaVistaBase(w.vm, c && buscarEnClase(c, 'HoldType')), B = base ? DEF_ARMAS[base] : null;
@@ -1250,7 +1253,11 @@ function gmaSwepPaso() {
 }
 function gmaSwepPaso2(w) {
   const t = TIEMPO.t;
-  if (w.recarga && t >= w.recarga) { w.recarga = 0; const cs = gmaSwepPrim(w, 'ClipSize'); if (cs > 0) w.clip1 = cs; }
+  if (w.recarga && t >= w.recarga) { w.recarga = 0; const cs = gmaSwepPrim(w, 'ClipSize');
+    // (con la munición limitada, lo que falta sale de la reserva de su tipo)
+    if (cs > 0) { if (munLimitada()) { const am = gmaSwepPrim(w, 'Ammo'), c0 = Math.max(0, w.clip1 | 0), toma = Math.min(cs - c0, munCuenta(am)); munQuitar(am, toma); w.clip1 = c0 + toma; } else w.clip1 = cs; } }
+  // (las balas abajo, en el recuadro del arma, como el HUD de GMod: el cargador y la reserva)
+  if (GMA.swep === w) { const mu = document.getElementById('muni'); if (mu) { const tx = w.clip1 >= 0 ? w.clip1 + ' | ' + (munLimitada() ? munCuenta(gmaSwepPrim(w, 'Ammo')) : '∞') : ''; if (mu.textContent !== tx) mu.textContent = tx; } }
   const auto = R_T(gmaSwepPrim(w, 'Automatic'));
   if (ENT.disparo && (auto || !w.prevP) && t >= (w.nextP || 0) && !w.recarga) metodo(w, 'PrimaryAttack', 'S');
   w.prevP = !!ENT.disparo;
@@ -1370,6 +1377,7 @@ function gmaApiLibs(R, G, def, tabla, lib, num) {
   def(player, 'GetAll', () => R.tab([GMA.jug, ...gmnbRemLista()])); def(player, 'GetHumans', () => R.tab([GMA.jug, ...gmnbRemLista()])); def(player, 'GetBots', () => new LuaTable()); def(player, 'GetCount', () => 1 + gmnbRemLista().length); def(player, 'GetByID', (i) => (i === 1 ? GMA.jug : NULL_ENT)); def(player, 'GetBySteamID', () => GMA.jug); def(player, 'GetBySteamID64', () => GMA.jug); def(player, 'Iterator', () => { const L = [GMA.jug, ...gmnbRemLista()]; let i = 0; return [() => (i < L.length ? [++i, L[i - 1]] : undefined), undefined, 0]; });
   def(game, 'SinglePlayer', () => !(typeof RED !== 'undefined' && RED.on)); def(game, 'MaxPlayers', () => 16); def(game, 'GetMap', () => (typeof MUNDO !== 'undefined' ? MUNDO.nombre : 'gm_flatgrass')); def(game, 'GetWorld', () => GMA.mundo); def(game, 'IsDedicated', () => false);
   def(game, 'ConsoleCommand', (c) => gmaConsola2(String(c))); for (const n of ['AddParticles', 'AddDecal', 'AddAmmoType', 'CleanUpMap', 'SetTimeScale', 'BuildAmmoTypes', 'MountGMA', 'LoadNextMap', 'KickID']) def(game, n, () => {}); def(game, 'GetTimeScale', () => 1); def(game, 'GetAmmoID', () => 1); def(game, 'GetAmmoName', () => 'Pistol'); def(game, 'GetAmmoMax', () => 9999); def(game, 'GetGlobalState', (n) => (GMA.globales && GMA.globales.get(String(n))) ?? 0); def(game, 'SetGlobalState', (n, e) => { (GMA.globales || (GMA.globales = new Map())).set(String(n), num(e, 0) | 0); }); def(game, 'GetGlobalCounter', () => 0); def(game, 'SetGlobalCounter', () => {}); def(game, 'GetAmmoTypes', () => R.tab(['Pistol', 'SMG1', 'AR2', 'Buckshot', '357', 'XBowBolt', 'RPG_Round', 'Grenade'])); def(game, 'GetSkillLevel', () => 2); def(game, 'GetIPAddress', () => 'loopback');   // (los «global states» de Source: si no está puesto, GLOBAL_OFF. Antes no existía: daba nil, igual que GLOBAL_ON —que tampoco estaba— y la TFA Base creía estar en un «friendly encounter» y bajaba el arma al segundo de no disparar)
+  def(game, 'GetAmmoID', (n) => munId(n)); def(game, 'GetAmmoName', (i) => MUN_IDS[(i | 0) - 1]); def(game, 'AddAmmoType', (t) => { if (t instanceof LuaTable && t.get('name')) munId(t.get('name')); }); def(game, 'GetAmmoMax', () => MUN_MAX); def(game, 'GetAmmoTypes', () => { const L = new LuaTable(); MUN_IDS.forEach((n, k) => L.set(k + 1, n)); return L; });
   def(engine, 'ActiveGamemode', () => 'sandbox'); def(engine, 'TickInterval', () => 1 / 60); def(engine, 'GetGames', () => new LuaTable()); def(engine, 'GetAddons', () => R.tab([...GMOD.addons.values()].map((a) => tabla({ title: a.nombre, wsid: a.id, mounted: true, downloaded: true })))); def(engine, 'IsPlayingDemo', () => false); def(engine, 'IsRecordingDemo', () => false); def(engine, 'LightStyle', () => {}); def(engine, 'GetGamemodes', () => new LuaTable()); def(engine, 'TickCount', () => R.cuadro || 0);
   // ---- util ----
   const util = lib('util');
