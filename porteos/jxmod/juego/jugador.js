@@ -254,6 +254,7 @@ function camaraSiguiente() {
   if (typeof aviso === 'function') aviso(T(!JUG.tercera ? 'cam.primera' : JUG.frente ? 'cam.frente' : 'cam.tercera'), 1.2);
 }
 // ubica la cámara (primera, tercera persona o de frente) y devuelve su posición y rotación
+const _camPiv = v3();
 function jugadorCamara(out) {
   const J = JUG;
   if (J.vehiculo) return vehiculoCamara(J.vehiculo, out);
@@ -314,9 +315,12 @@ function jugadorCamara(out) {
     out.pos.copy(J.ojoPos).addS(dir, L);
     out.q.copy(Quat.euler(J.yaw + Math.PI, J.pitch * 0.6, 0));
   } else if (J.tercera || !J.vivo) {
+    // (muerto: la cámara sigue al muñeco, alrededor de su cadera, como en GMod —Bugs y sugerencias q55n3p6u: «que al morir la
+    // cámara siga al ragdoll»—; antes quedaba donde moriste mientras el muñeco salía volando)
+    const Pm = !J.vivo && J.cuerpo && J.cuerpo.rag ? J.cuerpo : null, piv = Pm ? _camPiv.set(Pm.pos.x, Pm.pos.y + 0.45, Pm.pos.z) : J.ojoPos;
     const atras = vscale(J.adelante, -3.1 * clamp(0.45 + 0.55 * J.tam, 0.6, 1)), d = atras.len(), dir = vscale(atras, 1 / d);   // (más cerca de los bajitos)
-    const h = mundoRayo(J.ojoPos, dir, d + 0.3), L = h ? Math.max(0.3, h.t - 0.3) : d;
-    out.pos.copy(J.ojoPos).addS(dir, L);
+    const h = mundoRayo(piv, dir, d + 0.3), L = h ? Math.max(0.3, h.t - 0.3) : d;
+    out.pos.copy(piv).addS(dir, L);
   } else if ((J.emo3K || 0) > 0.001 && J.ojoParado) {
     // (el emote de piso en tercera persona: desde atrás, a la altura de los ojos parado, mezclado con la vista de la cabeza)
     const atras = vscale(J.adelante, -3.1 * clamp(0.45 + 0.55 * J.tam, 0.6, 1)), d = atras.len(), dir = vscale(atras, 1 / d);
