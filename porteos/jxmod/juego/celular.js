@@ -5,6 +5,11 @@
 const CEL = { app: null, cat: 0, q: '', echados: new Set() };
 const CEL_APPS = [
   ['props', '#2f80ed', '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M4.3 7.6L12 12l7.7-4.4M12 12v8.8" fill="none" stroke="#fff" stroke-width="1.6"/>'],
+  // (Bugs y sugerencias 9iipm4vz: «el celular casi no tiene utilidad»: autos, radar, la hora y la linterna, como el de GTA)
+  ['autos', '#e67e22', '<path d="M4 15.5V12l2-4.5h12l2 4.5v3.5z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M4 12h16" stroke="#fff" stroke-width="2"/><circle cx="7.5" cy="16.5" r="1.8" fill="#fff"/><circle cx="16.5" cy="16.5" r="1.8" fill="#fff"/>'],
+  ['radar', '#16a085', '<circle cx="12" cy="12" r="8" fill="none" stroke="#fff" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="none" stroke="#fff" stroke-width="1.5" opacity=".7"/><path d="M12 12 18 6" stroke="#fff" stroke-width="2" stroke-linecap="round"/><circle cx="15.5" cy="14.5" r="1.4" fill="#fff"/>'],
+  ['hora', '#34495e', '<circle cx="12" cy="12" r="4" fill="#fff"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8" stroke="#fff" stroke-width="2" stroke-linecap="round"/>'],
+  ['linterna', '#c9a227', '<path d="M8 3h8l-1 5H9z" fill="#fff"/><rect x="9.5" y="8" width="5" height="12" rx="1.5" fill="none" stroke="#fff" stroke-width="2"/><path d="M12 12v3" stroke="#fff" stroke-width="2" stroke-linecap="round"/>'],
   ['memes', '#e53935', '<rect x="4" y="4" width="16" height="16" rx="3.5" fill="none" stroke="#fff" stroke-width="2"/><circle cx="9.2" cy="9.2" r="2.1" fill="#fff"/><circle cx="14.8" cy="9.2" r="2.1" fill="#fff"/><circle cx="9.2" cy="14.8" r="2.1" fill="#fff"/><circle cx="14.8" cy="14.8" r="2.1" fill="#fff" opacity=".55"/>'],
   ['gente', '#27ae60', '<circle cx="9" cy="8.5" r="3" fill="#fff"/><path d="M3.5 19c.6-3.4 2.8-5.2 5.5-5.2s4.9 1.8 5.5 5.2z" fill="#fff"/><circle cx="16.5" cy="9.5" r="2.4" fill="#fff" opacity=".8"/><path d="M14.6 14.3c2.6-.6 5.3.8 5.9 4.7h-4.4" fill="#fff" opacity=".8"/>'],
   ['emotes', '#f2994a', '<circle cx="12" cy="4.8" r="2.2" fill="#fff"/><path d="M12 7.8v6.4M12 9.6l-4.8-3.3M12 9.6l4.5 1.3 2.7-3.8M12 14.2l-3.5 6.2M12 14.2l3.1 6.4" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>'],
@@ -48,7 +53,8 @@ function celCerrar() {
 function celApp(a) {
   CEL.app = a; CEL.q = '';
   // (las apps que abren un menú del juego: el celular vuelve a la pantalla de inicio, si no quedaba trabado en esa app)
-  if (a === 'camara' || a === 'ajustes' || a === 'mods' || a === 'emotes') CEL.app = null;
+  if (a === 'camara' || a === 'ajustes' || a === 'mods' || a === 'emotes' || a === 'linterna') CEL.app = null;
+  if (a === 'linterna') { if (typeof linternaAlternar === 'function') linternaAlternar(); aviso(T(typeof LINT !== 'undefined' && LINT.on ? 'cel.linternaOn' : 'cel.linternaOff'), 1.2); celDibujar(); return; }
   if (a === 'camara') { celCerrar(); const i = ARM.lista.indexOf('Camera'); if (i >= 0) elegirArma(i); return; }
   if (a === 'ajustes') { celCerrar(); abrirAjustes('juego'); return; }
   if (a === 'mods') { celCerrar(); if (typeof modMenuAbrir === 'function') modMenuAbrir(); return; }
@@ -74,6 +80,27 @@ function celDibujar() {
       const g = k.querySelector('.celMemes'); if (!g) return;
       g.innerHTML = L.length ? L.map((m) => `<button class="celMeme" data-cel="meme|${m.id}"><span style="--c:${/^#[0-9a-f]{6}$/i.test(m.c) ? m.c : '#888'}"></span><small>${esc(memeNom(m))}</small></button>`).join('') : `<p class="celVacio">${esc(T('mm.vacio'))}</p>`;
     });
+  } else if (CEL.app === 'autos') {
+    // los vehículos del menú (los del juego y los de los addons): se piden y aparecen delante
+    const L = celAutos();
+    k.innerHTML = tit(T('cel.autos')) + `<div class="celPuso"></div><div class="celGrilla">${L.map((n) => `<button class="celIt" data-cel="poner|${esc(n)}">${/^gmveh:/.test(n) && typeof gmLista === 'function' ? (() => { const v = gmLista('Vehicles', n.slice(6)), m = v && v.get && v.get('Model'); return typeof m === 'string' ? `<img src="${gmIcono('gm:' + m.toLowerCase().replace(/\\/g, '/'))}" alt="">` : '<i></i>'; })() : DATA.ico[n] ? `<img src="${icono(n)}" alt="">` : '<i></i>'}<small>${esc(propNom(n))}</small></button>`).join('') || `<p class="celVacio">—</p>`}</div>`;
+  } else if (CEL.app === 'hora') {
+    // la hora del día (y que corra sola); en una sala la cambia sólo el anfitrión, como en el panel Host
+    const multi = typeof SALA !== 'undefined' && SALA, puede = !multi || soyAnfitrion();
+    const hh = (h) => { const H = Math.floor(h) % 24, M = Math.floor((h % 1) * 60); return (H < 10 ? '0' : '') + H + ':' + (M < 10 ? '0' : '') + M; };
+    k.innerHTML = tit(T('cel.hora')) + `<div class="celHoraApp"><b class="celHoraGrande">${hh(DIA.hora)}</b>
+      <div class="celChips">${[['cel.amanecer', 7], ['cel.mediodia', 12], ['cel.atardecer', 17.5], ['cel.noche', 0]].map(([t, h]) => `<button data-celh="${h}" ${puede ? '' : 'disabled'}>${esc(T(t))}</button>`).join('')}</div>
+      <input type="range" class="celHoraR" min="0" max="24" step="0.1" value="${DIA.hora}" ${puede ? '' : 'disabled'}>
+      <label class="celCiclo"><input type="checkbox" ${DIA.ciclo ? 'checked' : ''} ${puede ? '' : 'disabled'}> ${esc(T('cel.ciclo'))}</label>
+      ${puede ? '' : `<p class="celVacio">${esc(T('cel.horaHost'))}</p>`}</div>`;
+    const cambiar = () => { DIA.aplicada = -1; if (typeof diaAplicar === 'function') diaAplicar(); const g = k.querySelector('.celHoraGrande'); if (g) g.textContent = hh(DIA.hora); { const ch = c.querySelector('.celHora'); if (ch) ch.textContent = celHora(); } if (multi && typeof hostPublicar === 'function') hostPublicar(); };
+    k.querySelectorAll('[data-celh]').forEach((x) => (x.onclick = () => { DIA.hora = +x.dataset.celh; k.querySelector('.celHoraR').value = DIA.hora; cambiar(); }));
+    k.querySelector('.celHoraR').oninput = (e) => { DIA.hora = +e.target.value; cambiar(); };
+    k.querySelector('.celCiclo input').onchange = (e) => { DIA.ciclo = e.target.checked; cambiar(); };
+  } else if (CEL.app === 'radar') {
+    k.innerHTML = tit(T('cel.radar')) + `<div class="celRadar"><canvas width="440" height="440"></canvas><div class="celChips"><button data-celz="-1">−</button><button data-celz="1">+</button></div><small class="celRadarLey">${esc(T('cel.radarLey'))}</small></div>`;
+    k.querySelectorAll('[data-celz]').forEach((x) => (x.onclick = () => { CEL.zoom = clamp((CEL.zoom || 1) * (+x.dataset.celz > 0 ? 1.6 : 1 / 1.6), 0.25, 8); }));
+    celRadarLazo();
   } else if (CEL.app === 'gente') {
     const dueño = soyAnfitrion() && typeof SALA !== 'undefined' && SALA && !SALA.of;
     const L = [...RED.remotos.values()];
@@ -81,6 +108,41 @@ function celDibujar() {
       L.map((R2) => `<div class="celPers"><img src="${retrato(R2.skinReal || R2.skin)}" alt=""><b dir="auto">${esc(R2.nombre || '?')}</b>${R2.sp && typeof socAmigoSala === 'function' ? socAmigoSala(R2.sp) : ''}${dueño ? `<button data-cel="echar|${esc(R2.id)}">${esc(T('cel.echar'))}</button>` : ''}</div>`).join('') +
       (L.length ? '' : `<p class="celVacio">${esc(T(typeof SALA !== 'undefined' && SALA ? 'cel.solo' : 'cel.sinSala'))}</p>`) + `</div>`;
   }
+}
+// los vehículos para la app Autos: los del menú de Vehículos (del juego y de los addons de GMod)
+function celAutos() {
+  const out = []; for (const C of DATA.menu) { if (C.n !== 'Vehicles') continue; for (const s of C.sub || []) for (const x of s.it || []) { const n = typeof x === 'string' ? x : x.n; if (n && !out.includes(n)) out.push(n); } }
+  if (typeof GMOD !== 'undefined') for (const A of GMOD.addons.values()) for (const k of ((A.listas && A.listas.Vehicles) || new Map()).keys()) if (!out.includes('gmveh:' + k)) out.push('gmveh:' + k);
+  return out;
+}
+// el radar: vos en el centro mirando para arriba; los demás jugadores (azul, con su nombre), los NPC (rojo), los nextbots
+// de los addons (violeta), los vehículos (amarillo) y los props (gris). Se dibuja mientras la app está abierta
+function celRadarLazo() {
+  if (CEL.radarRaf) return;
+  const paso = () => {
+    const c = $('celular'), cv = c && !c.classList.contains('oc') && CEL.app === 'radar' ? c.querySelector('.celRadar canvas') : null;
+    if (!cv) { CEL.radarRaf = 0; return; }
+    celRadarDibujar(cv); CEL.radarRaf = requestAnimationFrame(paso);
+  };
+  CEL.radarRaf = requestAnimationFrame(paso);
+}
+function celRadarDibujar(cv) {
+  const x = cv.getContext('2d'), W = cv.width, H = cv.height, cx = W / 2, cy = H / 2, z = CEL.zoom || 1, k = (W / 2) / (40 / z);   // (de borde a borde, 80 m / zoom)
+  const f = v3(CAM.fwd.x, 0, CAM.fwd.z), d0 = v3(CAM.der.x, 0, CAM.der.z); if (f.len() < 1e-3) f.set(Math.sin(JUG.yaw), 0, Math.cos(JUG.yaw)); f.norm(); if (d0.len() < 1e-3) d0.copy(vcross(f, v3(0, 1, 0))); d0.norm();
+  const a = (p) => { const dx = p.x - JUG.pos.x, dz = p.z - JUG.pos.z; return [cx + (dx * d0.x + dz * d0.z) * k, cy - (dx * f.x + dz * f.z) * k]; };
+  x.fillStyle = '#0c1a17'; x.fillRect(0, 0, W, H);
+  x.strokeStyle = 'rgba(80,220,180,.18)'; x.lineWidth = 2; for (let r = 10; r <= 80; r += 10) { const rr = r * k; if (rr > W) break; x.beginPath(); x.arc(cx, cy, rr, 0, Math.PI * 2); x.stroke(); }
+  x.beginPath(); x.moveTo(cx, 0); x.lineTo(cx, H); x.moveTo(0, cy); x.lineTo(W, cy); x.stroke();
+  const punto = (p, col, r) => { const [sx, sy] = a(p); if (sx < -10 || sy < -10 || sx > W + 10 || sy > H + 10) return null; x.fillStyle = col; x.beginPath(); x.arc(sx, sy, r, 0, Math.PI * 2); x.fill(); return [sx, sy]; };
+  let n = 0; for (const o of OBJS) { if (o.veh || n++ > 400) continue; punto(o.b.pos, 'rgba(200,200,200,.55)', 3); }
+  for (const V of (typeof VEHS !== 'undefined' ? VEHS : [])) { const b = V.o ? V.o.b : V.b; if (b) { const q = a(b.pos); if (q) { x.fillStyle = '#f5c542'; x.fillRect(q[0] - 6, q[1] - 6, 12, 12); } } }
+  if (typeof NPC !== 'undefined') for (const P of NPC.lista) if (P.vivo !== false) punto(P.pos, '#ff5a4e', 6);
+  if (typeof GMA !== 'undefined' && GMA.ents) for (const e of GMA.ents.values()) if (e.nb && e.vivo !== false) punto(gmaEntPos(e), '#b56cff', 7);
+  x.font = '600 20px Roboto,Arial,sans-serif'; x.textAlign = 'center';
+  if (typeof RED !== 'undefined' && RED.remotos) for (const R2 of RED.remotos.values()) { const P = R2.P; if (!P) continue; const q = punto(P.pos, '#4aa3ff', 8); if (q) { x.fillStyle = '#cfe6ff'; x.fillText(String(R2.nombre || '').slice(0, 12), q[0], q[1] - 13); } }
+  // vos: una flecha que apunta para arriba (adelante)
+  x.fillStyle = '#ffffff'; x.beginPath(); x.moveTo(cx, cy - 13); x.lineTo(cx + 9, cy + 10); x.lineTo(cx, cy + 5); x.lineTo(cx - 9, cy + 10); x.closePath(); x.fill();
+  x.fillStyle = 'rgba(255,255,255,.6)'; x.font = '500 18px Roboto,Arial,sans-serif'; x.textAlign = 'left'; x.fillText(Math.round(80 / z) + ' m', 10, H - 12);
 }
 // las categorías de "Objetos": las de props (sin la de mods), los vehículos y las entidades del menú de props
 function celCats() {
