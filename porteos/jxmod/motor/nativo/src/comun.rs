@@ -70,7 +70,7 @@ pub struct PanelNpc { pub npc: Option<u32>, pub est: String }
 pub enum BtnNpc { Rapida(usize), Arma(Option<npc::Arma>), SkinAnt, SkinSig, Escribir, Borrar, BorrarTodos, Cerrar }
 /// para qué se pidió escribir (el cuadro de texto de Android)
 #[derive(Clone, Debug)]
-pub enum Escribir { Chat, Clave(jxjuego::red::Sala), Nombre, Actitud, Pj }
+pub enum Escribir { Chat, Clave(jxjuego::red::Sala), Nombre, Actitud, Pj, SrvNombre, SrvClave }
 /// pedir texto (título, lo que ya hay, hasta cuántas letras, si es contraseña; con un número) y levantar lo escrito
 /// (número y texto, o None si se canceló): en Android, el cuadro de Juego.java (red_android::Teclado)
 pub struct Teclado { pub pedir: Box<dyn Fn(i32, &str, &str, i32, bool)>, pub tomar: Box<dyn Fn() -> Option<(i32, Option<String>)>> }
@@ -195,6 +195,8 @@ fn cajas_de(c: Clave, p: &Panel, h: f32, fila: usize, n: usize) -> Vec<(f32, f32
 fn boton_en(w: f32, h: f32, x: f32, y: f32, ve: impl Fn(Boton) -> bool) -> Option<Boton> {
     botones(w, h).into_iter().filter(|b| ve(b.b)).find(|b| if b.redondo { let (dx, dy) = (x - b.x, y - b.y); dx * dx + dy * dy <= (b.w * 0.55).powi(2) } else { (x - b.x).abs() <= b.w / 2.0 + 4.0 && (y - b.y).abs() <= b.h / 2.0 + 4.0 }).map(|b| b.b)
 }
+/// un texto escrito sin lo que no se ve y de a lo sumo `n` letras (limpio de red.js)
+fn limpio(t: &str, n: usize) -> String { t.trim().chars().filter(|c| !c.is_control()).take(n).collect() }
 /// el paso fijo de la física del jugador
 const PASO: f32 = 1.0 / 120.0;
 
@@ -490,12 +492,16 @@ impl Juego {
         let Some((id, txt)) = self.teclado.as_ref().and_then(|t| (t.tomar)()) else { return };
         if id != n { return; }
         let Some((_, que)) = self.escribir.take() else { return };
+        // (la clave del server nuevo se puede borrar dejándola vacía)
+        if let (Escribir::SrvClave, Some(t)) = (&que, &txt) { self.ini.pn.srv.pw = limpio(t, 16); return; }
         let Some(t) = txt.map(|t| t.trim().to_string()).filter(|t| !t.is_empty()) else { return };
         match que {
             Escribir::Chat => { if self.en_red.en_sala() { self.en_red.red.chat(&t, None); let n = self.en_red.red.nombre.clone(); self.en_red.al_chat(format!("{n}: {t}")); } }
             Escribir::Clave(s) => self.entrar_sala_con(&s, Some(&t)),
             Escribir::Nombre => { let n: String = t.chars().filter(|c| !c.is_control()).take(20).collect(); self.en_red.poner_nombre(&n); self.avisar(format!("Ahora te ven como «{n}»")); }
             Escribir::Pj => self.pj_escrito(&t),
+            Escribir::SrvNombre => self.ini.pn.srv.n = limpio(&t, 24),
+            Escribir::SrvClave => {}
             Escribir::Actitud => { let a = npc::Actitud::de_texto(&t, Some(&serde_json::json!({ "de": "yo" }))); self.npc_aplicar(a, "Escrito"); }
         }
     }

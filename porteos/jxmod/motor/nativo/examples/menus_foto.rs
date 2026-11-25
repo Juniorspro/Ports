@@ -111,6 +111,15 @@ fn main() {
                 // (lo que se toca en el panel, para medirlo: tamaños, que no se pisen y que estén adentro de la pantalla)
                 let zs: Vec<String> = j.ini.pn.zonas.iter().map(|(r, a)| format!("{{\"r\":[{:.1},{:.1},{:.1},{:.1}],\"a\":\"{:?}\"}}", r[0], r[1], r[2], r[3], a).replace("\\\"", "'")).collect();
                 std::fs::write(format!("{sal}/{pre}_{w}x{h}_{n}_zonas.json"), format!("[{}]", zs.join(","))).unwrap();
+                if *n == "multi" { // (Crear server: el formulario, elegir cosas y volver a la lista)
+                    use jxmod::comun::paneles_juego::Acc;
+                    let toca = |j: &mut Juego, m: &mut Motor3d, a: Acc| { if let Some((r, _)) = j.ini.pn.zonas.iter().find(|z| z.1 == a).cloned() { let (x, y) = centro(r); tocar(j, m, x, y); true } else { false } };
+                    if toca(&mut j, &mut m, Acc::CrearServer) { paso(&mut j, &mut m, 70); foto(&mut m, "crear_server");
+                        for a in [Acc::SrvModo(true), Acc::SrvTg(1), Acc::SrvTg(2), Acc::SrvPaso(0, 1), Acc::SrvPaso(1, -1), Acc::Mapa("RB_Construct".into())] { let ok = toca(&mut j, &mut m, a.clone()); if !ok { println!("crear server: no está {a:?}"); } }
+                        paso(&mut j, &mut m, 4); foto(&mut m, "crear_server_elegido");
+                        println!("crear server: {:?} · mapa {:?}", j.ini.pn.srv, j.ini.pn.mapa);
+                        toca(&mut j, &mut m, Acc::Volver); paso(&mut j, &mut m, 40); }
+                }
                 if *n == "nueva" { // (elegir el otro mapa)
                     if let Some((r, _)) = j.ini.pn.zonas.iter().find(|z| matches!(&z.1, jxmod::comun::paneles_juego::Acc::Mapa(mp) if mp == "RB_Construct")).cloned() { let (x, y) = centro(r); tocar(&mut j, &mut m, x, y); paso(&mut j, &mut m, 4); foto(&mut m, "nueva_construct"); } }
                 if let Some((r, _)) = j.ini.pn.zonas.iter().find(|z| matches!(z.1, jxmod::comun::paneles_juego::Acc::Volver | jxmod::comun::paneles_juego::Acc::Listo)).cloned() { let (x, y) = centro(r); tocar(&mut j, &mut m, x, y); }

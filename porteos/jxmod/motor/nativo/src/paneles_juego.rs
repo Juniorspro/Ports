@@ -27,12 +27,22 @@ const PN_VI: Col = rgba(0xc39dff, 1.0);
 pub enum PanelIni {
     Nueva { cat: usize, scroll: f32 }, Multi { scroll: f32 }, Social { tab: usize }, Tienda { tab: usize, cat: usize }, Crear,
     Personajes { tab: usize, scroll: f32 }, Opciones { tab: usize, scroll: f32 }, Idioma, Avisos, Bugs { tab: usize, scroll: f32 }, Grieta,
+    /// el formulario de Crear server (panelMultiCrear)
+    CrearServer { scroll: f32 },
 }
 
 /// lo que hace cada cosa que se toca en un panel
 #[derive(Clone, Debug, PartialEq)]
 pub enum Acc { Volver, Cat(usize), Mapa(String), Empezar, Hora, Mods, Vr, Entrar(String), MasLleno, CrearServer, Lan, Refrescar, Buscar, Tab(usize), Skin(String),
-    CrearBase(String), CrearEmpezar, AjTab(usize), Aj(usize, usize), Listo, Idioma(usize), GMod, CuentaNo, NovVer, Nada }
+    CrearBase(String), CrearEmpezar, AjTab(usize), Aj(usize, usize), Listo, Idioma(usize), GMod, CuentaNo, NovVer, Nada,
+    /// Crear server: el nombre, la clave, el modo (PvP o no), prender PvP / RPG / nextbots (0, 1, 2), los topes (0 props,
+    /// 1 autos: más o menos un paso) y crearlo
+    SrvNombre, SrvClave, SrvModo(bool), SrvTg(u8), SrvPaso(u8, i32), SrvCrear }
+
+/// lo que se va eligiendo en Crear server (RB.srv de la web: Libre, sin PvP, RPG ni nextbots, 1000 props y 40 autos)
+#[derive(Clone, Debug)]
+pub struct SrvForm { pub n: String, pub pw: String, pub modo_pvp: bool, pub pvp: bool, pub rpg: bool, pub nb: bool, pub mp: u32, pub mv: u32 }
+impl Default for SrvForm { fn default() -> Self { SrvForm { n: String::new(), pw: String::new(), modo_pvp: false, pvp: false, rpg: false, nb: false, mp: 1000, mv: 40 } } }
 
 /// las medidas de los paneles con esta pantalla (las variables --pn… de paneles.css)
 #[derive(Clone, Copy, Debug)]
@@ -64,7 +74,9 @@ pub fn skin_nombre(s: &str) -> String {
 pub struct EstPaneles { pub zonas: Vec<([f32; 4], Acc)>, pub t0: f32, dedo: Option<(i32, f32, f32, f32, f32, bool)>, pub apretado: Option<Acc>,
     pub mapa: Option<String>, pub base: Option<String>, pub hora: usize, pub golpe: Option<(Acc, f32)>, pub contenido: [f32; 4], pub alto_contenido: f32, pub busca: String,
     /// el escenario de Personajes (donde va el personaje en 3D) y cuánto se giró arrastrando
-    pub escena: [f32; 4], pub giro: f32 }
+    pub escena: [f32; 4], pub giro: f32,
+    /// el formulario de Crear server
+    pub srv: SrvForm }
 
 const HORAS: [&str; 5] = ["Normal", "Día", "Atardecer", "Noche", "Ciclo día/noche"];
 
@@ -93,7 +105,7 @@ impl Juego {
         let e = self.ini.pn.escena; if matches!(self.ini.panel, Some(PanelIni::Personajes { .. })) && d.1 >= e[0] && d.1 <= e[0] + e[2] && d.2 >= e[1] && d.2 <= e[1] + e[3] { d.5 = true; self.ini.pn.apretado = None; self.ini.pn.giro += dx * 0.012; return; }
         if (d.3 - d.1).abs() + (d.4 - d.2).abs() > h * 0.03 { d.5 = true; self.ini.pn.apretado = None; }
         if d.5 { let c = self.ini.pn.contenido; let max = (self.ini.pn.alto_contenido - c[3]).max(0.0);
-            if let Some(pn) = self.ini.panel.as_mut() { match pn { PanelIni::Nueva { scroll, .. } | PanelIni::Multi { scroll } | PanelIni::Personajes { scroll, .. } | PanelIni::Opciones { scroll, .. } | PanelIni::Bugs { scroll, .. } => { *scroll = (*scroll - dy).clamp(0.0, max); } _ => {} } } }
+            if let Some(pn) = self.ini.panel.as_mut() { match pn { PanelIni::Nueva { scroll, .. } | PanelIni::Multi { scroll } | PanelIni::Personajes { scroll, .. } | PanelIni::Opciones { scroll, .. } | PanelIni::Bugs { scroll, .. } | PanelIni::CrearServer { scroll } => { *scroll = (*scroll - dy).clamp(0.0, max); } _ => {} } } }
     }
     pub(super) fn pn_dedo_arriba(&mut self, id: i32, _w: f32, _h: f32) {
         let Some(d) = self.ini.pn.dedo.take() else { return }; if d.0 != id { return; }
@@ -104,7 +116,14 @@ impl Juego {
     /// lo que hace cada cosa de un panel
     fn pn_accion(&mut self, a: Acc) {
         match (self.ini.panel.clone(), a) {
+            (Some(PanelIni::CrearServer { .. }), Acc::Volver) => self.pn_abrir(PanelIni::Multi { scroll: 0.0 }),
             (_, Acc::Volver) => self.pn_volver(),
+            (_, Acc::SrvNombre) => { let n = self.ini.pn.srv.n.clone(); self.pedir_texto(Escribir::SrvNombre, "Nombre del server", &n, 24, false); }
+            (_, Acc::SrvClave) => { let c = self.ini.pn.srv.pw.clone(); self.pedir_texto(Escribir::SrvClave, "Clave (opcional)", &c, 16, true); }
+            (_, Acc::SrvModo(pvp)) => { self.ini.pn.srv.modo_pvp = pvp; if pvp { self.ini.pn.srv.pvp = true; } }
+            (_, Acc::SrvTg(k)) => { let f = &mut self.ini.pn.srv; match k { 0 => f.pvp = !f.pvp || f.modo_pvp, 1 => f.rpg = !f.rpg, _ => f.nb = !f.nb } }
+            (_, Acc::SrvPaso(k, d)) => { let f = &mut self.ini.pn.srv; if k == 0 { f.mp = (f.mp as i32 + d * 100).clamp(0, 5000) as u32; } else { f.mv = (f.mv as i32 + d * 5).clamp(0, 200) as u32; } }
+            (_, Acc::SrvCrear) => self.srv_crear(),
             (Some(PanelIni::Nueva { .. }), Acc::Cat(k)) => self.ini.panel = Some(PanelIni::Nueva { cat: k, scroll: 0.0 }),
             (_, Acc::Mapa(m)) => self.ini.pn.mapa = Some(m),
             (_, Acc::Empezar) => { let m = self.ini.pn.mapa.clone().unwrap_or_default(); self.ini_empezar(&m); }
@@ -115,7 +134,7 @@ impl Juego {
                 if s.pw && self.en_red.red.entrar(&s, None).is_err() { let t = format!("Contraseña de {}", s.n); self.pedir_texto(Escribir::Clave(s), &t, "", 40, true); return; }
                 self.ini_entrar_sala(&s); } }
             (_, Acc::MasLleno) => { let salas = self.salas_inicio(); if let Some((s, _)) = salas.iter().max_by_key(|x| x.1.len()) { let s = s.clone(); self.ini_entrar_sala(&s); } }
-            (_, Acc::CrearServer) => { self.en_red.panel = false; self.toque_salas_crear(); }
+            (_, Acc::CrearServer) => { self.en_red.panel = false; self.pn_abrir(PanelIni::CrearServer { scroll: 0.0 }); }
             // (LAN / Wi-Fi: hacer de anfitrión en este celular con el mapa elegido y entrar; las de los demás están en la lista)
             (_, Acc::Lan) => { let m = self.ini.pn.mapa.clone().unwrap_or_else(|| self.mapas.get(self.mapa_i).cloned().unwrap_or_default());
                 match self.lan_hostear(&m) { Ok(s) => { self.ini_entrar_sala(&s); if let Some(ip) = self.lan_ip() { self.avisar(format!("Partida en el Wi-Fi: los demás la ven en la lista (o escriben {ip})")); } } Err(e) => self.avisar(e) } }
@@ -152,11 +171,13 @@ impl Juego {
         if self.en_red.puente.is_none() { self.avisar("Sin conexión: el multijugador anda en el celular".into()); return; }
         self.recargar = true; self.ini.abierto = false; self.ini.panel = None; self.entrar_sala_con(s, None);
     }
-    fn toque_salas_crear(&mut self) {
-        let m = self.ini.pn.mapa.clone().unwrap_or_else(|| self.mapas.get(self.mapa_i).cloned().unwrap_or_default());
-        let n = format!("Sala de {}", self.en_red.red.nombre);
-        self.en_red.red.crear_servidor(&jxjuego::red::NuevaSala { n, pw: String::new(), m: m.clone(), mo: "Free".into(), pvp: true, rpg: true, nb: true, mp: 1000.0, mv: 40.0, mw: None }, None);
-        self.avisar(format!("Creando la sala en {}…", super::paneles_juego::nombre_mapa(&m)));
+    /// crearServidor con lo del formulario (el nombre vacío: «<tu nombre>'s server», como la web)
+    fn srv_crear(&mut self) {
+        if self.en_red.puente.is_none() { self.avisar("Sin conexión: el multijugador anda en el celular".into()); return; }
+        let m = self.ini.pn.mapa.clone().unwrap_or_else(|| self.mapas.get(self.mapa_i).cloned().unwrap_or_default()); let f = self.ini.pn.srv.clone();
+        let n = if f.n.trim().is_empty() { format!("{}'s server", self.en_red.red.nombre) } else { f.n.clone() };
+        self.en_red.red.crear_servidor(&jxjuego::red::NuevaSala { n, pw: f.pw.clone(), m: m.clone(), mo: if f.modo_pvp { "PvP".into() } else { "Free".into() }, pvp: f.pvp || f.modo_pvp, rpg: f.rpg, nb: f.nb, mp: f.mp as f64, mv: f.mv as f64, mw: None }, None);
+        self.avisar(format!("Creando el server en {}…", super::paneles_juego::nombre_mapa(&m)));
     }
 
     // ———————————— el dibujo ————————————
@@ -168,6 +189,7 @@ impl Juego {
         match pn {
             PanelIni::Nueva { cat, scroll } => self.pn_nueva(p, &m, *cat, *scroll, ent, &mut z),
             PanelIni::Crear => self.pn_crear(p, &m, ent, &mut z),
+            PanelIni::CrearServer { scroll } => self.pn_crear_server(p, &m, *scroll, ent, &mut z),
             PanelIni::Multi { scroll } => self.pn_multi(p, &m, *scroll, ent, &mut z),
             PanelIni::Social { tab } => self.pn_social(p, &m, *tab, ent, &mut z),
             PanelIni::Tienda { tab, cat } => self.pn_tienda(p, &m, *tab, *cat, ent, &mut z),
@@ -437,6 +459,65 @@ impl Juego {
             y += ((mapas.len() + n - 1) / n) as f32 * (hmax + gap) - gap + u;
             self.pn_cascada(p, t, 4, |p| self.pn_parrafo(p, x0, y, ancho, fs, fs * 1.4, PN_T2, "Volá libre sobre el mapa y armá el tuyo: props, puntos de aparición con roles, piano, radio, mega rampas, botones de autos, teletransportes y más. Después probalo y publicalo.", false));
         });
+    }
+
+    /// Crear server (panelMultiCrear): a la izquierda el nombre, la clave, el modo, PvP / RPG / nextbots y los topes de props
+    /// y de autos; a la derecha el mapa base; abajo Volver (a la lista) y Crear server. Todo baja con el dedo si no entra
+    fn pn_crear_server(&mut self, p: &mut Pincel, m: &Pm, scroll: f32, t: f32, z: &mut Vec<([f32; 4], Acc)>) {
+        let mapas = self.mapas_inicio(); for mp in &mapas { self.ini_pedir_foto(&format!("i:mapa_{mp}")); }
+        let sel = self.ini.pn.mapa.clone().unwrap_or_default(); let f = self.ini.pn.srv.clone(); let yo = self.en_red.red.nombre.clone();
+        let (alto, cont) = self.pn_marco(p, m, t, |p, c| {
+            let (xt, hc) = self.pn_cabecera(p, m, c, "02", Some(("mas", AMA)), "Crear server", t);
+            let fs = m.fs; let u = m.u; p.texto(Cara::O5, fs, xt + fs * 0.2 + u, p.at.base_centrada(Cara::O5, fs, fs * 1.2, c[1], m.ph + 5.0), PN_T2, 0.08, &nombre_mapa(&sel).to_uppercase());
+            let pie_h = m.ph + 2.0 + u * 1.5 + 1.0; let pie = self.pn_pie(p, m, c, pie_h, t, z);
+            let by = pie[1] + 1.0 + (pie_h - 1.0 - m.ph) / 2.0; let wp = self.pn_principal_ancho(p, m, "Crear server");
+            self.pn_principal(p, m, [pie[0] + pie[2] - u * 1.5 - wp, by - 1.0, wp, m.ph + 2.0], "Crear server", "jugar", Acc::SrvCrear, z);
+            let cuerpo = [c[0], c[1] + hc, c[2], pie[1] - c[1] - hc]; let mut alto = 0.0f32;
+            p.con_recorte(cuerpo, |p| {
+                // ---- la columna del formulario ----
+                let x0 = cuerpo[0] + u * 1.5; let wcol = (cuerpo[2] * 0.46).max(m.ft * 16.0).min(cuerpo[2] - u * 3.0); let mut y = cuerpo[1] + u * 1.2 - scroll;
+                let rot = |p: &mut Pincel, y: f32, s: &str| { p.texto(Cara::O5, fs, x0, p.at.base_centrada(Cara::O5, fs, fs * 1.2, y, fs * 1.2), AMA, 0.08, &s.to_uppercase()); };
+                let campo = |p: &mut Pincel, r: [f32; 4], v: &str, gris: &str| { p.rect(r[0], r[1], r[2], r[3], PN_POZO); p.borde(r[0], r[1], r[2], r[3], 1.0, PN_LIN2);
+                    let (s, col) = if v.is_empty() { (gris, PN_T3) } else { (v, TX) }; p.texto_max(Cara::S4, m.ft, r[0] + m.ft * 0.8, p.at.base_centrada(Cara::S4, m.ft, m.ft * 1.2, r[1], r[3]), col, 0.0, s, r[2] - m.ft * 1.6); };
+                let mut k = 0usize;
+                for (titulo, v, gris, a) in [("Nombre", f.n.clone(), format!("{yo}'s server"), Acc::SrvNombre), ("Clave (opcional)", "•".repeat(f.pw.chars().count()), "Sin clave".to_string(), Acc::SrvClave)] {
+                    let yy = y; self.pn_cascada(p, t, k, |p| { rot(p, yy, titulo); campo(p, [x0, yy + fs * 1.4, wcol, m.ph], &v, &gris); }); zona(p, z, [x0, y + fs * 1.4, wcol, m.ph], a); y += fs * 1.4 + m.ph + u; k += 1;
+                }
+                // (el modo: Libre o PvP, como un segmento; el elegido amarillo)
+                let yy = y; self.pn_cascada(p, t, k, |p| rot(p, yy, "Modo")); y += fs * 1.4; k += 1;
+                for (i, (n, pvp)) in [("Libre", false), ("PvP", true)].into_iter().enumerate() { let r = [x0 + i as f32 * wcol / 2.0, y, wcol / 2.0 - 3.0, m.ph]; let s = f.modo_pvp == pvp;
+                    self.pn_cascada(p, t, k, |p| { p.rect(r[0], r[1], r[2], r[3], if s { AMA } else { PN_POZO }); if !s { p.borde(r[0], r[1], r[2], r[3], 1.0, PN_LIN2); }
+                        p.texto_c(if s { Cara::O6 } else { Cara::O5 }, fs, r[0] + r[2] / 2.0, p.at.base_centrada(Cara::O5, fs, fs, r[1], r[3]), if s { NEGRO } else { TX }, 0.04, &n.to_uppercase()); });
+                    zona(p, z, r, Acc::SrvModo(pvp)); }
+                y += m.ph + u; k += 1;
+                // (PvP, RPG y nextbots: casillas que se prenden en amarillo)
+                for (i, (n, on)) in [("PvP", f.pvp || f.modo_pvp), ("RPG", f.rpg), ("Nextbots", f.nb)].into_iter().enumerate() { let r = [x0 + i as f32 * wcol / 3.0, y, wcol / 3.0 - 3.0, m.ph];
+                    self.pn_cascada(p, t, k, |p| { p.rect(r[0], r[1], r[2], r[3], if on { rgba(0x2a2410, 1.0) } else { PN_POZO }); p.borde(r[0], r[1], r[2], r[3], 1.0, if on { AMA } else { PN_LIN2 });
+                        let q = fs * 0.9; let cx = r[0] + fs * 0.7; let cy = r[1] + (r[3] - q) / 2.0; p.borde(cx, cy, q, q, 1.5, if on { AMA } else { PN_T3 }); if on { p.rect(cx + 3.0, cy + 3.0, q - 6.0, q - 6.0, AMA); }
+                        p.texto_max(Cara::O5, fs, cx + q + fs * 0.5, p.at.base_centrada(Cara::O5, fs, fs, r[1], r[3]), if on { TX } else { PN_T2 }, 0.04, &n.to_uppercase(), r[2] - q - fs * 1.6); });
+                    zona(p, z, r, Acc::SrvTg(i as u8)); }
+                y += m.ph + u; k += 1;
+                // (los topes: props y autos, con menos y más)
+                for (i, (n, v)) in [("Props", f.mp), ("Autos", f.mv)].into_iter().enumerate() {
+                    let yy = y; let r_menos = [x0 + wcol - m.ph * 2.0 - 3.0, y, m.ph, m.ph]; let r_mas = [x0 + wcol - m.ph, y, m.ph, m.ph];
+                    self.pn_cascada(p, t, k, |p| { p.texto(Cara::O5, fs, x0, p.at.base_centrada(Cara::O5, fs, fs, yy, m.ph), PN_T2, 0.06, &format!("{} · {v}", n.to_uppercase()));
+                        for (r, s) in [(r_menos, "−"), (r_mas, "+")] { p.rect(r[0], r[1], r[2], r[3], PN_PL3); p.borde(r[0], r[1], r[2], r[3], 1.0, PN_LIN2); p.texto_c(Cara::O6, m.ft * 1.2, r[0] + r[2] / 2.0, p.at.base_centrada(Cara::O6, m.ft * 1.2, m.ft * 1.2, r[1], r[3]), TX, 0.0, s); } });
+                    zona(p, z, r_menos, Acc::SrvPaso(i as u8, -1)); zona(p, z, r_mas, Acc::SrvPaso(i as u8, 1)); y += m.ph + u * 0.6; k += 1;
+                }
+                alto = alto.max(y + scroll - cuerpo[1] + u);
+                // ---- el mapa base: la grilla a la derecha ----
+                let gx = x0 + wcol + u * 2.0; let gw = cuerpo[0] + cuerpo[2] - u * 1.5 - gx; let mut gy = cuerpo[1] + u * 1.2 - scroll;
+                if gw > m.ft * 6.0 {
+                    let yy = gy; self.pn_cascada(p, t, 1, |p| p.texto(Cara::O5, fs, gx, p.at.base_centrada(Cara::O5, fs, fs * 1.2, yy, fs * 1.2), AMA, 0.08, "MAPA BASE")); gy += fs * 1.4;
+                    let gap = u * 1.1; let minc = (18.0 * m.vh).max(96.0); let n = (((gw + gap) / (minc + gap)).floor() as usize).max(1); let cw = (gw - gap * (n - 1) as f32) / n as f32;
+                    let mut hmax = 0.0f32;
+                    for (k2, mp) in mapas.iter().enumerate() { let r = [gx + (k2 % n) as f32 * (cw + gap), gy + (k2 / n) as f32 * (hmax + gap), cw, 0.0]; let h = self.pn_cascada(p, t, 2 + k2, |p| self.pn_tarjeta_mapa(p, m, r, mp, *mp == sel, Acc::Mapa(mp.clone()), z)); hmax = hmax.max(h); }
+                    alto = alto.max(gy + ((mapas.len() + n - 1) / n) as f32 * (hmax + gap) + scroll - cuerpo[1]);
+                }
+            });
+            (alto, cuerpo)
+        });
+        self.ini.pn.contenido = cont; self.ini.pn.alto_contenido = alto;
     }
 
     /// Social: las pestañas (Chats, Amigos, Buscar jugador, Perfil) y, sin cuenta, el cartel de la web

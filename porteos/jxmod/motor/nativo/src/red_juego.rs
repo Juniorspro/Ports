@@ -273,7 +273,10 @@ impl Juego {
             Evento::NpcAct { n, a, .. } => { let act = npc::Actitud::normal(&a, None); self.npcs.aplicar(n as u32, act); }
             Evento::NpcFin { clave } => { self.en_red.cuerpos.remove(&format!("npc:{clave}")); }
             Evento::Hecho { de, k, d } => self.pjs_hecho(&de, &k, &d),
-            Evento::SalaCreada { sala } => { let s = sala.clone(); let _ = self.en_red.red.entrar(&s, Some(&s.clave)); self.entrar_sala(&s); }
+            Evento::SalaCreada { sala } => { let s = sala.clone();
+                // (creada desde el formulario del inicio: se cierra el menú y se entra, como al tocar Entrar)
+                if self.ini.abierto || self.ini.panel.is_some() { self.recargar = true; self.ini.abierto = false; self.ini.panel = None; }
+                let _ = self.en_red.red.entrar(&s, Some(&s.clave)); self.entrar_sala(&s); }
             _ => {}
         }
     }
