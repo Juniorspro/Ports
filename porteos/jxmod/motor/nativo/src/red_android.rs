@@ -44,11 +44,42 @@ impl Java {
     }
     /// los pedidos binarios (los .gma de los addons de GMod: gmod_juego.rs), de hasta 300 MB
     pub fn http_bin(&self) -> crate::comun::gmod_juego::HttpBin { let j = self.clone(); Arc::new(move |u: &str| j.pedir_crudo("GET", u, &[], None, 300 << 20)) }
+    /// bajar un archivo grande directo a la memoria del celular, de a pedazos y diciendo cuánto va (los paquetes aparte: bajas.rs)
+    pub fn bajar(&self) -> crate::bajas::Bajar { let j = self.clone(); Arc::new(move |u: &str, a: &std::path::Path, prog: &dyn Fn(u64, u64)| j.bajar_a(u, a, prog)) }
     /// un pedido HTTPS: (código, cuerpo) o por qué no se pudo
     pub fn pedir(&self, metodo: &str, url: &str, cab: &[(String, String)], cuerpo: Option<&str>) -> Result<(u16, String), String> {
         self.pedir_crudo(metodo, url, cab, cuerpo, 4 << 20).map(|(c, b)| (c, String::from_utf8_lossy(&b).into_owned()))
     }
     /// lo mismo, con el cuerpo en bytes (hasta `tope`)
+    /// GET de `url` al archivo `destino` (lo que llegue: con un error, el archivo queda a medias y lo borra quien llama)
+    pub fn bajar_a(&self, url: &str, destino: &std::path::Path, prog: &dyn Fn(u64, u64)) -> Result<u16, String> {
+        use std::io::Write;
+        let mut f = std::fs::File::create(destino).map_err(|e| e.to_string())?;
+        con_java(&self.vm, |env| {
+            let u = env.new_string(url)?;
+            let url_o = env.new_object(jni_str!("java/net/URL"), jni_sig!("(Ljava/lang/String;)V"), &[JValue::Object(&u)])?;
+            let c = env.call_method(&url_o, jni_str!("openConnection"), jni_sig!("()Ljava/net/URLConnection;"), &[])?.l()?;
+            env.call_method(&c, jni_str!("setConnectTimeout"), jni_sig!("(I)V"), &[JValue::Int(9000)])?;
+            env.call_method(&c, jni_str!("setReadTimeout"), jni_sig!("(I)V"), &[JValue::Int(20000)])?;
+            let codigo = env.call_method(&c, jni_str!("getResponseCode"), jni_sig!("()I"), &[])?.i()?;
+            if codigo != 200 { env.call_method(&c, jni_str!("disconnect"), jni_sig!("()V"), &[])?; return Ok(codigo.clamp(0, 999) as u16); }
+            let tot = env.call_method(&c, jni_str!("getContentLengthLong"), jni_sig!("()J"), &[])?.j()?.max(0) as u64;
+            let ent = env.call_method(&c, jni_str!("getInputStream"), jni_sig!("()Ljava/io/InputStream;"), &[])?.l()?;
+            let a = env.new_byte_array(262144)?; let mut tmp = vec![0i8; 262144]; let mut buf = vec![0u8; 262144]; let mut va = 0u64;
+            prog(0, tot);
+            loop {
+                let n = env.call_method(&ent, jni_str!("read"), jni_sig!("([B)I"), &[JValue::Object(&a)])?.i()?;
+                if n < 0 { break; }
+                let n = (n as usize).min(tmp.len()); a.get_region(env, 0, &mut tmp[..n])?;
+                for (d, s) in buf[..n].iter_mut().zip(&tmp[..n]) { *d = *s as u8; }
+                if f.write_all(&buf[..n]).is_err() { break; }
+                va += n as u64; prog(va, tot.max(va));
+            }
+            env.call_method(&ent, jni_str!("close"), jni_sig!("()V"), &[])?;
+            env.call_method(&c, jni_str!("disconnect"), jni_sig!("()V"), &[])?;
+            Ok(if tot > 0 && va != tot { 0 } else { 200 })
+        }).map_err(|e| e.to_string())
+    }
     pub fn pedir_crudo(&self, metodo: &str, url: &str, cab: &[(String, String)], cuerpo: Option<&str>, tope: usize) -> Result<(u16, Vec<u8>), String> {
         con_java(&self.vm, |env| {
             let u = env.new_string(url)?;

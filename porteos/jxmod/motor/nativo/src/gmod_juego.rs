@@ -377,6 +377,14 @@ impl Juego {
     }
     /// arranca la capa GMod (sin addons todavía): se llama sola la primera vez
     fn gmod_arrancar(&mut self) {
+        // (si la biblioteca de GMod no vino en la APK, se baja primero —86 MB, una vez— y mientras tanto no arranca)
+        if self.gmod.lib.is_none() { if let (Some(b), Some(l)) = (self.bajas.clone(), self.gmod.lector_rb.clone()) {
+            let faltan: Vec<String> = gmod_base::archivos_lib(&l).into_iter().filter(|n| !b.disponible(n)).collect();
+            if let Some((va, tot, falla)) = b.asegurar(&faltan) {
+                self.avisar(if falla { "No se pudo bajar la biblioteca de GMod: revisá la conexión".into() } else if tot > 0 { format!("Bajando la biblioteca de GMod… {:.0} de {:.0} MB (una sola vez)", va as f64 / 1048576.0, tot as f64 / 1048576.0) } else { "Bajando la biblioteca de GMod… (una sola vez)".into() });
+                return;
+            }
+        } }
         // (la biblioteca y los datos de la versión personal, una vez)
         if self.gmod.lib.is_none() { if let Some(l) = self.gmod.lector_rb.clone() { self.gmod.lib = gmod_base::Biblioteca::abrir(l.clone()).map(Rc::new); if self.gmod.jxp.is_none() { self.gmod.jxp = gmod_base::menu_jxp(&l); } } }
         let nombres: HashMap<String, String> = self.nombres.keys().map(|k| (k.to_lowercase(), k.clone())).collect();

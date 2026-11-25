@@ -254,6 +254,8 @@ pub struct Juego {
     pub memes: memes_juego::Memes,
     /// la partida en el Wi-Fi (lan_juego.rs)
     pub lan: lan_juego::EnLan,
+    /// los paquetes aparte que se bajan cuando hacen falta (bajas.rs) y cómo va la bajada del mapa que se va a cargar
+    pub bajas: Option<crate::bajas::Bajas>, pub bajada: Option<(u64, u64, bool)>,
     /// lo que salió mal (se muestra en la pantalla: en el teléfono no hay otra forma de verlo)
     pub error: Option<String>,
     mapa_cartel: bool,
@@ -343,7 +345,7 @@ impl Juego {
         let gmod = gmod_juego::EnGmod::nueva(datos.as_deref());
         let mut j = Juego { paq, mapa: None, mapas: vec!["RB_Flatgrass".into(), "RB_Construct".into()], mapa_i: 0, letras, letras_px, jug: Jugador::nuevo(), acum: 0.0,
             dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0, perf: [0.0; 5], perf_t: Instant::now(),
-            recargar: true, dt_fijo: None, gfxa: Default::default(), gfx_medir: false, refresco: 60.0, memes: Default::default(), lan: Default::default(), error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
+            recargar: true, dt_fijo: None, gfxa: Default::default(), gfx_medir: false, refresco: 60.0, memes: Default::default(), lan: Default::default(), bajas: None, bajada: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
             nombres: HashMap::new(), catalogo: vec![], cat_npc: vec![], cat_veh: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
@@ -826,6 +828,16 @@ impl Juego {
     }
 
     /// arma el mapa elegido y pone al jugador donde aparece
+    /// lo que le falta bajar al mapa que se va a cargar: (bajado, total, falló) del mapa y la skin juntos; la skin que no se
+    /// puede bajar no frena (queda el Hero, como siempre)
+    fn rb_falta_carga(&self) -> Option<(u64, u64, bool)> {
+        let (b, paq) = (self.bajas.as_ref()?, self.paq.as_ref()?);
+        let nom = |k: String| paq.d["rbp"][&k][0].as_str().map(String::from);
+        let mapa: Vec<String> = self.mapas.get(self.mapa_i).and_then(|m| nom(format!("m_{m}"))).into_iter().collect();
+        let skin: Vec<String> = nom(format!("s_{}", self.skin)).into_iter().collect();
+        let fm = b.asegurar(&mapa); let fs = b.asegurar(&skin).filter(|s| !s.2);
+        match (fm, fs) { (None, None) => None, (a, c) => { let (a, c) = (a.unwrap_or((0, 0, false)), c.unwrap_or((0, 0, false))); Some((a.0 + c.0, a.1 + c.1, a.2)) } }
+    }
     fn cargar_mapa(&mut self, m: &mut Motor3d) {
         let nombre = self.mapas[self.mapa_i].clone(); let nombre = nombre.as_str();
         self.mapa = None;
@@ -880,7 +892,13 @@ impl Juego {
         // (al cargar: primero un cuadro con el cartel de «Cargando…», y en el siguiente se arma el mapa, que tarda)
         if self.recargar {
             if self.paq.is_some() && !self.mapa_cartel { self.mapa_cartel = true; self.mapa = None; m.vaciar(); self.objs.clear(); self.fis = Fisica::nueva(); self.npcs.olvidar(); self.npc_skins.olvidar(); self.vehs = Vehiculos::nuevo(); self.pila.clear(); self.prefabs.clear(); self.cargados.olvidar(); self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false; self.armas_ico = false; self.ef_atlas = false; if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; } self.cargar_letras(m); }
-            else { self.recargar = false; self.mapa_cartel = false; if self.paq.is_some() { self.cargar_mapa(m); } else { m.vaciar(); self.cargar_letras(m); } }
+            // (si al mapa —o a la skin elegida— le falta bajar su paquete aparte, la pantalla de carga espera y dice cuánto va;
+            // si el mapa no se puede bajar, vuelve al menú)
+            else if let Some(b) = self.rb_falta_carga() {
+                if b.2 { self.bajada = None; self.recargar = false; self.mapa_cartel = false; self.avisar("No se pudo bajar el mapa: revisá la conexión".into()); self.inicio_abrir(); }
+                else { self.bajada = Some(b); }
+            }
+            else { self.bajada = None; self.recargar = false; self.mapa_cartel = false; if self.paq.is_some() { self.cargar_mapa(m); } else { m.vaciar(); self.cargar_letras(m); } }
         }
         let ahora = Instant::now(); let dt = self.dt_fijo.unwrap_or((ahora - self.t_ant).as_secs_f32().min(0.1)); self.t_ant = ahora; self.perf_t = ahora;
         self.gfx_auto(placa_txt, w, h);

@@ -22,7 +22,25 @@ fn main() {
     let let_ = std::env::var("JXM_LETRAS").unwrap_or("/tmp/claude-0/jxm/letras".into());
     let motor = std::env::var("JXM_MOTOR").unwrap_or_default(); let vk = motor == "vk"; let gl2 = motor == "gl2";
     let t = Instant::now();
-    let paq = Paquete::abrir(Path::new(&www));
+    // (JXM_BAJAS=1: como la APK liviana —en la APK sólo los dos mapas de base— y lo demás «se baja» de web/rb del repo, de a
+    // pedazos y despacio, como por internet: se entra a la Pizzería y se sacan fotos de la pantalla de carga bajando y del mapa)
+    let bajas = std::env::var("JXM_BAJAS").is_ok();
+    let mut bajas_b = None; let mut paq_b = None;
+    if bajas {
+        let dir = std::env::temp_dir().join("jxm_bajas_foto"); let _ = std::fs::remove_dir_all(&dir);
+        let bajar: jxmod::bajas::Bajar = std::sync::Arc::new(|u: &str, a: &Path, prog: &dyn Fn(u64, u64)| {
+            let nom = u.rsplit('/').next().unwrap_or(""); let d = std::fs::read(format!("/home/user/Ports/web/rb/{nom}")).map_err(|e| e.to_string())?; let n = d.len() as u64;
+            for k in 1..=40u64 { prog(n * k / 40, n); std::thread::sleep(std::time::Duration::from_millis(50)); }
+            std::fs::write(a, &d).map_err(|e| e.to_string())?; Ok(200)
+        });
+        const BASE: [&str; 2] = ["m_RB_Flatgrass.7e6d9a7b1a.rbp", "m_RB_Construct.8ab8f9b160.rbp"];
+        let b = jxmod::bajas::Bajas::nueva(dir, Some(bajar)).con_apk(std::sync::Arc::new(|n: &str| BASE.contains(&n)));
+        let idx = std::fs::read_to_string(Path::new(&www).join("pk.idx.json")).unwrap(); let bloque = std::fs::read(Path::new(&www).join("pk.bin")).unwrap();
+        let (bj, w3) = (b.clone(), www.clone());
+        paq_b = Some(Paquete::de_bytes(&idx, bloque, Box::new(move |n| { let nom = n.strip_prefix("rb/")?; if BASE.contains(&nom) { return std::fs::read(Path::new(&w3).join(n)).ok(); } let r = bj.leer(nom); if r.is_none() { bj.pedir(nom); } r })));
+        bajas_b = Some(b);
+    }
+    let paq = paq_b.unwrap_or_else(|| Paquete::abrir(Path::new(&www)));
     println!("paquete: {:.0} ms", t.elapsed().as_secs_f64() * 1000.0);
     let datos = std::env::temp_dir().join("jxm_nativo_datos"); let _ = std::fs::create_dir_all(&datos); let _ = std::fs::remove_file(datos.join("mapa.txt")); let _ = std::fs::remove_file(datos.join("ajustes.txt"));
     let letras = || (std::fs::read_to_string(Path::new(&let_).join("letras.json")).ok(), std::fs::read(Path::new(&let_).join("letras.png")).ok());
@@ -31,6 +49,7 @@ fn main() {
     // JXM_MENUS, la carpeta con ui/menus.json de herramientas/atlas_menus.py)
     if std::env::var("JXM_GFX_AUTO").is_ok() { let menus = std::env::var("JXM_MENUS").unwrap_or("/tmp/claude-0/menus_activos".into()); j.inicio_lector(Box::new(move |n| std::fs::read(Path::new(&menus).join(n)).ok())); }
     j.dt_fijo = Some(1.0 / 60.0);
+    if let Some(b) = bajas_b { j.bajas = Some(b); let menus = std::env::var("JXM_MENUS").unwrap_or("/tmp/claude-0/menus_activos".into()); j.inicio_lector(Box::new(move |n| std::fs::read(Path::new(&menus).join(n)).ok())); }
 
     let (mut m, placa) = if vk {
         let m = unsafe { jxmotor::vk::Motor::nuevo(None, w as u32, h as u32, Opciones::default()) }.expect("Vulkan");
@@ -75,6 +94,18 @@ fn main() {
         enc.set_color(png::ColorType::Rgba); enc.set_depth(png::BitDepth::Eight); enc.write_header().unwrap().write_image_data(&dado).unwrap();
         println!("  → {ruta}");
     };
+    if bajas {
+        assert!(j.poner_mapa("RB_Pizzeria"), "no existe la Pizzería");
+        let t0 = Instant::now(); let mut sacada = false;
+        while j.mapa.is_none() && t0.elapsed().as_secs() < 30 {
+            paso(&mut j, &mut m, 1); std::thread::sleep(std::time::Duration::from_millis(16));
+            if !sacada && j.bajada.map(|b| b.0 > b.1 / 3).unwrap_or(false) { foto(&mut m, "b1_bajando"); println!("bajando: {:?}", j.bajada); sacada = true; }
+        }
+        println!("mapa cargado en {:.1} s (con la bajada simulada) · error: {:?}", t0.elapsed().as_secs_f64(), j.error);
+        paso(&mut j, &mut m, 60); foto(&mut m, "b2_cargado");
+        assert!(sacada && j.mapa.is_some(), "no se vio la bajada o no cargó el mapa");
+        return;
+    }
     if let Ok(vs) = std::env::var("JXM_VISTAS") {
         if let Ok(mp) = std::env::var("JXM_MAPA") { assert!(j.poner_mapa(&mp), "no existe el mapa {mp}"); }
         paso(&mut j, &mut m, 2);

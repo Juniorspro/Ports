@@ -35,6 +35,12 @@ pub fn lector_android(app: &android_activity::AndroidApp) -> LectorRb {
     })
 }
 
+/// los archivos de la biblioteca: el índice y sus trozos (los trozos los dice el índice: hace falta tenerlo)
+pub fn archivos_lib(lector: &LectorRb) -> Vec<String> {
+    let mut v = vec![GM_LIB.to_string()];
+    if let Some(crudo) = lector(GM_LIB, 0, usize::MAX) { if let Ok(j) = serde_json::from_slice::<serde_json::Value>(&desgz(&crudo).unwrap_or(crudo)) { v.extend(j["t"].as_array().into_iter().flatten().filter_map(|x| x.as_str().map(String::from))); } }
+    v
+}
 fn desgz(b: &[u8]) -> Option<Vec<u8>> { let mut o = vec![]; flate2::read::GzDecoder::new(b).read_to_end(&mut o).ok()?; Some(o) }
 
 /// la biblioteca: ruta → (trozo, desde, cuántos, comprimido con gzip); lo que se leyó queda guardado

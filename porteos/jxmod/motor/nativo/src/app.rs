@@ -42,9 +42,13 @@ fn android_main(app: AndroidApp) {
     let t0 = Instant::now();
     let idx = activo(&app, "pk.idx.json").and_then(|b| String::from_utf8(b).ok());
     let bloque = activo(&app, "pk.bin");
-    let app2 = app.clone();
+    // (los paquetes aparte que no vienen en la APK se bajan cuando hacen falta y quedan en la memoria de la app: bajas.rs)
+    let app5 = app.clone();
+    let bajas = crate::bajas::Bajas::nueva(datos.clone().unwrap_or_else(std::env::temp_dir).join("rb"), Some(unsafe { crate::red_android::Java::de_vm(app.vm_as_ptr()) }.bajar()))
+        .con_apk(std::sync::Arc::new(move |n: &str| CString::new(format!("rb/{n}")).ok().and_then(|c| app5.asset_manager().open(&c)).is_some()));
+    let app2 = app.clone(); let bj2 = bajas.clone();
     let paq = match (idx, bloque) {
-        (Some(i), Some(b)) => Paquete::de_bytes(&i, b, Box::new(move |n| activo(&app2, n))),
+        (Some(i), Some(b)) => Paquete::de_bytes(&i, b, Box::new(move |n| activo(&app2, n).or_else(|| { let nom = n.strip_prefix("rb/")?; let r = bj2.leer(nom); if r.is_none() { bj2.pedir(nom); } r }))),
         _ => Err("no están pk.bin o pk.idx.json en la APK".into()),
     };
     log(&format!("paquete: {:.0} ms ({})", t0.elapsed().as_secs_f64() * 1000.0, if paq.is_ok() { "bien" } else { "mal" }));
@@ -56,7 +60,14 @@ fn android_main(app: AndroidApp) {
     // (los addons de GMod: bajar de la tienda —binario— y la carpeta del celular donde se pueden dejar .gma)
     let java = unsafe { crate::red_android::Java::de_vm(app.vm_as_ptr()) }; j.gmod.http_bin = Some(java.http_bin()); j.gmod.carpeta_externa = app.external_data_path().map(|p| p.join("addons"));
     // (el contenido base de GMod y HL2 —rb/gm_lib.*— y el menú de GMod —rb/jxp/— leídos de la APK)
-    j.gmod.lector_rb = Some(crate::comun::gmod_juego::lector_android(&app));
+    {   let lr = crate::comun::gmod_juego::lector_android(&app); let bj = bajas.clone();
+        j.gmod.lector_rb = Some(std::sync::Arc::new(move |n: &str, o: u64, len: usize| lr(n, o, len).or_else(|| {
+            use std::os::unix::fs::FileExt;
+            let Some(p) = bj.archivo(n) else { bj.pedir(n); return None };
+            if len == usize::MAX { return std::fs::read(p).ok(); }
+            let f = std::fs::File::open(p).ok()?; let mut v = vec![0u8; len]; f.read_exact_at(&mut v, o).ok()?; Some(v)
+        }))); }
+    j.bajas = Some(bajas);
     // (escribir: el cuadro de texto de Juego.java)
     if let Some(t) = unsafe { crate::red_android::Teclado::nuevo(app.vm_as_ptr(), app.activity_as_ptr()) } {
         // (el refresco de la pantalla: los gráficos automáticos buscan los cuadros que da —120 en una de 120 Hz—)

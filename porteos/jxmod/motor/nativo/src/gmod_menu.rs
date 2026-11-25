@@ -211,7 +211,8 @@ impl Juego {
                 let gm = self.gmod.gm.as_ref(); let png = ["materials/entities/", "materials/vgui/entities/"].iter().find_map(|d| gm.and_then(|g| g.archivo(&format!("{d}{c}.png")))).map(|x| x.to_vec());
                 png.or_else(|| { let v = gm.and_then(|g| g.archivo(&format!("materials/vgui/entities/{c}.vtf")))?; let t = jxgmod::formatos::vtf(&v, 128).ok()?; let px = jxgmod::formatos::vtf_rgba(&t); let mut o = vec![]; { let mut e = png::Encoder::new(&mut o, t.w as u32, t.h as u32); e.set_color(png::ColorType::Rgba); e.set_depth(png::BitDepth::Eight); e.write_header().ok()?.write_image_data(&px).ok()?; } Some(o) })
             } else { None };
-            let tex = b.and_then(|b| png_a_rgba(&b)).and_then(|(w, h, px)| {
+            // (PNG, o WebP: los íconos del menú de la personal van en WebP adentro de la APK —armar_nativo.py—, con el mismo nombre)
+            let tex = b.and_then(|b| if b.starts_with(b"\x89PNG") { png_a_rgba(&b) } else { crate::pincel::decodificar(&b) }).and_then(|(w, h, px)| {
                 let id = self.gm_id_pub(); let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas: vec![], mats: vec![], texs: vec![Tex { id, n: k.clone(), w, h, a: 1, o: 0 }], lms: vec![], items: vec![], agua: None, cielo: None };
                 unsafe { m.cargar(&Escena { c: cab, datos: px }) }.ok().map(|_| (id, w, h))
             });

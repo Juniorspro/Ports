@@ -6,6 +6,8 @@ pub mod armas;
 pub mod comun;
 /// la partida en la red local (lan.js y Lan.java: el broker del anfitrión y los anuncios)
 pub mod lan;
+/// los paquetes aparte que se bajan cuando hacen falta (datos.js: rbBajar)
+pub mod bajas;
 // (el dibujo 2D de los menús y los íconos de la web)
 pub mod iconos;
 pub mod pincel;

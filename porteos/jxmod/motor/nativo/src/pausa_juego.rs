@@ -167,8 +167,12 @@ impl Juego {
         // (abajo: el estado y una barra que se llena —acá el mapa se arma de una vez—)
         let fb = (2.6 * vh).max(13.0); let by = h - m - 6.0;
         let midiendo = self.gfxa.midiendo();
-        p.texto(Cara::O5, fb, m, by - fb * 0.9, con_a(TX, 0.85), 0.06, if midiendo { "AJUSTANDO LOS GRÁFICOS…" } else { "CARGANDO EL MAPA…" }); p.texto_d(Cara::O5, fb, w - m, by - fb * 0.9, con_a(TX, 0.6), 0.1, "JXSTUDIOS");
-        p.rect(m, by, w - 2.0 * m, 4.0, rgba(0xefede7, 0.15)); p.rect(m, by, (w - 2.0 * m) * if midiendo { 0.9 } else { 0.35 }, 4.0, AMA);
+        // (si se está bajando el paquete del mapa: cuánto va, en MB, y la barra con eso)
+        let mb = |x: u64| format!("{:.1}", x as f64 / 1048576.0).replace('.', ",");
+        let (txt, lleno) = match self.bajada { Some((va, tot, _)) if !midiendo => (if tot > 0 { format!("BAJANDO EL MAPA… {} DE {} MB", mb(va), mb(tot)) } else { "BAJANDO EL MAPA…".to_string() }, if tot > 0 { (va as f32 / tot as f32).clamp(0.02, 1.0) } else { 0.05 }),
+            _ => ((if midiendo { "AJUSTANDO LOS GRÁFICOS…" } else { "CARGANDO EL MAPA…" }).to_string(), if midiendo { 0.9 } else { 0.35 }) };
+        p.texto(Cara::O5, fb, m, by - fb * 0.9, con_a(TX, 0.85), 0.06, &txt); p.texto_d(Cara::O5, fb, w - m, by - fb * 0.9, con_a(TX, 0.6), 0.1, "JXSTUDIOS");
+        p.rect(m, by, w - 2.0 * m, 4.0, rgba(0xefede7, 0.15)); p.rect(m, by, (w - 2.0 * m) * lleno, 4.0, AMA);
     }
 
     // —— el tacto jugando: el botón de pausa, la pausa y los paneles abiertos desde ella ——

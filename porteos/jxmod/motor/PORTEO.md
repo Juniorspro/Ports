@@ -7,7 +7,7 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | web | estado | nativa |
 |---|---|---|
 | nucleo.js, gl.js, post.js, sombras.js, cielos.js, geo.js, modelo.js | ✔ | jxmotor (Vulkan, GL3, GL2) |
-| mundo.js, datos.js | ✔ | juego/mundo.rs, paquete.rs, mapa.rs |
+| mundo.js, datos.js | ✔ (con los paquetes aparte que se bajan cuando hacen falta —rbBajar/rbAsegurar—: de web/rb de la rama, revisados con la huella del nombre, guardados en la app; la pantalla de carga espera el mapa y dice cuánto va; la biblioteca de GMod se baja la primera vez. La APK liviana: `--mapas base --gmod menu`, íconos en WebP) | juego/mundo.rs, paquete.rs, mapa.rs, nativo/bajas.rs |
 | fisica.js, fisica_wasm.js | ✔ (detección 2–4× más rápida y solver por islas en hilos, exacta bit a bit) | juego/fisica.rs, fisica/ |
 | agua.js | ✔ | juego/flotar.rs + motores |
 | efectos.js, marcas.js | ✔ | juego/efectos.rs |

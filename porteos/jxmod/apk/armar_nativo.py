@@ -45,6 +45,8 @@ def rb_de_mapas(www, mapas):
     except Exception: A.fallar('pk.bin no se lee (¿cifrado?): hace falta el de la versión personal sin cifrar')
     fuera = []
     if mapas == ['todo']: return [v[0] for v in (d.get('rbp') or {}).values()]
+    # («base»: los dos mapas de siempre —el resto, las skins y lo demás se bajan en el celular cuando hacen falta: bajas.rs—)
+    if mapas == ['base']: mapas = ['RB_Flatgrass', 'RB_Construct']
     for m in mapas:
         r = (d.get('rbp') or {}).get('m_' + m)
         if not r: A.fallar('el mapa', m, 'no tiene paquete aparte en DATA.rbp')
@@ -60,7 +62,8 @@ def main():
     ap.add_argument('--so-armv7', default=os.path.join(TARGET, 'armv7-linux-androideabi', 'release', 'libjxmod.so'))
     ap.add_argument('--mapas', default='todo')
     ap.add_argument('--rb-extra', default='/tmp/claude-0/jxp_pub/rb', help='otra carpeta donde buscar los paquetes aparte que no estén en WWW/rb')
-    ap.add_argument('--gmod', default='todo', choices=['todo', 'sin-iconos', 'nada'], help='la biblioteca de GMod (rb/gm_lib, 86 MB) y rb/jxp (el menú de GMod: 11 MB, más 37 MB de spawnicons con «todo»)')
+    ap.add_argument('--gmod', default='todo', choices=['todo', 'menu', 'sin-iconos', 'nada'], help='la biblioteca de GMod (rb/gm_lib, 86 MB) y rb/jxp (el menú de GMod: 11 MB, más 37 MB de spawnicons con «todo»)')
+    ap.add_argument('--png', dest='iconos_webp', action='store_false', help='dejar los íconos del menú de GMod en PNG (por defecto van en WebP: pesan la cuarta parte)')
     ap.add_argument('--version-name', default='0.1')
     ap.add_argument('--version-code', type=int, default=int(datetime.datetime.now(datetime.timezone.utc).strftime('%y%m%d%H')))
     ap.add_argument('--conservar', action='store_true')
@@ -103,13 +106,32 @@ def main():
         # la versión personal —rb/jxp/: el menú de GMod con sus spawnlists, su Lua, sus nombres y, con «todo», los spawnicons—)
         if a.gmod != 'nada':
             dirs = [d for d in (os.path.join(a.www, 'rb'), a.rb_extra) if d and os.path.isdir(d)]
-            idx = next((f for d in dirs for f in sorted(glob.glob(os.path.join(d, 'gm_lib.*.idx')))), None)
-            if not idx: A.fallar('no está la biblioteca de GMod (rb/gm_lib.*.idx) ni en WWW/rb ni en --rb-extra')
-            pre = os.path.basename(idx)[:-len('idx')]
-            for f in glob.glob(os.path.join(os.path.dirname(idx), pre + '*')): shutil.copyfile(f, os.path.join(act, 'rb', os.path.basename(f)))
+            # («menu»: el menú de GMod con sus íconos sí, la biblioteca de 86 MB no: se baja la primera vez que se usa GMod)
+            idx = None if a.gmod == 'menu' else next((f for d in dirs for f in sorted(glob.glob(os.path.join(d, 'gm_lib.*.idx')))), None)
+            if a.gmod != 'menu':
+                if not idx: A.fallar('no está la biblioteca de GMod (rb/gm_lib.*.idx) ni en WWW/rb ni en --rb-extra')
+                pre = os.path.basename(idx)[:-len('idx')]
+                for f in glob.glob(os.path.join(os.path.dirname(idx), pre + '*')): shutil.copyfile(f, os.path.join(act, 'rb', os.path.basename(f)))
             jxp = next((os.path.join(d, 'jxp') for d in dirs if os.path.isfile(os.path.join(d, 'jxp', 'menu.json'))), None)
             if not jxp: A.fallar('no está rb/jxp (el menú de GMod de la versión personal)')
-            shutil.copytree(jxp, os.path.join(act, 'rb', 'jxp'), ignore=None if a.gmod == 'todo' else shutil.ignore_patterns('iconos'))
+            shutil.copytree(jxp, os.path.join(act, 'rb', 'jxp'), ignore=None if a.gmod == 'todo' else shutil.ignore_patterns('iconos') if a.gmod == 'sin-iconos' else None)
+            # (los íconos del menú —6.880 PNG, 48 MB— a WebP con el mismo nombre: el juego lo reconoce por el contenido. Los
+            # spawnicons, con pérdida —calidad 82: no se nota en 64-128 px y pesan la cuarta parte—; los de la interfaz, sin pérdida)
+            if a.iconos_webp:
+                from PIL import Image
+                antes = despues = 0
+                for r, _, fs in os.walk(os.path.join(act, 'rb', 'jxp')):
+                    for f in fs:
+                        if not f.lower().endswith('.png'): continue
+                        ruta = os.path.join(r, f); crudo = os.path.getsize(ruta); im = Image.open(ruta); im.load()
+                        if im.mode not in ('RGB', 'RGBA'): im = im.convert('RGBA' if 'A' in im.mode or 'transparency' in im.info else 'RGB')
+                        tmp_w = ruta + '.webp'
+                        if os.sep + 'iconos' + os.sep in ruta: im.save(tmp_w, 'WEBP', quality=82, method=6)
+                        else: im.save(tmp_w, 'WEBP', lossless=True, method=6)
+                        if os.path.getsize(tmp_w) < crudo: os.replace(tmp_w, ruta)
+                        else: os.remove(tmp_w)
+                        antes += crudo; despues += os.path.getsize(ruta)
+                print('  íconos del menú de GMod a WebP: %.1f MB → %.1f MB' % (antes / 1048576, despues / 1048576))
         A.correr([sys.executable, '-I', os.path.join(os.path.dirname(AQUI), 'herramientas', 'atlas_letras.py'), os.path.join(act, 'ui')], 'atlas de letras')
         # (el inicio: el atlas de los menús —Oswald y la letra de los textos— y, con --paquete, las escenas de fondo del inicio
         # como fondos/1.webp, 2… —las de FONDOS_RB, en el mismo orden— y las fotos de carga como carga/<nombre>.webp)
