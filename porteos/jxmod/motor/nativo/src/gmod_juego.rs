@@ -25,6 +25,8 @@ const TEX_GMOD: i64 = -3000;
 // (los Pill Packs: pillpacks.js y pill_gmod.js)
 #[path = "gmod_pill.rs"] pub mod gmod_pill;
 pub use gmod_base::{lector_carpetas, LectorRb};
+/// los archivos de la biblioteca de GMod (para bajarlos antes de cargar un mapa del Workshop)
+pub fn gmod_base_archivos_lib(l: &LectorRb) -> Vec<String> { gmod_base::archivos_lib(l) }
 #[cfg(target_os = "android")] pub use gmod_base::lector_android;
 /// la tienda de la web (inicio.js: TIENDA_URL)
 pub const TIENDA_URL: &str = "https://rezobox-tienda.holasoyjuniors365.workers.dev/api/";
@@ -258,7 +260,7 @@ pub struct EnGmod {
     pub gm: Option<Gmod>,
     pub addons: Vec<InfoAddon>,
     /// los que faltan montar (uno por cuadro: un addon grande no traba el juego)
-    pendientes: Vec<usize>,
+    pub pendientes: Vec<usize>,
     /// el arma de un addon en la mano (su índice en las armas registradas) y el arma del juego que presta su vista
     arma: Option<usize>, base: usize,
     /// las carpetas de addons: la del teléfono (Android/data/…/files/addons) y la de lo bajado (datos/addons)
@@ -280,7 +282,7 @@ pub struct EnGmod {
     /// lo que tardó en el último cuadro el dibujo 3D del Lua más armar y ubicar los modelos (ms)
     pub ms_3d: f32,
     /// cómo leer rb/ (la biblioteca gm_lib y rb/jxp: en la APK o en una carpeta; lo pone la app), lo leído y el menú de GMod
-    pub lector_rb: Option<LectorRb>, lib: Option<Rc<gmod_base::Biblioteca>>, pub jxp: Option<gmod_base::MenuJxp>, pub menu: gmod_menu::MenuGm,
+    pub lector_rb: Option<LectorRb>, pub(crate) lib: Option<Rc<gmod_base::Biblioteca>>, pub jxp: Option<gmod_base::MenuJxp>, pub menu: gmod_menu::MenuGm,
     /// los modelos de jugador puestos (el jugador y los NPC con uno: gmod_pm.rs)
     pub pm: gmod_pm::Pm,
     /// los bucles de sonido de los addons que suenan (gmod_sonidos.js: GMSN.bucles) y el reloj de los fundidos
@@ -418,18 +420,21 @@ impl Juego {
     pub fn gmod_arma_activa(&self) -> bool { self.gmod.arma.is_some() }
     /// montar un addon de los pendientes
     fn gmod_montar_uno(&mut self) {
-        let Some(i) = (!self.gmod.pendientes.is_empty()).then(|| self.gmod.pendientes.remove(0)) else { return };
+        if self.gmod.pendientes.is_empty() { return; }
+        // (GMod arranca recién cuando está su biblioteca: si se está bajando, el addon espera en la fila —se reintenta en el
+        // cuadro siguiente— en vez de montarse sin motor)
+        if self.gmod.gm.is_none() { self.gmod_arrancar(); if self.gmod.gm.is_none() { return; } }
+        let i = self.gmod.pendientes.remove(0);
         let ruta = self.gmod.addons[i].ruta.clone();
         let arch = if ruta.is_dir() { Some(jxgmod::leer_carpeta(&ruta)) } else { std::fs::read(&ruta).ok().and_then(|b| jxgmod::leer_gma(&b)) };
         let Some(arch) = arch else { self.avisar(format!("No se pudo leer {}", self.gmod.addons[i].nombre)); return };
-        if self.gmod.gm.is_none() { self.gmod_arrancar(); }
         let nombre = self.gmod.addons[i].nombre.clone();
         let ad = Addon::de_archivos(&nombre, &nombre, arch);
         let copia: Vec<(String, Rc<[u8]>)> = ad.archivos.iter().filter(|(k, _)| k.starts_with("sound/") || k.starts_with("materials/")).map(|(k, v)| (k.clone(), v.clone())).collect();
         self.con_puente(|p| for (k, v) in copia { p.archivos.entry(k).or_insert(v); });
         // (el Lua de los addons corre con el mundo a mano: algunos trazan al cargar)
         self.gmod_prestar(true);
-        let gm = self.gmod.gm.as_mut().unwrap();
+        let Some(gm) = self.gmod.gm.as_mut() else { self.gmod_prestar(false); return };
         let idx = gm.montar(ad);
         let (sw, se, er) = (gm.sweps(idx), gm.sents(idx), gm.errores(idx).len());
         let nom_sw: Vec<String> = sw.iter().map(|c| gm.nombre_item(&format!("gmswep:{}", c))).collect();

@@ -30,7 +30,17 @@ public class Juego extends NativeActivity {
         if (Build.VERSION.SDK_INT >= 28) w.getAttributes().layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
         super.onCreate(b);
         completa();
+        // (¿hay una versión nueva de la app? se instala encima: Actualizar.java)
+        Actualizar.buscar(this, false);
     }
+
+    @Override protected void onResume() { super.onResume(); Actualizar.alVolver(this); }
+    @Override protected void onDestroy() { Actualizar.soltar(this); super.onDestroy(); }
+
+    /** (Rust: Ajustes → «Buscar actualización») */
+    public void buscarActualizacion() { runOnUiThread(new Runnable() { @Override public void run() { Actualizar.buscar(Juego.this, true); } }); }
+    /** (Rust) la versión instalada, para mostrarla */
+    public String version() { try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception e) { return ""; } }
 
     @Override public void onWindowFocusChanged(boolean foco) {
         super.onWindowFocusChanged(foco);

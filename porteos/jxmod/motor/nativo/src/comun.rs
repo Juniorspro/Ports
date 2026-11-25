@@ -834,6 +834,10 @@ impl Juego {
         let (b, paq) = (self.bajas.as_ref()?, self.paq.as_ref()?);
         let nom = |k: String| paq.d["rbp"][&k][0].as_str().map(String::from);
         let mapa: Vec<String> = self.mapas.get(self.mapa_i).and_then(|m| nom(format!("m_{m}"))).into_iter().collect();
+        let mut mapa = mapa;
+        if self.mapas.get(self.mapa_i).map(|m| m.starts_with("WS_")).unwrap_or(false) && self.gmod.lib.is_none() {
+            if let Some(l) = self.gmod.lector_rb.as_ref() { mapa.extend(gmod_juego::gmod_base_archivos_lib(l).into_iter().filter(|n| !b.disponible(n))); }
+        }
         let skin: Vec<String> = nom(format!("s_{}", self.skin)).into_iter().collect();
         let fm = b.asegurar(&mapa); let fs = b.asegurar(&skin).filter(|s| !s.2);
         match (fm, fs) { (None, None) => None, (a, c) => { let (a, c) = (a.unwrap_or((0, 0, false)), c.unwrap_or((0, 0, false))); Some((a.0 + c.0, a.1 + c.1, a.2)) } }

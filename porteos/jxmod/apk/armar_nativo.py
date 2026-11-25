@@ -22,6 +22,8 @@ MANIFIESTO = """<?xml version="1.0" encoding="utf-8"?>
   <uses-permission android:name="android.permission.INTERNET"/>
   <!-- (la partida en el Wi-Fi: recibir los anuncios por broadcast de las partidas de la red local) -->
   <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
+  <!-- (las versiones nuevas se bajan desde la app y se instalan encima: Actualizar.java) -->
+  <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
   <application android:label="%s" android:icon="@mipmap/ic_launcher" android:hasCode="true" android:extractNativeLibs="false"
       android:isGame="true" android:appCategory="game" android:allowBackup="false">
     <activity android:name="%s" android:exported="true" android:screenOrientation="sensorLandscape" android:launchMode="singleTask"
@@ -54,6 +56,19 @@ def rb_de_mapas(www, mapas):
     return fuera
 
 
+def publicar(a):
+    """--publicar: deja el APK en jxmod/JXModNativo.apk del repo y escribe web/nativo.json (número, versión, tamaño, SHA-256 y
+    notas), que es lo que mira la app al abrir (Novedad.java / Actualizar.java) para ofrecer instalarla encima."""
+    import hashlib
+    raiz = os.path.dirname(os.path.dirname(os.path.dirname(AQUI)))
+    dest = os.path.join(raiz, 'jxmod', 'JXModNativo.apk'); shutil.copyfile(a.salida, dest)
+    h = hashlib.sha256(open(dest, 'rb').read()).hexdigest()
+    man = {'codigo': a.version_code, 'version': a.version_name, 'apk': 'jxmod/JXModNativo.apk', 'tam': os.path.getsize(dest), 'sha256': h,
+           'notas_es': a.notas or '', 'notas_en': a.notas_en or a.notas or ''}
+    with open(os.path.join(raiz, 'web', 'nativo.json'), 'w', encoding='utf-8') as f: json.dump(man, f, ensure_ascii=False, indent=1)
+    print('  publicada: jxmod/JXModNativo.apk y web/nativo.json (%d, %s) — falta el commit y el push' % (a.version_code, a.version_name))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('salida')
@@ -65,6 +80,9 @@ def main():
     ap.add_argument('--gmod', default='todo', choices=['todo', 'menu', 'sin-iconos', 'nada'], help='la biblioteca de GMod (rb/gm_lib, 86 MB) y rb/jxp (el menú de GMod: 11 MB, más 37 MB de spawnicons con «todo»)')
     ap.add_argument('--png', dest='iconos_webp', action='store_false', help='dejar los íconos del menú de GMod en PNG (por defecto van en WebP: pesan la cuarta parte)')
     ap.add_argument('--version-name', default='0.1')
+    ap.add_argument('--publicar', action='store_true', help='dejarla para que las apps instaladas se actualicen (jxmod/JXModNativo.apk y web/nativo.json)')
+    ap.add_argument('--notas', default='', help='las notas de la versión (en castellano) para el aviso de actualización')
+    ap.add_argument('--notas-en', default='', help='las notas en inglés')
     ap.add_argument('--version-code', type=int, default=int(datetime.datetime.now(datetime.timezone.utc).strftime('%y%m%d%H')))
     ap.add_argument('--conservar', action='store_true')
     ap.add_argument('--paquete', default='', help='el PAQUETE de la web: sus escenas de fondo (fondos/*) y las fotos de carga (carga/*) van al inicio, en WebP')
@@ -192,6 +210,7 @@ def main():
         print('APK:', os.path.abspath(a.salida))
         print('  %.2f MB | %s %s (%d) | nativas: %s | mapas: %s (%s)' % (os.path.getsize(a.salida) / 1048576, PAQUETE, a.version_name, a.version_code,
               ', '.join(k.split('/')[1] for k in sorted(nativas)), a.mapas, '%d paquetes aparte' % len(rbs)))
+        if a.publicar: publicar(a)
     finally:
         if a.conservar: print('temporales en', tmp)
         else: shutil.rmtree(tmp, ignore_errors=True)

@@ -22,8 +22,10 @@ pub enum Estado { Bajando { va: u64, tot: u64 }, Listo, Falla }
 #[derive(Clone)]
 pub struct Bajas { dir: PathBuf, bajar: Option<Bajar>, est: Arc<Mutex<HashMap<String, (Estado, Instant)>>>, en_apk: Option<Arc<dyn Fn(&str) -> bool + Send + Sync>> }
 
-/// la huella que dice el nombre (los 10 de sha1 entre puntos), si tiene
-fn huella(nom: &str) -> Option<&str> { nom.split('.').find(|p| p.len() == 10 && p.bytes().all(|c| c.is_ascii_hexdigit())) }
+/// la huella que dice el nombre (los 10 de sha1 entre puntos) cuando es la del contenido: la de los paquetes aparte
+/// (remotos.py: nombre.<sha1 del archivo>.rbp). La biblioteca de GMod (gm_lib.<huella>.idx / .0.bin…) lleva la de la
+/// biblioteca entera, no la de cada trozo: esos se revisan sólo con el tamaño de la bajada.
+fn huella(nom: &str) -> Option<&str> { if !nom.ends_with(".rbp") { return None; } nom.split('.').find(|p| p.len() == 10 && p.bytes().all(|c| c.is_ascii_hexdigit())) }
 fn hex(b: &[u8]) -> String { b.iter().map(|x| format!("{x:02x}")).collect() }
 /// un nombre de paquete aparte (sin carpetas ni nada raro: viene del índice del juego)
 fn nombre_valido(nom: &str) -> bool { !nom.is_empty() && nom.len() < 120 && !nom.contains("..") && nom.bytes().all(|c| c.is_ascii_alphanumeric() || b"._-".contains(&c)) }
@@ -90,7 +92,7 @@ mod pruebas {
     #[test]
     fn huellas_y_nombres() {
         assert_eq!(huella("m_RB_Pizzeria.9a699b26ac.rbp"), Some("9a699b26ac"));
-        assert_eq!(huella("gm_lib.b481aeb12b.0.bin"), Some("b481aeb12b"));
+        assert_eq!(huella("gm_lib.b481aeb12b.0.bin"), None, "la de la biblioteca no es la de cada trozo");
         assert_eq!(huella("jxp"), None);
         assert!(nombre_valido("gm_lib.b481aeb12b.0.bin") && !nombre_valido("../x") && !nombre_valido("a/b") && !nombre_valido(""));
     }

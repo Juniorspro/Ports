@@ -49,6 +49,20 @@ fn main() {
     // JXM_MENUS, la carpeta con ui/menus.json de herramientas/atlas_menus.py)
     if std::env::var("JXM_GFX_AUTO").is_ok() { let menus = std::env::var("JXM_MENUS").unwrap_or("/tmp/claude-0/menus_activos".into()); j.inicio_lector(Box::new(move |n| std::fs::read(Path::new(&menus).join(n)).ok())); }
     j.dt_fijo = Some(1.0 / 60.0);
+    // (con la APK liviana tampoco viene la biblioteca de GMod: el lector sólo tiene el menú —rb/jxp— y lo demás de las bajadas;
+    // y un mod instalado en la carpeta de addons, como el que tenía el dueño cuando se le cerraba al entrar a un mapa)
+    if let Some(b) = bajas_b.as_ref() {
+        let (bj, w4) = (b.clone(), www.clone());
+        j.gmod.lector_rb = Some(std::sync::Arc::new(move |n: &str, o: u64, len: usize| {
+            use std::os::unix::fs::FileExt;
+            if n.starts_with("jxp/") { let mut v = std::fs::read(Path::new(&w4).join("rb").join(n)).ok()?; if len != usize::MAX { v = v.get(o as usize..o as usize + len)?.to_vec(); } return Some(v); }
+            let Some(p) = bj.archivo(n) else { bj.pedir(n); return None };
+            if len == usize::MAX { return std::fs::read(p).ok(); }
+            let f = std::fs::File::open(p).ok()?; let mut v = vec![0u8; len]; f.read_exact_at(&mut v, o).ok()?; Some(v)
+        }));
+        let add = datos.join("addons").join("mod_de_prueba"); let _ = std::fs::create_dir_all(add.join("lua/autorun"));
+        let _ = std::fs::write(add.join("lua/autorun/hola.lua"), "print('mod de prueba cargado')\n");
+    }
     if let Some(b) = bajas_b { j.bajas = Some(b); let menus = std::env::var("JXM_MENUS").unwrap_or("/tmp/claude-0/menus_activos".into()); j.inicio_lector(Box::new(move |n| std::fs::read(Path::new(&menus).join(n)).ok())); }
 
     let (mut m, placa) = if vk {
@@ -104,6 +118,13 @@ fn main() {
         println!("mapa cargado en {:.1} s (con la bajada simulada) · error: {:?}", t0.elapsed().as_secs_f64(), j.error);
         paso(&mut j, &mut m, 60); foto(&mut m, "b2_cargado");
         assert!(sacada && j.mapa.is_some(), "no se vio la bajada o no cargó el mapa");
+        // (el mod espera a la biblioteca de GMod —que «se baja» despacio— sin cerrarse, y después se monta)
+        let t1 = Instant::now(); let mut cuadros = 0;
+        while t1.elapsed().as_secs() < 40 && j.gmod.addons.iter().all(|a| a.idx.is_none()) { paso(&mut j, &mut m, 1); cuadros += 1; std::thread::sleep(std::time::Duration::from_millis(16)); }
+        println!("mod montado tras {cuadros} cuadros jugando ({:.1} s): {:?} · addons: {}", t1.elapsed().as_secs_f64(), j.gmod.addons.iter().map(|a| (a.nombre.clone(), a.idx)).collect::<Vec<_>>(), j.gmod.addons.len());
+        if let (Some(l), Some(b)) = (j.gmod.lector_rb.as_ref(), j.bajas.as_ref()) { for n in jxmod::comun::gmod_juego::gmod_base_archivos_lib(l) { println!("   {n}: {:?}", b.estado(&n)); } }
+        println!("   gm arrancado: {} · pendientes: {:?}", j.gmod.gm.is_some(), j.gmod.pendientes);
+        assert!(j.gmod.addons.iter().any(|a| a.idx.is_some()), "el mod no se montó");
         return;
     }
     if let Ok(vs) = std::env::var("JXM_VISTAS") {
