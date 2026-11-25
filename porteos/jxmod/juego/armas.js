@@ -84,7 +84,8 @@ function miraDir() { return camaraAfuera() ? Quat.euler(JUG.yaw, JUG.pitch).rot(
 // lleva el arma) 0,3 m hacia donde apunta o, si no hay cuerpo, debajo de los ojos (como npcBoca con los NPCs)
 function bocaArma(d) {
   if (!camaraAfuera()) return vistaPuntaMundo();
-  const f = d || miraDir(), o = JUG.ojoPos, P = JUG.cuerpo, hi = P && P.D && P.D.h && P.D.h.RightHand, W = hi !== undefined && P.md && P.md.W && P.md.W[hi];
+  // (sin cuerpo —JUG.cuerpo en null— hi quedaba en null y se leía P.md: «Cannot read properties of null (reading 'md')»)
+  const f = d || miraDir(), o = JUG.ojoPos || CAM.pos, P = JUG.cuerpo, hi = P && P.D && P.D.h ? P.D.h.RightHand : undefined, W = hi !== undefined && P.md && P.md.W && P.md.W[hi];
   let p = W ? v3(W[12], W[13], W[14]) : null;
   if (!p || !isFinite(p.x + p.y + p.z) || p.distTo(o) > 1.2 * (JUG.tam || 1)) p = vadd(o, v3(0, -0.3, 0));
   return p.addS(f, 0.3);

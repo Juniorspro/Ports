@@ -67,7 +67,8 @@ function fuente3D(pos, vol) {
   let r = null; if (AUD.rev) { r = c.createGain(); r.gain.value = 0.35; f.connect(r); r.connect(AUD.rev); }
   return { g, f, p, r };
 }
-function ponerPos(p, v) { if (p.positionX) { p.positionX.value = v.x; p.positionY.value = v.y; p.positionZ.value = v.z; } else p.setPosition(v.x, v.y, v.z); }
+// (una posición con NaN o infinito hace tirar a Web Audio: se deja el sonido donde estaba)
+function ponerPos(p, v) { if (!p || !v || !isFinite(v.x + v.y + v.z)) return; if (p.positionX) { p.positionX.value = v.x; p.positionY.value = v.y; p.positionZ.value = v.z; } else p.setPosition(v.x, v.y, v.z); }
 // sonar: nombre, posición (o null = plano), volumen, tono
 function sonar(n, pos, vol, tono) {
   if (!AUD.ctx || !PREFS.vol) return null;

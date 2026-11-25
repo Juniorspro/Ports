@@ -875,7 +875,9 @@ function gmLZMA(b, prog) {
     if (!w) { try { ok(GMF.lzma(b)); } catch (e) { mal(e); } return; }
     // (si el hilo se queda 60 s sin avisar nada, se corta: la cola lo vuelve a intentar)
     let vig = 0; const vigilar = () => { clearTimeout(vig); vig = setTimeout(() => { w.terminate(); mal(Object.assign(new Error('se trabó al descomprimir'), { trabado: true })); }, 60000); }; vigilar();
-    w.onmessage = (e) => { const d = e.data; if (d.p !== undefined) { vigilar(); if (prog) prog(d.p); return; } clearTimeout(vig); w.terminate(); if (d.e) mal(new Error(d.e)); else ok(d.o); };
+    // (si el aviso de avance tira —se canceló la descarga—, se corta el hilo y la promesa falla con ese error: antes el error
+    // saltaba suelto adentro de onmessage y el hilo seguía descomprimiendo)
+    w.onmessage = (e) => { const d = e.data; if (d.p !== undefined) { vigilar(); if (prog) try { prog(d.p); } catch (x) { clearTimeout(vig); w.terminate(); mal(x); } return; } clearTimeout(vig); w.terminate(); if (d.e) mal(new Error(d.e)); else ok(d.o); };
     w.onerror = (e) => { clearTimeout(vig); w.terminate(); try { ok(GMF.lzma(b)); } catch (x) { mal(x); } };
     const c = b.slice(); w.postMessage(c, [c.buffer]);
   });

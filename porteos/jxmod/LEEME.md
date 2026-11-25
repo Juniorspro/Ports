@@ -5436,6 +5436,61 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
     - Todos los roles del servidor están en la posición 1, así que la jerarquía la decide la antigüedad y JXBot, el
       más nuevo, queda último. Para dar «Miembro» hay que arrastrar JXBot arriba en Ajustes → Roles.
 
+## Sin publicar todavía — lo de «Bugs y sugerencias» después de la 3.9.12 (25/11)
+
+Los posts nuevos del panel (23 y 24/11) y los errores de JS que mandan los juegos con la 3.9.12.
+
+- **Las ventanas de los mods (Derma) se dibujan de verdad** (`juego/gmod_derma.js`, nuevo; `gmod_prelude.js`). Bug
+  p6s4dr85 «El menú de MINECRAFT SWEP no se abre — le pico al botón y no se abre» (y el 2qz4h87f «MENUS mods»). Hasta
+  ahora los paneles de vgui/Derma eran de mentira: el Lua los creaba y nada se veía, así que todo mod con un menú en una
+  ventana (el de bloques del Minecraft SWEP, opciones de armas, tiendas de modos de juego) no abría nada.
+  - El preludio guarda el estado de cada panel en campos `__` (lugar, tamaño, Dock con márgenes y relleno, texto, título,
+    color, valor, convar, hijos) y los controles de Derma tienen sus métodos: DFrame (título, X, Close con
+    `SetDeleteOnClose`, Center, MakePopup), DButton, DLabel, DImage/DImageButton, SpawnIcon (el ícono del modelo con
+    `gmIcono`), DCheckBox/DCheckBoxLabel, DNumSlider, DTextEntry, DComboBox, DListView (columnas y filas), DPanelList,
+    DScrollPanel, DIconLayout, DGrid, DPropertySheet (pestañas), DCollapsibleCategory, DForm (CheckBox, NumSlider,
+    Button…), DProgress y DermaMenu/DMenu (opciones, separadores y submenús). `SetConVar` lee y escribe la convar.
+  - La búsqueda de métodos va como en GMod: primero la clase que registró el addon (y sus bases), después Panel. Antes
+    iba Panel primero y un addon no podía cambiar `SetParent`, `Clear` o `GetCount` de su panel (el MCBlockPanel los
+    cambia). Las clases de Derma de base tienen los métodos de Panel: `self.BaseClass.Init(self)` anda.
+  - `type()` de un panel da «Panel» (como GMod), no «table»: por eso los controles no se colgaban de su ventana.
+  - El dibujo: cada 200 ms se arma una «firma» con todo lo que se ve y sólo si cambió se vuelve a armar el HTML
+    (guardando el scroll y el campo de texto con foco). Aspecto de Derma: gris oscuro, barra de título azul, botones
+    claros. Si la ventana no entra (celu) se achica. Los toques vuelven al Lua con `__dermaEvento` y llaman al
+    `DoClick`, `DoRightClick`/`OpenMenu` (clic derecho o mantener apretado en el celu), `OnChange`, `OnValueChanged`,
+    `OnSelect`, `OnRowSelected`, `DoDoubleClick`, `OnEnter` del addon. Mientras hay una abierta el juego suelta el mouse
+    (`UI.abierto = 'derma'`) y las teclas de los campos no llegan al juego; Escape cierra la de arriba (no pausa).
+  - Lo que el addon dibuja a mano en `Paint` (draw.RoundedBox, surface…) todavía no se ve: se usa el aspecto de base.
+  - Prueba `pruebas/derma_mods.mjs` 10/10 en PC y 10/10 con pantalla de celu (`CELU=1`), con el Minecraft SWEP bajado
+    del Workshop: la R abre «Block Menu» con 491 íconos y sus botones; entra en la pantalla; tocar un ícono cambia
+    `minecraft_blocktype` (1 → 2) y cierra la ventana; la R la vuelve a abrir; clic derecho a un ícono abre su menú
+    («BlockID = 2», «Copy to Clipboard», «Re-Render» con su submenú, que se cierra al elegir); «Options» abre la otra
+    ventana con 2 deslizadores y 14 casillas y tocar «Huge menu» cambia la convar (1 → 0); la X y Escape cierran; un
+    Lua de prueba con Dock TOP/LEFT/FILL, DComboBox (OnSelect «Dos:2»), DListView (OnRowSelected «b2»), pestañas y
+    DTextEntry (OnEnter «hola»); sin errores de Lua ni de JS.
+- **Errores que mandan los juegos (panel → Errores):**
+  - `Failed to set the 'value' property on 'AudioParam': non-finite` en `ponerPos` (×3 en la 3.9.12, también en la
+    3.9.8): una posición con NaN para un sonido. `ponerPos` (`audio.js`) ya no la pasa: el sonido queda donde estaba.
+  - `Cannot read properties of null (reading 'md')` en `bocaArma` (la Physics Gun dibujando el rayo con
+    `JUG.cuerpo` en null): `hi` quedaba en null en vez de undefined y se leía `P.md` (`armas.js`). Sin ojos, usa la cámara.
+  - `Uncaught Error: cancelado` en la cola de descargas: cancelar mientras un .gma se descomprimía tiraba el error
+    adentro del aviso de avance del hilo (`gmLZMA`, `gmod.js`), suelto y con el hilo trabajando igual. Ahora corta el
+    hilo y la promesa falla con ese error (la cola ya lo esperaba).
+  - `GMA.V is not a function` en `gmaTraza` (3.9.11): poner un modelo de personaje como NPC o ragdoll antes de que
+    arranque el Lua de GMod. `gmnpcModelo` y `gmragModelo` (`gmod_spawn.js`) buscan dónde apunta la mira con
+    `raycast` directo (`gmMiraPunto`), sin el Lua.
+- **«Todavía DOUDOU PET: no se ve el modelo del gato en tus manos»** (wqgy6yyg): en primera persona se ve en todo lo
+  probado (`doudou_agarrar.mjs` 10/10 en PC con Bajo, en celu con Patata —5,4 % de la pantalla con su pelaje— y en celu
+  con WebGL 1). En **tercera persona** el mod dibuja la copia del gato delante del pecho (`PostDrawTranslucentRenderables`,
+  que sí corre) pero los brazos del personaje no la rodean: en GMod los acomoda un `BuildBonePositions` en el jugador
+  (un IK de brazos), que acá todavía no corre; desde atrás el cuerpo la tapa. Visto de frente y de costado, el gato está.
+  La prueba tiene ahora `CELU=1`, `GFX=…`, `GL1=1` y `TERCERA=1`.
+- Ya fallaba antes (sin relación): `gmod_addon.mjs` 6/7, «choque con las piezas de su .phy y su masa; caen y quedan
+  quietos» (apple, cabbage3 y marabou2 siguen moviéndose): igual con el código de la 3.9.12 sin estos cambios.
+- Siguen: «Los mods no funcionan: la mayoría de armas de mods no disparan» (tju5ytdq, sin decir cuáles), «Bon the
+  rabbit se agacha donde no debe» (3ydzqpjd), «Modelo importado no carga con sus huesos» (yx3crm92) y las sugerencias
+  (modos de juego como TTT, el celular con más usos, música de California en el cíclope, mods inteligentes como Pepe).
+
 ## Sin publicar todavía — JXMod Personal (la versión del dueño, para aprender GMod; no se publica)
 
 Pedido: «elimina todos los mapas menos gm_construct y flatgrass… el menú de GMod sea uno renovado, buscá cómo se ponen

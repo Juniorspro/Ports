@@ -146,11 +146,18 @@ function gmnpcSNPC(cls) {
   const melee = buscarEnClase(t, 'HasMeleeAttack') !== false;
   return { mod, vida: Math.min(5000, num('StartHealth', 100)), dano: melee ? Math.min(200, num('MeleeAttackDamage', 10)) : 6, dist: 1.2, vel: 3, hostil: !amigo, base };   // (se para a pegar a 1,2 m: el MeleeAttackDistance de VJ es desde dónde arranca el golpe, hasta 500 unidades, y a esa distancia no llegaba nunca)
 }
+// donde apunta la mira (hasta 30 m) o, si no hay nada, `adelante` metros delante de los pies. Sin pasar por el Lua: los
+// modelos sueltos de los addons se ponen aunque todavía no ande el GMod del juego (con gmaTraza, antes de arrancar,
+// saltaba «GMA.V is not a function»)
+function gmMiraPunto(adelante) {
+  const h = raycast(CAM.pos.clone(), CAM.fwd.clone(), 30, null);
+  return h ? vadd(CAM.pos, vscale(CAM.fwd, h.t)) : vadd(v3(JUG.pos.x, JUG.pos.y - (JUG.medio || 0.9), JUG.pos.z), vscale(v3(CAM.fwd.x, 0, CAM.fwd.z).norm(), adelante));
+}
 // cualquier modelo de personaje de un addon (los que se pueden usar de jugador) puesto como NPC: anda, pasea y reacciona
 // como los NPC del juego, con ese modelo (el esqueleto de GMod llevado al del juego, como al ponérselo uno)
 function gmnpcModelo(ruta) {
   if (!gmArchivo(ruta)) { if (typeof gmlPedir === 'function') gmlPedir(ruta); return null; }
-  const tr = gmaTraza(CAM.pos.clone(), CAM.fwd.clone(), 30, null), hp = tr.get('Hit') && tr.get('HitPos'), p = hp instanceof LVec ? vG(hp) : vadd(v3(JUG.pos.x, JUG.pos.y - (JUG.medio || 0.9), JUG.pos.z), vscale(v3(CAM.fwd.x, 0, CAM.fwd.z).norm(), 4)), yaw = JUG.yaw + Math.PI;
+  const p = gmMiraPunto(4), yaw = JUG.yaw + Math.PI;
   const P = npcCrear('gmpm:' + ruta, v3(p.x, p.y, p.z), yaw, { modo: 'pasear', vel: 1.6, vida: 100 }); if (!P) return null;
   P.gmNpc = { key: ruta, cls: 'npc_citizen' };
   return P;
@@ -160,7 +167,7 @@ function gmnpcModelo(ruta) {
 // tacho (como los NPC). Sirve para los modelos de jugador de los addons y para los props con esqueleto humano
 function gmragModelo(ruta) {
   if (!gmArchivo(ruta)) { if (typeof gmlPedir === 'function') gmlPedir(ruta); return null; }
-  const tr = gmaTraza(CAM.pos.clone(), CAM.fwd.clone(), 30, null), hp = tr.get('Hit') && tr.get('HitPos'), p = hp instanceof LVec ? vG(hp) : vadd(v3(JUG.pos.x, JUG.pos.y - (JUG.medio || 0.9), JUG.pos.z), vscale(v3(CAM.fwd.x, 0, CAM.fwd.z).norm(), 2.5));
+  const p = gmMiraPunto(2.5);
   const yaw = Math.atan2(JUG.pos.x - p.x, JUG.pos.z - p.z);
   const P = npcCrear('gmpm:' + ruta, v3(p.x, p.y + 0.15, p.z), yaw, { modo: 'quieto', vida: 100 }); if (!P) return null;
   P.muneco = true; P.gmNpc = { key: ruta, cls: 'prop_ragdoll' };

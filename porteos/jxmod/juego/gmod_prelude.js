@@ -367,9 +367,11 @@ end
 vgui = vgui or {}
 do
   local PM = {}
+  -- (como GMod: primero la clase del panel —lo que el addon registró con vgui.Register, y sus bases—, después los
+  -- métodos de Panel; antes iba Panel primero y un addon no podía cambiar SetParent, Clear o GetCount de su panel)
   local panelMeta = { MetaName = "Panel", __index = function(p, k)
-    local v = rawget(PM, k); if v ~= nil then return v end
-    local cls = rawget(p, "__clase"); if cls then v = cls[k]; if v ~= nil then return v end end
+    local cls = rawget(p, "__clase"); local v; if cls then v = cls[k]; if v ~= nil then return v end end
+    v = rawget(PM, k); if v ~= nil then return v end
     if type(k) == "string" and (string.sub(k, 1, 3) == "Get" or string.sub(k, 1, 2) == "Is" or string.sub(k, 1, 3) == "Has") then
       return function() return 0, 0 end
     end
@@ -408,9 +410,250 @@ do
   function PM:CursorPos() return 0, 0 end
   function PM:GetAlpha() return 255 end
   function PM:GetDock() return NODOCK end
+  -- ---------- las ventanas de verdad (gmod_derma.js las dibuja arriba del juego) ----------
+  -- Cada panel guarda su estado en campos «__»: lugar y tamaño, texto, valor, lo que tiene adentro. MakePopup avisa al
+  -- juego, que dibuja la ventana como HTML y devuelve los toques con __dermaEvento. Lo que el addon define en su clase
+  -- (DoClick, OnChange, OnSelect, OnRowSelected, Paint…) gana siempre.
+  local NOOP = function() end
+  for _, n in ipairs({ "Init", "Paint", "PaintOver", "PerformLayout", "Think", "OnRemove", "OnMousePressed", "OnMouseReleased", "OnCursorEntered", "OnCursorExited", "ApplySchemeSettings", "OnSizeChanged", "LayoutEntity" }) do PM[n] = NOOP end
+  -- (en este Lua, como en GMod, type() de un panel da «Panel», no «table»)
+  local function esPanelT(x) local t = type(x) return t == "Panel" or t == "table" end
+  local function padreTam(p) local pa = rawget(p, "__padre"); if esPanelT(pa) then return pa:GetWide(), pa:GetTall() end return ScrW(), ScrH() end
+  local function sacarDe(pa, p) local h = pa and rawget(pa, "__hijos"); if h then for i = #h, 1, -1 do if h[i] == p then table.remove(h, i) end end end end
+  local function tipo(p) return rawget(p, "__tipo") or "" end
+  local function esCheck(p) local t = tipo(p) return t == "DCheckBox" or t == "DCheckBoxLabel" or t == "ImageCheckBox" end
+  function PM:SetParent(pa)
+    local v = rawget(self, "__padre"); if v == pa then return end
+    sacarDe(v, self); rawset(self, "__padre", pa)
+    if esPanelT(pa) then local h = rawget(pa, "__hijos"); if not h then h = {}; rawset(pa, "__hijos", h) end h[#h + 1] = self end
+  end
+  function PM:Remove() if rawget(self, "__quitado") then return end rawset(self, "__quitado", true); local f = self.OnRemove; if f ~= NOOP then pcall(f, self) end sacarDe(rawget(self, "__padre"), self) end
+  function PM:Center() local pw, ph = padreTam(self); self:SetPos(math.floor((pw - self:GetWide()) / 2), math.floor((ph - self:GetTall()) / 2)) end
+  function PM:CenterHorizontal(f) local pw = padreTam(self); rawset(self, "__x", math.floor(pw * (f or 0.5) - self:GetWide() / 2)) end
+  function PM:CenterVertical(f) local _, ph = padreTam(self); rawset(self, "__y", math.floor(ph * (f or 0.5) - self:GetTall() / 2)) end
+  function PM:StretchToParent(l, t, r, b)
+    local pw, ph = padreTam(self); local x, y = self:GetPos(); local w, h = self:GetSize()
+    if l and l >= 0 then w = w + x - l; x = l end
+    if t and t >= 0 then h = h + y - t; y = t end
+    if r and r >= 0 then w = pw - x - r end
+    if b and b >= 0 then h = ph - y - b end
+    self:SetPos(x, y); self:SetSize(w, h)
+  end
+  function PM:SetX(x) rawset(self, "__x", x) end
+  function PM:SetY(y) rawset(self, "__y", y) end
+  function PM:GetX() return rawget(self, "__x") or 0 end
+  function PM:GetY() return rawget(self, "__y") or 0 end
+  function PM:GetBounds() local x, y = self:GetPos(); local w, h = self:GetSize(); return x, y, w, h end
+  function PM:SetBounds(x, y, w, h) self:SetPos(x, y); self:SetSize(w, h) end
+  function PM:Dock(d) rawset(self, "__dock", d) end
+  function PM:GetDock() return rawget(self, "__dock") or NODOCK end
+  function PM:DockMargin(l, t, r, b) rawset(self, "__margen", { l or 0, t or 0, r or 0, b or 0 }) end
+  function PM:DockPadding(l, t, r, b) rawset(self, "__relleno", { l or 0, t or 0, r or 0, b or 0 }) end
+  function PM:SetTitle(t) rawset(self, "__titulo", t) end
+  function PM:GetTitle() return rawget(self, "__titulo") or "" end
+  function PM:ShowCloseButton(b) rawset(self, "__sinCerrar", not b) end
+  function PM:SetDeleteOnClose(b) rawset(self, "__borrarAlCerrar", b) end
+  function PM:Close()
+    rawset(self, "__oculto", true)
+    local f = self.OnClose; if type(f) == "function" then pcall(f, self) end
+    if rawget(self, "__borrarAlCerrar") ~= false then self:Remove() end
+  end
+  function PM:MakePopup() rawset(self, "__popup", true); rawset(self, "__oculto", false); if __jxDerma then __jxDerma(self) end end
+  function PM:IsVisible() return rawget(self, "__oculto") ~= true and not rawget(self, "__quitado") end
+  function PM:SetVisible(v) rawset(self, "__oculto", not v); if v and rawget(self, "__popup") and __jxDerma then __jxDerma(self) end end
+  function PM:Show() self:SetVisible(true) end
+  function PM:Hide() rawset(self, "__oculto", true) end
+  function PM:ToggleVisible() self:SetVisible(not self:IsVisible()) end
+  function PM:SetText(t) rawset(self, "__texto", t); if tipo(self) == "DTextEntry" then rawset(self, "__valor", t) end end
+  function PM:SetLabel(t) rawset(self, "__texto", t) end
+  function PM:SetTextColor(c) rawset(self, "__color", c) end
+  function PM:GetTextColor() return rawget(self, "__color") or Color(255, 255, 255) end
+  function PM:SetColor(c) rawset(self, "__color", c) end
+  function PM:SetBackgroundColor(c) rawset(self, "__fondo", c) end
+  function PM:SetBGColor(r, g, b, a) rawset(self, "__fondo", type(r) == "table" and r or Color(r or 0, g or 0, b or 0, a or 255)) end
+  function PM:SetPaintBackground(b) rawset(self, "__sinFondo", not b) end
+  function PM:SetDrawBackground(b) rawset(self, "__sinFondo", not b) end
+  function PM:SetFont(f) rawset(self, "__fuente", f) end
+  function PM:GetFont() return rawget(self, "__fuente") or "DermaDefault" end
+  function PM:SetContentAlignment(a) rawset(self, "__alin", a) end
+  function PM:SetWrap(b) rawset(self, "__ajustar", b) end
+  function PM:SetWrapping(b) rawset(self, "__ajustar", b) end
+  function PM:SizeToContents()
+    local t = tostring(rawget(self, "__texto") or "")
+    -- (la casilla con su texto lleva además el cuadradito: 15 px y el espacio)
+    if t ~= "" then rawset(self, "__w", math.max(16, math.ceil(#t * 7.4) + (esCheck(self) and 26 or 12))); rawset(self, "__h", math.max(rawget(self, "__h") or 0, esCheck(self) and 15 or 20)) end
+  end
+  function PM:SizeToContentsX(m) local t = tostring(rawget(self, "__texto") or ""); rawset(self, "__w", #t * 7 + 12 + (m or 0)) end
+  function PM:SizeToContentsY(m) rawset(self, "__h", 20 + (m or 0)) end
+  function PM:SetImage(i) rawset(self, "__imagen", i) end
+  function PM:GetImage() return rawget(self, "__imagen") or "" end
+  function PM:SetIcon(i) rawset(self, "__icono", i) end
+  function PM:SetMaterial(m) rawset(self, "__imagen", type(m) == "string" and m or (m and m.GetName and m:GetName()) or nil) end
+  function PM:SetModel(m, s) rawset(self, "__modelo", m); rawset(self, "__skin", s or 0) end
+  function PM:GetModel() return rawget(self, "__modelo") or "" end
+  function PM:SetSpawnIcon(i) rawset(self, "__imagen", i) end
+  function PM:SetTooltip(t) rawset(self, "__ayuda", t) end
+  function PM:SetToolTip(t) rawset(self, "__ayuda", t) end
+  function PM:SetEnabled(b) rawset(self, "__deshab", not b) end
+  function PM:SetDisabled(b) rawset(self, "__deshab", b and true or false) end
+  function PM:IsEnabled() return not rawget(self, "__deshab") end
+  function PM:GetDisabled() return rawget(self, "__deshab") == true end
+  function PM:SetZPos(z) rawset(self, "__z", z) end
+  function PM:MoveToFront() rawset(self, "__z", 32767) end
+  function PM:SetAlpha(a) rawset(self, "__alfa", a) end
+  function PM:GetAlpha() return rawget(self, "__alfa") or 255 end
+  -- (valores: casillas, deslizadores, campos de texto)
+  function PM:SetValue(v, w)
+    local vals = rawget(self, "__vals"); if vals then vals[v] = w; return end   -- (una fila de DListView: SetValue(columna, texto))
+    if esCheck(self) then v = (v == true or v == 1 or v == "1") end
+    if tipo(self) == "DTextEntry" then rawset(self, "__texto", v) end
+    rawset(self, "__valor", v)
+  end
+  function PM:GetValue(i)
+    local vals = rawget(self, "__vals"); if vals then return vals[i] end
+    if tipo(self) == "DTextEntry" then return tostring(rawget(self, "__texto") or "") end
+    local v = rawget(self, "__valor"); if v == nil then return esCheck(self) and false or 0 end
+    return v
+  end
+  function PM:SetChecked(b) rawset(self, "__valor", b and true or false) end
+  function PM:GetChecked() return rawget(self, "__valor") == true end
+  function PM:Toggle() self:SetValue(not self:GetChecked()) end
+  function PM:SetConVar(cv)
+    rawset(self, "__convar", cv); local c = GetConVar(cv); if not c then return end
+    if esCheck(self) then rawset(self, "__valor", c:GetBool())
+    elseif tipo(self) == "DTextEntry" then rawset(self, "__texto", c:GetString())
+    else rawset(self, "__valor", tonumber(c:GetString()) or c:GetString()) end
+  end
+  function PM:SetMin(n) rawset(self, "__min", n) end
+  function PM:SetMax(n) rawset(self, "__max", n) end
+  function PM:SetMinMax(a, b) rawset(self, "__min", a); rawset(self, "__max", b) end
+  function PM:GetMin() return rawget(self, "__min") or 0 end
+  function PM:GetMax() return rawget(self, "__max") or 1 end
+  function PM:SetDecimals(d) rawset(self, "__dec", d) end
+  function PM:GetDecimals() return rawget(self, "__dec") or 0 end
+  function PM:SetPlaceholderText(t) rawset(self, "__pista", t) end
+  function PM:SetMultiline(b) rawset(self, "__multi", b) end
+  function PM:SetNumeric(b) rawset(self, "__numero", b) end
+  -- (DComboBox)
+  function PM:AddChoice(t, d, sel) local c = rawget(self, "__opciones"); if not c then c = {}; rawset(self, "__opciones", c) end c[#c + 1] = { t = t, d = d }; if sel then self:ChooseOptionID(#c) end return #c end
+  function PM:ChooseOptionID(i) local c = (rawget(self, "__opciones") or {})[i]; if c then rawset(self, "__texto", c.t); rawset(self, "__elegido", i) end end
+  function PM:ChooseOption(t, i) rawset(self, "__texto", t); rawset(self, "__elegido", i) end
+  function PM:GetSelectedID() return rawget(self, "__elegido") end
+  function PM:GetOptionText(i) local c = (rawget(self, "__opciones") or {})[i]; return c and c.t end
+  function PM:GetOptionData(i) local c = (rawget(self, "__opciones") or {})[i]; return c and c.d end
+  function PM:GetOptionTextByData(d) for _, c in ipairs(rawget(self, "__opciones") or {}) do if c.d == d then return c.t end end return d end
+  function PM:SetSortItems() end
+  -- (DListView: columnas y filas; cada fila es un panel con __vals)
+  function PM:AddColumn(n) local c = rawget(self, "__cols"); if not c then c = {}; rawset(self, "__cols", c) end c[#c + 1] = n; return setmetatable({ __nombre = "DListView_Column", __tipo = "DListView_Column" }, getmetatable(self)) end
+  function PM:AddLine(...)
+    local L = rawget(self, "__lineas"); if not L then L = {}; rawset(self, "__lineas", L) end
+    local n = (rawget(self, "__nlineas") or 0) + 1; rawset(self, "__nlineas", n)
+    local ln = setmetatable({ __nombre = "DListView_Line", __tipo = "DListView_Line", __vals = { ... }, __id = n, __lista = self }, getmetatable(self))
+    L[n] = ln; return ln
+  end
+  function PM:GetID() return rawget(self, "__id") end
+  function PM:GetColumnText(i) local v = rawget(self, "__vals"); return v and v[i] end
+  function PM:SetColumnText(i, t) local v = rawget(self, "__vals"); if v then v[i] = t end end
+  function PM:GetLines() local r = {}; for k, v in pairs(rawget(self, "__lineas") or {}) do r[k] = v end return r end
+  function PM:GetLine(i) return (rawget(self, "__lineas") or {})[i] end
+  function PM:RemoveLine(i) local L = rawget(self, "__lineas"); if L then L[i] = nil end end
+  function PM:GetSelectedLine() local i = rawget(self, "__selLinea"); return i, i and (rawget(self, "__lineas") or {})[i] end
+  function PM:SelectItem(ln) local L = rawget(self, "__lineas"); if L then for k, v in pairs(L) do if v == ln then rawset(self, "__selLinea", k) end end end end
+  function PM:SelectFirstItem() local L = rawget(self, "__lineas"); if L then local k = next(L); rawset(self, "__selLinea", k) end end
+  function PM:ClearSelection() rawset(self, "__selLinea", nil) end
+  function PM:GetSelected()
+    if rawget(self, "__lineas") then local i, ln = self:GetSelectedLine(); return ln and { ln } or {} end
+    local i = rawget(self, "__elegido"); local c = i and (rawget(self, "__opciones") or {})[i]; if c then return c.t, c.d end
+  end
+  -- (listas de paneles: DPanelList, DScrollPanel, DIconLayout, DGrid…)
+  function PM:AddItem(p) if esPanelT(p) then p:SetParent(self) end end
+  function PM:AddPanel(p) self:AddItem(p) end
+  function PM:GetItems() local r = {}; for _, c in ipairs(rawget(self, "__hijos") or {}) do if not rawget(c, "__quitado") then r[#r + 1] = c end end return r end
+  function PM:RemoveItem(p) if esPanelT(p) then p:Remove() end end
+  function PM:Clear()
+    rawset(self, "__opciones", nil); rawset(self, "__elegido", nil); rawset(self, "__selLinea", nil)
+    if rawget(self, "__lineas") then rawset(self, "__lineas", {}) end
+    local h = rawget(self, "__hijos"); if h then for _, c in ipairs(h) do rawset(c, "__quitado", true) end end
+    rawset(self, "__hijos", {})
+  end
+  function PM:CleanList() self:Clear() end
+  function PM:EnableHorizontal(b) rawset(self, "__horiz", b) end
+  function PM:EnableVerticalScrollbar(b) rawset(self, "__scroll", b) end
+  function PM:SetSpacing(n) rawset(self, "__esp", n) end
+  function PM:SetPadding(n) rawset(self, "__pad", n) end
+  function PM:SetSpaceX(n) rawset(self, "__espX", n) end
+  function PM:SetSpaceY(n) rawset(self, "__espY", n) end
+  function PM:SetCols(n) rawset(self, "__cols_n", n) end
+  function PM:SetColWide(n) rawset(self, "__colW", n) end
+  function PM:SetRowHeight(n) rawset(self, "__filaH", n) end
+  function PM:GetCanvas() return self end
+  function PM:SetIconSize(n) if tipo(self) == "SpawnIcon" or tipo(self) == "ContentIcon" then rawset(self, "__w", n); rawset(self, "__h", n) end end
+  -- (DPropertySheet: pestañas; DCollapsibleCategory / DForm: un título y lo de adentro)
+  function PM:AddSheet(label, panel, icon)
+    local s = rawget(self, "__hojas"); if not s then s = {}; rawset(self, "__hojas", s) end
+    if esPanelT(panel) then panel:SetParent(self) end
+    s[#s + 1] = { l = label, p = panel, i = icon }
+    return { Tab = setmetatable({ __nombre = "DTab", __tipo = "DTab", __texto = label }, getmetatable(self)), Panel = panel, Name = label }
+  end
+  function PM:SetContents(p) if esPanelT(p) then p:SetParent(self) end end
+  function PM:SetExpanded(b) rawset(self, "__cerrado", not b) end
+  function PM:SetName(n) rawset(self, "__texto", n) end
+  function PM:Help(t) local l = vgui.Create("DLabel", self); l:SetText(t); l:Dock(TOP); return l end
+  function PM:CheckBox(t, cv) local c = vgui.Create("DCheckBoxLabel", self); c:SetText(t); if cv then c:SetConVar(cv) end c:Dock(TOP); return c end
+  function PM:NumSlider(t, cv, a, b, d) local c = vgui.Create("DNumSlider", self); c:SetText(t); c:SetMinMax(a, b); c:SetDecimals(d or 0); if cv then c:SetConVar(cv) end c:Dock(TOP); return c end
+  function PM:Button(t, cmd, ...) local c = vgui.Create("DButton", self); c:SetText(t); local a = { ... }; if cmd then c.DoClick = function() RunConsoleCommand(cmd, unpack(a)) end end c:Dock(TOP); return c end
+  function PM:TextEntry(t, cv) local c = vgui.Create("DTextEntry", self); if cv then c:SetConVar(cv) end c:Dock(TOP); return c end
+  function PM:ComboBox(t, cv) local c = vgui.Create("DComboBox", self); if cv then rawset(c, "__convar", cv) end c:Dock(TOP); return c end
+  -- (DMenu / DermaMenu: opciones, submenús y separadores)
+  function PM:AddOption(t, f) local L = rawget(self, "__ops"); if not L then L = {}; rawset(self, "__ops", L) end local o = setmetatable({ __nombre = "DMenuOption", __tipo = "DMenuOption", __texto = t, __fn = f, __menu = self }, getmetatable(self)); L[#L + 1] = o; return o end
+  function PM:AddSubMenu(t, f) local sub = vgui.Create("DMenu"); local o = self:AddOption(t, f); rawset(o, "__sub", sub); return sub, o end
+  function PM:AddSpacer() local L = rawget(self, "__ops"); if not L then L = {}; rawset(self, "__ops", L) end L[#L + 1] = setmetatable({ __tipo = "DMenuSpacer" }, getmetatable(self)) end
+  function PM:AddCVar(t, cv, on, off, f) return self:AddOption(t, function() local c = GetConVar(cv); RunConsoleCommand(cv, (c and c:GetString() == tostring(on)) and tostring(off or "0") or tostring(on)); if f then f() end end) end
+  function PM:Open(x, y) rawset(self, "__oculto", false); if __jxDermaMenu then __jxDermaMenu(self, x, y) end end
+  function PM:SetChecked(b) rawset(self, "__valor", b and true or false) end
+  -- (lo que llega del juego: un toque, un valor nuevo; lo que el addon definió es lo que se llama)
+  local function tiene(p, k) local v = rawget(p, k); if v ~= nil then return v end local c = rawget(p, "__clase"); if c then v = c[k]; if v ~= nil and v ~= NOOP then return v end end end
+  local function llamar(f, ...) if type(f) == "function" then local ok, e = pcall(f, ...); if not ok then ErrorNoHalt("vgui: " .. tostring(e) .. "\n") end end end
+  local function convar(p, v) local cv = rawget(p, "__convar"); if cv then RunConsoleCommand(cv, tostring(v)) end end
+  function __dermaEvento(p, ev, a, b)
+    if not esPanelT(p) then return end
+    if ev == "clic" then
+      if tipo(p) == "DMenuOption" then llamar(rawget(p, "__fn"), p); llamar(tiene(p, "DoClick"), p); return end
+      if esCheck(p) then __dermaEvento(p, "check", not p:GetChecked()); return end
+      llamar(tiene(p, "DoClick"), p)
+    elseif ev == "clicDer" then
+      local f = tiene(p, "DoRightClick") or tiene(p, "OpenMenu"); llamar(f, p)
+    elseif ev == "check" then
+      local v = a and true or false; rawset(p, "__valor", v); convar(p, v and "1" or "0"); llamar(tiene(p, "OnChange"), p, v)
+    elseif ev == "slider" then
+      local v = tonumber(a) or 0; rawset(p, "__valor", v); convar(p, v); llamar(tiene(p, "OnValueChanged"), p, v)
+    elseif ev == "texto" then
+      rawset(p, "__texto", a); llamar(tiene(p, "OnChange"), p); llamar(tiene(p, "OnValueChange"), p, a)
+    elseif ev == "enter" then
+      rawset(p, "__texto", a); convar(p, a); llamar(tiene(p, "OnEnter"), p, a); llamar(tiene(p, "OnValueChange"), p, a)
+    elseif ev == "combo" then
+      local i = tonumber(a); local c = i and (rawget(p, "__opciones") or {})[i]
+      if c then rawset(p, "__elegido", i); rawset(p, "__texto", c.t); convar(p, c.d ~= nil and c.d or c.t); llamar(tiene(p, "OnSelect"), p, i, c.t, c.d) end
+    elseif ev == "fila" then
+      local i = tonumber(a); local ln = i and (rawget(p, "__lineas") or {})[i]
+      if ln then rawset(p, "__selLinea", i); llamar(tiene(p, "OnRowSelected"), p, i, ln); llamar(tiene(ln, "OnSelect"), ln); if b then llamar(tiene(p, "DoDoubleClick"), p, i, ln) end end
+    elseif ev == "filaDer" then
+      local i = tonumber(a); local ln = i and (rawget(p, "__lineas") or {})[i]; if ln then llamar(tiene(p, "OnRowRightClick"), p, i, ln) end
+    elseif ev == "cerrar" then
+      p:Close()
+    end
+  end
+  TAM_DERMA = { DFrame = { 300, 200 }, DButton = { 64, 22 }, DLabel = { 64, 20 }, SpawnIcon = { 64, 64 }, ContentIcon = { 128, 128 },
+    DImageButton = { 32, 32 }, DCheckBox = { 15, 15 }, DCheckBoxLabel = { 200, 15 }, DNumSlider = { 220, 32 }, DTextEntry = { 120, 22 },
+    DComboBox = { 120, 22 }, DListView = { 200, 200 }, DPanelList = { 200, 200 }, DScrollPanel = { 200, 200 }, DMenu = { 120, 22 } }
   local function nuevo(clase, padre, nombre)
     local p = setmetatable({ __nombre = nombre or clase, __padre = padre, __clase = registro[clase] }, panelMeta)
-    if padre and type(padre) == "table" then local h = rawget(padre, "__hijos"); if not h then h = {}; rawset(padre, "__hijos", h) end h[#h + 1] = p end
+    -- (el control de Derma del que sale: el de la clase o el de su base —MCBlockPanel → DPanel—, para dibujarlo)
+    local t, c0, n0 = clase, registro[clase], 0
+    while c0 and rawget(c0, "Base") and n0 < 12 do t = rawget(c0, "Base"); c0 = registro[t]; n0 = n0 + 1 end
+    rawset(p, "__tipo", t)
+    local tam = TAM_DERMA[t]; if tam then rawset(p, "__w", tam[1]); rawset(p, "__h", tam[2]) end
+    if esPanelT(padre) then local h = rawget(padre, "__hijos"); if not h then h = {}; rawset(padre, "__hijos", h) end h[#h + 1] = p end
     -- (como GMod: sólo el Init de la clase, que llama al de su base con self.BaseClass.Init si quiere)
     local c = registro[clase]
     local f = c and c.Init
@@ -434,7 +677,7 @@ do
   function vgui.IsHoveringWorld() return true end
   function vgui.FocusedHasParent() return false end
   for _, n in ipairs({ "Panel", "EditablePanel", "DPanel", "DFrame", "DButton", "DLabel", "DImage", "DImageButton", "DTextEntry", "DNumSlider", "DCheckBox", "DCheckBoxLabel", "DComboBox", "DListView", "DScrollPanel", "DPropertySheet", "DCollapsibleCategory", "DForm", "DGrid", "DIconLayout", "DModelPanel", "DColorMixer", "DHTML", "HTML", "DMenu", "DMenuBar", "DTree", "DListLayout", "DNumberWang", "DProgress", "DBinder", "DHorizontalScroller", "DVerticalDivider", "DHorizontalDivider", "DTileLayout", "DSprite", "DShape", "DPanelList", "DCategoryList", "DAdjustableModelPanel", "DColorButton", "DRGBPicker", "DColorCube", "DAlphaBar", "DExpandButton", "DSizeToContents", "DKillIcon", "DNotify", "DTooltip", "DDrawer", "DCategoryHeader", "SpawnIcon", "ContentIcon", "Label", "Button", "TextEntry", "RichText", "ImageCheckBox", "Slider", "DSlider", "DScrollBarGrip", "DVScrollBar", "DEntityProperties", "DProperties", "DFileBrowser", "DIconBrowser", "DLabelEditable", "DLabelURL", "DMenuOption", "DMenuOptionCVar", "DListBox", "DModelSelect", "DModelSelectMulti", "DPanelSelect", "DTab", "DCheckBoxLabel", "DGrid", "ControlPanel", "DNumPad", "DImageButton", "AvatarImage", "Material", "PropSelect", "CtrlNumPad", "DTextEntry" }) do
-    if not registro[n] then registro[n] = { ThisClass = n } end
+    if not registro[n] then registro[n] = setmetatable({ ThisClass = n }, { __index = PM }) end
   end
   derma = derma or {}
   function derma.DefineControl(n, d, t, b) t.Derma = { ClassName = n, Description = d, BaseClass = b }; local r = vgui.Register(n, t, b); _G[n] = t; return r end

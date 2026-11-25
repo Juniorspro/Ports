@@ -7,8 +7,10 @@ import { abrir } from './base.mjs';
 import fs from 'fs';
 const [, , HTML, D = '/tmp/claude-0/doudou_agarrar'] = process.argv; fs.mkdirSync(D, { recursive: true });
 const R = []; const ok = (n, c, d) => { R.push(!!c); console.log((c ? 'OK   ' : 'FALLA') + ' ' + n + (d !== undefined ? ' · ' + JSON.stringify(d) : '')); };
-const { b, p, err, ev } = await abrir(HTML);
-await ev(`PREFS.bienvenida = true; GFX.auto = false; PREFS.gfx = 'bajo'; aplicarGfx(); inicioMostrar(false); empezarPartida('FlatGrass'); 1`);
+// (CELU=1: pantalla y toques de celular; GFX=patata|bajo|medio|alto|ultra; GL1=1: WebGL 1, como los celulares viejos)
+const GFX = process.env.GFX || 'bajo';
+const { b, p, err, ev } = await abrir(HTML + (process.env.GL1 ? '?gl=1' : ''), !!process.env.CELU);
+await ev(`PREFS.bienvenida = true; GFX.auto = false; PREFS.gfx = '${GFX}'; aplicarGfx(); inicioMostrar(false); empezarPartida('FlatGrass'); 1`);
 await p.waitForTimeout(2500);
 const ins = await ev(`(async () => { const A = await gmInstalar('3807567165', { nombre: 'doudou' }); if (A && A.listo) await A.listo; await new Promise((r) => setTimeout(r, 1500)); return { err: (A.luaErr || []).slice(0, 3) }; })()`);
 ok('Doudou Pet se instala sin errores de Lua', !ins.err.length, ins.err);
@@ -37,6 +39,13 @@ const gatoVe = await ev(`(() => { JUG.pitch = 0; dibujar(); const gl = R.gl, W =
   let n = 0, t = 0; for (let y = Math.floor(H * 0.1); y < H * 0.7; y += 2) for (let x = Math.floor(W * 0.3); x < W * 0.7; x += 2) { const i = (y * W + x) * 4, r = px[i], g = px[i + 1], b = px[i + 2]; t++; if (r > 150 && r - b > 60 && g > 80 && g < r) n++; }
   return +(n / t).toFixed(3); })()`);
 ok('en primera persona se ve el gato en brazos (pelaje naranja en el medio de la pantalla)', gatoVe > 0.03, { gatoVe, antes: 0 });
+// (TERCERA=1: además, con la cámara afuera, el gato en los brazos del personaje)
+if (process.env.TERCERA) {
+  await ev(`JUG.tercera = true; 1`); await p.waitForTimeout(1200); await p.screenshot({ path: D + '/1d_tercera.png' });
+  const t3 = await ev(`(() => { const g = ${gato}, P = JUG.cuerpo, gp = g && gmaEntPos(g); return { tercera: camaraAfuera(), gato: gp && [gp.x, gp.y, gp.z].map((x) => +x.toFixed(2)), jug: [JUG.pos.x, JUG.pos.y, JUG.pos.z].map((x) => +x.toFixed(2)), dibuja: g && g.md ? !g.nodraw : null, nodraw: g && g.nodraw }; })()`);
+  console.log('tercera', JSON.stringify(t3));
+  await ev(`JUG.tercera = false; 1`); await p.waitForTimeout(600);
+}
 // acariciarlo (click izquierdo)
 await ev(`ENT.disparo = true; 1`); await p.waitForTimeout(400); await ev(`ENT.disparo = false; 1`); await p.waitForTimeout(1200);
 await p.screenshot({ path: D + '/2_caricia.png' });

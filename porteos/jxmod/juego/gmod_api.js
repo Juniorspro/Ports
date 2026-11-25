@@ -1845,6 +1845,7 @@ function gmaApiResto(R, G, def, lib, num, tabla) {
   def(G, 'SinglePlayer', () => !(typeof RED !== 'undefined' && RED.on)); def(G, 'GetWorldEntity', () => GMA.mundo);
   // (los render targets y las pasadas de pantalla, al final: reemplazan lo de mentira de arriba —GetScreenEffectTexture...—)
   if (typeof gmrtApi === 'function') gmrtApi(R, G, def, lib, num);
+  if (typeof gmdrApi === 'function') gmdrApi(R, G, def);   // (las ventanas de Derma de los addons: gmod_derma.js)
 }
 // registrar una clase (de ents/weapons.Register o de las carpetas lua/entities, lua/weapons)
 function gmaRegistrar(tipo, nombre, t) {

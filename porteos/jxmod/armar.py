@@ -17,6 +17,8 @@ for _n in ['ev300_son', 'ev300', 'ev300_intro', 'ev300_mis', 'pepe_vuelve', 'viv
 ORDEN.insert(ORDEN.index('deposito') + 1, 'musica')
 # (la versión personal del dueño —gmod_personal.js—: el menú de GMod con sus datos; sin JX_PERSONAL no hace nada)
 ORDEN.insert(ORDEN.index('gmod_panel') + 1, 'gmod_personal')
+# (las ventanas de Derma de los addons —gmod_derma.js—: después del panel GMod)
+ORDEN.insert(ORDEN.index('gmod_panel') + 1, 'gmod_derma')
 # (la física en Rust —motor/fisica, WebAssembly en base64: juego/fisica_wasm.js, de motor/armar_fisica.sh— antes de fisica.js)
 ORDEN.insert(ORDEN.index('fisica'), 'fisica_wasm')
 # el formato de mods y mapas es el mismo archivo que usa el servidor de la tienda (sin los "export")
