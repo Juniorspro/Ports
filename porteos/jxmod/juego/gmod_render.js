@@ -54,13 +54,23 @@ function gmrMat(m) {
   const base = k.replace(/\.(vmt|vtf)$/, ''), buscar = (p) => gmArchivo('materials/' + p.replace(/\.vmt$/, '') + '.vmt');
   let v = null; const vm = buscar(base);
   if (vm) { try { v = GMF.vmt(vm, buscar); } catch (e) { v = null; } }
+  // (el .vmt existe pero todavía se está leyendo —contenido base de HL2 o un addon que se lee de a pedazos—: lo de ahora es
+  // provisorio y no se guarda; el cuadro siguiente se vuelve a mirar. Antes quedaba para siempre con el modo adivinado)
+  const pend = !vm && gmExiste('materials/' + base + '.vmt');
   if (v && /refract/i.test(v.shader || '')) return (m.r3 = { nada: true });
   const rt = v && v.base ? v.base : base;
   let ti = gmExiste('materials/' + rt + '.vtf') ? gmTextura(rt) : gmTexDelJuego(rt);
   if (ti < 0 && v && v.base && gmExiste('materials/' + base + '.vtf')) ti = gmTextura(base);
   if (ti < 0) { if (v) { const pn = gmrPorNombre(rt); return (m.r3 = Object.assign(pn, gmrModoVmt(v, pn.modo))); } return (m.r3 = gmrPorNombre(k)); }
-  const r = Object.assign({ tex: () => texGL(ti) }, v ? gmrModoVmt(v, 'op') : { modo: /^sprites?\//.test(k) ? 'add' : 'blend' });
+  const r = Object.assign({ tex: () => texGL(ti), ti }, v ? gmrModoVmt(v, 'op') : { modo: /^sprites?\//.test(k) ? 'add' : 'blend' });
+  if (pend) { r.pend = true; return r; }
   return (m.r3 = r);
+}
+// ¿la textura del material ya está? (la de un addon o de HL2 que se está bajando: hasta que llega es el gris de relleno)
+function gmrMatListo(r) {
+  if (!r || r.nada) return false; if (r.pend) return false;
+  if (typeof r.ti === 'number' && r.ti >= 0) { const t = R.tex[r.ti]; if (!t || !t.gl || t.gl === R.texGris) { if (!t) texGL(r.ti); return false; } }
+  return true;
 }
 function gmrModoVmt(v, def) {
   if (v.nodraw) return { nada: true };
@@ -547,7 +557,10 @@ function gmrParticulas() {
   for (const q of GR.parts) {
     if (q.em.nodraw) continue;
     const k = Math.min(1, q.t / q.vida), s = (q.s0 + (q.s1 - q.s0) * k) * GS, a = (q.a0 + (q.a1 - q.a0) * k) / 255; if (s <= 0 || a <= 0.002) continue;
-    GR.mat = q.m; const col = gmrCol(null, gmrMat(q.m)); col[0] *= q.c[0] / 255; col[1] *= q.c[1] / 255; col[2] *= q.c[2] / 255; col[3] *= Math.min(1, a);
+    // (sin su textura todavía —el humo y la tierra de HL2 de una explosión, la primera vez—, no se dibuja: antes salía cada
+    // partícula como un cuadrado gris liso, una «estrella» oscura en el piso con Garry's Bombs)
+    const mq = gmrMat(q.m); if (!gmrMatListo(mq)) continue;
+    GR.mat = q.m; const col = gmrCol(null, mq); col[0] *= q.c[0] / 255; col[1] *= q.c[1] / 255; col[2] *= q.c[2] / 255; col[3] *= Math.min(1, a);
     const largo = (q.l0 + (q.l1 - q.l0) * k) * GS;
     if (largo > 0 && q.v.len() > 1e-4) { const d = vscale(q.v.clone().norm(), largo); gmrRayo(q.p, vsub(q.p, d), s * 2, 0, 1, col); continue; }
     let x, y;

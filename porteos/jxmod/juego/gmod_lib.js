@@ -114,12 +114,16 @@ async function gmlPedirAhora() {
 function gmlLlegaron(L) {
   const set = new Set(L), tocaMat = (tex, carpetas) => { for (const c of carpetas.length ? carpetas : ['']) { const r = 'materials/' + (c ? c.replace(/\/?$/, '/') : '') + tex; if (set.has(r + '.vmt') || set.has(r + '.vtf')) return true; } return false; };
   // texturas que se habían dado por faltantes: se vuelven a buscar
-  for (const k of [...GMOD.tex.keys()]) { const r = k.replace(/\|i$/, ''); if (set.has('materials/' + r + '.vtf')) GMOD.tex.delete(k); }
+  for (const k of [...GMOD.tex.keys()]) { const r = k.replace(/\|[iv]$/, ''); if (set.has('materials/' + r + '.vtf')) GMOD.tex.delete(k); }   // (|i el ícono, |v la del arma en la mano)
   // materiales de modelos: se rehacen en el mismo lugar (las mallas que ya los usan los ven al toque)
   for (const [k, v] of [...GMOD.mats]) {
-    const i = k.lastIndexOf('|'), tex = k.slice(0, i), carpetas = k.slice(i + 1) ? k.slice(i + 1).split(',') : [];
+    // (la clave: tex|carpetas, y al final |2 si es la segunda textura de un terreno y |v si es la del arma en la mano; antes se
+    // leía «2» o «v» como carpeta y esos materiales nunca se rehacían)
+    let kk = k, seg = false, uso; if (kk.endsWith('|v')) { uso = true; kk = kk.slice(0, -2); } if (kk.endsWith('|2')) { seg = true; kk = kk.slice(0, -2); }
+    if (v && v.uso) uso = v.uso;
+    const i = kk.lastIndexOf('|'), tex = kk.slice(0, i), carpetas = kk.slice(i + 1) ? kk.slice(i + 1).split(',') : [];
     if (!v || !tocaMat(tex, carpetas)) continue;
-    GMOD.mats.delete(k); const n = gmMaterial(tex, carpetas), viejo = DATA.mt[v.mi], nuevo = DATA.mt[n.mi];
+    GMOD.mats.delete(k); const n = gmMaterial(tex, carpetas, seg, uso), viejo = DATA.mt[v.mi], nuevo = n && DATA.mt[n.mi];
     if (viejo && nuevo) { Object.assign(viejo, { t: nuevo.t, tt: nuevo.tt, c: nuevo.c, cc: nuevo.cc, sh: nuevo.sh, f: nuevo.f }); if (R.mats) R.mats[v.mi] = undefined; }
     GMOD.mats.set(k, v);
   }

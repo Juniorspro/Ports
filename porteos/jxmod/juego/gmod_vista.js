@@ -45,7 +45,7 @@ function gmvMallas(Mx, nodo, etiqueta, arb, pv, C, flip, op) {
   const cuerpo = (k) => { const x = op && op.cuerpos ? op.cuerpos[k] | 0 : 0, c = Mx.cuerpos && Mx.cuerpos[k]; return c && x < c.modelos.length ? x : 0; };
   for (const m of Mx.mallas) {
     if (m.modelo !== cuerpo(m.cuerpo)) continue;
-    const ti = piel[m.mat] !== undefined ? piel[m.mat] : m.mat, tex = Mx.texturas[ti] || Mx.texturas[m.mat] || 'error', mat = gmMaterial(tex, Mx.carpetas);
+    const ti = piel[m.mat] !== undefined ? piel[m.mat] : m.mat, tex = Mx.texturas[ti] || Mx.texturas[m.mat] || 'error', mat = gmMaterial(tex, Mx.carpetas, false, true);   // (con la resolución del arma en la mano: gmTexTope)
     const T = m.tris; for (let t = 0; t + 2 < T.length; t += 3) { if (flip) tris.push(T[t], T[t + 1], T[t + 2], mat.mi); else tris.push(T[t], T[t + 2], T[t + 1], mat.mi); }
   }
   if (!tris.length) return 0;
@@ -528,7 +528,7 @@ function gmvTraeBrazos(M) {
   for (const m of M.mallas || []) {
     if (m.modelo !== 0) continue;
     const ti = piel[m.mat] !== undefined ? piel[m.mat] : m.mat, tex = (M.texturas && (M.texturas[ti] || M.texturas[m.mat])) || 'error';
-    const mat = gmMaterial(tex, M.carpetas || []); if (mat && mat.vmt && mat.vmt.nodraw) continue;
+    const mat = gmMaterial(tex, M.carpetas || [], false, true); if (mat && mat.vmt && mat.vmt.nodraw) continue;
     for (const v of m.tris) ve[v] = 1;
   }
   let n = 0; for (let k = 0; k < V.n; k++) if (ve[k] && ih[V.hb[k * 3]] && V.w[k * 3] > 0.5 && ++n >= 100) return true;

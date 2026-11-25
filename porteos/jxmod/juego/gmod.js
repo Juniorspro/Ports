@@ -269,14 +269,33 @@ const GM_ICO_VACIO = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www
 const gmNombre = (it) => it.replace(/^gm:/, '').replace(/^.*\//, '').replace(/\.mdl$/, '');
 
 // ---------------- texturas ----------------
-function gmTexSubir(px, w, h, n, alfa) {
-  const ti = DATA.tx.length; DATA.tx.push({ n, a: alfa ? 1 : 0, w, h, gm: 1 });
-  R.tex[ti] = { gl: gmTexGL(px, w, h) };
+function gmTexSubir(px, w, h, n, alfa, fl) {
+  const ti = DATA.tx.length; DATA.tx.push({ n, a: alfa ? 1 : 0, w, h, gm: 1, fl: fl | 0 });
+  R.tex[ti] = { gl: gmTexGL(px, w, h, undefined, fl) };
   return ti;
 }
-// (el tope de las de los addons: el de la calidad, o 1024; con memoria baja, 512 —los .vtf traen sus niveles más chicos—)
-const gmTexTope = (ico) => (ico ? 64 : Math.min((GFX && GFX.texMax) || 1024, GFX && GFX.memBaja ? 512 : 1e9));
-function gmTexGL(px, w, h, alfa) {
+// el tope de las texturas de los addons (los .vtf traen sus niveles más chicos: se elige el que entra). Antes era el de la
+// calidad —256 en Bajo y Medio, lo que usan casi todos los celus— y un arma de GMod (texturas de 1024 o 2048) se veía
+// borrosa en la mano. Ahora:
+//  - el arma en la mano (vista: la textura más cerca de la cámara): 1024 en Bajo y Medio, 512 en Patata, 2048 en Alto y
+//    Ultra; con memoria baja (≤ 1 GB), 512;
+//  - lo demás (props, NPCs, entidades, bombas): el doble de la calidad (512 en Bajo y Medio, 256 en Patata), 2048 en Alto
+//    y Ultra; con memoria baja, como antes (el de la calidad, hasta 512).
+//  - los mapas del Workshop (uso 'mapa': cientos de texturas), como antes: el de la calidad, o 1024; con memoria baja, 512.
+// Las que en el .vtf dicen «sin LOD» (flag NOLOD, 0x200: Source no les aplica la calidad de texturas) van enteras.
+const gmTexTope = (ico, uso) => {
+  if (ico) return 64;
+  const q = (GFX && GFX.texMax) || 0, mem = !!(GFX && GFX.memBaja);
+  if (uso === 'mapa') return Math.min(q || 1024, mem ? 512 : 1e9);
+  if (uso) return mem ? 512 : q && q <= 128 ? 512 : q ? 1024 : 2048;
+  return mem ? Math.min(q || 512, 512) : q ? Math.max(q * 2, 256) : 2048;
+};
+const GM_VTF_PUNTO = 0x1, GM_VTF_CLAMPS = 0x4, GM_VTF_CLAMPT = 0x8, GM_VTF_SINLOD = 0x200;
+const gmVtfFlags = (b) => (b && b.length >= 24 ? new DataView(b.buffer, b.byteOffset, 24).getUint32(20, true) : 0);
+// (fl: las banderas del .vtf. POINTSAMPLE —0x1, las de pixel art como las del Minecraft SWEP, de 16×16—: de cerca, el pixel
+// nítido, como en GMod, y de lejos con sus niveles para que no titile; CLAMPS/CLAMPT —0x4/0x8, miras, carteles, sprites—:
+// el borde no se repite del otro lado)
+function gmTexGL(px, w, h, alfa, fl) {
   const gl = R.gl, tx = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tx);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
   // (memoria baja: las que no tienen transparencia en 16 bits, la mitad)
@@ -286,12 +305,14 @@ function gmTexGL(px, w, h, alfa) {
     gl.texImage2D(gl.TEXTURE_2D, 0, R.gl1 ? gl.RGB : gl.RGB565, w, h, 0, gl.RGB, gl.UNSIGNED_SHORT_5_6_5, q);
   } else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, px);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-  const pot = (w & (w - 1)) === 0 && (h & (h - 1)) === 0;
-  if (pot || !R.gl1) { gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); }
-  else gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  const pot = (w & (w - 1)) === 0 && (h & (h - 1)) === 0, punto = !!(fl & GM_VTF_PUNTO);
+  if (pot || !R.gl1) { gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, punto ? gl.NEAREST_MIPMAP_LINEAR : gl.LINEAR_MIPMAP_LINEAR); }
+  else gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, punto ? gl.NEAREST : gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, punto ? gl.NEAREST : gl.LINEAR);
   const rep = pot || !R.gl1 ? gl.REPEAT : gl.CLAMP_TO_EDGE;
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, rep); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, rep);
-  if (R.aniso && GFX.aniso) gl.texParameterf(gl.TEXTURE_2D, R.aniso.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(GFX.aniso, R.anisoMax || 16));
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, fl & GM_VTF_CLAMPS ? gl.CLAMP_TO_EDGE : rep); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, fl & GM_VTF_CLAMPT ? gl.CLAMP_TO_EDGE : rep);
+  // (el anisotrópico le gana al filtro nítido en la placa: las de pixel nítido van sin él)
+  if (R.aniso && GFX.aniso && !punto) gl.texParameterf(gl.TEXTURE_2D, R.aniso.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(GFX.aniso, R.anisoMax || 16));
   return tx;
 }
 // una textura de un addon que se lee del disco: hasta que llega, gris; después, la de verdad en el mismo lugar
@@ -301,19 +322,19 @@ function gmTexLlenar(ti, u, ruta, max) {
     if (!u) throw new Error('no se pudo leer');
     const T = GMF.vtf(u, max), px = GMF.vtfRGBA(T);
     let alfa = false; if (T.alfa) for (let i = 3; i < px.length; i += 4) if (px[i] < 250) { alfa = true; break; }
-    t.gl = gmTexGL(px, T.w, T.h, alfa); const d = DATA.tx[ti]; if (d) { d.a = alfa ? 1 : 0; d.w = T.w; d.h = T.h; }
+    t.gl = gmTexGL(px, T.w, T.h, alfa, T.flags); const d = DATA.tx[ti]; if (d) { d.a = alfa ? 1 : 0; d.w = T.w; d.h = T.h; d.fl = T.flags | 0; }
   } catch (e) { gmErr('vtf ' + ruta, e); const f = R.tex[gmTexFaltante()]; t.gl = f ? f.gl : null; }
 }
 // con la calidad de textura nueva: la de un addon se vuelve a leer de su .vtf y reemplaza a la vieja en el mismo lugar
 // (los materiales la siguen usando por su número); si no se puede, queda la que estaba
 function gmTexReleer(ti) {
   const d = DATA.tx[ti], t = R.tex[ti]; if (!d || !t || !/^GMA_/.test(d.n || '') || /^GMA_(faltante|blanca)$/.test(d.n)) return;
-  const ruta = d.n.slice(4), rr = 'materials/' + ruta + '.vtf', max = gmTexTope();
+  const ruta = d.n.slice(4), rr = 'materials/' + ruta + '.vtf', max = gmTexTope(false, d.uso);
   const poner = (u) => {
     if (!u || R.tex[ti] !== t) return;
     try {
-      const T = GMF.vtf(u, max), px = GMF.vtfRGBA(T), viejo = t.gl;
-      t.gl = gmTexGL(px, T.w, T.h, d.a ? true : d.a === 0 ? false : undefined); d.w = T.w; d.h = T.h;
+      const T = GMF.vtf(u, gmVtfFlags(u) & GM_VTF_SINLOD ? 4096 : max), px = GMF.vtfRGBA(T), viejo = t.gl;
+      t.gl = gmTexGL(px, T.w, T.h, d.a ? true : d.a === 0 ? false : undefined, T.flags); d.w = T.w; d.h = T.h; d.fl = T.flags | 0;
       if (viejo && viejo !== t.gl && viejo !== R.texGris && viejo !== R.texBlanca) R.gl.deleteTexture(viejo);
     } catch (e) {}
   };
@@ -342,24 +363,29 @@ function gmTexDelJuego(ruta) {
   const c = r.slice(-40); for (const [k, i] of GMOD.texJuego) if (k === c || k.endsWith('/' + r.split('/').pop()) && k.split('/').pop() === r.split('/').pop()) return i;
   return -1;
 }
-function gmTextura(ruta, ico) {
-  const k = ruta + (ico ? '|i' : ''); if (GMOD.tex.has(k)) return GMOD.tex.get(k);
+// (uso: true para el arma en la mano —gmod_vista.js—: con su propio tope, más alto, y guardada aparte de la del mundo;
+// 'mapa' para los mapas del Workshop —gmod_bsp.js—: con el tope de la calidad. Ver gmTexTope)
+function gmTextura(ruta, ico, uso) {
+  if (ico) uso = undefined;
+  const vista = !!uso && uso !== 'mapa';
+  const k = ruta + (ico ? '|i' : vista ? '|v' : ''); if (GMOD.tex.has(k)) return GMOD.tex.get(k);
   let res = -1;
-  const rr = 'materials/' + ruta + '.vtf', max = gmTexTope(ico);
+  const rr = 'materials/' + ruta + '.vtf', max = gmTexTope(ico, uso);
   let b = null;
   if (!GMOD.arch.has(rr) && GMPZ.idx.has(rr)) {
     b = gmVtfYa(rr, max);
     if (!b) {
       if (ico) { gmPzVtf(rr, max); return -1; }   // (el ícono, cuando llegue: no se guarda el -1)
-      const ti = DATA.tx.length; DATA.tx.push({ n: 'GMA_' + ruta, a: 0, w: 4, h: 4, gm: 1 }); R.tex[ti] = { gl: null };
+      const ti = DATA.tx.length; DATA.tx.push({ n: 'GMA_' + ruta, a: 0, w: 4, h: 4, gm: 1, uso }); R.tex[ti] = { gl: null };
       GMOD.tex.set(k, ti); gmPzVtf(rr, max).then((u) => gmTexLlenar(ti, u, ruta, max)); return ti;
     }
   } else b = gmArchivo(rr);
   if (b) {
     try {
-      const t = GMF.vtf(b, max), px = GMF.vtfRGBA(t);
+      const t = GMF.vtf(b, !ico && gmVtfFlags(b) & GM_VTF_SINLOD ? 4096 : max), px = GMF.vtfRGBA(t);
       let alfa = false; if (t.alfa) for (let i = 3; i < px.length; i += 4) if (px[i] < 250) { alfa = true; break; }
-      res = ico ? { w: t.w, h: t.h, px } : gmTexSubir(px, t.w, t.h, 'GMA_' + ruta, alfa);
+      res = ico ? { w: t.w, h: t.h, px } : gmTexSubir(px, t.w, t.h, 'GMA_' + ruta, alfa, t.flags);
+      if (uso && typeof res === 'number' && res >= 0 && DATA.tx[res]) DATA.tx[res].uso = uso;
     } catch (e) { gmErr('vtf ' + ruta, e); }
   }
   if (res === -1 && !ico) { res = gmTexDelJuego(ruta); if (res < 0) res = gmTexFaltante(); }
@@ -374,17 +400,18 @@ function gmVmtRuta(tex, carpetas) {
 }
 // (seg: la segunda textura de un material de dos —$basetexture2 de WorldVertexTransition, los terrenos que mezclan roca y
 // nieve o pasto y tierra—; si el material no tiene, null)
-function gmMaterial(tex, carpetas, seg) {
-  const k = tex + '|' + carpetas.join(',') + (seg ? '|2' : ''); if (GMOD.mats.has(k)) return GMOD.mats.get(k);
+// (uso: el de gmTextura —true el arma en la mano, 'mapa' un mapa del Workshop—)
+function gmMaterial(tex, carpetas, seg, uso) {
+  const k = tex + '|' + carpetas.join(',') + (seg ? '|2' : '') + (uso && uso !== 'mapa' ? '|v' : ''); if (GMOD.mats.has(k)) return GMOD.mats.get(k);
   const rv = gmVmtRuta(tex, carpetas);
   let v = null;
   if (rv) try { v = GMF.vmt(gmArchivo('materials/' + rv + '.vmt'), (p) => gmArchivo('materials/' + p.replace(/\.vmt$/, '') + '.vmt')); } catch (e) { gmErr('vmt ' + rv, e); }
   if (seg && !(v && v.base2)) { GMOD.mats.set(k, null); return null; }
   let ti;
-  if (seg) ti = gmTextura(v.base2);
-  else if (v && v.base) ti = gmTextura(v.base);
+  if (seg) ti = gmTextura(v.base2, false, uso);
+  else if (v && v.base) ti = gmTextura(v.base, false, uso);
   else if (v) ti = gmTexBlanca();
-  else { ti = -1; for (const c of carpetas.length ? carpetas : ['']) { const r = (c ? c.replace(/\/?$/, '/') : '') + tex; if (gmExiste('materials/' + r + '.vtf')) { ti = gmTextura(r); break; } } if (ti < 0) { ti = gmTexDelJuego((carpetas[0] || '') + tex); if (ti < 0) ti = gmTexFaltante(); } }
+  else { ti = -1; for (const c of carpetas.length ? carpetas : ['']) { const r = (c ? c.replace(/\/?$/, '/') : '') + tex; if (gmExiste('materials/' + r + '.vtf')) { ti = gmTextura(r, false, uso); break; } } if (ti < 0) { ti = gmTexDelJuego((carpetas[0] || '') + tex); if (ti < 0) ti = gmTexFaltante(); } }
   const color = v && v.color ? [v.color[0], v.color[1], v.color[2], 1] : [1, 1, 1, 1];
   let modo = 'op';
   if (v) {
@@ -400,7 +427,7 @@ function gmMaterial(tex, carpetas, seg) {
   else if (modo === 'unlit') m.sh = 'Unlit/Texture';
   else { m.sh = 'Standard'; m.f = { _Mode: 0, _Glossiness: v && (v.phong || v.env) ? 0.4 : 0.12, _Metallic: 0 }; }
   if (v && v.nodraw) m.sh = 'ShadowDrawer';   // ($no_draw: la pieza no se dibuja, como en Source)
-  const res = { mi, vmt: v, dos: !!(v && v.dosLados) }; DATA.mt.push(m);
+  const res = { mi, vmt: v, dos: !!(v && v.dosLados), uso }; DATA.mt.push(m);
   GMOD.mats.set(k, res); return res;
 }
 

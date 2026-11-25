@@ -608,7 +608,10 @@ function gmaPrefabDeModelo(ruta) {
   // (un modelo de HL2/GMod que no viene en el addon: el prop del juego con ese nombre, si hay; si no, una caja)
   const base = ruta.replace(/^.*\//, '').replace(/\.mdl$/, '');
   for (const n of Object.keys(DATA.pfPorNombre)) if (n.toLowerCase() === base) return n;
-  (GMA.modelosFaltan || (GMA.modelosFaltan = new Set())).add(ruta); if (GMA.modelosFaltan.size > 500) GMA.modelosFaltan.clear();
+  // (si está en el contenido base o en un addon que se lee de a pedazos, viene en camino —gmArchivo ya lo pidió— y cuando
+  // llega la entidad se rehace con su modelo: no falta. Antes avisaba «Este addon necesita otro: falta plasticbucket001a.mdl»
+  // con el balde de HL2 de Garry's Bombs, que llegaba un segundo después)
+  if (!gmExiste(ruta)) { (GMA.modelosFaltan || (GMA.modelosFaltan = new Set())).add(ruta); if (GMA.modelosFaltan.size > 500) GMA.modelosFaltan.clear(); }
   return DATA.pfPorNombre.Crate ? 'Crate' : null;
 }
 function gmaModeloInfo(e) { if (!e.o || !/^gm:/.test(e.o.nombre)) return null; const x = GMOD.pf.get(e.o.nombre); return x ? x.M : null; }

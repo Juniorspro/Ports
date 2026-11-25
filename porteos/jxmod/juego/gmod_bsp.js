@@ -251,8 +251,8 @@ async function gbspPreparar(clave, prog) {
   // (los materiales de agua de Source no traen textura base: van con el agua del motor, la que refleja y se ve de abajo)
   let aguaMi = -1; const aguaMat = () => { if (aguaMi < 0) { aguaMi = DATA.mt.findIndex((x) => x && x.n === 'GM_agua'); if (aguaMi < 0) { aguaMi = DATA.mt.length; DATA.mt.push({ n: 'GM_agua', t: gmTexBlanca(), ts: [1, 1], to: [0, 0], cc: { _Color: [0.22, 0.36, 0.42, 0.72] }, c: [0.22, 0.36, 0.42, 0.72], f: {}, gm: 1, sh: 'Legacy Shaders/Transparent/Diffuse' }); } } return { mi: aguaMi }; };
   // (y la segunda textura de los terrenos de dos —WorldVertexTransition—: mat2De)
-  const mats2 = new Map(), mat2De = (i) => { let m = mats2.get(i); if (m === undefined) { try { m = gmMaterial(texNom[i], [''], true); } catch (e) { m = null; } mats2.set(i, m); } return m; };
-  const mats = new Map(), matDe = (i) => { let m = mats.get(i); if (m === undefined) { try { m = gmMaterial(texNom[i], ['']); if (m && m.vmt && /water/i.test(m.vmt.shader || '')) m = aguaMat(); } catch (e) { m = null; } mats.set(i, m); } return m; };
+  const mats2 = new Map(), mat2De = (i) => { let m = mats2.get(i); if (m === undefined) { try { m = gmMaterial(texNom[i], [''], true, 'mapa'); } catch (e) { m = null; } mats2.set(i, m); } return m; };
+  const mats = new Map(), matDe = (i) => { let m = mats.get(i); if (m === undefined) { try { m = gmMaterial(texNom[i], [''], false, 'mapa'); if (m && m.vmt && /water/i.test(m.vmt.shader || '')) m = aguaMat(); } catch (e) { m = null; } mats.set(i, m); } return m; };
   const nVt = (vt.length / 12) | 0, vx = (i) => [dVt.getFloat32(i * 12, true), dVt.getFloat32(i * 12 + 4, true), dVt.getFloat32(i * 12 + 8, true)];
   // los pedazos: por celda de 64 m, por material (para dibujar) y aparte los triángulos de choque
   const ped = new Map(), pedC = new Map(), pedazo = (x, z, M) => { const k = Math.floor(x / GBSP_CELDA) + ':' + Math.floor(z / GBSP_CELDA); let p = M.get(k); if (!p) M.set(k, (p = { P: [], N: [], U: [], LM: [], por: new Map(), C: [], Cc: [] })); return p; };

@@ -5468,6 +5468,34 @@ Los posts nuevos del panel (23 y 24/11) y los errores de JS que mandan los juego
     ventana con 2 deslizadores y 14 casillas y tocar «Huge menu» cambia la convar (1 → 0); la X y Escape cierran; un
     Lua de prueba con Dock TOP/LEFT/FILL, DComboBox (OnSelect «Dos:2»), DListView (OnRowSelected «b2»), pestañas y
     DTextEntry (OnEnter «hola»); sin errores de Lua ni de JS.
+- **Las texturas de los mods se veían borrosas, achicadas o mal** (el dueño: «las texturas del SWEP las recortás y
+  encima ni aparecen bien, también las de GMod o las bombas»). Medido con capturas, cinco cosas (`gmod.js`, `gmod_vista.js`,
+  `gmod_bsp.js`, `gmod_render.js`, `gmod_lib.js`, `gmod_api.js`):
+  - **Achicadas:** el tope de las texturas de los addons era el de la calidad: 256 px en Bajo y Medio (lo que usan casi
+    todos los celus) y 1024 en Alto; un arma de GMod trae 1024 o 2048. Ahora (`gmTexTope`): el arma en la mano
+    (`gmod_vista.js`, una textura aparte, `|v`) 1024 en Bajo y Medio, 512 en Patata y 2048 en Alto y Ultra; los props, NPCs,
+    entidades y bombas el doble de la calidad (512 en Bajo y Medio, 256 en Patata) y 2048 en Alto; los mapas del Workshop
+    (cientos de texturas) como antes; con memoria baja (≤ 1 GB), 512 como mucho. Las que el `.vtf` marca «sin LOD»
+    (NOLOD, 0x200) van enteras.
+  - **Borrosas las de pixel art:** el Minecraft SWEP trae texturas de 16×16 marcadas POINTSAMPLE (0x1) y se suavizaban:
+    los bloques salían como manchas. Ahora se respetan las banderas del `.vtf`: POINTSAMPLE con el filtro nítido de cerca
+    (y sus niveles de lejos, sin titilar), y **sin filtrado anisotrópico**, que en la placa le gana al nítido (con él, un
+    tablero de ajedrez de prueba salía como círculos borrosos en Alto); CLAMPS/CLAMPT (0x4/0x8: miras, carteles, sprites)
+    sin repetir el borde del otro lado.
+  - **Partículas como cuadrados grises:** el humo y la tierra de HL2 de una explosión se bajan la primera vez y, mientras
+    tanto, cada partícula salía como un cuadrado gris liso (con Garry's Bombs 5, una «estrella» oscura en el piso). Ahora
+    no se dibujan hasta tener su textura (`gmrMatListo`), y un material cuyo `.vmt` todavía se está leyendo no queda
+    guardado con el modo adivinado: se vuelve a mirar.
+  - **«Este addon necesita otro: falta plasticbucket001a.mdl»** con Garry's Bombs: el balde es de HL2 y venía en camino
+    (llegaba un segundo después). Sólo se avisa si el modelo no existe en ningún lado (`gmaPrefabDeModelo`).
+  - **Lo que llegaba tarde no se rehacía bien** (`gmlLlegaron`): las claves de los materiales con `|2` (la segunda textura
+    de un terreno) se leían con «2» como carpeta y nunca se rehacían; lo mismo habría pasado con las del arma en la mano.
+  - Comprobado con capturas: los bloques del Minecraft SWEP con el pixel nítido (en la mano y puestos); Garry's Bombs 5
+    (base 528449144 y materiales 528388058, que el Workshop no marca como requerido: con sólo la base salen sin textura):
+    las texturas de cada bomba coinciden con su `.vtf` —la T12 gris violácea con la franja amarilla, la de tiberio negra
+    porque su textura es casi negra (3, 7, 24)—, y la explosión de las bombitas de racimo con fuego, pedazos, humo y
+    chispas, sin cuadrados. Pruebas: `derma_mods` 10/10, `doudou_agarrar` 10/10, `armas_jx` 4/4, `gmod_addon` 6/7 (la
+    misma falla de física de antes; las texturas salen del addon).
 - **Errores que mandan los juegos (panel → Errores):**
   - `Failed to set the 'value' property on 'AudioParam': non-finite` en `ponerPos` (×3 en la 3.9.12, también en la
     3.9.8): una posición con NaN para un sonido. `ponerPos` (`audio.js`) ya no la pasa: el sonido queda donde estaba.
