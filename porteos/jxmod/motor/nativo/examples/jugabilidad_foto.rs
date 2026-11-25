@@ -23,6 +23,8 @@ fn main() {
     let lt = (std::fs::read_to_string(Path::new(&let_).join("letras.json")).ok(), std::fs::read(Path::new(&let_).join("letras.png")).ok());
     let mut j = Juego::nuevo(Paquete::abrir(Path::new(&www)), lt.0, lt.1, Some(datos));
     j.dt_fijo = Some(1.0 / 60.0);
+    // (JXM_MENUS: la carpeta con ui/menus.* —el atlas de los menús, como en la app—: la pausa y el menú de objetos de la web)
+    if let Ok(menus) = std::env::var("JXM_MENUS") { j.inicio_lector(Box::new(move |n| std::fs::read(Path::new(&menus).join(n)).ok())); }
     let (mut m, placa) = if vk {
         let m = unsafe { jxmotor::vk::Motor::nuevo(None, w as u32, h as u32, Opciones::default()) }.expect("Vulkan"); let p = m.placa.clone(); j.en_uso = Placa::Vulkan; (Motor3d::Vk(m), p)
     } else {
@@ -103,6 +105,12 @@ fn main() {
         boton(&mut j, Boton::Jg(Bj::Linterna)); boton(&mut j, Boton::Jg(Bj::CamLibre)); boton(&mut j, Boton::Jg(Bj::CamL)); paso(&mut j, &mut m, 3); foto(&mut m, "hud_prendidos");
         boton(&mut j, Boton::Jg(Bj::CamLibre)); boton(&mut j, Boton::Jg(Bj::Linterna)); paso(&mut j, &mut m, 3);
         println!("hud: arma {} · balas {:?} · linterna {} · cámara libre {}", j.armas.def().n, j.armas.balas.get(k), j.jg.lint, j.jg.clib.menu);
+        // (el menú de objetos)
+        boton(&mut j, Boton::Objetos); paso(&mut j, &mut m, 30); foto(&mut m, "hud_menu");
+        // (otra categoría, la pestaña de NPCs, Herramientas, y cerrar con la cruz)
+        if j.menu.is_some() { j.menu.as_mut().unwrap().sub = 2; paso(&mut j, &mut m, 3); foto(&mut m, "hud_menu_cat"); j.menu.as_mut().unwrap().pestana = 1; j.menu.as_mut().unwrap().sub = 0; paso(&mut j, &mut m, 3); foto(&mut m, "hud_menu_npc");
+            j.menu.as_mut().unwrap().pestana = 3; paso(&mut j, &mut m, 3); foto(&mut m, "hud_menu_her"); }
+        j.menu = None; paso(&mut j, &mut m, 2);
     }
     if hace("editor") {
         // el editor de los botones (controles.js): mover el salto arrastrándolo, agrandar el disparo con dos dedos y con «+»,

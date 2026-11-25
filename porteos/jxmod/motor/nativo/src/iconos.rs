@@ -272,6 +272,14 @@ pub fn hay(nombre: &str) -> bool { GLIFOS.iter().any(|g| g.0 == nombre) || COLOR
 pub const COLOR: &[(&str, &str)] = &[
     ("ico_mod", include_str!("../../../juego/iconos/mod.svg")),
     ("ico_animacion", include_str!("../../../juego/iconos/animacion.svg")),
+    ("ico_volar", include_str!("../../../juego/iconos/volar.svg")),
+    ("ico_ragdoll", include_str!("../../../juego/iconos/ragdoll.svg")),
+    ("ico_scp", include_str!("../../../juego/iconos/scp.svg")),
+    ("ico_ciclope", include_str!("../../../juego/iconos/ciclope.svg")),
+    ("ico_auto", include_str!("../../../juego/iconos/auto.svg")),
+    // (propios, del mismo estilo: la pantalla con cosas de Props y la llave de Herramientas)
+    ("ico_props", r##"<svg viewBox="0 0 64 64"><rect x="1" y="1" width="62" height="62" rx="14" fill="#2f7de1"/><rect x="11" y="13" width="42" height="31" rx="4" fill="#ffffff"/><rect x="15" y="17" width="15" height="11" rx="2" fill="#2f7de1"/><rect x="34" y="17" width="15" height="11" rx="2" fill="#f2b31b"/><rect x="15" y="31" width="34" height="9" rx="2" fill="#9cc5f5"/><rect x="22" y="48" width="20" height="4" rx="2" fill="#ffffff"/></svg>"##),
+    ("ico_herr", r##"<svg viewBox="0 0 64 64"><rect x="1" y="1" width="62" height="62" rx="14" fill="#4a5568"/><path fill="#ffffff" d="M45 11a11 11 0 0 0-12 14L13 45a4.5 4.5 0 0 0 6.4 6.4l20-20A11 11 0 0 0 53 19l-7 7-6.5-2.5L37 17l7-7z"/></svg>"##),
     ("ico_gmod", r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#1b8fdc"/><path d="M45 22a15 15 0 1 0 2 13H33v-7h22" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>"##),
 ];
 fn color_de(v: &str) -> Option<[f32; 3]> {

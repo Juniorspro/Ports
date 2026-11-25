@@ -39,6 +39,8 @@ use herramientas::{Herramientas, Logica, Valor};
 #[path = "tutorial_juego.rs"] pub mod tutorial_juego;
 /// la grieta del cielo y lo que cae de ella (evento.js)
 #[path = "grieta_juego.rs"] pub mod grieta_juego;
+/// el menú de objetos como el de la web
+#[path = "menu_objetos.rs"] pub mod menu_objetos;
 // (los gráficos automáticos: gfxauto.js)
 #[path = "gfx_juego.rs"] pub mod gfx_juego;
 // (el pad de memes: memes.js)
@@ -72,7 +74,7 @@ pub struct PanelNpc { pub npc: Option<u32>, pub est: String }
 pub enum BtnNpc { Rapida(usize), Arma(Option<npc::Arma>), SkinAnt, SkinSig, Escribir, Borrar, BorrarTodos, Cerrar }
 /// para qué se pidió escribir (el cuadro de texto de Android)
 #[derive(Clone, Debug)]
-pub enum Escribir { Chat, Clave(jxjuego::red::Sala), Nombre, Actitud, Pj, SrvNombre, SrvClave }
+pub enum Escribir { Chat, Clave(jxjuego::red::Sala), Nombre, Actitud, Pj, SrvNombre, SrvClave, Buscar }
 /// pedir texto (título, lo que ya hay, hasta cuántas letras, si es contraseña; con un número) y levantar lo escrito
 /// (número y texto, o None si se canceló): en Android, el cuadro de Juego.java (red_android::Teclado)
 pub struct Teclado { pub pedir: Box<dyn Fn(i32, &str, &str, i32, bool)>, pub tomar: Box<dyn Fn() -> Option<(i32, Option<String>)>> }
@@ -131,7 +133,10 @@ pub const TEX_ARMAS: i64 = -2002;
 const ICO: u32 = 96;
 const ICO_COLS: u32 = 10;
 /// el menú de objetos abierto: qué subcategoría, cuánto bajó la grilla y de qué subcategoría es el atlas cargado
-pub struct Menu { pub sub: usize, pub scroll: f32, atlas_de: Option<(usize, usize)>, atlas_h: u32, /** 0 Props, 1 NPCs, 2 Vehículos, 3 Herramientas */ pub pestana: usize }
+pub struct Menu { pub sub: usize, pub scroll: f32, atlas_de: Option<(usize, usize)>, atlas_h: u32, /** 0 Props, 1 NPCs, 2 Vehículos, 3 Herramientas */ pub pestana: usize,
+    /** lo buscado, cuánto bajó la columna de las categorías, hasta dónde bajan y de qué búsqueda es el atlas */ pub q: String, pub scroll_cats: f32, pub max_scroll: f32, pub max_cats: f32, atlas_q: String,
+    /** dónde termina la columna de las categorías (para saber qué baja el dedo) */ pub col_x1: f32 }
+impl Menu { pub fn nuevo() -> Menu { Menu { sub: 0, scroll: 0.0, atlas_de: None, atlas_h: 0, pestana: 0, q: String::new(), scroll_cats: 0.0, max_scroll: 0.0, max_cats: 0.0, atlas_q: String::new(), col_x1: 0.0 } } }
 /// las pestañas de arriba del menú (las del spawn menu de la web)
 const PESTANAS_MENU: [&str; 5] = ["Props", "NPCs", "Vehículos", "Herramientas", "Mods"];
 /// la pestaña de los addons de GMod: abre su panel (gmod_juego.rs)
@@ -278,6 +283,8 @@ pub struct Juego {
     pub tut: tutorial_juego::Tut,
     /// la grieta
     pub gr: grieta_juego::Grieta,
+    /// la casilla «Congelado» del menú de objetos: lo que se pone, queda quieto
+    pub poner_congelado: bool,
     /// lo de personajes.rs
     pub pjs: personajes::Pjs,
     /// el inicio, los paneles y la pausa (inicio_juego.rs)
@@ -326,7 +333,7 @@ impl Juego {
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
             npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
-            her: Herramientas::default(), en_red, gmod, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), ed: hud_web::Editor::default(), tut: Default::default(), gr: Default::default(), pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
+            her: Herramientas::default(), en_red, gmod, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), ed: hud_web::Editor::default(), tut: Default::default(), gr: Default::default(), poner_congelado: false, pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
             armas_ico: false, armas_ico_h: 256, hud_ico: false, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         // los mapas: todos los de la web (DATA.esc), primero los RB (los de la versión personal); empieza en el último elegido
@@ -383,7 +390,7 @@ impl Juego {
                 Boton::Camara if self.vehs.jugador.is_some() => { self.vehs.primera = !self.vehs.primera; if self.vehs.primera { self.jug.yaw = 0.0; self.jug.pitch = 0.0; } }
                 Boton::Camara => { self.camara = (self.camara + 1) % 3; self.avisar(["Primera persona", "Tercera persona", "De frente"][self.camara as usize].into()); }
                 Boton::Volar => { self.jug.noclip = !self.jug.noclip; self.avisar(if self.jug.noclip { "Volar: prendido".into() } else { "Volar: apagado".into() }); }
-                Boton::Objetos => { if !self.catalogo.is_empty() { self.menu = Some(Menu { sub: 0, scroll: 0.0, atlas_de: None, atlas_h: 0, pestana: 0 }); } }
+                Boton::Objetos => { if !self.catalogo.is_empty() { self.menu = Some(Menu::nuevo()); } }
                 Boton::Disparo | Boton::Disparo2 | Boton::Recargar if self.gmod_arma_activa() || self.pill_on() => {}
                 Boton::Disparo | Boton::Disparo2 => {
                     self.armas_con_npc(b == Boton::Disparo);
@@ -423,7 +430,11 @@ impl Juego {
         if self.en_red.panel { if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { self.en_red.scroll = (self.en_red.scroll - (y - d.y)).max(0.0); d.x = x; d.y = y; } return; }
         if let Some(m) = self.menu.as_mut() {
             // (en el menú, arrastrar baja la grilla)
-            if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { m.scroll = (m.scroll - (y - d.y)).max(0.0); d.x = x; d.y = y; }
+            // (con el menú de la web: arrastrar en la columna baja las categorías; en la grilla, la grilla; hasta donde llegan)
+            let nuevo = self.ini.rec.atlas.is_some();
+            if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { let dy = y - d.y; d.x = x; d.y = y;
+                if nuevo && d.x0 < m.col_x1 { m.scroll_cats = (m.scroll_cats - dy).clamp(0.0, m.max_cats); }
+                else if nuevo { m.scroll = (m.scroll - dy).clamp(0.0, m.max_scroll); } else { m.scroll = (m.scroll - dy).max(0.0); } }
             return;
         }
         if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) {
@@ -498,6 +509,8 @@ impl Juego {
         let Some((_, que)) = self.escribir.take() else { return };
         // (la clave del server nuevo se puede borrar dejándola vacía)
         if let (Escribir::SrvClave, Some(t)) = (&que, &txt) { self.ini.pn.srv.pw = limpio(t, 16); return; }
+        // (lo buscado en el menú de objetos: vacío, se borra la búsqueda)
+        if let (Escribir::Buscar, Some(t)) = (&que, &txt) { if let Some(m) = self.menu.as_mut() { m.q = limpio(t, 30); m.scroll = 0.0; } return; }
         let Some(t) = txt.map(|t| t.trim().to_string()).filter(|t| !t.is_empty()) else { return };
         match que {
             Escribir::Chat => { if self.en_red.en_sala() { self.en_red.red.chat(&t, None); let n = self.en_red.red.nombre.clone(); self.en_red.al_chat(format!("{n}: {t}")); } }
@@ -505,7 +518,7 @@ impl Juego {
             Escribir::Nombre => { let n: String = t.chars().filter(|c| !c.is_control()).take(20).collect(); self.en_red.poner_nombre(&n); self.avisar(format!("Ahora te ven como «{n}»")); }
             Escribir::Pj => self.pj_escrito(&t),
             Escribir::SrvNombre => self.ini.pn.srv.n = limpio(&t, 24),
-            Escribir::SrvClave => {}
+            Escribir::SrvClave | Escribir::Buscar => {}
             Escribir::Actitud => { let a = npc::Actitud::de_texto(&t, Some(&serde_json::json!({ "de": "yo" }))); self.npc_aplicar(a, "Escrito"); }
         }
     }
@@ -518,6 +531,7 @@ impl Juego {
         if let Some(p) = self.npc_panel.as_mut() { p.est = format!("{nombre}: {desc}"); }
     }
     fn toque_menu(&mut self, x: f32, y: f32, w: f32, h: f32) {
+        if self.ini.rec.atlas.is_some() { self.mo_toque(x, y, w, h); return; }
         let Some(pe0) = self.menu.as_ref().map(|m| m.pestana) else { return };
         let n = if pe0 == PESTANA_HER { self.her.lista.len() } else { self.cat(pe0).len() };
         let Some(m) = self.menu.as_mut() else { return };
@@ -1151,10 +1165,10 @@ impl Juego {
 
     /// el atlas de íconos de la subcategoría abierta (se arma al abrirla)
     fn menu_atlas(&mut self, m: &mut Motor3d) {
-        let (Some(mm), Some(paq)) = (self.menu.as_mut(), self.paq.as_ref()) else { return };
-        if mm.pestana == PESTANA_HER || mm.atlas_de == Some((mm.pestana, mm.sub)) { return; }
-        let cat = match mm.pestana { 1 => &self.cat_npc, 2 => &self.cat_veh, _ => &self.catalogo };
-        let Some((_, items)) = cat.get(mm.sub) else { return };
+        let Some(mm) = self.menu.as_ref() else { return };
+        if mm.pestana == PESTANA_HER || (mm.atlas_de == Some((mm.pestana, mm.sub)) && mm.atlas_q == mm.q) { return; }
+        // (los íconos de lo que se ve: la categoría elegida o lo buscado)
+        let items = self.mo_items(); let Some(paq) = self.paq.as_ref() else { return };
         let n = items.len() as u32; let filas = n.div_ceil(ICO_COLS).max(1); let (aw, ah) = (1024u32, (filas * ICO).next_power_of_two());
         let mut px = vec![0u8; (aw * ah * 4) as usize];
         for (k, it) in items.iter().enumerate() {
@@ -1165,7 +1179,7 @@ impl Juego {
         }
         let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas: vec![], mats: vec![], texs: vec![Tex { id: TEX_ICONOS, n: "iconos".into(), w: aw, h: ah, a: 1, o: 0 }], lms: vec![], items: vec![], agua: None, cielo: None };
         let _ = unsafe { m.cargar(&Escena { c: cab, datos: px }) };
-        mm.atlas_de = Some((mm.pestana, mm.sub)); mm.atlas_h = ah;
+        if let Some(mm) = self.menu.as_mut() { mm.atlas_de = Some((mm.pestana, mm.sub)); mm.atlas_h = ah; mm.atlas_q = mm.q.clone(); }
     }
     /// pone un objeto donde mira el jugador (o 6 m adelante), mirándolo y apoyado en el piso (spawnDelante y crearObjeto)
     pub fn poner(&mut self, m: &mut Motor3d, nombre: &str, ojos: [f32; 3], fw: [f32; 3]) -> Result<(), String> {
@@ -1185,7 +1199,8 @@ impl Juego {
         let (o64, d64) = ([ojos[0] as f64, ojos[1] as f64, ojos[2] as f64], [fw[0] as f64, fw[1] as f64, fw[2] as f64]);
         let p = match self.fis.rayo(&mp.mundo, o64, d64, 40.0, &[]) { Some(g) => { let t = (g.t as f32 - 0.05).max(0.5); [ojos[0] + fw[0] * t, ojos[1] + fw[1] * t, ojos[2] + fw[2] * t] }
             None => { let mut q = [ojos[0] + fw[0] * 6.0, ojos[1] + fw[1] * 6.0, ojos[2] + fw[2] * 6.0]; if let Some(g) = mp.mundo.rayo(q, [0.0, -1.0, 0.0], 50.0) { q[1] -= g.t; } q } };
-        self.crear_en(m, nombre, p, self.jug.yaw + std::f32::consts::PI)
+        let giro = self.jug.yaw + std::f32::consts::PI; let q = [0.0, (giro / 2.0).sin(), 0.0, (giro / 2.0).cos()];
+        self.crear(m, nombre, p, q, false, self.poner_congelado).map(|_| ())
     }
     /// crea un objeto con su base en `p`, girado `giro` alrededor de Y (crearObjeto): con forma de choque, un cuerpo de la
     /// física; sin forma, fijo
@@ -1235,7 +1250,7 @@ impl Juego {
         let usa = self.en_uso;
         let gm_tex = self.gmod_hud(l, &mut u, wf, hf, t);
         self.jg_hud_fondo(l, &mut u, wf, hf);
-        if self.aj.fps && !self.ed.activo {
+        if self.aj.fps && !self.ed.activo && self.menu.is_none() && self.ajustes.is_none() {
             // (debajo de los botones de arriba a la izquierda; en el editor no, que ahí va su ayuda)
             let y0 = hud_web::bajo_izq(wf, hf);
             let (ew, eh) = ((wf * self.aj.res as f32 / 100.0).round(), (hf * self.aj.res as f32 / 100.0).round());
@@ -1303,7 +1318,7 @@ impl Juego {
             l.texto_sombra(&mut u, (wf - an) / 2.0, hf * 0.47, tt, bl, &txt);
         }
         // el menú de objetos: las subcategorías a la izquierda, la grilla con los íconos y los nombres
-        if let Some(mm) = &self.menu {
+        if let (Some(mm), None) = (&self.menu, self.ini.rec.atlas.as_ref()) {
             let her = mm.pestana == PESTANA_HER; let cat = self.cat(mm.pestana);
             let p = panel(wf, hf, if her { self.her.lista.len() } else { cat.len() });
             l.caja(&mut u, p.x0, p.y0, p.pw, p.ph, hf * 0.03, [0.07, 0.08, 0.11, 0.94]);

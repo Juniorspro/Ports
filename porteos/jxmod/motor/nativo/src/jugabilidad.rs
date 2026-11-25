@@ -465,7 +465,7 @@ impl Juego {
         self.cic_hud(l, u, wf, hf, t);
         self.pv_hud(l, u, wf, hf, t);
         // (las Opciones en el menú de Props: el ícono y la luz de prendida —opcLuz—)
-        if let Some(mm) = &self.menu { if mm.pestana == 0 && self.catalogo.get(mm.sub).map_or(false, |c| c.0 == "Opciones") {
+        if let (Some(mm), None) = (&self.menu, self.ini.rec.atlas.as_ref()) { if mm.pestana == 0 && self.catalogo.get(mm.sub).map_or(false, |c| c.0 == "Opciones") {
             let p = panel(wf, hf, self.catalogo.len());
             for (k, it) in self.catalogo[mm.sub].1.iter().enumerate() {
                 let (col, fila) = (k % p.cols, k / p.cols); let (x, y) = (p.gx + col as f32 * p.celda, p.gy + fila as f32 * p.celda - mm.scroll);

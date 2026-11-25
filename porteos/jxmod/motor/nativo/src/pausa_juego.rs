@@ -41,7 +41,9 @@ impl Juego {
         // (también mientras se miden los gráficos automáticos: gfxauto.js lo hace detrás de la carga)
         let cargando = (self.recargar && self.mapa.is_none()) || self.gfxa.midiendo();
         let ver_boton = !cargando && !self.pjs.panel() && self.mapa.is_some() && self.menu.is_none() && self.ajustes.is_none() && self.npc_panel.is_none() && !self.en_red.panel && !self.gmod.panel && !self.emotes_panel && !self.jg.panel() && !self.jg.sin_hud();
-        if !ver_boton && !self.ini.pz.abierta && self.ini.panel.is_none() && !cargando { return; }
+        // (el menú de objetos también va con este pincel: menu_objetos.rs)
+        let menu_on = !cargando && self.mapa.is_some() && self.menu.is_some() && !self.jg.sin_hud();
+        if !ver_boton && !menu_on && !self.ini.pz.abierta && self.ini.panel.is_none() && !cargando { return; }
         self.ini_recursos(m);
         if cargando { for k in self.pz_foto_carga() { self.ini_pedir_foto(&k); } self.ini_pedir_foto("logo"); self.ini_recursos(m); }
         let dt = 1.0 / 60.0f32.max(self.fps); self.ini.reloj += dt.min(0.1);
@@ -50,6 +52,7 @@ impl Juego {
             let mut p = Pincel::nuevo(at, &mut ico, &mut gl);
             if cargando { self.pz_carga(&mut p, wf, hf); }
             else {
+                if menu_on { self.mo_dibujar(&mut p, wf, hf); }
                 if self.ini.pz.abierta && self.ini.panel.is_none() { self.pz_dibujar(&mut p, wf, hf); }
                 if let Some(pn) = self.ini.panel.clone() { p.rect(0.0, 0.0, wf, hf, rgba(0x050608, 0.55)); self.pn_dibujar(&mut p, &pn, wf, hf); }
             }
