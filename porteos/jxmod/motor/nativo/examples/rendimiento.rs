@@ -83,6 +83,7 @@ fn main() {
     if let Some((t, d)) = m.tiempos() { println!("placa {t:.1} ms: {d}"); }
     if seguido { let p = seg.iter().sum::<f64>() / seg.len() as f64; println!("seguido (sin esperar cada cuadro): {p:.1} ms = {:.1} fps (por vista: {})", 1000.0 / p, seg.iter().map(|x| format!("{x:.1}")).collect::<Vec<_>>().join(" / ")); }
     if std::env::var_os("JXM_RESUMEN").is_some() { println!("{}", m.resumen()); }
+    if std::env::var_os("JXM_PERFIL").is_some() { if let Motor3d::Gl(g, _) = &m { println!("perfil: {}", g.perfil_resumen()); } }
     if let Motor3d::Gl(g, _) = &m { if let Some((_, v)) = &g.fases {
         let d = if ab { (n as f64 + 32.0) / 2.0 } else { n as f64 + 32.0 };
         println!("fases (ms por cuadro){}: {}", if ab { " A" } else { "" }, v.iter().map(|(k, ms)| format!("{k} {:.1}", ms / d)).collect::<Vec<_>>().join(" · "));

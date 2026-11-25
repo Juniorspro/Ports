@@ -54,21 +54,26 @@ precision mediump float;
 uniform sampler2D uT, uT1, uT2, uT3, uLM; uniform vec4 uS1; uniform vec2 uS3;
 uniform vec4 uC, uTi, uTi2, uTi3; uniform vec3 uSol, uSolC, uAmbS, uAmbG, uNieC, uNieS, uCam, uEm, uMat, uNie; uniform float uExpo; uniform float uModo;
 uniform vec4 uLP[4], uLC[4]; uniform float uLN;
+// (las banderas del material ya separadas: terreno, dos texturas, recorte, sin luz · luz horneada, hojas)
+uniform vec4 uBan; uniform vec2 uBan2;
 varying vec3 vW; varying vec3 vN; varying vec2 vU; varying vec2 vL; varying float vMz;
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
-bool bit(float m, float b) { return mod(floor(m / b), 2.0) > 0.5; }
+// (x^2,2 y x^(1/2,2) con tres raíces en vez de pow: el mismo color —menos de 0,2 de un nivel de 8 bits— y mucho menos trabajo)
+vec3 dec(vec3 x) { x = max(x, 0.0); vec3 a = sqrt(x), b = sqrt(a), c = sqrt(b); return x * x * (0.73929934 * b + 0.34228227 * c - 0.0593772 * a - 0.0226474); }
+vec3 enc(vec3 x) { x = max(x, 0.0); vec3 a = sqrt(x), b = sqrt(a), c = sqrt(b); return 0.93020244 * a + 0.14337668 * b - 0.02588437 * c - 0.04836126 * x; }
+
 // (el retoque final de WebGL en Alto —más color, contraste en S y viñeta—, acá mismo: sin otra pasada)
 uniform vec3 uRet;
 vec3 retoque(vec3 c) {
   if (uRet.z < 0.5) return c;
-  c = pow(c, vec3(2.2)); float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-  c = clamp(mix(vec3(l), c, 1.18), 0.0, 1.0); c = c * c * (3.0 - 2.0 * c) * 0.18 + c * 0.82; c = pow(c, vec3(1.0 / 2.2));
+  c = dec(c); float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  c = clamp(mix(vec3(l), c, 1.18), 0.0, 1.0); c = c * c * (3.0 - 2.0 * c) * 0.18 + c * 0.82; c = enc(c);
   vec2 q = gl_FragCoord.xy * uRet.xy - 0.5; return c * (1.0 - dot(q, q) * 0.32);
 }
 void main() {
   vec4 t;
-  if (bit(uModo, 16.0)) { vec4 kc = texture2D(uT, vU); t = vec4(texture2D(uT1, vU * uS1.xy).rgb * kc.r + texture2D(uT2, vU * uS1.zw).rgb * kc.g + texture2D(uT3, vU * uS3).rgb * kc.b, 1.0); }
-  else if (bit(uModo, 8.0)) t = mix(texture2D(uT, vU), texture2D(uT1, vU), clamp(vMz, 0.0, 1.0));
+  if (uBan.x > 0.5) { vec4 kc = texture2D(uT, vU); t = vec4(texture2D(uT1, vU * uS1.xy).rgb * kc.r + texture2D(uT2, vU * uS1.zw).rgb * kc.g + texture2D(uT3, vU * uS3).rgb * kc.b, 1.0); }
+  else if (uBan.y > 0.5) t = mix(texture2D(uT, vU), texture2D(uT1, vU), clamp(vMz, 0.0, 1.0));
   else t = texture2D(uT, vU);
   t *= uC;
   // la pintura en dos tonos (las armas de JXMod, armasjx.js): lo gris de la textura con un color y lo de color (los
@@ -80,15 +85,18 @@ void main() {
     vec3 cu = mix(t.rgb, vec3(lu) * uTi.rgb, uTi.a), ac = mix(t.rgb, vec3(lu) * uTi2.rgb, uTi2.a);
     t.rgb = mix(cu, ac, kA); emAc = ac * kA * uTi3.rgb;
   } else if (uTi.a > 0.0) t.rgb = mix(t.rgb, vec3(dot(t.rgb, vec3(0.299, 0.587, 0.114))) * uTi.rgb, uTi.a);
-  if (bit(uModo, 2.0) && t.a < 0.5) discard;
+#ifdef CORTE
+  // (sólo en el programa de lo recortado: un sombreador que puede descartar no deja probar la profundidad antes de pintar)
+  if (uBan.z > 0.5 && t.a < 0.5) discard;
+#endif
   vec3 col;
-  if (bit(uModo, 4.0)) col = pow(t.rgb, vec3(2.2)) * 1.4;
+  if (uBan.w > 0.5) col = dec(t.rgb) * 1.4;
   else {
-    vec3 alb = pow(t.rgb, vec3(2.2)); vec3 n = normalize(vN); if (!gl_FrontFacing) n = -n;
-    if (bit(uModo, 64.0)) n = normalize(mix(n, vec3(0.0, 1.0, 0.0), 0.55));
+    vec3 alb = dec(t.rgb); vec3 n = normalize(vN); if (!gl_FrontFacing) n = -n;
+    if (uBan2.y > 0.5) n = normalize(mix(n, vec3(0.0, 1.0, 0.0), 0.55));
     vec3 v = normalize(uCam - vW); float rough = uMat.x, metal = uMat.y;
     vec3 dif = alb * (1.0 - metal);
-    if (bit(uModo, 1.0)) col = dif * pow(texture2D(uLM, vL).rgb, vec3(2.2)) * 4.0;
+    if (uBan2.x > 0.5) col = dif * dec(texture2D(uLM, vL).rgb) * 4.0;
     else {
       float nl = max(dot(n, uSol), 0.0); vec3 h = normalize(uSol + v);
       float sp = pow(max(dot(n, h), 0.0), mix(256.0, 8.0, rough)) * (1.0 - rough) * 0.6;
@@ -98,7 +106,7 @@ void main() {
       if (float(i) >= uLN) break;
       vec3 L = uLP[i].xyz - vW; float d2 = dot(L, L), r = uLP[i].w;
       if (d2 > r * r) continue;
-      float d = sqrt(d2); float at = pow(clamp(1.0 - pow(d / r, 4.0), 0.0, 1.0), 2.0) / (d2 + 1.0);
+      float d = sqrt(d2), q = d2 / (r * r), cae = clamp(1.0 - q * q, 0.0, 1.0); float at = cae * cae / (d2 + 1.0);
       col += dif * uLC[i].rgb * max(dot(n, L / d), 0.0) * at;
     }
     col += uEm * 1.6;
@@ -106,9 +114,9 @@ void main() {
   col += emAc;
   float dist = max(distance(vW, uCam), 1e-3);
   float f = clamp((dist - uNie.x) / max(uNie.y - uNie.x, 0.001), 0.0, 1.0) * uNie.z;
-  vec3 vd = (vW - uCam) / dist; vec3 nc = uNieC + uNieS * pow(max(dot(vd, uSol), 0.0), 6.0);
+  vec3 vd = (vW - uCam) / dist; float sd = max(dot(vd, uSol), 0.0), sd2 = sd * sd; vec3 nc = uNieC + uNieS * (sd2 * sd2 * sd2);
   col = mix(col, nc, f);
-  gl_FragColor = vec4(retoque(pow(aces(col * uExpo), vec3(1.0 / 2.2))), t.a);
+  gl_FragColor = vec4(retoque(enc(aces(col * uExpo))), t.a);
 }"#;
 const VS_CIELO: &str = r#"
 attribute vec2 aP; varying vec2 vP;
@@ -123,25 +131,27 @@ uniform mat4 uIVP; uniform vec3 uSol, uNieC, uTop, uMid, uBot, uTinte; uniform v
 varying vec2 vP;
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
 // (el retoque final de WebGL en Alto —más color, contraste en S y viñeta—, acá mismo: sin otra pasada)
+vec3 dec(vec3 x) { x = max(x, 0.0); vec3 a = sqrt(x), b = sqrt(a), c = sqrt(b); return x * x * (0.73929934 * b + 0.34228227 * c - 0.0593772 * a - 0.0226474); }
+vec3 enc(vec3 x) { x = max(x, 0.0); vec3 a = sqrt(x), b = sqrt(a), c = sqrt(b); return 0.93020244 * a + 0.14337668 * b - 0.02588437 * c - 0.04836126 * x; }
 uniform vec3 uRet;
 vec3 retoque(vec3 c) {
   if (uRet.z < 0.5) return c;
-  c = pow(c, vec3(2.2)); float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-  c = clamp(mix(vec3(l), c, 1.18), 0.0, 1.0); c = c * c * (3.0 - 2.0 * c) * 0.18 + c * 0.82; c = pow(c, vec3(1.0 / 2.2));
+  c = dec(c); float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  c = clamp(mix(vec3(l), c, 1.18), 0.0, 1.0); c = c * c * (3.0 - 2.0 * c) * 0.18 + c * 0.82; c = enc(c);
   vec2 q = gl_FragCoord.xy * uRet.xy - 0.5; return c * (1.0 - dot(q, q) * 0.32);
 }
 void main() {
   vec4 a = uIVP * vec4(vP, -1.0, 1.0), b = uIVP * vec4(vP, 1.0, 1.0); vec3 d = normalize(b.xyz / b.w - a.xyz / a.w);
   if (uTiene > 0.5) {
-    vec3 g = d.y > 0.0 ? mix(uMid, uTop, pow(d.y, uExp.x)) : mix(uMid, uBot, pow(-d.y, uExp.y));
+    bool ar = d.y > 0.0; vec3 g = mix(uMid, ar ? uTop : uBot, pow(abs(d.y), ar ? uExp.x : uExp.y));
     vec3 cc = g; if (uTiene > 1.5) cc = mix(g, textureCube(uCubo, d).rgb * uTinte, uDia);
-    vec3 c = pow(cc, vec3(2.2)) * uCieloK;
-    gl_FragColor = vec4(retoque(pow(min(c, vec3(1.0)), vec3(1.0 / 2.2))), 1.0); return;
+    vec3 c = dec(cc) * uCieloK;
+    gl_FragColor = vec4(retoque(enc(min(c, vec3(1.0)))), 1.0); return;
   }
   vec3 cen = vec3(0.16, 0.36, 0.78), hor = vec3(0.62, 0.74, 0.88);
   vec3 c = d.y >= 0.0 ? mix(hor, cen, pow(clamp(d.y, 0.0, 1.0), 0.45)) : mix(hor, uNieC, clamp(-d.y * 4.0, 0.0, 1.0));
   c += vec3(1.0, 0.92, 0.75) * pow(max(dot(d, uSol), 0.0), 600.0) * 6.0;
-  gl_FragColor = vec4(retoque(pow(aces(c * uExpo * 1.1), vec3(1.0 / 2.2))), 1.0);
+  gl_FragColor = vec4(retoque(enc(aces(c * uExpo * 1.1))), 1.0);
 }"#;
 const VS_AGUA: &str = r#"
 attribute vec3 aP; uniform mat4 uVP, uM; uniform vec3 uMn, uSc; varying vec3 vW;
@@ -159,7 +169,7 @@ void main() {
   float dCam = distance(vW, uCam); vec3 v = normalize(uCam - vW); vec2 q = vW.xz * uH.x;
   vec3 n1 = texture2D(uN, q + uTiempo * uS.xy).rgb * 2.0 - 1.0, n2 = texture2D(uN, q * 0.71 + vec2(0.37, 0.61) + uTiempo * uS.zw).rgb * 2.0 - 1.0;
   float lejos = 1.0 / (1.0 + dCam * 0.012); vec2 d = (n1.xy + n2.xy) * uH.y * lejos; vec3 n = normalize(vec3(d.x, 1.0, d.y));
-  float fr = 0.02 + 0.98 * pow(1.0 - abs(dot(n, v)), 5.0);
+  float fq = 1.0 - abs(dot(n, v)), fq2 = fq * fq; float fr = 0.02 + 0.98 * (fq2 * fq2 * fq);
   vec3 cuerpo = pow(aces(uF.rgb * (mix(uAmbG, uAmbS, 0.8) + uSolC * max(uSol.y, 0.0) * 0.5) * 1.6 * uExpo), vec3(1.0 / 2.2));
   vec3 rf = reflect(-v, n); vec3 cielo = mix(uMid, uTop, pow(clamp(rf.y, 0.0, 1.0), 0.5));
   float rv = max(dot(rf, uSol), 0.0); float sp = pow(rv, mix(900.0, 260.0, 1.0 - lejos)) * 2.2 * step(0.0, uSol.y);
@@ -189,11 +199,13 @@ precision highp float;
 precision mediump float;
 #endif
 uniform sampler2D uT; uniform float uSuma; varying vec4 vC; varying vec2 vU; varying vec2 vF;
+vec3 dec(vec3 x) { x = max(x, 0.0); vec3 a = sqrt(x), b = sqrt(a), c = sqrt(b); return x * x * (0.73929934 * b + 0.34228227 * c - 0.0593772 * a - 0.0226474); }
+vec3 enc(vec3 x) { x = max(x, 0.0); vec3 a = sqrt(x), b = sqrt(a), c = sqrt(b); return 0.93020244 * a + 0.14337668 * b - 0.02588437 * c - 0.04836126 * x; }
 uniform vec3 uRet;
 vec3 retoque(vec3 c) {
   if (uRet.z < 0.5) return c;
-  c = pow(c, vec3(2.2)); float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-  c = clamp(mix(vec3(l), c, 1.18), 0.0, 1.0); c = c * c * (3.0 - 2.0 * c) * 0.18 + c * 0.82; c = pow(c, vec3(1.0 / 2.2));
+  c = dec(c); float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  c = clamp(mix(vec3(l), c, 1.18), 0.0, 1.0); c = c * c * (3.0 - 2.0 * c) * 0.18 + c * 0.82; c = enc(c);
   vec2 q = gl_FragCoord.xy * uRet.xy - 0.5; return c * (1.0 - dot(q, q) * 0.32);
 }
 void main() {
@@ -209,11 +221,13 @@ attribute vec3 aP; attribute vec4 aC; uniform mat4 uVP; varying vec4 vC;
 void main() { vC = aC; gl_Position = uVP * vec4(aP, 1.0); }"#;
 const FS_LIN: &str = r#"
 precision mediump float; varying vec4 vC;
+vec3 dec(vec3 x) { x = max(x, 0.0); vec3 a = sqrt(x), b = sqrt(a), c = sqrt(b); return x * x * (0.73929934 * b + 0.34228227 * c - 0.0593772 * a - 0.0226474); }
+vec3 enc(vec3 x) { x = max(x, 0.0); vec3 a = sqrt(x), b = sqrt(a), c = sqrt(b); return 0.93020244 * a + 0.14337668 * b - 0.02588437 * c - 0.04836126 * x; }
 uniform vec3 uRet;
 vec3 retoque(vec3 c) {
   if (uRet.z < 0.5) return c;
-  c = pow(c, vec3(2.2)); float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-  c = clamp(mix(vec3(l), c, 1.18), 0.0, 1.0); c = c * c * (3.0 - 2.0 * c) * 0.18 + c * 0.82; c = pow(c, vec3(1.0 / 2.2));
+  c = dec(c); float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  c = clamp(mix(vec3(l), c, 1.18), 0.0, 1.0); c = c * c * (3.0 - 2.0 * c) * 0.18 + c * 0.82; c = enc(c);
   vec2 q = gl_FragCoord.xy * uRet.xy - 0.5; return c * (1.0 - dot(q, q) * 0.32);
 }
 void main() { gl_FragColor = vec4(retoque(vC.rgb), vC.a); }"#;
@@ -222,7 +236,7 @@ pub const PART_V2: usize = 11;
 /// a lo sumo cuántas partículas por cuadro (los índices son de 16 bits: 4 vértices cada una)
 const PART_MAX2: usize = 16383;
 
-const U_LUZ: [&str; 36] = ["uTi", "uTi2", "uTi3", "uVP", "uM", "uMn", "uSc", "uSt", "uT", "uT1", "uT2", "uT3", "uLM", "uS1", "uS3", "uC", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNieS", "uCam", "uEm", "uMat", "uNie", "uExpo", "uModo", "uLP", "uLC", "uLN", "uIVP", "uTop", "uMid", "uBot", "uExp"];
+const U_LUZ: [&str; 38] = ["uBan", "uBan2", "uTi", "uTi2", "uTi3", "uVP", "uM", "uMn", "uSc", "uSt", "uT", "uT1", "uT2", "uT3", "uLM", "uS1", "uS3", "uC", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNieS", "uCam", "uEm", "uMat", "uNie", "uExpo", "uModo", "uLP", "uLC", "uLN", "uIVP", "uTop", "uMid", "uBot", "uExp"];
 const U_OTROS: [&str; 14] = ["uTiene", "uCieloK", "uInv", "uRet", "uTinte", "uDia", "uCubo", "uN", "uF", "uH", "uS", "uTiempo", "uSolC", "uSuma"];
 
 unsafe fn programa(gl: &glow::Context, vs: &str, fs: &str, atrs: &[&str]) -> Result<Prog2, String> {
@@ -281,7 +295,7 @@ pub fn part_vertices(f: &[f32], der: [f32; 3], arr: [f32; 3], cam: [f32; 3], o: 
 pub struct Motor {
     pub gl: glow::Context,
     pub op: Opciones2,
-    p_luz: Prog2, p_cielo: Prog2, p_ui: Prog2, p_copia: Prog2, p_agua: Prog2, p_part: Prog2, p_lin: Prog2,
+    p_luz: Prog2, p_luz_c: Prog2, p_cielo: Prog2, p_ui: Prog2, p_copia: Prog2, p_agua: Prog2, p_part: Prog2, p_lin: Prog2,
     /// las partículas: el búfer de vértices, el de índices (para cuántas alcanza) y lo armado en la CPU; las marcas: su búfer,
     /// cuántos vértices y las que llegaron y todavía no se subieron
     part_vb: glow::Buffer, part_ib: glow::Buffer, part_cap: usize, part_v: Vec<f32>,
@@ -302,6 +316,8 @@ impl Motor {
         let ext = gl.supported_extensions();
         let uint32 = ext.contains("GL_OES_element_index_uint"); let npot = ext.contains("GL_OES_texture_npot") || ext.contains("GL_ARB_texture_non_power_of_two");
         let p_luz = programa(&gl, VS_LUZ, FS_LUZ, &["aP", "aN", "aU", "aL"])?;
+        // (lo recortado aparte: sólo ese programa puede descartar, así lo demás prueba la profundidad antes de pintar)
+        let p_luz_c = programa(&gl, VS_LUZ, &format!("#define CORTE\n{FS_LUZ}"), &["aP", "aN", "aU", "aL"])?;
         let p_cielo = programa(&gl, VS_CIELO, FS_CIELO, &["aP"])?;
         let p_ui = programa(&gl, VS_UI, FS_UI, &["aP", "aU", "aC"])?;
         let p_copia = programa(&gl, VS_COPIA, FS_COPIA, &["aP"])?;
@@ -315,7 +331,7 @@ impl Motor {
         let blanca = gl.create_texture()?; gl.bind_texture(glow::TEXTURE_2D, Some(blanca));
         gl.tex_image_2d(glow::TEXTURE_2D, 0, glow::RGBA as i32, 1, 1, 0, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelUnpackData::Slice(Some(&[255, 255, 255, 255])));
         gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::LINEAR as i32);
-        Ok(Motor { gl, op, cubo: None, p_luz, p_cielo, p_ui, p_copia, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), marcas_vb, marcas_n: 0, poses: vec![], poses_n: 0, pose_p: vec![], pose_v: vec![], marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
+        Ok(Motor { gl, op, cubo: None, p_luz, p_luz_c, p_cielo, p_ui, p_copia, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), marcas_vb, marcas_n: 0, poses: vec![], poses_n: 0, pose_p: vec![], pose_v: vec![], marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
             c: None, items: vec![], opacos: vec![], transp: vec![], uint32, npot, escena_rt: None, dibujos: 0, memoria: 0, mapa: String::new() })
     }
 
@@ -464,7 +480,7 @@ impl Motor {
         gl.enable(glow::DEPTH_TEST); gl.depth_func(glow::LEQUAL); gl.disable(glow::CULL_FACE); gl.disable(glow::BLEND);
         let vp = self.c.as_ref().unwrap().vp;
         let (rw, rh) = if escalada { (ew, eh) } else { (w, h) };
-        for p in [&self.p_luz, &self.p_cielo] { gl.use_program(Some(p.p)); gl.uniform_3_f32(p.u("uRet"), 1.0 / rw as f32, 1.0 / rh as f32, if self.op.retoque { 1.0 } else { 0.0 }); }
+        for p in [&self.p_luz, &self.p_luz_c, &self.p_cielo] { gl.use_program(Some(p.p)); gl.uniform_3_f32(p.u("uRet"), 1.0 / rw as f32, 1.0 / rh as f32, if self.op.retoque { 1.0 } else { 0.0 }); }
         self.luces(&vp);
         // (el cielo 3D: primero el cielo, la maqueta y lo transparente de ella, y la profundidad borrada; el mapa, siempre adelante)
         let opacos = self.opacos.clone();
@@ -477,8 +493,8 @@ impl Motor {
             { let gl = &self.gl; gl.enable(glow::BLEND); gl.depth_mask(false); }
             for i in tr_c { let add = self.mats[&self.items[i].mat].add != 0; let gl = &self.gl; if add { gl.blend_func(glow::SRC_ALPHA, glow::ONE); } else { gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); } self.dibujar_item(i); }
             { let gl = &self.gl; gl.disable(glow::BLEND); gl.depth_mask(true); gl.clear(glow::DEPTH_BUFFER_BIT); gl.use_program(Some(self.p_luz.p)); }
-            for i in op_r { self.dibujar_item(i); }
-        } else { for i in opacos { self.dibujar_item(i); } self.cielo_dibujar(&vp); }
+            for i in self.de_cerca(&op_r) { self.dibujar_item(i); }
+        } else { for i in self.de_cerca(&opacos) { self.dibujar_item(i); } self.cielo_dibujar(&vp); }
         self.marcas(&vp, rw, rh);
         // lo transparente (sin escribir la profundidad), de lo más lejos a lo más cerca
         let gl = &self.gl; gl.enable(glow::BLEND); gl.depth_mask(false); gl.use_program(Some(self.p_luz.p));
@@ -574,8 +590,9 @@ impl Motor {
         gl.depth_mask(true); gl.disable(glow::BLEND);
         self.dibujos += tandas.len() as u32; self.part_v = v;
     }
-    unsafe fn luces(&self, vp: &M4) {
-        let gl = &self.gl; let p = &self.p_luz; let c = self.c.as_ref().unwrap(); let l = &c.luz; let s = self.sol();
+    unsafe fn luces(&self, vp: &M4) { for p in [&self.p_luz_c, &self.p_luz] { self.luces_en(p, vp); } }
+    unsafe fn luces_en(&self, p: &Prog2, vp: &M4) {
+        let gl = &self.gl; let c = self.c.as_ref().unwrap(); let l = &c.luz; let s = self.sol();
         gl.use_program(Some(p.p));
         gl.uniform_matrix_4_f32_slice(p.u("uVP"), false, vp);
         gl.uniform_3_f32(p.u("uSol"), s[0], s[1], s[2]); gl.uniform_3_f32(p.u("uSolC"), l.sol_c[0], l.sol_c[1], l.sol_c[2]);
@@ -587,6 +604,14 @@ impl Motor {
         for (i, q) in c.luces.iter().take(n).enumerate() { lp[i * 4..i * 4 + 4].copy_from_slice(&q[0..4]); lc[i * 4..i * 4 + 4].copy_from_slice(&q[4..8]); }
         gl.uniform_4_f32_slice(p.u("uLP"), &lp); gl.uniform_4_f32_slice(p.u("uLC"), &lc); gl.uniform_1_f32(p.u("uLN"), n as f32);
         for (k, nm) in ["uT", "uT1", "uT2", "uT3", "uLM"].iter().enumerate() { gl.uniform_1_i32(p.u(nm), k as i32); }
+    }
+    /// lo opaco de cerca a lejos —lo de atrás se descarta antes de pintarlo— y lo recortado al final (va con su programa)
+    fn de_cerca(&self, l: &[usize]) -> Vec<usize> {
+        let cp = self.c.as_ref().map_or([0.0; 3], |c| c.pos); let corte = |i: usize| self.mats.get(&self.items[i].mat).map_or(true, |mt| mt.cut != 0);
+        let lejos = |i: usize| { let e = self.items[i].esf; ((e[0] - cp[0]).powi(2) + (e[1] - cp[1]).powi(2) + (e[2] - cp[2]).powi(2)).sqrt() - e[3] };
+        let mut orden: Vec<(bool, f32, usize)> = l.iter().map(|&i| (corte(i), lejos(i), i)).collect();
+        orden.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
+        orden.into_iter().map(|x| x.2).collect()
     }
     unsafe fn tex(&self, id: i64) -> glow::Texture { self.texs.get(&id).map(|t| t.t).unwrap_or(self.blanca) }
     /// la malla con huesos del item `i` deformada con su pose (una vez por cuadro por malla y pose): búfer y caja
@@ -621,7 +646,7 @@ impl Motor {
         let pose = if !self.items[i].h.is_empty() && self.mallas.get(&self.items[i].m).map(|m| m.piel.is_some()).unwrap_or(false) { match self.pose_de(i) { Some(x) => Some(x), None => return } } else { None };
         let it = &self.items[i]; let (Some(m), Some(mt)) = (self.mallas.get(&it.m), self.mats.get(&it.mat)) else { return };
         let (vb, mn, sc) = pose.unwrap_or((m.vb, m.mn, m.sc));
-        let gl = &self.gl; let p = &self.p_luz;
+        let gl = &self.gl; let p = if mt.cut != 0 { &self.p_luz_c } else { &self.p_luz }; gl.use_program(Some(p.p));
         let lm = self.lms.get(&m.lm_id).map(|t| t.t);
         let mut modo = lm.is_some() as i32 | if mt.cut != 0 { 2 } else { 0 } | if mt.unlit != 0 { 4 } else { 0 } | if mt.fol != 0 { 64 } else { 0 };
         let mut capas = [self.tex(mt.t), self.blanca, self.blanca, self.blanca, lm.unwrap_or(self.blanca)];
@@ -631,6 +656,8 @@ impl Motor {
         } else if mt.t2 >= 0 { modo |= 8; capas[1] = self.tex(mt.t2); }
         for (k, t) in capas.iter().enumerate() { gl.active_texture(glow::TEXTURE0 + k as u32); gl.bind_texture(glow::TEXTURE_2D, Some(*t)); }
         gl.uniform_1_f32(p.u("uModo"), modo as f32);
+        let b = |k: i32| if modo & k != 0 { 1.0 } else { 0.0 };
+        gl.uniform_4_f32(p.u("uBan"), b(16), b(8), b(2), b(4)); gl.uniform_2_f32(p.u("uBan2"), b(1), b(64));
         gl.uniform_matrix_4_f32_slice(p.u("uM"), false, &it.mm);
         gl.uniform_3_f32(p.u("uMn"), mn[0], mn[1], mn[2]); gl.uniform_3_f32(p.u("uSc"), sc[0], sc[1], sc[2]);
         gl.uniform_4_f32(p.u("uSt"), mt.st[0], mt.st[1], mt.st[2], mt.st[3]); gl.uniform_4_f32(p.u("uC"), mt.c[0], mt.c[1], mt.c[2], mt.c[3]);

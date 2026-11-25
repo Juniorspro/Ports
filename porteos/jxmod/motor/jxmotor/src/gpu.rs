@@ -63,7 +63,10 @@ layout(location = 6) in vec4 iM0; layout(location = 7) in vec4 iM1; layout(locat
 #else
 #define MM uM
 #endif
-out vec3 vW; out vec3 vN; out vec2 vU; out vec2 vL; out vec3 vS; out vec3 vS2; out float vMz;
+out vec3 vW; out vec3 vN; out vec2 vU; out vec2 vL; out float vMz;
+#ifndef SOMBRA_PX
+out vec3 vS; out vec3 vS2;
+#endif
 invariant gl_Position;
 void main() {
   vec3 p = uMn + aP * uSc, n = aN.xyz;
@@ -75,10 +78,12 @@ void main() {
   mat4 M = MM; vec4 w = M * vec4(p, 1.0);
   vMz = aN.w; vW = w.xyz; vN = mat3(M) * n; vU = aU * uSt.xy + uSt.zw; vL = aL;
   // (la sombra se lee corrida por la normal un píxel y medio de la sombra: sin acné y sin despegar la sombra de lo que toca)
+#ifndef SOMBRA_PX
   vec3 nn = normalize(vN + vec3(1e-6));
   // (las matrices de la sombra son ortográficas —w siempre 1— y vienen ya llevadas de −1..1 a 0..1: sin dividir ni corregir
   // en cada píxel, y dos números menos por cascada para repartir)
   vS = (uSVP * vec4(w.xyz + nn * uSesgo.y, 1.0)).xyz; vS2 = (uSVP2 * vec4(w.xyz + nn * uSesgo2.y, 1.0)).xyz;
+#endif
   gl_Position = uVP * w;
 }"#;
 const FS_LUZ: &str = r#"#version 300 es
@@ -91,7 +96,14 @@ uniform vec3 uTop, uMid, uBot; uniform vec2 uExp; uniform float uCieloK;
 uniform vec4 uLP[12], uLC[12], uLD[12]; uniform int uLN, uLE;
 // la oclusión ambiental (calculada antes, de la pasada de profundidad): x, y el paso de un píxel de la escena; z la fuerza
 uniform sampler2D uAO; uniform vec4 uAOk;
-in vec3 vW; in vec3 vN; in vec2 vU; in vec2 vL; in vec3 vS; in vec3 vS2; in float vMz; out vec4 o;
+in vec3 vW; in vec3 vN; in vec2 vU; in vec2 vL; in float vMz; out vec4 o;
+#ifdef SOMBRA_PX
+// (las coordenadas de la sombra en cada píxel, del punto y la normal: con triángulos chicos —una ciudad lejos— repartir seis
+// números más por triángulo cuesta más que dos productos por píxel)
+uniform mat4 uSVP, uSVP2;
+#else
+in vec3 vS; in vec3 vS2;
+#endif
 const float PI = 3.14159265;
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
@@ -127,7 +139,11 @@ float pcf(vec3 q, float k, float b) {
 float sombra(float nd) {
   if (uSombra < 0.5) return 1.0;
   float inc = 1.0 + 2.0 * (1.0 - nd);
+#ifdef SOMBRA_PX
+  vec3 nn = normalize(vN + vec3(1e-6)); vec3 q0 = (uSVP * vec4(vW + nn * uSesgo.y, 1.0)).xyz, q1 = (uSVP2 * vec4(vW + nn * uSesgo2.y, 1.0)).xyz;
+#else
   vec3 q0 = vS, q1 = vS2;
+#endif
   float g = max(abs(q0.x - 0.5), abs(q0.y - 0.5)) * 2.0;
   bool lejos = q1.x <= 0.0 || q1.y <= 0.0 || q1.x >= 1.0 || q1.y >= 1.0 || q1.z >= 1.0;
   if (g < 0.97 && q0.z < 1.0) {
@@ -590,6 +606,7 @@ pub struct Motor {
     pub fases: Option<(std::time::Instant, Vec<(&'static str, f64)>)>,
     /// (las fases de los cuadros B del banco A/B: ver `AB`)
     pub fases_b: Vec<(&'static str, f64)>,
+    perfil: Option<std::cell::RefCell<Vec<(bool, bool, i64, i64, u32, u32, f64)>>>,
     /// (los programas de la luz con JXM_FS_DEFS_B, para los cuadros B del banco A/B)
     luz_b: Option<Box<[Prog; 6]>>,
     pub mapa: String,
@@ -649,7 +666,7 @@ impl Motor {
         Ok(Motor { gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
             p_luz, p_luz_piel, p_luz_c, p_luz_piel_c, p_luz_inst_c, p_pre, p_pre_piel, p_pre_inst, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_lin, p_ui, ui, p_luz_inst, p_sombra_inst, inst_buf, part, marcas, ao_rt: None, refr_rt: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], svp2: mat::id(), sesgo2: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
             opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new(), ranuras: Vec::new(), instancias: std::env::var("JXM_SIN_INST").is_err(),
-            ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), fases_b: vec![], luz_b })
+            ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), fases_b: vec![], luz_b, perfil: std::env::var_os("JXM_PERFIL").map(|_| std::cell::RefCell::new(vec![])) })
     }
 
     /// sube a la placa los recursos nuevos (los que ya estaban con el mismo número se reemplazan)
@@ -980,12 +997,28 @@ impl Motor {
                 let gl = &self.gl; let Some(m) = self.mallas.get(&it.m) else { base += n; continue };
                 gl.bind_vertex_array(Some(m.vao)); gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.inst_buf));
                 for j in 0..4u32 { gl.enable_vertex_attrib_array(6 + j); gl.vertex_attrib_pointer_f32(6 + j, 4, glow::FLOAT, false, 64, (base * 64 + j as usize * 16) as i32); gl.vertex_attrib_divisor(6 + j, 1); }
+                let t0 = self.perfil.as_ref().map(|_| { self.gl.finish(); std::time::Instant::now() });
                 self.dibujar_n(p, it, !de_sombra, n as i32);
+                if let (Some(t0), Some(pf)) = (t0, self.perfil.as_ref()) { self.gl.finish(); pf.borrow_mut().push((de_sombra, pre, it.m, it.mat, n as u32, it.sn / 3, t0.elapsed().as_secs_f64() * 1000.0)); }
                 base += n;
-            } else { self.dibujar_item(p, it, !de_sombra); }
+            } else {
+                let t0 = self.perfil.as_ref().map(|_| { self.gl.finish(); std::time::Instant::now() });
+                self.dibujar_item(p, it, !de_sombra);
+                if let (Some(t0), Some(pf)) = (t0, self.perfil.as_ref()) { self.gl.finish(); pf.borrow_mut().push((de_sombra, pre, it.m, it.mat, 1, it.sn / 3, t0.elapsed().as_secs_f64() * 1000.0)); }
+            }
             dibujos += 1;
         }
         dibujos
+    }
+    /// (JXM_PERFIL: lo que tardó cada dibujo —con la placa esperada antes y después—, sumado por malla y material)
+    pub fn perfil_resumen(&self) -> String {
+        let Some(pf) = self.perfil.as_ref() else { return String::new() };
+        let mut m: HashMap<(bool, bool, i64, i64), (u32, u32, u32, f64)> = HashMap::new();
+        for &(s, p, ma, mt, n, t, ms) in pf.borrow().iter() { let e = m.entry((s, p, ma, mt)).or_default(); e.0 += 1; e.1 = n; e.2 = t; e.3 += ms; }
+        let mut v: Vec<_> = m.into_iter().collect(); v.sort_by(|a, b| b.1 .3.total_cmp(&a.1 .3));
+        let total: f64 = v.iter().filter(|x| !x.0 .0).map(|x| x.1 .3).sum();
+        let pre: Vec<String> = v.iter().filter(|x| x.0 .0 && x.0 .1).take(6).map(|((_, _, ma, mt), (veces, n, t, ms))| format!("malla {ma} mat {mt} ×{n} {t} tri: {:.2} ms/vez ({veces})", ms / *veces as f64)).collect();
+        format!("prepaso: {} || luz total {total:.0} ms · ", pre.join(" | ")) + &v.iter().filter(|x| !x.0 .0).take(12).map(|((_, _, ma, mt), (veces, n, t, ms))| format!("malla {ma} mat {mt} ×{n} {t} tri: {:.1} ms/vez ({veces} veces)", ms / *veces as f64)).collect::<Vec<_>>().join(" | ")
     }
 
     /// la sombra del sol: dos mapas de profundidad ortográficos (cascadas) en una sola textura, uno al lado del otro: el de
@@ -1170,17 +1203,36 @@ impl Motor {
         let fb = self.escena_rt.as_ref().unwrap().fb;
         { let gl = &self.gl; gl.bind_framebuffer(glow::FRAMEBUFFER, Some(fb)); gl.viewport(0, 0, ew, eh); gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT); }
         let vp = self.c.as_ref().unwrap().vp;
-        let con_pre = self.op.prepaso && !self.items.iter().any(|it| it.fl & FL_CIELO != 0);
+        // (el cielo 3D va primero —el cielo, la maqueta y lo transparente de ella— y después se borra la profundidad: el mapa
+        // queda siempre adelante y tiene su pasada de profundidad y su oclusión como cualquier otro)
+        let cielo3d = self.items.iter().any(|it| it.fl & FL_CIELO != 0);
+        if cielo3d {
+            self.cielo(&vp);
+            let cie: Vec<usize> = self.opacos.iter().copied().filter(|&i| self.items[i].fl & FL_CIELO != 0).collect();
+            self.dibujos += self.dibujar_lista(&cie, &vp, -1e9, false);
+            { let gl = &self.gl; gl.enable(glow::BLEND); gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); gl.depth_mask(false); }
+            let mut act: Option<bool> = None;
+            for &i in self.transp.iter().filter(|&&i| self.items[i].fl & FL_CIELO != 0) {
+                let it = &self.items[i]; let piel = !it.h.is_empty() && self.mallas[&it.m].piel; let p = if piel { &self.p_luz_piel_c } else { &self.p_luz_c };
+                if act != Some(piel) { act = Some(piel); self.luces(p, &vp, -1e9); }
+                let add = self.mats[&it.mat].add != 0; if add { self.gl.blend_func(glow::SRC_ALPHA, glow::ONE); }
+                self.dibujar_item(p, it, true); self.dibujos += 1;
+                if add { self.gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); }
+            }
+            { let gl = &self.gl; gl.disable(glow::BLEND); gl.depth_mask(true); gl.clear(glow::DEPTH_BUFFER_BIT); }
+        }
+        let mapa: Vec<usize> = self.opacos.iter().copied().filter(|&i| self.items[i].fl & FL_CIELO == 0).collect();
+        let con_pre = self.op.prepaso;
         self.tapados.clear(); self.tapados.resize(self.items.len(), false);
         if con_pre {
             // (la oclusión: lo que la prueba de su caja dio tapado del todo no se dibuja —ni la profundidad ni la luz—)
             self.oclu_leer();
-            let cand: Vec<(usize, u64)> = self.opacos.iter().filter_map(|&i| self.oclu_clave(i).map(|k| (i, k))).collect();
+            let cand: Vec<(usize, u64)> = mapa.iter().filter_map(|&i| self.oclu_clave(i).map(|k| (i, k))).collect();
             for &(i, k) in &cand { if self.oclu.get(&k).map_or(false, |e| !e.2) { self.tapados[i] = true; } }
             // (la pasada de profundidad: lo opaco que no se cala, sin color, de cerca a lejos —lo de atrás se descarta enseguida—;
             // después la luz sólo pinta lo que se ve —cada píxel una vez— y el cielo sólo donde no quedó nada)
             let cp = self.c.as_ref().unwrap().pos;
-            let mut pre: Vec<usize> = self.opacos.iter().copied().filter(|&i| !self.tapados[i] && self.mats.get(&self.items[i].mat).map_or(false, |mt| mt.cut == 0)).collect();
+            let mut pre: Vec<usize> = mapa.iter().copied().filter(|&i| !self.tapados[i] && self.mats.get(&self.items[i].mat).map_or(false, |mt| mt.cut == 0)).collect();
             let lejos = |i: usize| { let e = self.items[i].esf; ((((e[0] - cp[0]).powi(2) + (e[1] - cp[1]).powi(2) + (e[2] - cp[2]).powi(2)).sqrt() - e[3]).max(0.0) / 6.0) as u32 };
             pre.sort_by_key(|&i| { let it = &self.items[i]; (!it.h.is_empty(), lejos(i), it.m, it.s0, it.mat) });
             self.gl.color_mask(false, false, false, false);
@@ -1195,23 +1247,11 @@ impl Motor {
         self.ao_luz = con_ao && con_pre && self.pasada_ao_calc(ew, eh, &vp);
         if self.ao_luz { let gl = &self.gl; gl.bind_framebuffer(glow::FRAMEBUFFER, Some(fb)); gl.viewport(0, 0, ew, eh); }
         self.marca("oclusion");
-        self.cielo(&vp);
-        // (el cielo 3D: la maqueta y lo transparente de ella, y la profundidad borrada; el mapa, siempre adelante)
-        if self.items.iter().any(|it| it.fl & FL_CIELO != 0) {
-            let (cie, resto): (Vec<usize>, Vec<usize>) = self.opacos.iter().partition(|&&i| self.items[i].fl & FL_CIELO != 0);
-            self.dibujos += self.dibujar_lista(&cie, &vp, -1e9, false);
-            { let gl = &self.gl; gl.enable(glow::BLEND); gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); gl.depth_mask(false); }
-            let mut act: Option<bool> = None;
-            for &i in self.transp.iter().filter(|&&i| self.items[i].fl & FL_CIELO != 0) {
-                let it = &self.items[i]; let piel = !it.h.is_empty() && self.mallas[&it.m].piel; let p = if piel { &self.p_luz_piel_c } else { &self.p_luz_c };
-                if act != Some(piel) { act = Some(piel); self.luces(p, &vp, -1e9); }
-                let add = self.mats[&it.mat].add != 0; if add { self.gl.blend_func(glow::SRC_ALPHA, glow::ONE); }
-                self.dibujar_item(p, it, true); self.dibujos += 1;
-                if add { self.gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); }
-            }
-            { let gl = &self.gl; gl.disable(glow::BLEND); gl.depth_mask(true); gl.clear(glow::DEPTH_BUFFER_BIT); }
-            self.dibujos += self.dibujar_lista(&resto, &vp, -1e9, false);
-        } else { let vis: Vec<usize> = self.opacos.iter().copied().filter(|&i| !self.tapados[i]).collect(); self.dibujos += self.dibujar_lista(&vis, &vp, -1e9, false); }
+        if !cielo3d { self.cielo(&vp); }
+        let mut vis: Vec<usize> = mapa.iter().copied().filter(|&i| !self.tapados[i]).collect();
+        if prueba("sin_corte") { vis.retain(|&i| self.mats.get(&self.items[i].mat).map_or(false, |mt| mt.cut == 0)); }
+        if prueba("sin_piel") { vis.retain(|&i| self.items[i].h.is_empty()); }
+        self.dibujos += self.dibujar_lista(&vis, &vp, -1e9, false);
         self.marca("luz");
         if con_ao && !self.ao_luz { self.pasada_ao(ew, eh, &vp); self.marca("oclusion"); }
         self.ao_luz = false;
@@ -1318,6 +1358,13 @@ impl Motor {
         match v.iter_mut().find(|x| x.0 == n) { Some(x) => x.1 += ms, None => v.push((n, ms)) }
     }
     pub fn resumen(&self) -> String {
+        let corte: Vec<usize> = self.opacos.iter().copied().filter(|&i| self.mats.get(&self.items[i].mat).map_or(false, |mt| mt.cut != 0)).collect();
+        let piel: Vec<usize> = self.opacos.iter().copied().filter(|&i| !self.items[i].h.is_empty()).collect();
+        let tri = |l: &[usize]| l.iter().map(|&i| self.items[i].sn as u64 / 3).sum::<u64>();
+        let extra = format!("recortados: {} ({} triángulos) · con huesos: {} ({} triángulos) · ", corte.len(), tri(&corte), piel.len(), tri(&piel));
+        extra + &self.resumen0()
+    }
+    fn resumen0(&self) -> String {
         let n = self.items.len();
         let tri = |l: &[usize]| l.iter().map(|&i| self.items[i].sn as u64 / 3).sum::<u64>();
         let todos: Vec<usize> = (0..n).collect(); let mut grandes: Vec<(u64, i64)> = self.opacos.iter().map(|&i| (self.items[i].sn as u64 / 3, self.items[i].m)).collect(); grandes.sort(); grandes.reverse(); grandes.truncate(6);
