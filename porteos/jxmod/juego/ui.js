@@ -62,8 +62,31 @@ function spawnNpcsTab() {
   if (typeof PJI !== 'undefined' && PJI.lista && PJI.lista.length) subs.push({ n: T('sp.npcImport'), it: PJI.lista.flatMap((m) => ['pjnpc:' + m.id, 'pjrag:' + m.id]) });
   C.sub = subs;
 }
+// la pestaña Ragdolls (Bugs y sugerencias: «que haga ragdolls» za7gix4d, «sección de ragdolls» 582w89z5): todo lo que cae
+// como muñeco de trapo. Los personajes del juego; por addon, sus personajes con esqueleto humano y cualquier modelo cuyo .phy
+// traiga varias piezas (animales, criaturas, robots: gmod_rag.js); y los personajes importados. Va después de NPCs
+function spawnRagdollsTab() {
+  if (typeof DATA === 'undefined' || !DATA || !DATA.menu) return;
+  const subs = [{ n: T('sp.npcJuego'), it: (DATA.chars || []).map((s) => 'rag:' + s) }];
+  if (typeof GMOD !== 'undefined' && typeof gmrgDelAddon === 'function') {
+    // (los personajes: los de jugador y los de esqueleto humano de Valve; no los que el rig automático adivina en un prop
+    // quieto —una botella parada puede parecerle una persona—)
+    const adiv = new Set(typeof gmarTodos === 'function' ? gmarTodos().filter((x) => x.tipo === 'auto').map((x) => x.r) : []);
+    const pms = new Set((typeof gmpLista === 'function' ? gmpLista() : []).filter((r) => !adiv.has(r) || /^models\/player\//.test(r)));
+    const L = [...GMOD.addons.values()].filter((A) => !(A.meta && A.meta.base)).map((A) => ({ n: A.nombre, it: gmrgDelAddon(A, pms).map((r) => 'gmrag:' + r) })).filter((x) => x.it.length);
+    subs.push(...L.sort((x, y) => x.n.localeCompare(y.n, undefined, { numeric: true, sensitivity: 'base' })));
+  }
+  if (typeof PJI !== 'undefined' && PJI.lista && PJI.lista.length) subs.push({ n: T('sp.npcImport'), it: PJI.lista.map((m) => 'pjrag:' + m.id) });
+  let C = DATA.menu.find((c) => c.rags);
+  if (!C) {
+    C = { n: 'Ragdolls', rags: true, sub: [], icUrl: icoSrc('ico:ragdoll') };
+    const k = DATA.menu.findIndex((c) => c.npcs), i = k >= 0 ? k + 1 : DATA.menu.length; DATA.menu.splice(i, 0, C);
+    if (typeof UI !== 'undefined' && UI.tab >= i) UI.tab++;
+  }
+  C.sub = subs;
+}
 function spawnTabs() {
-  spawnNpcsTab(); if (JXP) jxpOrden();
+  spawnNpcsTab(); spawnRagdollsTab(); if (JXP) jxpOrden();
   const tabs = $('tabs'); if (!tabs) return; tabs.innerHTML = ''; UI.tabsLang = PREFS.lang;
   DATA.menu.forEach((c, i) => {
     // (el nombre en el idioma elegido —spt.Props, spt.Vehicles…—; c.n sigue siendo el nombre interno de la pestaña)
@@ -125,7 +148,7 @@ function spawnDibujar() {
 // (la versión personal —JXP, gmod_personal.js—: arriba de todo, los spawnlists de GMod en su árbol)
 function spawnSubs(C) { return C.n === 'Props' ? [...(JXP ? jxpSubs() : []), { n: 'Opciones', opc: true, it: opcionesJX().sort((a, b) => ofOrden(a) - ofOrden(b)).map((m) => m.id) }, { n: 'Mods', mods: true, it: modsAssets().map((m) => m.id) }, ...C.sub] : C.sub; }
 function spawnCatNom(s) { if (s.opc) return T('sp.opciones'); if (s.mods) return T('mm.mods'); if (s.rb) { const t = T('pc.' + s.n); return t === 'pc.' + s.n ? s.n : t; } return s.n; }
-function propNom(it) { if (/^npc:/.test(it)) return skinNom(it.slice(4)); if (/^pj(npc|rag):/.test(it)) { const m = typeof PJI !== 'undefined' && PJI.lista.find((x) => x.id === it.slice(6)); return (m ? m.n : it.slice(6)) + ' (' + (/^pjnpc:/.test(it) ? 'NPC' : T('gm.muneco')) + ')'; } if (/^gm:/.test(it)) return gmNombre(it); if (/^gmnpcm:/.test(it)) return gmNombre('gm:' + it.slice(7)) + ' (NPC)'; if (/^gmrag:/.test(it)) return gmNombre('gm:' + it.slice(6)) + ' (' + T('gm.muneco') + ')'; if (/^gmpm:/.test(it)) return gmNombre('gm:' + it.slice(5)); if (/^gmnpc:/.test(it)) return gmListaNombre('NPC', it.slice(6)); if (/^gmveh:/.test(it)) return gmListaNombre('Vehicles', it.slice(6)); if (/^gm(ent|swep):/.test(it) && typeof gmaNomClase === 'function') return gmaNomClase(it); if (/^NK_/.test(it) && typeof nukeNom === 'function') return nukeNom(it); const k = 'pr.' + it, t = T(k); return t === k ? it : t; }
+function propNom(it) { if (/^(npc|rag):/.test(it)) return skinNom(it.slice(4)); if (/^pj(npc|rag):/.test(it)) { const m = typeof PJI !== 'undefined' && PJI.lista.find((x) => x.id === it.slice(6)); return (m ? m.n : it.slice(6)) + ' (' + (/^pjnpc:/.test(it) ? 'NPC' : T('gm.muneco')) + ')'; } if (/^gm:/.test(it)) return gmNombre(it); if (/^gmnpcm:/.test(it)) return gmNombre('gm:' + it.slice(7)) + ' (NPC)'; if (/^gmrag:/.test(it)) return gmNombre('gm:' + it.slice(6)) + ' (' + T('gm.muneco') + ')'; if (/^gmpm:/.test(it)) return gmNombre('gm:' + it.slice(5)); if (/^gmnpc:/.test(it)) return gmListaNombre('NPC', it.slice(6)); if (/^gmveh:/.test(it)) return gmListaNombre('Vehicles', it.slice(6)); if (/^gm(ent|swep):/.test(it) && typeof gmaNomClase === 'function') return gmaNomClase(it); if (/^NK_/.test(it) && typeof nukeNom === 'function') return nukeNom(it); const k = 'pr.' + it, t = T(k); return t === k ? it : t; }
 // la grilla: la categoría elegida o lo que coincide con la búsqueda en toda la pestaña
 function spawnGrilla(C, subs) {
   const gr = $('grilla'); gr.innerHTML = ''; const q = (UI.q || '').trim().toLowerCase();
@@ -147,7 +170,7 @@ function spawnGrilla(C, subs) {
     } else if (mods) { const m = modsAssets().find((x) => x.id === it); if (!m) continue; d.innerHTML = `${icoHTML(m.icono)}<span dir="auto">${esc(nombreDe(m))}</span>`; d.onclick = () => spawnMod(m); d.dataset.mod = m.id; }
     else {
       const ico = C.n === 'Weapons' ? 'W_' + it : it === 'Box2' ? 'Box2_2' : it;
-      if (/^npc:/.test(it)) d.innerHTML = `<img src="${retrato(it.slice(4))}" loading="lazy"><span>${esc(propNom(it))}</span>`;   // (un personaje del juego como NPC)
+      if (/^(npc|rag):/.test(it)) d.innerHTML = `<img src="${retrato(it.slice(4))}" loading="lazy"><span>${esc(propNom(it))}</span>`;   // (un personaje del juego como NPC o como muñeco de trapo)
       else if (/^pj(npc|rag):/.test(it)) { const m = typeof PJI !== 'undefined' && PJI.lista.find((x) => x.id === it.slice(6)); d.innerHTML = `<img src="${m && m.img ? esc(m.img) : RETRATO_SIL}" loading="lazy"><span>${esc(propNom(it))}</span>`; }   // (un personaje importado)
       else if (/^gm:/.test(it)) { d.innerHTML = `<img src="${gmIcono(it)}" data-gm="${esc(it)}" loading="lazy"><span>${esc(propNom(it))}</span>`; if (JXP) { d.classList.add('itGm'); d.title = it.slice(3); } }   // (versión personal: sólo el spawnicon, el modelo al pasar por encima, como GMod)
       else if (/^gm(npc|veh):/.test(it)) { const v = gmLista(/^gmnpc/.test(it) ? 'NPC' : 'Vehicles', it.replace(/^gm(npc|veh):/, '')), m = v && v.get('Model'), g = typeof m === 'string' && gmArchivo(m.toLowerCase().replace(/\\/g, '/')) ? 'gm:' + m.toLowerCase().replace(/\\/g, '/') : null; const je = JXP && jxpIcoEnt(it); d.innerHTML = `<img src="${je || (g ? gmIcono(g) : GM_ICO)}"${g && !je ? ` data-gm="${esc(g)}"` : ''} loading="lazy"><span>${esc(propNom(it))}</span>`; }   // (versión personal: el ícono de GMod de esa entidad)
@@ -195,7 +218,7 @@ function spawnElegir(tab, nombre) {
   if ((/^gmrag:/.test(nombre) || /^gm:/.test(nombre)) && JUEGO.estado === 'juego' && typeof gmrgPuede === 'function' && !(typeof gmEsMuneco === 'function' && gmEsMuneco(nombre.replace(/^gm(rag)?:/, ''))) && gmrgPuede(nombre.replace(/^gm(rag)?:/, ''))) { if (gmrgModelo(nombre.replace(/^gm(rag)?:/, ''))) { UI.puestos = (UI.puestos || 0) + 1; const e = $('spPuso'); if (e) { e.textContent = `${T('sp.puesto')}: ${propNom(nombre)}`; e.classList.remove('ve'); void e.offsetWidth; e.classList.add('ve'); } } return; }
   if (/^gmrag:/.test(nombre) || (/^gm:/.test(nombre) && typeof gmEsMuneco === 'function' && gmEsMuneco(nombre.slice(3)))) { const r = nombre.replace(/^gm(rag)?:/, ''); if (JUEGO.estado === 'juego' && gmragModelo(r)) { UI.puestos = (UI.puestos || 0) + 1; const e = $('spPuso'); if (e) { e.textContent = `${T('sp.puesto')}: ${propNom(nombre)}`; e.classList.remove('ve'); void e.offsetWidth; e.classList.add('ve'); } } return; }   // (un muñeco de trapo con huesos, como los prop_ragdoll de GMod)
   if (/^pj(npc|rag):/.test(nombre)) { const sk = typeof pjiSkin === 'function' ? pjiSkin(nombre.slice(6)) : ''; if (JUEGO.estado === 'juego' && sk && spawnNpc(sk, /^pjrag:/.test(nombre))) { UI.puestos = (UI.puestos || 0) + 1; const e = $('spPuso'); if (e) { e.textContent = `${T('sp.puesto')}: ${propNom(nombre)}`; e.classList.remove('ve'); void e.offsetWidth; e.classList.add('ve'); } } return; }
-  if (/^npc:/.test(nombre)) { if (JUEGO.estado === 'juego' && spawnNpc(nombre.slice(4))) { UI.puestos = (UI.puestos || 0) + 1; const e = $('spPuso'); if (e) { e.textContent = `${T('sp.puesto')}: ${propNom(nombre)}${UI.puestos > 1 ? ' (' + UI.puestos + ')' : ''}`; e.classList.remove('ve'); void e.offsetWidth; e.classList.add('ve'); } } return; }
+  if (/^(npc|rag):/.test(nombre)) { if (JUEGO.estado === 'juego' && spawnNpc(nombre.slice(4), /^rag:/.test(nombre))) { UI.puestos = (UI.puestos || 0) + 1; const e = $('spPuso'); if (e) { e.textContent = `${T('sp.puesto')}: ${propNom(nombre)}${UI.puestos > 1 ? ' (' + UI.puestos + ')' : ''}`; e.classList.remove('ve'); void e.offsetWidth; e.classList.add('ve'); } } return; }
   if (/^gmnpcm:/.test(nombre)) { if (JUEGO.estado === 'juego' && gmnpcModelo(nombre.slice(7))) { UI.puestos = (UI.puestos || 0) + 1; const e = $('spPuso'); if (e) { e.textContent = `${T('sp.puesto')}: ${propNom(nombre)}`; e.classList.remove('ve'); void e.offsetWidth; e.classList.add('ve'); } } return; }   // (un modelo de personaje como NPC)
   if (/^gmnpc:/.test(nombre)) { if (JUEGO.estado === 'juego' && gmnpcCrear(nombre.slice(6))) { UI.puestos = (UI.puestos || 0) + 1; const e = $('spPuso'); if (e) { e.textContent = `${T('sp.puesto')}: ${propNom(nombre)}`; e.classList.remove('ve'); void e.offsetWidth; e.classList.add('ve'); } } return; }   // (un NPC de un addon)
   if (/^gmveh:/.test(nombre) && !gmvehPrefab(nombre.slice(6))) return;   // (un vehículo de un addon: se arma su prefab y se pone como cualquier cosa)

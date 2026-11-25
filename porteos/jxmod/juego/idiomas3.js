@@ -548,6 +548,7 @@ Object.assign(IDI3, {
 Object.assign(IDI3, {
   'spt.Props': ['Props', 'Props', 'Props', 'Props', 'Prop', 'Props', 'プロップ', 'พร็อพ', 'Nesneler', 'الأغراض', 'Пропы', 'Пропи', 'Props', 'Props'],
   'spt.NPCs': ['NPCs', 'NPCs', 'NPCs', 'NPC', 'NPC', 'Mga NPC', 'NPC', 'NPC', 'NPC\'ler', 'الشخصيات', 'NPC', 'NPC', 'PNJ', 'NPCs'],
+  'spt.Ragdolls': ['Ragdolls', 'Ragdolls', 'Ragdolls', 'Ragdoll', 'Ragdoll', 'Mga ragdoll', 'ラグドール', 'แร็กดอลล์', 'Ragdoll\'lar', 'دمى الراغدول', 'Рэгдоллы', 'Регдоли', 'Ragdolls', 'Ragdolls'],
   'spt.Vehicles': ['Vehículos', 'Vehicles', 'Veículos', 'Kendaraan', 'Kenderaan', 'Mga sasakyan', '乗り物', 'ยานพาหนะ', 'Araçlar', 'المركبات', 'Транспорт', 'Транспорт', 'Véhicules', 'Fahrzeuge'],
   'spt.Entities': ['Entidades', 'Entities', 'Entidades', 'Entitas', 'Entiti', 'Mga entity', 'エンティティ', 'เอนทิตี', 'Varlıklar', 'الكيانات', 'Сущности', 'Сутності', 'Entités', 'Entitäten'],
   'spt.Weapons': ['Armas', 'Weapons', 'Armas', 'Senjata', 'Senjata', 'Mga armas', '武器', 'อาวุธ', 'Silahlar', 'الأسلحة', 'Оружие', 'Зброя', 'Armes', 'Waffen'],

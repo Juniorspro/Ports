@@ -75,7 +75,8 @@ function gmPzSoltar() { GMPZ.pinT = 0; const t = performance.now(); for (const [
 // las partes de un modelo que están en el disco y todavía no se leyeron
 function gmModeloFaltan(ruta) {
   const base = ruta.slice(0, -4), vtx = [base + '.dx90.vtx', base + '.vtx', base + '.dx80.vtx', base + '.sw.vtx'].find((r) => GMOD.arch.has(r) || GMPZ.idx.has(r) || (typeof GML !== 'undefined' && GML.datos.has(r)));
-  return [base + '.vvd', vtx].filter((r) => r && !GMOD.arch.has(r) && GMPZ.idx.has(r) && !GMPZ.pin.has(r) && !gmPzTrozo(r, GMPZ.idx.get(r).t));
+  // (y el .phy: su choque, y si es de varias piezas, que caiga como muñeco —gmod_rag.js—; sin él salía duro o sin choque)
+  return [base + '.vvd', vtx, base + '.phy'].filter((r) => r && !GMOD.arch.has(r) && GMPZ.idx.has(r) && !GMPZ.pin.has(r) && !gmPzTrozo(r, GMPZ.idx.get(r).t));
 }
 // leerlas juntas; cuando están, se rehace lo que esperaba ese modelo (entidades, vista del arma...) y se llama a fn
 function gmModeloPedir(ruta, fn) {

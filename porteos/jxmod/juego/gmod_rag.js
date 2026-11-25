@@ -127,4 +127,45 @@ function gmrgPaso() {
     const b = e.ragGen.raiz.b; if (e.pos && e.pos.copy) e.pos.copy(b.pos);
   }
 }
+// ---------------- la pestaña Ragdolls del menú (ui.js, spawnRagdollsTab) ----------------
+// ¿cae como muñeco? Los modelos cuyo .phy trae dos o más sólidos (los «ragdoll» de GMod; un prop trae uno). Se mira la
+// cabecera del .phy (12 bytes: tamaño, id, cuántos sólidos); los de un addon que se lee de a pedazos se miran de a uno y la
+// pestaña se rearma cuando llegan. true / false / null (todavía no se sabe)
+GMRG.cand = new Map(); GMRG.mirando = null;
+const gmrgSolidos = (b) => (b && b.length >= 12 ? new DataView(b.buffer, b.byteOffset, 12).getInt32(8, true) : 0);
+function gmrgCandidato(r) {
+  if (GMRG.cand.has(r)) return GMRG.cand.get(r);
+  const ph = r.slice(0, -4) + '.phy';
+  if (!gmExiste(ph)) { GMRG.cand.set(r, false); return false; }
+  const b = GMOD.arch.get(ph) || (GMPZ.pin.get(ph) || {}).u || (GMPZ.idx.has(ph) ? gmPzTrozo(ph, 12) : null);
+  if (b) { const v = gmrgSolidos(b) >= 2; GMRG.cand.set(r, v); return v; }
+  return null;
+}
+// los muñecos de un addon: sus personajes (esqueleto humano: gmragModelo) y los demás modelos con .phy de varias piezas
+// (sin armas, manos ni pedazos de rotura)
+function gmrgDelAddon(A, pms) {
+  const out = [], falta = [];
+  for (const r of A.G.archivos.keys()) {
+    if (!/^models\/.*\.mdl$/.test(r) || /(^|\/)[wvc]_[^/]*\.mdl$|^models\/weapons\/|hands?\.mdl$|(^|[\/_])gibs?[\/_\d]|debris|_chunk|shard/i.test(r)) continue;
+    if (pms.has(r)) { out.push(r); continue; }
+    const c = gmrgCandidato(r); if (c) out.push(r); else if (c === null) falta.push(r);
+  }
+  if (falta.length) gmrgMirar(falta);
+  return out.sort();
+}
+function gmrgMirar(L) {
+  if (GMRG.mirando) { for (const r of L) GMRG.mirando.add(r); return; }
+  GMRG.mirando = new Set(L);
+  (async () => {
+    let hubo = false;
+    while (GMRG.mirando.size) {
+      const r = GMRG.mirando.values().next().value; GMRG.mirando.delete(r); if (GMRG.cand.has(r)) continue;
+      const ph = r.slice(0, -4) + '.phy'; let b = null; try { b = await gmPzRango(ph, 12); } catch (e) { b = null; }
+      const v = gmrgSolidos(b) >= 2; GMRG.cand.set(r, v); if (v) hubo = true;
+    }
+    GMRG.mirando = null;
+    // (si el menú está abierto en Ragdolls, se rearma con los que aparecieron)
+    if (hubo && typeof spawnRagdollsTab === 'function') { spawnRagdollsTab(); if (typeof UI !== 'undefined' && UI.abierto === 'spawn' && DATA.menu[UI.tab] && DATA.menu[UI.tab].rags) spawnDibujar(); }
+  })();
+}
 if (typeof module !== 'undefined') module.exports = { GMRG, gmrgPuede, gmrgArmar, gmrgHuesos, gmrgModelo, gmrgQuitar, gmrgPaso, gmrgRestricciones };
