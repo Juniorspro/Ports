@@ -24,7 +24,7 @@ const TEX_GMOD: i64 = -3000;
 #[path = "gmod_spawn.rs"] mod gmod_spawn;
 // (los Pill Packs: pillpacks.js y pill_gmod.js)
 #[path = "gmod_pill.rs"] pub mod gmod_pill;
-pub use gmod_base::{lector_carpetas, LectorRb};
+pub use gmod_base::{lector_carpetas, LectorRb, GM_LIB};
 /// los archivos de la biblioteca de GMod (para bajarlos antes de cargar un mapa del Workshop)
 pub fn gmod_base_archivos_lib(l: &LectorRb) -> Vec<String> { gmod_base::archivos_lib(l) }
 #[cfg(target_os = "android")] pub use gmod_base::lector_android;

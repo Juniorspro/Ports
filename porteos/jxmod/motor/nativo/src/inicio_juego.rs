@@ -283,6 +283,7 @@ impl Juego {
                 p.vidrio = self.ini_vidrio(w, h);
                 self.ini_fondo_dibujar(&mut p, w, h);
                 match self.ini.panel.clone() { None => { let z = self.aero_home(&mut p, w, h); self.ini.zonas = z; } Some(pn) => { self.ini.zonas.clear(); self.pn_dibujar(&mut p, &pn, w, h) } }
+                if self.cont.abierta { let z = self.cont_dibujar(&mut p, w, h); self.cont.zonas = z; }
                 p.tandas
             }
             None => vec![],
@@ -375,6 +376,7 @@ impl Juego {
     // —— el tacto: devuelve true si el inicio (o algo de este módulo) se queda con el toque ——
     pub(super) fn ini_dedo_abajo(&mut self, id: i32, x: f32, y: f32, w: f32, h: f32) -> bool {
         if !self.ini.abierto { return self.pz_dedo_abajo(id, x, y, w, h); }
+        if self.cont.abierta { self.cont_dedo_abajo(id, x, y); return true; }
         if self.ajustes.is_some() || self.en_red.panel || self.gmod.panel { return false; }
         if self.ini.panel.is_some() { self.pn_dedo_abajo(id, x, y, w, h); return true; }
         let pz = self.ini_pieza_en(x, y);
@@ -384,6 +386,7 @@ impl Juego {
     }
     pub(super) fn ini_dedo_mueve(&mut self, id: i32, x: f32, y: f32, h: f32) -> bool {
         if !self.ini.abierto { return self.pz_dedo_mueve(id, x, y, h); }
+        if self.cont.abierta { self.cont_dedo_mueve(id, x, y); return true; }
         if self.ajustes.is_some() || self.en_red.panel || self.gmod.panel { return false; }
         if self.ini.panel.is_some() { self.pn_dedo_mueve(id, x, y, h); return true; }
         if let Some((d, pz, _, _)) = self.ini.dedo { if d == id { let ahora = self.ini_pieza_en(x, y); if ahora != pz { self.ini.apretado = None; } } }
@@ -391,6 +394,7 @@ impl Juego {
     }
     pub(super) fn ini_dedo_arriba(&mut self, id: i32, w: f32, h: f32) -> bool {
         if !self.ini.abierto { return self.pz_dedo_arriba(id, w, h); }
+        if self.cont.abierta { self.cont_dedo_arriba(id); return true; }
         if self.ajustes.is_some() || self.en_red.panel || self.gmod.panel { return false; }
         if self.ini.panel.is_some() { self.pn_dedo_arriba(id, w, h); return true; }
         let Some((d, pz, _, _)) = self.ini.dedo else { return true }; if d != id { return true; }
@@ -423,7 +427,7 @@ impl Juego {
             Pieza::Bugs => self.pn_abrir(P::Bugs { tab: 0, scroll: 0.0 }),
             Pieza::Grieta => self.pn_abrir(P::Grieta),
             Pieza::Novedades => self.pn_abrir(P::Bugs { tab: 2, scroll: 0.0 }),
-            Pieza::Contenido => self.avisar("El contenido de GMod: en camino".into()),
+            Pieza::Contenido => self.cont_abrir(),
             Pieza::Actualizar => {}
         }
     }

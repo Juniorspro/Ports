@@ -96,6 +96,20 @@ fn main() {
             // (el glitch del logo)
             j.ini.glitch_forzar(); paso(&mut j, &mut m, 6); foto(&mut m, "glitch"); paso(&mut j, &mut m, 30);
         } else { paso(&mut j, &mut m, 100); }
+        if hace("contenido") {
+            // (la ventana del contenido con bajadas de mentira: cada archivo tarda 4 s y sale «bajado» —los .rbp no pasan la huella—)
+            use jxmod::comun::contenido_juego::AccC;
+            let dir = std::env::temp_dir().join("jxm_cont_prueba"); let _ = std::fs::remove_dir_all(&dir);
+            let bajar: jxmod::bajas::Bajar = std::sync::Arc::new(|_u: &str, a: &Path, prog: &dyn Fn(u64, u64)| { let tot = 4_000_000u64;
+                for i in 0..=40 { prog(tot * i / 40, tot); std::thread::sleep(std::time::Duration::from_millis(100)); } std::fs::write(a, b"x").map_err(|e| e.to_string())?; Ok(200) });
+            j.bajas = Some(jxmod::bajas::Bajas::nueva(dir, Some(bajar)));
+            j.cont_abrir(); paso(&mut j, &mut m, 30); foto(&mut m, "contenido");
+            let toca = |j: &mut Juego, m: &mut Motor3d, a: AccC| { if let Some((r, _)) = j.cont.zonas.iter().find(|z| z.1 == a).cloned() { let (x, y) = centro(r); tocar(j, m, x, y); true } else { println!("contenido: no está {a:?}"); false } };
+            toca(&mut j, &mut m, AccC::Marcar(3)); toca(&mut j, &mut m, AccC::Bajar);
+            std::thread::sleep(std::time::Duration::from_millis(1800)); paso(&mut j, &mut m, 20); foto(&mut m, "contenido_bajando");
+            toca(&mut j, &mut m, AccC::Fondo); paso(&mut j, &mut m, 20); foto(&mut m, "contenido_barra");
+            j.bajas = None; j.cont = Default::default();
+        }
         // (JXM_LAN=1: una partida de otro celular en el Wi-Fi, para ver que aparece en la lista de Buscar partida)
         let _lan = if std::env::var("JXM_LAN").is_ok() { jxmod::lan::Anfitrion::empezar(&serde_json::json!({ "du": "juan12345", "n": "Juan", "s": "Juan · LAN", "m": "RB_Construct", "p": jxmod::lan::PUERTO })).ok() } else { None };
         if hace("paneles") {

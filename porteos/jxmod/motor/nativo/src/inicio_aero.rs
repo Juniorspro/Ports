@@ -133,6 +133,8 @@ impl Juego {
             let ix = if solo_ico { bx + (bw - 16.0 * u) / 2.0 } else { bx + 10.0 * u };
             p.icono(ico, ix, by + (bh - 16.0 * u) / 2.0, 16.0 * u, 2.2, BLANCO);
             if !solo_ico { p.texto_sombra(Cara::S4, tbt, bx + 33.0 * u, p.at.base_centrada(Cara::S4, tbt, bh, by, bh), BLANCO, txt, u); }
+            if *pz == Pieza::Contenido { if let Some(f) = self.cont_progreso() { let (px0, pw) = (bx + 4.0 * u, bw - 8.0 * u);
+                p.rect(px0, by + bh - 4.0 * u, pw, 2.0 * u, negro(0.5)); p.rect(px0, by + bh - 4.0 * u, pw * f.clamp(0.0, 1.0), 2.0 * u, aero::hex(0x3ccb45)); } }
             z.push((r, *pz)); bx += bw + 4.0 * u;
         }
         z
