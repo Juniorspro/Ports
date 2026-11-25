@@ -1273,7 +1273,7 @@ impl Juego {
         }
         // (los botones, como los de la web: hud_web.rs; con un menú abierto, ninguno —quedarían debajo del panel—)
         let abierto = self.pjs.panel.is_some() || self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel || self.emotes_panel || self.ini.pz.abierta || self.ini.panel.is_some();
-        let ih = self.hud_botones(l, &mut u, &mut ia, wf, hf, abierto);
+        let mut ih = self.hud_botones(l, &mut u, &mut ia, wf, hf, abierto);
         // (lo que dicen los NPC: un globo arriba de la cabeza, npcGloboPaso)
         if !abierto { for n in &self.npcs.lista {
             let (Some((txt, _)), true) = (&n.globo, n.visible) else { continue };
@@ -1289,9 +1289,12 @@ impl Juego {
         // (la vida, abajo a la izquierda como la de la web —#vida—: la barra roja sobre el fondo oscuro, el corazón y el
         // número; 150 × 18 px a 1080 de alto)
         if !abierto && self.mapa.is_some() && !self.jg.sin_hud() {
-            let hk = hud_web::kb(wf, hf) * hud_web::tam() / 0.559; let (bw, bh) = (150.0 * hk, (18.0 * hk).max(14.0 * hud_web::css(wf, hf))); let (x, y) = (0.0, hf - bh);
+            // (de vidrio líquido: la cápsula de vidrio flotando en la esquina y adentro la barra roja redondeada)
+            let hk = hud_web::kb(wf, hf) * hud_web::tam() / 0.559; let cc = hud_web::css(wf, hf); let (bw, bh) = (150.0 * hk, (18.0 * hk).max(14.0 * cc));
+            let m = 5.0 * cc; let (gx, gy, gw, gh) = (6.0 * cc, hf - bh - 2.0 * m - 6.0 * cc, bw + 2.0 * m, bh + 2.0 * m); let (x, y) = (gx + m, gy + m);
             let fr = (self.jug.vida / 100.0).clamp(0.0, 1.0);
-            l.caja(&mut u, x, y, bw, bh, 0.0, [0.61, 0.106, 0.106, 0.95]); l.caja(&mut u, x, y, bw * fr, bh, 0.0, [0.9, 0.19, 0.19, 0.95]);
+            hud_web::pieza9(&mut ih, "vl_caja", gx, gy, gw, gh, [1.0; 4]);
+            l.caja(&mut u, x, y, bw, bh, bh * 0.3, [0.35, 0.06, 0.06, 0.55]); if fr > 0.0 { l.caja(&mut u, x, y, (bw * fr).max(bh * 0.6), bh, bh * 0.3, [0.92, 0.22, 0.22, 0.92]); l.caja(&mut u, x + bh * 0.2, y + 1.0, ((bw * fr).max(bh * 0.6) - bh * 0.4).max(0.0), bh * 0.35, bh * 0.15, [1.0, 1.0, 1.0, 0.22]); }
             // (el corazón: dos círculos y la punta hecha de franjas)
             let (cx, cy, r) = (x + bh * 0.55, y + bh * 0.42, bh * 0.17);
             l.disco(&mut u, cx - r * 0.95, cy, r, bl); l.disco(&mut u, cx + r * 0.95, cy, r, bl);

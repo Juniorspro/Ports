@@ -164,16 +164,46 @@ pub const ICONOS: [(&str, &str); 32] = [
     ("caja_aro", r##"<rect x="0.3" y="0.3" width="23.4" height="23.4" rx="2.6" fill="none" stroke="#fff" stroke-width="0.6"/>"##),
     ("volar", r##"<path d="M11.4 9.6C9.6 6.4 6.6 4.6 2.2 4.4c.8 3.3 2.4 5.6 4.9 6.7-1.6.6-2.6 1.7-3.1 3.2 2.7.5 5.1-.2 7.4-2.4z" fill="#fff"/><path d="M12.6 9.6c1.8-3.2 4.8-5 9.2-5.2-.8 3.3-2.4 5.6-4.9 6.7 1.6.6 2.6 1.7 3.1 3.2-2.7.5-5.1-.2-7.4-2.4z" fill="#fff"/><path d="M12 8.6v11.4M9.4 17.4l2.6 2.6 2.6-2.6" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>"##),
 ];
+/// las piezas de vidrio líquido de los botones (pintadas acá, no son SVG), después de los íconos
+pub const VIDRIOS: [&str; 2] = ["vl_disco", "vl_caja"];
 /// el lado de cada ícono en el atlas y cuántos por fila
 pub const LADO: u32 = 128;
 pub const COLS: u32 = 8;
+const CELDAS: u32 = (ICONOS.len() + VIDRIOS.len()) as u32;
+/// un recuadro de vidrio líquido (redondo o cuadrado redondeado): el cuerpo oscuro translúcido, el borde de adentro que dobla
+/// la luz, un velo blanco, el brillo grande de arriba, la luz que rebota abajo, el filo con luz (fuerte arriba a la izquierda,
+/// tenue abajo a la derecha) y un reflejo chico. RGBA sin premultiplicar
+pub fn pintar_vidrio(caja: bool, lado: usize) -> Vec<u8> {
+    let mut px = vec![0u8; lado * lado * 4]; let l = lado as f32; let h = l / 2.0; let r = if caja { l * 0.24 } else { h };
+    for y in 0..lado { for x in 0..lado {
+        let (fx, fy) = (x as f32 + 0.5 - h, y as f32 + 0.5 - h);
+        // (la distancia al borde: negativa adentro)
+        let sd = if caja { let (qx, qy) = (fx.abs() - (h - 1.0 - r), fy.abs() - (h - 1.0 - r)); qx.max(0.0).hypot(qy.max(0.0)) + qx.max(qy).min(0.0) - r } else { (fx * fx + fy * fy).sqrt() - (h - 1.0) };
+        let cob = (0.5 - sd).clamp(0.0, 1.0); if cob <= 0.0 { continue; }
+        let e = -sd; let (nx, ny) = (fx / h, fy / h);
+        let mut c = [0f32; 4];
+        let mut sobre = |rgb: [f32; 3], a: f32| { let a = a.clamp(0.0, 1.0); for k in 0..3 { c[k] = rgb[k] * a + c[k] * (1.0 - a); } c[3] = a + c[3] * (1.0 - a); };
+        sobre([0.07, 0.09, 0.13], 0.36);
+        if e > 2.0 { sobre([0.02, 0.03, 0.05], 0.18 * (1.0 - ((e - 2.0) / (l * 0.10)).clamp(0.0, 1.0))); }
+        sobre([1.0; 3], 0.06);
+        let g = 1.0 - ((nx / 0.78).powi(2) + ((ny + 0.52) / 0.42).powi(2)); if g > 0.0 { sobre([1.0; 3], 0.26 * g.min(1.0).powf(0.8)); }
+        let gb = 1.0 - ((nx / 0.6).powi(2) + ((ny - 0.78) / 0.22).powi(2)); if gb > 0.0 { sobre([0.75, 0.88, 1.0], 0.14 * gb); }
+        let banda = 1.0 - (e / (l * 0.03)).clamp(0.0, 1.0); let dir = -(nx * 0.55 + ny * 0.83);
+        sobre([1.0; 3], banda * (0.26 + 0.64 * dir.max(0.0) + 0.32 * (-dir).max(0.0)));
+        let sp = 1.0 - (((nx + 0.42) / 0.16).powi(2) + ((ny + 0.58) / 0.09).powi(2)); if sp > 0.0 { sobre([1.0; 3], 0.55 * sp); }
+        let a = c[3] * cob; let i = (y * lado + x) * 4;
+        if a > 0.0 { for k in 0..3 { px[i + k] = ((c[k] / c[3]).clamp(0.0, 1.0) * 255.0).round() as u8; } px[i + 3] = (a * 255.0).round() as u8; }
+    } }
+    px
+}
 /// el atlas (1024 × 512, RGBA): se pinta una sola vez por proceso (después de vaciar el motor se vuelve a subir el mismo)
 pub fn atlas() -> &'static (u32, u32, Vec<u8>) {
     static A: OnceLock<(u32, u32, Vec<u8>)> = OnceLock::new();
     A.get_or_init(|| {
-        let (aw, ah) = (COLS * LADO, (ICONOS.len() as u32).div_ceil(COLS).next_power_of_two() * LADO); let mut px = vec![0u8; (aw * ah * 4) as usize];
-        for (i, (_, cuerpo)) in ICONOS.iter().enumerate() {
-            let ic = crate::iconos::pintar_svg(&format!("<svg viewBox=\"0 0 24 24\">{cuerpo}</svg>"), LADO as usize);
+        let (aw, ah) = (COLS * LADO, CELDAS.div_ceil(COLS).next_power_of_two() * LADO); let mut px = vec![0u8; (aw * ah * 4) as usize];
+        let celdas = ICONOS.iter().map(|(_, cuerpo)| crate::iconos::pintar_svg(&format!("<svg viewBox=\"0 0 24 24\">{cuerpo}</svg>"), LADO as usize))
+            .chain(VIDRIOS.iter().map(|n| pintar_vidrio(*n == "vl_caja", LADO as usize)));
+        for (i, ic) in celdas.enumerate() {
             let (cx, cy) = ((i as u32 % COLS) * LADO, (i as u32 / COLS) * LADO);
             for y in 0..LADO { let d = (((cy + y) * aw + cx) * 4) as usize; let s = (y * LADO * 4) as usize; px[d..d + (LADO * 4) as usize].copy_from_slice(&ic[s..s + (LADO * 4) as usize]); }
         }
@@ -182,7 +212,7 @@ pub fn atlas() -> &'static (u32, u32, Vec<u8>) {
 }
 /// las coordenadas de un ícono en el atlas (u0, v0, u1, v1)
 pub fn uv(nombre: &str) -> Option<[f32; 4]> {
-    let i = ICONOS.iter().position(|x| x.0 == nombre)? as u32; let (aw, ah) = (COLS * LADO, (ICONOS.len() as u32).div_ceil(COLS).next_power_of_two() * LADO);
+    let i = ICONOS.iter().position(|x| x.0 == nombre).or_else(|| VIDRIOS.iter().position(|x| *x == nombre).map(|k| ICONOS.len() + k))? as u32; let (aw, ah) = (COLS * LADO, CELDAS.div_ceil(COLS).next_power_of_two() * LADO);
     let (cx, cy) = ((i % COLS) * LADO, (i / COLS) * LADO);
     // (medio píxel adentro: el filtrado no toma el borde del vecino —se veía una costura alrededor del hueco del tutorial—)
     let (cx, cy, e) = (cx as f32, cy as f32, 0.5); let l = LADO as f32;
@@ -229,7 +259,7 @@ mod pruebas {
     }
     #[test]
     fn iconos_pintados() {
-        let (aw, ah, px) = atlas(); assert_eq!((*aw, *ah), (1024, 512));
+        let (aw, ah, px) = atlas(); assert_eq!((*aw, *ah), (1024, 1024));
         // (cada ícono con algo pintado)
         for i in 0..ICONOS.len() as u32 { let (cx, cy) = ((i % COLS) * LADO, (i / COLS) * LADO); let mut n = 0;
             for y in 0..LADO { for x in 0..LADO { if px[(((cy + y) * aw + cx + x) * 4 + 3) as usize] > 128 { n += 1; } } }
@@ -241,15 +271,22 @@ mod pruebas {
 }
 
 // ---------------- el dibujo ----------------
-/// los colores de los botones de la web (template.html, «los botones táctiles con el estilo del concepto de GOLDEN»)
-const FONDO: [f32; 4] = [14.0 / 255.0, 15.0 / 255.0, 18.0 / 255.0, 0.5];
-const FILO: [f32; 4] = [1.0, 1.0, 1.0, 0.55];
-const AMA: [f32; 3] = [242.0 / 255.0, 179.0 / 255.0, 27.0 / 255.0];
-const NEGRO_T: [f32; 4] = [20.0 / 255.0, 20.0 / 255.0, 20.0 / 255.0, 1.0];
+/// el azul Aero de lo prendido (con el vidrio líquido encima)
+const AZUL: [f32; 3] = [47.0 / 255.0, 138.0 / 255.0, 232.0 / 255.0];
+const VIDRIO: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
 /// la textura del atlas del HUD
 pub const TEX_HUD: i64 = -2003;
 fn pieza(v: &mut Vec<f32>, n: &str, x: f32, y: f32, w: f32, h: f32, col: [f32; 4]) { if let Some(uv) = uv(n) { super::rect_uv(v, x, y, w, h, uv, col); } }
 pub(super) fn pieza_pub(v: &mut Vec<f32>, n: &str, x: f32, y: f32, w: f32, h: f32, col: [f32; 4]) { pieza(v, n, x, y, w, h, col) }
+/// una pieza estirada sin deformar las esquinas (en nueve partes, como border-image: las esquinas toman el 34 % de la pieza)
+pub(super) fn pieza9(v: &mut Vec<f32>, n: &str, x: f32, y: f32, w: f32, h: f32, col: [f32; 4]) {
+    let Some(uv) = uv(n) else { return }; let k = 0.34; let e = w.min(h) * k;
+    let xs = [x, x + e, x + w - e, x + w]; let ys = [y, y + e, y + h - e, y + h];
+    let (du, dv) = ((uv[2] - uv[0]) * k, (uv[3] - uv[1]) * k);
+    let us = [uv[0], uv[0] + du, uv[2] - du, uv[2]]; let vs = [uv[1], uv[1] + dv, uv[3] - dv, uv[3]];
+    for j in 0..3 { for i in 0..3 { let (w2, h2) = (xs[i + 1] - xs[i], ys[j + 1] - ys[j]); if w2 <= 0.0 || h2 <= 0.0 { continue; }
+        super::rect_uv(v, xs[i], ys[j], w2, h2, [us[i], vs[j], us[i + 1], vs[j + 1]], col); } }
+}
 /// la sombra de abajo de un botón (box-shadow: 0 2px 10px rgba(0,0,0,.28)): capas apenas oscuras, cada vez más grandes
 fn sombra(v: &mut Vec<f32>, n: &str, x: f32, y: f32, w: f32, h: f32, c: f32) {
     for k in [6.0f32, 4.0, 2.0] { let e = k * c; pieza(v, n, x - e, y - e + 2.0 * c, w + 2.0 * e, h + 2.0 * e, [0.0, 0.0, 0.0, 0.045]); }
@@ -275,16 +312,18 @@ impl super::Juego {
         if !abierto && !self.ed.activo && self.mapa.is_some() && !self.jg.sin_hud() && (self.vehs.jugador.is_none() || matches!(self.tipo_manejo(), Some(jxjuego::vehiculo::Tipo::Heli | jxjuego::vehiculo::Tipo::Avion))) {
             let (px, py, p) = palanca(wf, hf); let dedo = self.dedos.iter().find(|d| d.palanca);
             let (cx, cy, op) = dedo.map_or((px, py, 0.6), |d| (d.x0, d.y0, 1.0)); let r = p / 2.0;
-            pieza(&mut v, "disco", cx - r, cy - r, p, p, [1.0, 1.0, 1.0, 0.12 * op]); pieza(&mut v, "aro", cx - r, cy - r, p, p, [1.0, 1.0, 1.0, 0.25 * op]);
+            // (de vidrio líquido: la base más transparente quieta y la perilla con más luz)
+            pieza(&mut v, "vl_disco", cx - r, cy - r, p, p, [1.0, 1.0, 1.0, 0.45 + 0.55 * (op - 0.6) / 0.4]);
             let (mut kx, mut ky) = dedo.map_or((0.0, 0.0), |d| (d.x - d.x0, d.y - d.y0)); let lim = p * 0.375; let n = (kx * kx + ky * ky).sqrt(); if n > lim { kx *= lim / n; ky *= lim / n; }
-            let b = p * 0.42; pieza(&mut v, "disco", cx + kx - b / 2.0, cy + ky - b / 2.0, b, b, [1.0, 1.0, 1.0, 0.45 * op]);
+            let b = p * 0.42; let (bx, by) = (cx + kx - b / 2.0, cy + ky - b / 2.0);
+            sombra(&mut v, "disco", bx, by, b, b, c); pieza(&mut v, "disco", bx, by, b, b, [1.0, 1.0, 1.0, 0.16 * op]); pieza(&mut v, "vl_disco", bx, by, b, b, [1.0, 1.0, 1.0, op.max(0.75)]);
         }
         if abierto { return v; }
         // (la pausa, primera arriba a la izquierda)
         if let Some(ap) = if self.ed.activo { (!self.ed.veh).then_some(false) } else { self.pausa_boton() } {
             let [cx, cy, s] = disposicion(wf, hf, 0).1; let s = s * if ap { 0.94 } else { 1.0 }; let (x, y) = (cx - s / 2.0, cy - s / 2.0);
             sombra(&mut v, "disco", x, y, s, s, c);
-            pieza(&mut v, "disco", x, y, s, s, if ap { [AMA[0], AMA[1], AMA[2], 0.34] } else { FONDO }); pieza(&mut v, "aro", x, y, s, s, if ap { [AMA[0], AMA[1], AMA[2], 1.0] } else { FILO });
+            if ap { pieza(&mut v, "disco", x, y, s, s, [1.0, 1.0, 1.0, 0.18]); } pieza(&mut v, "vl_disco", x, y, s, s, VIDRIO);
             let lado = s * 0.56; pieza(&mut v, "pausa", cx - lado / 2.0, cy - lado / 2.0 + c, lado, lado, [0.0, 0.0, 0.0, 0.5]); pieza(&mut v, "pausa", cx - lado / 2.0, cy - lado / 2.0, lado, lado, [1.0; 4]);
         }
         let d = self.armas.def();
@@ -324,8 +363,9 @@ impl super::Juego {
             // ---- la barra de armas: los recuadros de 44 × 40 con el ícono y el nombre; el elegido, con el filo verde ----
             if let Boton::ArmaN(k) = b.b {
                 let (x, y) = (b.x - b.w / 2.0, b.y - b.h / 2.0);
-                pieza(&mut v, "caja", x, y, b.w, b.h, [40.0 / 255.0, 52.0 / 255.0, 70.0 / 255.0, 0.6]);
-                if k == self.armas.i { for e in [0.0, 0.6 * c] { pieza(&mut v, "caja_aro", x + e, y + e, b.w - 2.0 * e, b.h - 2.0 * e, [107.0 / 255.0, 224.0 / 255.0, 107.0 / 255.0, 1.0]); } }
+                // (de vidrio líquido; la elegida, azul por dentro)
+                if k == self.armas.i { pieza(&mut v, "caja", x, y, b.w, b.h, [AZUL[0], AZUL[1], AZUL[2], 0.72]); }
+                pieza(&mut v, "vl_caja", x, y, b.w, b.h, VIDRIO);
                 if self.armas_ico { let lado = b.h * 0.6; super::rect_uv(ia, b.x - lado / 2.0, y + b.h * 0.08, lado, lado, self.uv_arma(k), [1.0; 4]); }
                 let nom = super::ARMAS[k].nom; let mut tt = (7.0 * c).max(b.h * 0.2); while l.ancho(tt, nom) > b.w * 0.94 && tt > 4.0 { tt *= 0.92; }
                 l.texto(u, b.x - l.ancho(tt, nom) / 2.0, y + b.h * 0.7, tt, [1.0; 4], nom);
@@ -334,14 +374,14 @@ impl super::Juego {
             // ---- el fondo y el filo: apretado, el amarillo transparente y un poco más chico; prendido, amarillo lleno ----
             let e = if ap { 0.94 } else { 1.0 }; let (bw, bh) = (b.w * e, b.h * e); let (x, y) = (b.x - bw / 2.0, b.y - bh / 2.0);
             let disparo = b.b == Boton::Disparo;
-            let fondo = if on { [AMA[0], AMA[1], AMA[2], 1.0] } else if ap { [AMA[0], AMA[1], AMA[2], if disparo { 0.3 } else { 0.34 }] } else if disparo { [10.0 / 255.0, 11.0 / 255.0, 14.0 / 255.0, 0.6] } else { FONDO };
-            let filo = if on || ap { [AMA[0], AMA[1], AMA[2], 1.0] } else if disparo { [1.0, 1.0, 1.0, 0.62] } else { FILO };
-            let (f, a) = if b.redondo { ("disco", "aro") } else { ("caja", "caja_aro") };
-            // (la sombra de abajo —box-shadow 0 2px 10px—, el halo amarillo de lo prendido —0 0 0 3px—)
+            // (de vidrio líquido: la sombra suave abajo; prendido, azul por dentro con un halo; apretado, más claro y un poco más
+            // chico; el de disparar, con el cuerpo un poco más oscuro)
+            let (f, g) = if b.redondo { ("disco", "vl_disco") } else { ("caja", "vl_caja") };
             sombra(&mut v, f, x, y, bw, bh, c);
-            if on { pieza(&mut v, f, x - 3.0 * c, y - 3.0 * c, bw + 6.0 * c, bh + 6.0 * c, [AMA[0], AMA[1], AMA[2], 0.28]); }
-            pieza(&mut v, f, x, y, bw, bh, fondo); pieza(&mut v, a, x, y, bw, bh, filo);
-            if disparo || b.b == Boton::Saltar { let e2 = 0.6 * c; pieza(&mut v, a, x + e2, y + e2, bw - 2.0 * e2, bh - 2.0 * e2, filo); }
+            if on { pieza(&mut v, f, x - 3.0 * c, y - 3.0 * c, bw + 6.0 * c, bh + 6.0 * c, [AZUL[0], AZUL[1], AZUL[2], 0.28]); pieza(&mut v, f, x, y, bw, bh, [AZUL[0], AZUL[1], AZUL[2], 0.8]); }
+            else if ap { pieza(&mut v, f, x, y, bw, bh, [1.0, 1.0, 1.0, 0.2]); }
+            else if disparo { pieza(&mut v, f, x, y, bw, bh, [0.0, 0.0, 0.0, 0.18]); }
+            pieza(&mut v, g, x, y, bw, bh, VIDRIO);
             // ---- el arma en la mano (#armaAct): su ícono y abajo las balas en un globito (o el nombre, si no tiene) ----
             if b.b == Boton::Arma {
                 let k = self.armas.i; let lado = bh * 0.56;
@@ -360,11 +400,10 @@ impl super::Juego {
             if let Some(n) = ico {
                 let lado = bw * match b.b { Boton::Disparo => 0.62, Boton::Saltar | Boton::Agachar => 0.5, _ => 0.56 };
                 let (ix, iy) = (b.x - lado / 2.0, b.y - lado / 2.0);
-                if on { pieza(&mut v, n, ix, iy, lado, lado, NEGRO_T); }
-                else { pieza(&mut v, n, ix, iy + 1.0 * c, lado, lado, [0.0, 0.0, 0.0, 0.5]); pieza(&mut v, n, ix, iy, lado, lado, [1.0; 4]); }
+                pieza(&mut v, n, ix, iy + 1.0 * c, lado, lado, [0.0, 0.0, 0.0, 0.5]); pieza(&mut v, n, ix, iy, lado, lado, [1.0; 4]);
             } else if !txt.is_empty() {
                 let mut tt = if txt.chars().count() == 1 { bh * 0.42 } else { bh * 0.26 }; while l.ancho(tt, txt) > bw * 0.8 && tt > 4.0 { tt *= 0.92; }
-                l.texto(u, b.x - l.ancho(tt, txt) / 2.0, b.y - tt * 0.55, tt, if on { NEGRO_T } else { [1.0; 4] }, txt);
+                l.texto_sombra(u, b.x - l.ancho(tt, txt) / 2.0, b.y - tt * 0.55, tt, [1.0; 4], txt);
             }
             // (usar: qué hace, chiquito abajo —subir, sentarse, abrir—)
             if b.b == Boton::Usar {
@@ -513,16 +552,18 @@ impl super::Juego {
         let c = css(wf, hf);
         for (k, cx, cy, s) in self.ed_lugares(wf, hf) {
             let sel = self.ed.sel == Some(k); let e = if sel { 5.0 * c } else { 3.0 * c }; let r = s / 2.0 + e;
-            let col = if sel { [AMA[0], AMA[1], AMA[2], 1.0] } else { [1.0, 1.0, 1.0, 0.45] };
+            let col = if sel { [AZUL[0], AZUL[1], AZUL[2], 1.0] } else { [1.0, 1.0, 1.0, 0.45] };
             for d in [0.0, 1.0 * c] { pieza(v, "aro", cx - r + d, cy - r + d, 2.0 * (r - d), 2.0 * (r - d), col); }
         }
-        // (la barra: el oscuro de los paneles; Guardar en amarillo)
+        // (la barra: de vidrio líquido; Guardar, azul por dentro)
         let tt = 14.0 * c;
         for (a, t, r) in barra_editor(wf, hf, self.ed.veh) {
             let guardar = a == AccEd::Guardar; let apagado = matches!(a, AccEd::Menos | AccEd::Mas) && self.ed.sel.is_none();
-            l.caja(u, r[0], r[1], r[2], r[3], 8.0 * c, if guardar { [AMA[0], AMA[1], AMA[2], 1.0] } else { [0.09, 0.1, 0.12, 0.88] });
+            sombra(v, "caja", r[0], r[1], r[2], r[3], c);
+            pieza9(v, "caja", r[0], r[1], r[2], r[3], if guardar { [AZUL[0], AZUL[1], AZUL[2], 0.85] } else { [0.0, 0.0, 0.0, 0.25] });
+            pieza9(v, "vl_caja", r[0], r[1], r[2], r[3], VIDRIO);
             let mut t2 = if t.chars().count() == 1 { tt * 1.5 } else { tt }; while l.ancho(t2, t) > r[2] - 8.0 * c && t2 > 4.0 { t2 *= 0.92; }
-            l.texto(u, r[0] + (r[2] - l.ancho(t2, t)) / 2.0, r[1] + (r[3] - t2 * 1.2) / 2.0, t2, if guardar { NEGRO_T } else if apagado { [1.0, 1.0, 1.0, 0.35] } else { [1.0; 4] }, t);
+            l.texto_sombra(u, r[0] + (r[2] - l.ancho(t2, t)) / 2.0, r[1] + (r[3] - t2 * 1.2) / 2.0, t2, if apagado { [1.0, 1.0, 1.0, 0.35] } else { [1.0; 4] }, t);
         }
         let y = barra_editor(wf, hf, self.ed.veh)[0].2[1] + 46.0 * c;
         let ayuda = match self.ed.sel {
