@@ -72,7 +72,11 @@ struct Marco {
     /// sólo cuando cambian)
     part: Bufv, partu: Bufv, marcas: Bufv, marcas_ver: u64,
     q: Option<vk::QueryPool>, nombres: Vec<&'static str>, usado: bool,
+    /// las pruebas de oclusión de este cuadro (una caja por cosa) y la clave de cada una, para leerlas cuando vuelva
+    oq: vk::QueryPool, oq_claves: Vec<u64>,
 }
+/// cuántas cajas se prueban por cuadro como mucho
+const OCLU_MAX: u32 = 1024;
 
 /// la salida: la pantalla (cadena de imágenes) o, sin ventana, una imagen propia que se puede leer
 struct Cadena { sc: vk::SwapchainKHR, imgs: Vec<vk::Image>, vistas: Vec<vk::ImageView>, fbs: Vec<vk::Framebuffer>, sems: Vec<vk::Semaphore>, fmt: vk::Format, ext: vk::Extent2D, giro: u32 }
@@ -82,7 +86,7 @@ struct Capas { glob: vk::DescriptorSetLayout, glob_solo: vk::DescriptorSetLayout
 struct Planos { luz: vk::PipelineLayout, luz_piel: vk::PipelineLayout, sombra: vk::PipelineLayout, sombra_piel: vk::PipelineLayout, cielo: vk::PipelineLayout, ao: vk::PipelineLayout, tex1: vk::PipelineLayout, agua: vk::PipelineLayout, part: vk::PipelineLayout, lin: vk::PipelineLayout }
 struct Pasadas { sombra: vk::RenderPass, sombra_parcial: vk::RenderPass, esc_ao: vk::RenderPass, esc: vk::RenderPass, ao: vk::RenderPass, transp: vk::RenderPass, fin: vk::RenderPass, fin_propia: vk::RenderPass, refl: vk::RenderPass }
 /// (part: de alfa y las que suman)
-struct Tubos { luz: [vk::Pipeline; 3], luz_piel: [vk::Pipeline; 3], luz_op: [vk::Pipeline; 2], pre: [vk::Pipeline; 2], sombra: vk::Pipeline, sombra_piel: vk::Pipeline, cielo: vk::Pipeline, ao: vk::Pipeline, ao_poner: vk::Pipeline, fin: vk::Pipeline, ui: vk::Pipeline, agua: vk::Pipeline, part: [vk::Pipeline; 2], marcas: vk::Pipeline, fmt_fin: vk::Format }
+struct Tubos { luz: [vk::Pipeline; 3], luz_piel: [vk::Pipeline; 3], luz_op: [vk::Pipeline; 2], pre: [vk::Pipeline; 2], caja: vk::Pipeline, sombra: vk::Pipeline, sombra_piel: vk::Pipeline, cielo: vk::Pipeline, ao: vk::Pipeline, ao_poner: vk::Pipeline, fin: vk::Pipeline, ui: vk::Pipeline, agua: vk::Pipeline, part: [vk::Pipeline; 2], marcas: vk::Pipeline, fmt_fin: vk::Format }
 /// los destinos de las pasadas (se rehacen si cambia el tamaño)
 struct Destinos { w: u32, h: u32, color: Img, prof: Img, fb_esc: vk::Framebuffer, ao: Option<(Img, vk::Framebuffer)>,
     /// con agua: la copia de la escena (para ver a través) y el reflejo (color, profundidad, su destino)
@@ -115,6 +119,8 @@ pub struct Motor {
     svp: M4, sesgo: [f32; 2], svp2: M4, sesgo2: [f32; 2],
     /// (la huella de lo que dibujó cada cascada —su matriz y lo que tiene adentro—: si no cambió, la sombra guardada sirve)
     sombra_huella: [u64; 2],
+    /// la oclusión: por cosa (su clave) si la última prueba la vio y en qué cuadro se probó; la caja (8 vértices, 36 índices)
+    oclu: HashMap<u64, (bool, u64)>, caja: Option<(Bufv, Bufv)>,
     pub c: Option<Cuadro>,
     items: Vec<ItemDin>,
     opacos: Vec<usize>, transp: Vec<usize>,
@@ -262,9 +268,11 @@ impl Motor {
         // (la pasada de profundidad: lo opaco sin recorte, sin color —mezcla 4—; después la luz pinta cada píxel una vez)
         let pre = [t(m_luz, "vs_luz", None, planos.luz, pasadas.esc_ao, &b_luz, &at_luz, 4, Some((true, le, SESGO_NO)))?,
             t(m_luz, "vs_luz_piel", None, planos.luz_piel, pasadas.esc_ao, &b_luz_piel, &at_luz_piel, 4, Some((true, le, SESGO_NO)))?];
+        // (la caja de la oclusión: se prueba contra la profundidad sin escribir nada)
+        let caja = t(m_som, "vs_sombra", None, planos.sombra, pasadas.esc_ao, &b_som, &at_som, 4, Some((false, le, SESGO_NO)))?;
         let part_t = |mz: u8| t(m_part, "vs_part", Some("fs_part"), planos.part, pasadas.transp, &[((PART_F * 4) as u32, true)], &a_part, mz, Some((false, le, SESGO_NO)));
         let tubos = Tubos {
-            luz, luz_piel, luz_op, pre,
+            luz, luz_piel, luz_op, pre, caja,
             sombra: t(m_som, "vs_sombra", None, planos.sombra, pasadas.sombra, &b_som, &at_som, 0, Some((true, le, SESGO_SOMBRA)))?,
             sombra_piel: t(m_som, "vs_sombra_piel", None, planos.sombra_piel, pasadas.sombra, &b_som_piel, &at_som_piel, 0, Some((true, le, SESGO_SOMBRA)))?,
             cielo: t(m_cielo, "vs_cielo", Some("fs_cielo"), planos.cielo, pasadas.esc_ao, &[], &[], 0, Some((false, le, SESGO_NO)))?,
@@ -299,7 +307,7 @@ impl Motor {
             blanca: Img::nula(), cubo0: Img::nula(), prof0: Img::nula(),
             mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None, cubo: None, agua: None, agua_n: None, agua_p: None, aguas: vec![],
             pool_mat, g_mat: HashMap::new(), sombra: None, dest: None,
-            svp: mat::id(), sesgo: [0.0; 2], svp2: mat::id(), sesgo2: [0.0; 2], sombra_huella: [0; 2], c: None, items: vec![], opacos: vec![], transp: vec![], marcas: vec![], marcas_ver: 0,
+            svp: mat::id(), sesgo: [0.0; 2], svp2: mat::id(), sesgo2: [0.0; 2], sombra_huella: [0; 2], oclu: HashMap::new(), caja: None, c: None, items: vec![], opacos: vec![], transp: vec![], marcas: vec![], marcas_ver: 0,
             cuadro: 0, dibujos: 0, memoria: 0, mapa: String::new(), placa, periodo, tiempos: vec![],
         };
         for cb in cbs {
@@ -312,6 +320,7 @@ impl Motor {
                 glob: m.buf(G_PASO * 4, ub, hv)?, obj: m.buf(65536, ub, hv)?, hue: m.buf(65536, ub, hv)?, inst: m.buf(65536, vb, hv)?,
                 post: m.buf(U_PASO * 2, ub, hv)?, ui: m.buf(65536, vb, hv)?, uiu: m.buf(U_PASO, ub, hv)?,
                 part: m.buf(65536, vb, hv)?, partu: m.buf(U_PASO * 4, ub, hv)?, marcas: m.buf(65536, vb, hv)?, marcas_ver: 0, q, nombres: vec![], usado: false,
+                oq: ve(m.dev.create_query_pool(&vk::QueryPoolCreateInfo::default().query_type(vk::QueryType::OCCLUSION).query_count(OCLU_MAX), None), "oclusión")?, oq_claves: vec![],
             };
             m.marcos.push(mc);
         }
@@ -494,7 +503,7 @@ impl Motor {
     // ———— los recursos ————
     /// sube a la placa los recursos nuevos (los que ya estaban con el mismo número se reemplazan)
     pub unsafe fn cargar(&mut self, esc: &Escena) -> Result<(), String> {
-        self.sombra_huella = [0; 2];
+        self.sombra_huella = [0; 2]; self.oclu.clear();
         let _ = self.dev.device_wait_idle();
         let rango = |o: usize, n: usize| -> Result<&[u8], String> { esc.datos.get(o..o + n).ok_or_else(|| format!("bloque fuera del archivo ({o}+{n} de {})", esc.datos.len())) };
         let mut max_v = 0usize;
@@ -749,6 +758,7 @@ impl Motor {
         let listo = self.marcos[mi].listo;
         ve(self.dev.wait_for_fences(&[listo], true, u64::MAX), "espera")?;
         self.leer_tiempos(mi);
+        self.oclu_leer(mi);
         // (la imagen de la pantalla)
         let (img_i, fb_fin, ext, giro) = if let Some(c) = &self.cadena {
             match self.sc_d.as_ref().unwrap().acquire_next_image(c.sc, u64::MAX, self.marcos[mi].sem_img, vk::Fence::null()) {
@@ -767,6 +777,7 @@ impl Motor {
         ve(self.dev.begin_command_buffer(cb, &vk::CommandBufferBeginInfo::default().flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT)), "begin")?;
         let medir = self.marcos[mi].q.is_some() && self.cuadro % 30 == 0;
         if medir { self.dev.cmd_reset_query_pool(cb, self.marcos[mi].q.unwrap(), 0, NTIEMPOS); }
+        self.dev.cmd_reset_query_pool(cb, self.marcos[mi].oq, 0, OCLU_MAX);
         self.marcos[mi].nombres.clear();
         let hay_cuadro = self.c.is_some();
         if hay_cuadro { self.grabar(cb, mi, w, h, medir)?; }
@@ -905,6 +916,31 @@ impl Motor {
         // (el cielo 3D —la maqueta de los mapas del Workshop— aparte: se dibuja primero y después se borra la profundidad)
         let (op_c, opacos): (Vec<usize>, Vec<usize>) = self.opacos.iter().partition(|&&i| self.items[i].fl & FL_CIELO != 0);
         let l_cie = self.lista(&mut a, &op_c, false);
+        // (la oclusión: lo que la última prueba de su caja dio tapado del todo no va —ni a la profundidad ni a la luz—; las cajas
+        // de este cuadro se prueban después de la pasada de profundidad y se leen cuando este cuadro en vuelo vuelve)
+        let con_oclu = self.op.prepaso && std::env::var_os("JXM_VK_SIN_OCLU").is_none();
+        let mut pruebas: Vec<(u32, u64)> = vec![]; let mut inst_id = 0u64;
+        let opacos: Vec<usize> = if con_oclu {
+            let vpc = vp; let fy = (vpc[1] * vpc[1] + vpc[5] * vpc[5] + vpc[9] * vpc[9]).sqrt();
+            let mut quedan = vec![];
+            for &i in &opacos {
+                let Some(k) = self.oclu_clave(i) else { quedan.push(i); continue };
+                let e = self.items[i].esf; let ent = self.oclu.get(&k).copied();
+                let visto = ent.map_or(true, |x| x.0);
+                if visto { quedan.push(i); }
+                // (lo que se ve se vuelve a probar cada 4 cuadros —cada una en su turno—; lo tapado, siempre; lo que ocupa más de un
+                // tercio de la pantalla se da por visto)
+                if visto && ent.is_some() && (self.cuadro + (k & 3)) % 4 != 0 { continue; }
+                let w = vpc[3] * e[0] + vpc[7] * e[1] + vpc[11] * e[2] + vpc[15];
+                if w <= 0.0 || e[3] * fy / w > 0.33 { self.oclu.insert(k, (true, self.cuadro)); continue; }
+                if pruebas.len() as u32 >= OCLU_MAX { continue; }
+                let r = e[3] * 1.02 + 0.02; let o = (a.obj.len() / 64) as u32 * O_PASO as u32; let mut q = [0f32; 64];
+                q[0..3].copy_from_slice(&[e[0] - r, e[1] - r, e[2] - r]); q[4..7].copy_from_slice(&[2.0 * r, 2.0 * r, 2.0 * r]);
+                a.obj.extend_from_slice(&q); pruebas.push((o, k));
+            }
+            if !pruebas.is_empty() { inst_id = (a.inst.len() * 4) as u64; a.inst.extend_from_slice(&mat::id()); }
+            quedan
+        } else { opacos };
         let l_op = self.lista(&mut a, &opacos, false);
         let (mut l_tr, mut l_tr_c) = (vec![], vec![]);
         for &i in &self.transp.clone() {
@@ -1045,6 +1081,10 @@ impl Motor {
             }
             d.cmd_bind_descriptor_sets(cb, vk::PipelineBindPoint::GRAPHICS, self.planos.luz, 0, &[g_glob], &[0]);
             if self.op.prepaso { dibujos += self.dibujar_pre(cb, &l_op, g_obj, g_hue); }
+            if !pruebas.is_empty() {
+                self.probar_cajas(cb, mi, &pruebas, inst_id, g_solo, g_obj)?; dibujos += pruebas.len() as u32;
+                d.cmd_bind_descriptor_sets(cb, vk::PipelineBindPoint::GRAPHICS, self.planos.luz, 0, &[g_glob], &[0]);
+            }
             dibujos += self.dibujar_lista(cb, &l_op, false, true, g_obj, g_hue);
             if !cie {
                 d.cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, self.tubos.cielo);
@@ -1176,6 +1216,50 @@ impl Motor {
         l.len() as u32
     }
     /// la pasada de profundidad (lo opaco sin recorte), de cerca a lejos
+    /// la clave de una cosa para la oclusión (su malla, su parte, su material y dónde está), si vale la pena probarla: sin
+    /// huesos, con al menos 32 triángulos y no pegada a la cámara (como gpu.rs)
+    fn oclu_clave(&self, i: usize) -> Option<u64> {
+        let it = &self.items[i]; let c = self.c.as_ref()?;
+        if !it.h.is_empty() || it.sn < 96 || it.esf[3] < 0.3 { return None; }
+        let (x, y, z) = (it.esf[0] - c.pos[0], it.esf[1] - c.pos[1], it.esf[2] - c.pos[2]);
+        if (x * x + y * y + z * z).sqrt() < it.esf[3] * 1.8 + 1.5 { return None; }
+        let q = |v: f32| (v * 4.0).round() as i64 as u64;
+        let mut h = (it.m as u64).wrapping_mul(0x9E3779B97F4A7C15) ^ (it.s0 as u64).wrapping_mul(0xC2B2AE3D27D4EB4F) ^ (it.mat as u64).wrapping_mul(0x165667B19E3779F9);
+        for v in [q(it.esf[0]), q(it.esf[1]), q(it.esf[2])] { h = (h ^ v).wrapping_mul(0x100000001B3); }
+        Some(h)
+    }
+    /// los resultados de las cajas que probó este cuadro en vuelo (ya terminó: su valla pasó); lo que no se prueba hace rato se olvida
+    unsafe fn oclu_leer(&mut self, mi: usize) {
+        let ks = std::mem::take(&mut self.marcos[mi].oq_claves);
+        if !ks.is_empty() {
+            let mut r = vec![0u32; ks.len()];
+            if self.dev.get_query_pool_results(self.marcos[mi].oq, 0, &mut r, vk::QueryResultFlags::empty()).is_ok() {
+                for (k, v) in ks.iter().zip(r) { self.oclu.insert(*k, (v != 0, self.cuadro)); }
+            }
+        }
+        let viejo = self.cuadro.saturating_sub(300); self.oclu.retain(|_, e| e.1 >= viejo);
+    }
+    /// prueba las cajas contra la profundidad que dejó la pasada de profundidad (sin escribir nada)
+    unsafe fn probar_cajas(&mut self, cb: vk::CommandBuffer, mi: usize, pruebas: &[(u32, u64)], inst: u64, g_solo: vk::DescriptorSet, g_obj: vk::DescriptorSet) -> Result<(), String> {
+        if self.caja.is_none() {
+            // (la caja de 0 a 1 en posiciones de 16 bits, con el paso de 16 bytes de las mallas)
+            let mut v = vec![0u8; 8 * 16];
+            for k in 0..8usize { for e in 0..3 { let x: u16 = if k >> e & 1 == 1 { 65535 } else { 0 }; v[k * 16 + e * 2..k * 16 + e * 2 + 2].copy_from_slice(&x.to_le_bytes()); } }
+            let caras: [u16; 36] = [0, 1, 3, 0, 3, 2, 4, 6, 7, 4, 7, 5, 0, 4, 5, 0, 5, 1, 2, 3, 7, 2, 7, 6, 0, 2, 6, 0, 6, 4, 1, 5, 7, 1, 7, 3];
+            let ib: Vec<u8> = caras.iter().flat_map(|x| x.to_le_bytes()).collect();
+            self.caja = Some((self.buf_fijo(&v, vk::BufferUsageFlags::VERTEX_BUFFER)?, self.buf_fijo(&ib, vk::BufferUsageFlags::INDEX_BUFFER)?));
+        }
+        let d = &self.dev; let (vb, ib) = { let c = self.caja.as_ref().unwrap(); (c.0.b, c.1.b) }; let oq = self.marcos[mi].oq; let ib_inst = self.marcos[mi].inst.b;
+        d.cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, self.tubos.caja);
+        d.cmd_bind_descriptor_sets(cb, vk::PipelineBindPoint::GRAPHICS, self.planos.sombra, 0, &[g_solo], &[0]);
+        d.cmd_bind_vertex_buffers(cb, 0, &[vb, ib_inst], &[0, inst]); d.cmd_bind_index_buffer(cb, ib, 0, vk::IndexType::UINT16);
+        for (n, &(o, k)) in pruebas.iter().enumerate() {
+            d.cmd_bind_descriptor_sets(cb, vk::PipelineBindPoint::GRAPHICS, self.planos.sombra, 1, &[g_obj], &[o]);
+            d.cmd_begin_query(cb, oq, n as u32, vk::QueryControlFlags::empty()); d.cmd_draw_indexed(cb, 36, 1, 0, 0, 0); d.cmd_end_query(cb, oq, n as u32);
+            self.marcos[mi].oq_claves.push(k);
+        }
+        Ok(())
+    }
     /// la huella de una cascada: su matriz y lo que tiene adentro (malla, pedazo, material, lugar y huesos de cada cosa)
     fn huella(&self, svp: &M4, lista: &[usize]) -> u64 {
         let mut h: u64 = 0xcbf29ce484222325; let mut mete = |x: u64| { h ^= x; h = h.wrapping_mul(0x100000001b3); };
@@ -1264,10 +1348,12 @@ impl Drop for Motor {
                 for b in [&m.glob, &m.obj, &m.hue, &m.inst, &m.post, &m.ui, &m.uiu, &m.part, &m.partu, &m.marcas] { self.soltar_buf(b); }
                 self.dev.destroy_fence(m.listo, None); self.dev.destroy_semaphore(m.sem_img, None); self.dev.destroy_descriptor_pool(m.pool, None);
                 if let Some(q) = m.q { self.dev.destroy_query_pool(q, None); }
+                self.dev.destroy_query_pool(m.oq, None);
             }
             self.dev.destroy_descriptor_pool(self.pool_mat, None);
             let t = &self.tubos;
-            for p in t.luz.iter().chain(t.luz_piel.iter()).chain(t.luz_op.iter()).chain(t.pre.iter()).chain(t.part.iter()).chain([t.sombra, t.sombra_piel, t.cielo, t.ao, t.ao_poner, t.fin, t.ui, t.agua, t.marcas].iter()) { self.dev.destroy_pipeline(*p, None); }
+            for p in t.luz.iter().chain(t.luz_piel.iter()).chain(t.luz_op.iter()).chain(t.pre.iter()).chain(t.part.iter()).chain([t.sombra, t.sombra_piel, t.cielo, t.ao, t.ao_poner, t.fin, t.ui, t.agua, t.marcas, t.caja].iter()) { self.dev.destroy_pipeline(*p, None); }
+            if let Some((a, b)) = self.caja.take() { self.soltar_buf(&a); self.soltar_buf(&b); }
             for m in &self.mods { self.dev.destroy_shader_module(*m, None); }
             let p = &self.planos;
             for l in [p.luz, p.luz_piel, p.sombra, p.sombra_piel, p.cielo, p.ao, p.tex1, p.agua, p.part, p.lin] { self.dev.destroy_pipeline_layout(l, None); }
