@@ -139,8 +139,9 @@ const ICO_COLS: u32 = 10;
 /// el menú de objetos abierto: qué subcategoría, cuánto bajó la grilla y de qué subcategoría es el atlas cargado
 pub struct Menu { pub sub: usize, pub scroll: f32, atlas_de: Option<(usize, usize)>, atlas_h: u32, /** 0 Props, 1 NPCs, 2 Vehículos, 3 Herramientas */ pub pestana: usize,
     /** lo buscado, cuánto bajó la columna de las categorías, hasta dónde bajan y de qué búsqueda es el atlas */ pub q: String, pub scroll_cats: f32, pub max_scroll: f32, pub max_cats: f32, atlas_q: String,
-    /** dónde termina la columna de las categorías (para saber qué baja el dedo) */ pub col_x1: f32 }
-impl Menu { pub fn nuevo() -> Menu { Menu { sub: 0, scroll: 0.0, atlas_de: None, atlas_h: 0, pestana: 0, q: String::new(), scroll_cats: 0.0, max_scroll: 0.0, max_cats: 0.0, atlas_q: String::new(), col_x1: 0.0 } } }
+    /** dónde termina la columna de las categorías (para saber qué baja el dedo) */ pub col_x1: f32,
+    /** la lista de herramientas: cuánto bajó, hasta dónde baja y dónde empieza su ventana */ pub scroll_her: f32, pub max_her: f32, pub her_x0: f32 }
+impl Menu { pub fn nuevo() -> Menu { Menu { sub: 0, scroll: 0.0, atlas_de: None, atlas_h: 0, pestana: 0, q: String::new(), scroll_cats: 0.0, max_scroll: 0.0, max_cats: 0.0, atlas_q: String::new(), col_x1: 0.0, scroll_her: 0.0, max_her: 0.0, her_x0: 0.0 } } }
 /// las pestañas de arriba del menú (las del spawn menu de la web)
 const PESTANAS_MENU: [&str; 5] = ["Props", "NPCs", "Vehículos", "Herramientas", "Mods"];
 /// la pestaña de los addons de GMod: abre su panel (gmod_juego.rs)
@@ -439,7 +440,8 @@ impl Juego {
             // (con el menú de la web: arrastrar en la columna baja las categorías; en la grilla, la grilla; hasta donde llegan)
             let nuevo = self.ini.rec.atlas.is_some();
             if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { let dy = y - d.y; d.x = x; d.y = y;
-                if nuevo && d.x0 < m.col_x1 { m.scroll_cats = (m.scroll_cats - dy).clamp(0.0, m.max_cats); }
+                if nuevo && m.her_x0 > 0.0 && d.x0 >= m.her_x0 { m.scroll_her = (m.scroll_her - dy).clamp(0.0, m.max_her); }
+                else if nuevo && d.x0 < m.col_x1 { m.scroll_cats = (m.scroll_cats - dy).clamp(0.0, m.max_cats); }
                 else if nuevo { m.scroll = (m.scroll - dy).clamp(0.0, m.max_scroll); } else { m.scroll = (m.scroll - dy).max(0.0); } }
             return;
         }

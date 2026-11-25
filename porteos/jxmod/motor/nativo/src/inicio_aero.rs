@@ -123,29 +123,30 @@ impl Juego {
 /// una opción de la lista del menú
 pub struct Op<'s> { pub txt: &'s str, pub grupo: usize, pub col: Col, pub apretada: bool }
 
-/// la lista del menú (como la de GMod): letras blancas grandes por grupos, cada una entrando desde la izquierda, y la apretada
-/// con la fila de vidrio; si no entra en `alto`, más apretada. Devuelve lo que se toca de cada una y el ancho del texto más
+/// la lista del menú (como la de GMod): por grupos, cada opción en un recuadro de vidrio líquido, entrando desde la izquierda;
+/// la apretada se hunde y brilla más; si no entra en `alto`, más apretada. Devuelve lo que se toca de cada una y el ancho del texto más
 /// largo
 pub fn lista_gmod(p: &mut Pincel, u: f32, x0: f32, y0: f32, alto: f32, ops: &[Op], ent: &dyn Fn(f32, f32) -> f32) -> (Vec<[f32; 4]>, f32) {
     let grupos = ops.windows(2).filter(|w| w[0].grupo != w[1].grupo).count();
-    let (mut fila, mut hueco, mut tam) = (25.0 * u, 9.0 * u, 17.5 * u);
+    let (mut fila, mut hueco, mut tam) = (29.0 * u, 8.0 * u, 16.5 * u);
     let total = ops.len() as f32 * fila + grupos as f32 * hueco;
     if total > alto { let k = (alto / total).max(0.7); fila *= k; hueco *= k; tam *= k.max(0.86); }
-    let mut y = y0; let mut ancho = 0.0f32; let mut v = vec![];
+    // (todas del mismo ancho: una columna de recuadros de vidrio líquido)
+    let ancho = ops.iter().map(|o| p.at.ancho(Cara::S4, tam, 0.0, o.txt)).fold(0.0f32, f32::max);
+    let (bw, bh) = (ancho + 34.0 * u, fila - 5.0 * u);
+    let mut y = y0; let mut v = vec![];
     for (i, o) in ops.iter().enumerate() {
         if i > 0 && o.grupo != ops[i - 1].grupo { y += hueco; }
-        let tw = p.at.ancho(Cara::S4, tam, 0.0, o.txt); ancho = ancho.max(tw);
-        let k = ent(0.12 + i as f32 * 0.045, 0.35);
-        let dx = (1.0 - k) * -26.0 * u + if o.apretada { 3.0 * u } else { 0.0 };
-        let r = [x0 - 10.0 * u + dx, y, tw + 20.0 * u, fila];
-        p.con_alfa(k, |p| {
-            if o.apretada { aero::fila_vidrio(p, r, u, true); }
-            let base = p.at.base_centrada(Cara::S4, tam, fila, y, fila);
-            p.texto_sombra(Cara::S4, tam, x0 + dx, base, o.col, o.txt, 1.4 * u);
-        });
-        v.push([x0 - 14.0 * u, y, tw + 50.0 * u, fila]); y += fila;
+        let k = ent(0.12 + i as f32 * 0.045, 0.35); let dx = (1.0 - k) * -26.0 * u;
+        let r = [x0 - 14.0 * u + dx, y, bw, bh]; let s = if o.apretada { 0.96 } else { 1.0 };
+        p.con_alfa(k, |p| p.con(crate::pincel::escalar_en(s, s, r[0] + bw / 2.0, y + bh / 2.0), |p| {
+            aero::vidrio_liquido(p, r, u, o.apretada);
+            let base = p.at.base_centrada(Cara::S4, tam, bh, y, bh);
+            p.texto_sombra(Cara::S4, tam, x0 + dx, base, o.col, o.txt, 1.2 * u);
+        }));
+        v.push([x0 - 14.0 * u, y - 2.0 * u, bw, fila]); y += fila;
     }
-    (v, ancho)
+    (v, bw - 34.0 * u)
 }
 
 /// los botones de vidrio de la barra de tareas, de x0 a x1 (con el texto si entran; si no, sólo el ícono): (ícono, texto,

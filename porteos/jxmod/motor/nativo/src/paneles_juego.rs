@@ -37,7 +37,7 @@ pub enum PanelIni {
 /// lo que hace cada cosa que se toca en un panel
 #[derive(Clone, Debug, PartialEq)]
 pub enum Acc { Volver, Cerrar, Cat(usize), Mapa(String), Empezar, Hora, Mods, Vr, Entrar(String), MasLleno, CrearServer, Lan, Refrescar, Buscar, Tab(usize), Skin(String),
-    CrearBase(String), CrearEmpezar, AjTab(usize), Aj(usize, usize), Listo, Idioma(usize), GMod, CuentaNo, NovVer, Nada,
+    CrearBase(String), CrearEmpezar, AjTab(usize), Aj(usize, usize), Listo, AjCancelar, AjAplicar, Idioma(usize), GMod, CuentaNo, NovVer, Nada,
     /// Crear server: el nombre, la clave, el modo (PvP o no), prender PvP / RPG / nextbots (0, 1, 2), los topes (0 props,
     /// 1 autos: más o menos un paso) y crearlo
     SrvNombre, SrvClave, SrvModo(bool), SrvTg(u8), SrvPaso(u8, i32), SrvCrear }
@@ -81,7 +81,9 @@ pub struct EstPaneles { pub zonas: Vec<([f32; 4], Acc)>, pub t0: f32, dedo: Opti
     /// el formulario de Crear server
     pub srv: SrvForm,
     /// la ventana del panel de este cuadro (la flecha para volver y la X)
-    pub chrome: std::cell::Cell<Option<aero::Ventana>> }
+    pub chrome: std::cell::Cell<Option<aero::Ventana>>,
+    /// los ajustes como estaban al abrir Opciones (para Cancelar)
+    pub aj_copia: Option<ajustes::Ajustes> }
 
 const HORAS: [&str; 5] = ["Normal", "Día", "Atardecer", "Noche", "Ciclo día/noche"];
 
@@ -92,7 +94,7 @@ impl Juego {
         if let PanelIni::Multi { .. } = p { if self.ini.panel.is_none() { self.abrir_salas(); self.en_red.panel = false; } self.lan_buscar(); }
         if self.ini.pn.mapa.is_none() { self.ini.pn.mapa = Some(self.mapas.get(self.mapa_i).cloned().filter(|m| self.mapas_inicio().contains(m)).unwrap_or_else(|| self.mapas_inicio().last().cloned().unwrap_or_default())); }
         if self.ini.pn.base.is_none() { self.ini.pn.base = self.ini.pn.mapa.clone(); }
-        if otro { self.ini.pn.t0 = self.ini.reloj; }
+        if otro { self.ini.pn.t0 = self.ini.reloj; if let PanelIni::Opciones { .. } = p { self.ini.pn.aj_copia = Some(self.aj.clone()); } }
         self.ini.panel = Some(p);
     }
     /// «Volver»: al menú o, si el panel se abrió desde la pausa (jugando), a la pausa
@@ -160,7 +162,10 @@ impl Juego {
                     Clave::Mapa if self.ini.desde_juego => { if k != self.mapa_i && k < self.mapas.len() { self.mapa_i = k; self.recargar = true; self.ini.panel = None; self.ini.desde_juego = false; if let Some(d) = &self.datos { let _ = std::fs::write(d.join("mapa.txt"), &self.mapas[k]); } } }
                     Clave::Mapa => { if let Some(m) = self.mapas.get(k).cloned() { self.ini.pn.mapa = Some(m); } }
                     _ => { self.aj.elegir(c, k); if let Some(d) = &self.datos { let _ = std::fs::write(d.join("ajustes.txt"), self.aj.texto()); } } } } }
-            (_, Acc::Listo) => self.pn_volver(),
+            (_, Acc::Listo) => { self.ini.pn.aj_copia = None; self.pn_volver(); }
+            // (Cancelar: los ajustes vuelven a como estaban al abrir; Aplicar: se guardan y se sigue)
+            (_, Acc::AjCancelar) => { if let Some(a) = self.ini.pn.aj_copia.take() { self.aj = a; if let Some(d) = &self.datos { let _ = std::fs::write(d.join("ajustes.txt"), self.aj.texto()); } } self.pn_volver(); }
+            (_, Acc::AjAplicar) => { if let Some(d) = &self.datos { let _ = std::fs::write(d.join("ajustes.txt"), self.aj.texto()); } self.ini.pn.aj_copia = Some(self.aj.clone()); self.avisar("Ajustes guardados".into()); }
             (_, Acc::Idioma(k)) => { if k != 0 { self.avisar("La versión nativa por ahora está en castellano".into()); } else { self.pn_volver(); } }
             (_, Acc::GMod) => { self.pn_volver(); self.ini.abierto = false; self.gmod_abrir(); }
             (_, Acc::CuentaNo) => self.avisar("Lo social se activa cuando la tienda tenga el inicio de sesión con Google.".into()),
@@ -781,28 +786,44 @@ impl Juego {
 
     /// Opciones (el panel de Ajustes con el lenguaje de los paneles): las pestañas a la izquierda y cada renglón con lo que se
     /// puede elegir (los ajustes de la nativa: ajustes.rs)
+    /// Opciones, con la forma del cuadro de opciones de GMod (el de Source): las pestañas arriba (Gráficos, Controles, Sonido,
+    /// Motor, Mapa, Día), cada ajuste con su nombre a la izquierda y sus valores a la derecha, y abajo Aceptar, Cancelar y
+    /// Aplicar
     fn pn_opciones(&mut self, p: &mut Pincel, m: &Pm, tab: usize, scroll: f32, t: f32, z: &mut Vec<([f32; 4], Acc)>) {
-        let pw = (m.w * 0.62).max(m.h * 1.3).min(m.w); let ph = m.h - 4.0; let mo = Pm { x: m.x + (m.w - pw) / 2.0, y: m.y + 2.0, w: pw, h: ph, ..*m };
+        let pw = (m.w * 0.76).max(m.h * 1.5).min(m.w); let mo = Pm { x: m.x + (m.w - pw) / 2.0, w: pw, ..*m };
         let (alto, cont) = self.pn_marco(p, &mo, t, |p, c| {
-            let (_, hc) = self.pn_cabecera(p, m, c, "07", None, "Opciones", t);
-            let pie_h = m.ph + 2.0 + m.u * 1.5 + 1.0; let y1 = c[1] + c[3] - pie_h; p.rect(c[0], y1, c[2], 1.0, PN_LIN); p.rect(c[0], y1 + 1.0, c[2], pie_h - 1.0, PN_POZO);
-            let wl = self.pn_principal_ancho(p, m, "Listo") - m.ft * 1.6; self.pn_listo(p, m, [c[0] + c[2] - m.u * 1.5 - wl, y1 + 1.0 + (pie_h - 1.0 - m.ph - 2.0) / 2.0, wl, m.ph + 2.0], z);
-            let tw = (c[2] * 0.25).max(m.ft * 9.0); let ty0 = c[1] + hc; let alto_t = y1 - ty0;
-            p.rect(c[0], ty0, tw, alto_t, rgba(0x08090a, 0.6)); p.rect(c[0] + tw - 1.0, ty0, 1.0, alto_t, PN_LIN);
+            // (las pestañas, en la barra de arriba; si no entran, sin los íconos y con la letra más chica)
+            let hc = m.ph * 0.86 + 8.0; let b = aero::camino(c[0], c[1], c[2], hc - 1.0, [0.0; 4]);
+            p.degrade(&b, true, c[1], c[1] + hc - 1.0, &[(0.0, blanco(0.12)), (0.5, blanco(0.05)), (0.5, negro(0.08)), (1.0, negro(0.2))]);
+            p.rect(c[0], c[1] + hc - 2.0, c[2], 1.0, negro(0.6)); p.rect(c[0], c[1] + hc - 1.0, c[2], 1.0, blanco(0.10));
             let icos = ["ajustes", "video", "volumen", "mundo", "carpeta", "musica"];
-            // (las pestañas: del alto de los botones, o más bajas si no entran)
-            let nt = ajustes::PESTANAS.len() as f32; let th = ((alto_t - m.u * 1.6) / nt - 3.0).min(m.ph).max(26.0);
-            for (k, n) in ajustes::PESTANAS.iter().enumerate() { let r = [c[0] + 4.0, ty0 + m.u * 0.8 + k as f32 * (th + 3.0), tw - 12.0, th]; let sel = k == tab;
-                if sel { placa(p, r[0], r[1], r[2], r[3], 4, 12.0, AMA, None); p.rect(r[0], r[1], 4.0, r[3], rgba(0x121212, 0.8)); }
-                p.icono(icos[k % icos.len()], r[0] + m.u * 1.5, r[1] + (r[3] - m.fs * 1.1) / 2.0, m.fs * 1.1, 2.2, if sel { NEGRO } else { PN_T2 });
-                p.texto_max(if sel { Cara::S7 } else { Cara::S4 }, m.fs, r[0] + m.u * 1.5 + m.fs * 1.7, p.at.base_centrada(Cara::S4, m.fs, m.fs, r[1], r[3]), if sel { NEGRO } else { PN_T2 }, 0.06, &n, r[2] - m.u * 1.5 - m.fs * 2.4);
-                zona(p, z, r, Acc::AjTab(k)); }
-            let ca = [c[0] + tw + m.u, ty0 + m.u, c[2] - tw - m.u * 2.0, alto_t - m.u * 2.0];
-            p.rect(ca[0], ca[1], ca[2], ca[3], rgba(0x1b1c20, 0.6)); p.borde(ca[0], ca[1], ca[2], ca[3], 1.0, PN_LIN);
+            let (mut f, pad, li) = (m.fs, m.u * 1.3, m.fs * 1.1); let disp = c[2] - m.u * 2.0;
+            let ancho = |p: &Pincel, f: f32, ico: bool| ajustes::PESTANAS.iter().map(|n| pad * 2.0 + if ico { li + m.u * 0.7 } else { 0.0 } + p.at.ancho(Cara::S7, f, 0.0, n)).collect::<Vec<f32>>();
+            let mut con_ico = true; let mut an = ancho(p, f, true);
+            if an.iter().sum::<f32>() > disp { con_ico = false; an = ancho(p, f, false); }
+            while an.iter().sum::<f32>() > disp && f > 10.0 { f *= 0.94; an = ancho(p, f, false); }
+            let mut x = c[0] + m.u;
+            for (k, n) in ajustes::PESTANAS.iter().enumerate() {
+                let r = [x, c[1] + 4.0, an[k], hc - 9.0]; let sel = k == tab;
+                if sel { aero::boton_azul(p, r, m.au, false); } else if self.ini.pn.apretado == Some(Acc::AjTab(k)) { aero::boton_vidrio(p, r, m.au, true, false); }
+                let mut tx = r[0] + pad; if con_ico { p.icono(icos[k % icos.len()], tx, r[1] + (r[3] - li) / 2.0, li, 2.2, if sel { TX } else { PN_T2 }); tx += li + m.u * 0.7; }
+                let base = p.at.base_centrada(Cara::S4, f, f, r[1], r[3]);
+                if sel { p.texto_sombra(Cara::S7, f, tx, base, TX, n, 1.0); } else { p.texto(Cara::S4, f, tx, base, PN_T2, 0.0, n); }
+                zona(p, z, r, Acc::AjTab(k)); x += an[k];
+            }
+            // (abajo: Aceptar, Cancelar y Aplicar, a la derecha)
+            let pie_h = m.ph + 2.0 + m.u * 1.5 + 1.0; let y1 = c[1] + c[3] - pie_h; p.rect(c[0], y1, c[2], 1.0, PN_LIN); p.rect(c[0], y1 + 1.0, c[2], pie_h - 1.0, PN_POZO);
+            let bh = m.ph; let by = y1 + 1.0 + (pie_h - 1.0 - bh) / 2.0; let mut bx = c[0] + c[2] - m.u * 1.5;
+            for (txt, a, azul) in [("Aplicar", Acc::AjAplicar, false), ("Cancelar", Acc::AjCancelar, false), ("Aceptar", Acc::Listo, true)] {
+                let bw = (p.at.ancho(if azul { Cara::S7 } else { Cara::S4 }, m.ft, 0.0, txt) + m.ft * 2.4 + 6.0).max(m.ft * 6.0); bx -= bw;
+                self.pn_boton(p, m, [bx, by, bw, bh], txt, None, azul, a, z); bx -= m.u;
+            }
+            // (los ajustes de la pestaña, en un recuadro)
+            let ca = [c[0] + m.u, c[1] + hc + m.u, c[2] - m.u * 2.0, y1 - c[1] - hc - m.u * 2.0];
+            let cc = aero::camino(ca[0], ca[1], ca[2], ca[3], [4.0 * m.au; 4]); p.relleno(&cc, negro(0.25)); p.contorno(ca[0], ca[1], ca[2], ca[3], [4.0 * m.au; 4], 1.0, blanco(0.14));
             let mut alto = 0.0;
             p.con_recorte(ca, |p| {
-                let nom = ajustes::PESTANAS.get(tab).copied().unwrap_or(""); let x = ca[0] + m.u * 1.5; let mut y = ca[1] + m.u - scroll;
-                let wn = p.texto(Cara::S7, m.fs, x, y + m.fs * 1.1, AMA, 0.1, &nom); self.pn_rayas(p, x + wn + m.u, y + m.fs * 0.55, ca[2] - wn - m.u * 4.0, 3.0, 0.5); y += m.fs * 1.6 + m.u;
+                let x = ca[0] + m.u * 1.5; let mut y = ca[1] + m.u - scroll;
                 for (f, cl) in ajustes::claves(tab).iter().enumerate() {
                     let vals = self.valores_aj(*cl); let el = self.elegido_aj(*cl); let fh = m.ph + m.u * 0.6;
                     let nombre = ajustes::nombre(*cl); let wnom = (ca[2] * 0.34).min(m.ft * 9.0);
@@ -811,7 +832,7 @@ impl Juego {
                     let xv0 = x + wnom + m.u; let wv = ca[0] + ca[2] - m.u * 1.5 - xv0; let n = vals.len().max(1);
                     let por = ((wv / (m.ft * 5.5)).floor() as usize).clamp(1, n); let filas = n.div_ceil(por); let bw = wv / por as f32;
                     for (k, v) in vals.iter().enumerate() { let r = [xv0 + (k % por) as f32 * bw, y + (k / por) as f32 * (m.ph.max(44.0) + 3.0), bw - 3.0, m.ph.max(44.0)]; let sel = el == Some(k);
-                        p.rect(r[0], r[1], r[2], r[3], if sel { AMA } else { PN_POZO }); if !sel { p.borde(r[0], r[1], r[2], r[3], 1.0, PN_LIN2); }
+                        if sel { aero::boton_azul(p, r, m.au, false); } else { aero::boton_vidrio(p, r, m.au, self.ini.pn.apretado == Some(Acc::Aj(f, k)), false); }
                         let mut tt = m.fs; while p.at.ancho(Cara::S4, tt, 0.04, &v) > r[2] - 8.0 && tt > 9.0 { tt *= 0.92; }
                         p.texto_c(if sel { Cara::S7 } else { Cara::S4 }, tt, r[0] + r[2] / 2.0, p.at.base_centrada(Cara::S4, tt, tt, r[1], r[3]), if sel { NEGRO } else { TX }, 0.04, &v);
                         zona(p, z, r, Acc::Aj(f, k)); }
@@ -822,12 +843,6 @@ impl Juego {
             (alto, ca)
         });
         self.ini.pn.contenido = cont; self.ini.pn.alto_contenido = alto;
-    }
-    /// «Listo» (el amarillo de Ajustes)
-    fn pn_listo(&self, p: &mut Pincel, m: &Pm, r: [f32; 4], z: &mut Vec<([f32; 4], Acc)>) {
-        let a = Acc::Listo; self.pn_golpe(p, &a, r, |p| { placa(p, r[0], r[1], r[2], r[3], 1, 22.0, AMA, None);
-            p.texto_c(Cara::S7, m.ft * 1.1, r[0] + (r[2] - 10.0) / 2.0, p.at.base_centrada(Cara::S7, m.ft * 1.1, m.ft * 1.1, r[1], r[3]), NEGRO, 0.05, "Listo"); });
-        zona(p, z, r, a);
     }
 
     /// Bugs y sugerencias (panel_juego.js): las pestañas Bugs, Sugerencias y Novedades (el registro de novedades.js); los

@@ -1,9 +1,8 @@
-//! El menú de objetos (el de la web, #spawn, y la idea del menú de objetos de GMod: las pestañas arriba) en una ventana Aero
-//! (aero.rs): el marco de vidrio con el título y la X roja; adentro, vidrio oscuro con las pestañas (su ícono de color y el
-//! nombre; la elegida, azul con brillo; si no entran, más juntas y después sólo el ícono), la columna de la izquierda con el
-//! buscador y las categorías (la elegida, la fila azul), la grilla de tarjetas de 84 px (el ícono y el nombre; las Opciones
-//! con su luz de prendida) y el pie (Congelado, o cómo se usan las Opciones). En Herramientas, la lista y el inspector de la
-//! herramienta. Todo con el pincel de los menús (pincel.rs).
+//! El menú de objetos con la forma del menú Q de GMod, en ventanas Aero (aero.rs): a la izquierda la ventana de objetos (las
+//! pestañas arriba —Props, NPCs, Vehículos, Mods: su ícono de color y el nombre, la elegida azul con brillo—, la columna con
+//! el buscador y las categorías, la grilla de tarjetas y el pie con Congelado o cómo se usan las Opciones) y a la derecha,
+//! siempre a la vista, la ventana de herramientas (la lista de la Tool Gun y al lado el panel de la elegida: su ayuda y cada
+//! parámetro con sus valores para tocar). Todo con el pincel de los menús (pincel.rs).
 use super::*;
 use crate::pincel::{rgba, Atlas, Cara, Col, Pincel};
 use super::aero::{self, blanco, negro, Aero, OpVentana};
@@ -24,27 +23,37 @@ const PESTANAS: [(&str, &str); 5] = [("Props", "ico_props"), ("NPCs", "ico_ragdo
 /// el ícono de color de cada Opción (las de la web: volar, muñeco de trapo, SCP, Cíclope)
 fn ico_opcion(it: &str) -> &'static str { match it { "opc:volar" => "ico_volar", "opc:ragdoll" => "ico_ragdoll", "opc:scp" => "ico_scp", "opc:ciclope" => "ico_ciclope", _ => "ico_mod" } }
 
+/// las pestañas que se ven en la ventana de objetos (las herramientas tienen su ventana)
+const VISIBLES: [usize; 4] = [0, 1, 2, PESTANA_MODS];
 /// dónde va cada cosa (en px de la pantalla; las medidas de la web, en px de CSS, por css())
-pub struct Geo { pub c: f32, /** la ventana entera (con el marco) */ pub ven: [f32; 4], pub u: f32, pub caja: [f32; 4], pub tabs: Vec<([f32; 4], bool)>, pub tab_f: f32, pub tab_pad: f32, pub cerrar: [f32; 4], pub col: [f32; 4], pub bus: [f32; 4], pub cats_y: f32, pub fila: f32,
-    pub grilla: [f32; 4], pub tile: [f32; 2], pub cols: usize, pub gap: f32, pub pie: [f32; 4], pub chk: [f32; 4] }
+pub struct Geo { pub c: f32, pub u: f32,
+    /** la ventana de objetos (con el marco), su adentro y su X */ pub ven: [f32; 4], pub caja: [f32; 4], pub cerrar: [f32; 4],
+    /** la ventana de herramientas, su adentro, la lista y el panel de la elegida, y el alto de cada renglón de la lista */ pub ven_h: [f32; 4], pub caja_h: [f32; 4], pub lista_h: [f32; 4], pub panel_h: [f32; 4], pub fila_h: f32,
+    /** las pestañas (dónde, con el nombre o sólo el ícono, cuál es) */ pub tabs: Vec<([f32; 4], bool, usize)>, pub tab_f: f32, pub tab_pad: f32,
+    pub col: [f32; 4], pub bus: [f32; 4], pub fila: f32, pub grilla: [f32; 4], pub tile: [f32; 2], pub cols: usize, pub gap: f32, pub pie: [f32; 4], pub chk: [f32; 4] }
 pub fn geo(at: &Atlas, w: f32, h: f32, sel: usize) -> Geo {
     let c = hud_web::css(w, h); let u = aero::unidad(w, h); let (bo, ti) = (aero::BORDE * u, aero::ALTO_TITULO * u);
-    let (bw, bh) = ((900.0 * c).min(w * 0.96 - 2.0 * bo), (500.0 * c).min(h * 0.96 - ti - bo));
-    let ven = [(w - bw - 2.0 * bo) / 2.0, (h - bh - ti - bo) / 2.0, bw + 2.0 * bo, bh + ti + bo]; let (x, y) = (ven[0] + bo, ven[1] + ti);
-    let th = 40.0 * c; let disp = bw;
+    // (casi toda la pantalla, como el de GMod: dos tercios de objetos y uno de herramientas)
+    let (tot_w, tot_h) = ((1240.0 * c).min(w * 0.97), (560.0 * c).min(h * 0.96)); let (x, y) = ((w - tot_w) / 2.0, (h - tot_h) / 2.0);
+    let sep = 8.0 * u; let tw = (tot_w * 0.33).clamp(230.0 * c, 380.0 * c); let sw = tot_w - tw - sep;
+    let ven = [x, y, sw, tot_h]; let ven_h = [x + sw + sep, y, tw, tot_h];
+    let caja = [x + bo, y + ti, sw - 2.0 * bo, tot_h - ti - bo]; let caja_h = [ven_h[0] + bo, y + ti, tw - 2.0 * bo, tot_h - ti - bo];
+    let lw = (caja_h[2] * 0.42).round(); let lista_h = [caja_h[0], caja_h[1], lw, caja_h[3]]; let panel_h = [caja_h[0] + lw + 1.0, caja_h[1], caja_h[2] - lw - 1.0, caja_h[3]];
     // (las pestañas: como entran; si no, más juntas; si tampoco, las no elegidas sólo con el ícono)
-    let ancho = |f: f32, pad: f32, gap: f32, esp: f32, solo_ico: bool, s: &str| if solo_ico { 2.0 * pad + 18.0 * c } else { 2.0 * pad + 18.0 * c + gap + at.ancho(Cara::S4, f, esp, s) };
+    let th = 38.0 * c; let disp = caja[2] - 8.0 * c;
+    let ancho = |f: f32, pad: f32, gap: f32, solo_ico: bool, s: &str| if solo_ico { 2.0 * pad + 18.0 * c } else { 2.0 * pad + 18.0 * c + gap + at.ancho(Cara::S4, f, 0.0, s) };
     let mut modo = 0; let mut anchos = vec![];
-    for m in 0..3 { let (f, pad, gap, esp) = if m == 0 { (15.0 * c, 14.0 * c, 8.0 * c, 0.04) } else if m == 1 { (14.0 * c, 9.0 * c, 6.0 * c, 0.02) } else { (14.0 * c, 13.0 * c, 8.0 * c, 0.02) };
-        anchos = PESTANAS.iter().enumerate().map(|(i, t)| ancho(f, pad, gap, esp, m == 2 && i != sel, t.0)).collect(); modo = m; if anchos.iter().sum::<f32>() <= disp { break; } }
-    let (tab_f, tab_pad) = if modo == 0 { (15.0 * c, 14.0 * c) } else if modo == 1 { (14.0 * c, 9.0 * c) } else { (14.0 * c, 13.0 * c) };
-    let mut tx = x; let tabs = anchos.iter().enumerate().map(|(i, a)| { let r = ([tx, y, *a, th], !(modo == 2 && i != sel)); tx += a; r }).collect();
-    let pie_h = 40.0 * c; let y0 = y + th + 1.0 * c; let y1 = y + bh - pie_h;
-    let colw = 172.0 * c; let col = [x, y0, colw, y1 - y0]; let bus = [x + 8.0 * c, y0 + 8.0 * c, colw - 16.0 * c, 36.0 * c];
-    let grilla = [x + colw + 1.0 * c, y0, bw - colw - 1.0 * c, y1 - y0]; let gap = 6.0 * c; let tile = [84.0 * c, (6.0 + 54.0 + 4.0 + 11.0 * 1.25 + 5.0) * c];
+    for m in 0..3 { let (f, pad, gap) = if m == 0 { (15.0 * c, 13.0 * c, 8.0 * c) } else if m == 1 { (14.0 * c, 9.0 * c, 6.0 * c) } else { (14.0 * c, 11.0 * c, 7.0 * c) };
+        anchos = VISIBLES.iter().map(|&i| ancho(f, pad, gap, m == 2 && i != sel, PESTANAS[i].0)).collect(); modo = m; if anchos.iter().sum::<f32>() <= disp { break; } }
+    let (tab_f, tab_pad) = if modo == 0 { (15.0 * c, 13.0 * c) } else if modo == 1 { (14.0 * c, 9.0 * c) } else { (14.0 * c, 11.0 * c) };
+    let mut tx = caja[0] + 4.0 * c; let tabs = anchos.iter().zip(VISIBLES.iter()).map(|(a, &i)| { let r = ([tx, caja[1], *a, th], !(modo == 2 && i != sel), i); tx += a; r }).collect();
+    let pie_h = 36.0 * c; let y0 = caja[1] + th + 1.0 * c; let y1 = caja[1] + caja[3] - pie_h;
+    let colw = 150.0 * c; let col = [caja[0], y0, colw, y1 - y0]; let bus = [caja[0] + 7.0 * c, y0 + 7.0 * c, colw - 14.0 * c, 32.0 * c];
+    let grilla = [caja[0] + colw + 1.0 * c, y0, caja[2] - colw - 1.0 * c, y1 - y0]; let gap = 6.0 * c; let tile = [80.0 * c, (6.0 + 50.0 + 4.0 + 11.0 * 1.25 + 5.0) * c];
     let cols = (((grilla[2] - 16.0 * c + gap) / (tile[0] + gap)).floor() as usize).max(1);
-    let pie = [x, y1, bw, pie_h]; let chk = [x + 12.0 * c, y1 + (pie_h - 20.0 * c) / 2.0, 20.0 * c, 20.0 * c];
-    Geo { c, ven, u, caja: [x, y, bw, bh], tabs, tab_f, tab_pad, cerrar: [ven[0] + ven[2] - bo - 50.0 * u, ven[1], 50.0 * u + bo, 28.0 * u], col, bus, cats_y: y0 + 8.0 * c + 36.0 * c + 8.0 * c, fila: 36.0 * c, grilla, tile, cols, gap, pie, chk }
+    let pie = [caja[0], y1, caja[2], pie_h]; let chk = [caja[0] + 12.0 * c, y1 + (pie_h - 18.0 * c) / 2.0, 18.0 * c, 18.0 * c];
+    Geo { c, u, ven, caja, cerrar: [ven[0] + ven[2] - bo - 50.0 * u, ven[1], 50.0 * u + bo, 28.0 * u], ven_h, caja_h, lista_h, panel_h, fila_h: 32.0 * c,
+        tabs, tab_f, tab_pad, col, bus, fila: 34.0 * c, grilla, tile, cols, gap, pie, chk }
 }
 fn dentro(r: [f32; 4], x: f32, y: f32) -> bool { x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3] }
 
@@ -65,45 +74,46 @@ impl Juego {
     fn mo_nombre(&self, it: &str) -> String { npc::skin_de_item(it).map(|s| npc::skin_nom(s).to_string()).unwrap_or_else(|| self.jg.nombre_item(it).to_string()) }
     /// el menú, con el pincel (después del HUD)
     pub(super) fn mo_dibujar(&mut self, p: &mut Pincel, w: f32, h: f32) {
+        // (las herramientas ya no son una pestaña: tienen su ventana)
+        if let Some(m) = self.menu.as_mut() { if m.pestana == PESTANA_HER { m.pestana = 0; m.sub = 0; } }
         let Some(mm) = self.menu.as_ref() else { return }; let (pe, sub, scroll, scroll_c, congelar) = (mm.pestana, mm.sub, mm.scroll, mm.scroll_cats, self.poner_congelado);
         let q = mm.q.clone(); let g = geo(p.at, w, h, pe); let c = g.c; let [x, y, bw, bh] = g.caja;
         p.rect(0.0, 0.0, w, h, [0.0, 0.0, 0.0, 0.3]);
+        // ———— la ventana de objetos ————
         aero::ventana(p, g.ven, g.u, &OpVentana { titulo: "Menú de objetos", ico: Some("ico_props"), atras: false, cerrar: true, blanco: false, apretado: 0 });
         p.rect(x, y, bw, bh, FONDO); p.borde(x, y, bw, bh, 1.0, negro(0.6));
-        // ---- las pestañas (la barra de vidrio de arriba) ----
         let th = g.tabs[0].0[3]; let barra = aero::camino(x, y, bw, th, [0.0; 4]);
         p.degrade(&barra, true, y, y + th, &[(0.0, blanco(0.12)), (0.5, blanco(0.05)), (0.5, negro(0.08)), (1.0, negro(0.2))]);
         p.rect(x, y + th - 1.0, bw, 1.0, negro(0.6)); p.rect(x, y + th, bw, 1.0 * c, blanco(0.10));
-        for (i, (r, con_texto)) in g.tabs.iter().enumerate() {
-            let s = i == pe; if s { let rb = [r[0] + 2.0, r[1] + 3.0, r[2] - 4.0, r[3] - 6.0]; aero::boton_azul(p, rb, g.u, false); }
-            let ix = r[0] + g.tab_pad; p.icono(PESTANAS[i].1, ix, r[1] + (r[3] - 18.0 * c) / 2.0, 18.0 * c, 2.0, [1.0; 4]);
-            if *con_texto { let f = g.tab_f; let base = p.at.base_centrada(Cara::S4, f, f, r[1], r[3]); if s { p.texto_sombra(Cara::S7, f, ix + 18.0 * c + 8.0 * c, base, NEG, PESTANAS[i].0, 1.0); } else { p.texto(Cara::S4, f, ix + 18.0 * c + 8.0 * c, base, T2, 0.0, PESTANAS[i].0); } }
+        for (r, con_texto, i) in g.tabs.iter() {
+            let s = *i == pe; if s { aero::boton_azul(p, [r[0] + 2.0, r[1] + 3.0, r[2] - 4.0, r[3] - 6.0], g.u, false); }
+            let ix = r[0] + g.tab_pad; p.icono(PESTANAS[*i].1, ix, r[1] + (r[3] - 18.0 * c) / 2.0, 18.0 * c, 2.0, [1.0; 4]);
+            if *con_texto { let f = g.tab_f; let base = p.at.base_centrada(Cara::S4, f, f, r[1], r[3]); if s { p.texto_sombra(Cara::S7, f, ix + 18.0 * c + 8.0 * c, base, NEG, PESTANAS[*i].0, 1.0); } else { p.texto(Cara::S4, f, ix + 18.0 * c + 8.0 * c, base, T2, 0.0, PESTANAS[*i].0); } }
         }
-        // ---- la columna de la izquierda ----
+        // ---- la columna de la izquierda: el buscador y las categorías ----
         let col = g.col; p.rect(col[0], col[1], col[2], col[3], COLUMNA); p.rect(col[0] + col[2], col[1], 1.0 * c, col[3], LIN);
-        let her = pe == PESTANA_HER; let mut alto_c = 0.0;
-        let filas: Vec<(String, bool, bool)> = if her { self.her.lista.iter().enumerate().map(|(k, hh)| (hh.n.clone(), k == self.her.sel, false)).collect() }
-            else { self.cat(pe).iter().enumerate().map(|(k, (n, _))| (n.clone(), k == sub && q.is_empty(), self.mo_cat_nueva(pe, n))).collect() };
+        let mut alto_c = 0.0;
+        let filas: Vec<(String, bool, bool)> = self.cat(pe).iter().enumerate().map(|(k, (n, _))| (n.clone(), k == sub && q.is_empty(), self.mo_cat_nueva(pe, n))).collect();
         p.con_recorte(col, |p| {
-            let mut yy = col[1] + 8.0 * c - scroll_c;
-            if !her { let b = [g.bus[0], yy, g.bus[2], g.bus[3]]; p.rect(b[0], b[1], b[2], b[3], BARRA); p.borde(b[0], b[1], b[2], b[3], 1.0, LIN);
-                p.icono("buscar", b[0] + 9.0 * c, b[1] + (b[3] - 15.0 * c) / 2.0, 15.0 * c, 2.2, T2);
-                let (txt, cl) = if q.is_empty() { ("Buscar…".to_string(), T3) } else { (q.clone(), T1) }; p.texto_max(Cara::S4, 14.0 * c, b[0] + 31.0 * c, p.at.base_centrada(Cara::S4, 14.0 * c, 14.0 * c, b[1], b[3]), cl, 0.0, &txt, b[2] - 40.0 * c);
-                yy += 36.0 * c + 8.0 * c; }
+            let mut yy = col[1] + 7.0 * c - scroll_c;
+            let b = [g.bus[0], yy, g.bus[2], g.bus[3]]; let cb = aero::camino(b[0], b[1], b[2], b[3], [b[3] * 0.5; 4]);
+            p.relleno(&cb, negro(0.4)); p.contorno(b[0], b[1], b[2], b[3], [b[3] * 0.5; 4], 1.0, blanco(0.18));
+            p.icono("buscar", b[0] + 10.0 * c, b[1] + (b[3] - 14.0 * c) / 2.0, 14.0 * c, 2.2, T2);
+            let (txt, cl) = if q.is_empty() { ("Buscar…".to_string(), T3) } else { (q.clone(), T1) }; p.texto_max(Cara::S4, 13.0 * c, b[0] + 30.0 * c, p.at.base_centrada(Cara::S4, 13.0 * c, 13.0 * c, b[1], b[3]), cl, 0.0, &txt, b[2] - 38.0 * c);
+            yy += g.bus[3] + 7.0 * c;
             for (n, s, nueva) in &filas {
                 let r = [col[0], yy, col[2], g.fila];
-                if *s { aero::fila_vidrio(p, [r[0] + 3.0 * c, r[1] + 1.0 * c, r[2] - 6.0 * c, r[3] - 2.0 * c], g.u, true); }
+                if *s { aero::fila_vidrio(p, [r[0] + 4.0 * c, r[1] + 1.0 * c, r[2] - 8.0 * c, r[3] - 2.0 * c], g.u, true); }
                 // (la viñeta: verde las categorías de JXMod —catNueva—, gris las demás)
-                p.rect(r[0] + 14.0 * c, r[1] + (r[3] - 6.0 * c) / 2.0, 6.0 * c, 6.0 * c, if *nueva { rgba(0x5fc9a8, 1.0) } else { rgba(0x5b5c61, 1.0) });
-                let f = 14.0 * c; p.texto_max(if *s { Cara::S7 } else { Cara::S4 }, f, r[0] + 29.0 * c, p.at.base_centrada(Cara::S4, f, f, r[1], r[3]), if *s { T1 } else { T2 }, 0.0, n, r[2] - 36.0 * c);
+                p.rect(r[0] + 13.0 * c, r[1] + (r[3] - 6.0 * c) / 2.0, 6.0 * c, 6.0 * c, if *nueva { rgba(0x5fc9a8, 1.0) } else { rgba(0x5b5c61, 1.0) });
+                let f = 13.5 * c; p.texto_max(if *s { Cara::S7 } else { Cara::S4 }, f, r[0] + 27.0 * c, p.at.base_centrada(Cara::S4, f, f, r[1], r[3]), if *s { T1 } else { T2 }, 0.0, n, r[2] - 34.0 * c);
                 yy += g.fila;
             }
             alto_c = yy + scroll_c - col[1] + 8.0 * c;
         });
-        // ---- la grilla (o, en Herramientas, el inspector) ----
+        // ---- la grilla ----
         let gr = g.grilla; let mut alto_g = 0.0;
-        if her { self.mo_inspector(p, &g); }
-        else {
+        {
             let items = self.mo_items(); let mm = self.menu.as_ref().unwrap(); let atlas_ok = mm.atlas_de == Some((pe, sub)) && mm.atlas_q == q; let ah = mm.atlas_h.max(1) as f32;
             p.con_recorte(gr, |p| {
                 if items.is_empty() { p.texto(Cara::S4, 13.0 * c, gr[0] + 12.0 * c, gr[1] + 24.0 * c, T2, 0.0, "No hay resultados"); }
@@ -112,11 +122,10 @@ impl Juego {
                     if r[1] + r[3] < gr[1] || r[1] > gr[1] + gr[3] { continue; }
                     let opc = it.starts_with("opc:"); let on = opc && self.jg.activo(it.trim_start_matches("opc:"));
                     tarjeta(p, r, if on { rgba(0x173a66, 1.0) } else { PL }); if on { p.contorno(r[0], r[1], r[2], r[3], [4.0 * c; 4], 2.0 * c, AMA); }
-                    let (iw, ih) = (72.0 * c, 54.0 * c); let (ix, iy) = (r[0] + (r[2] - iw) / 2.0, r[1] + 6.0 * c);
+                    let (iw, ih) = (70.0 * c, 50.0 * c); let (ix, iy) = (r[0] + (r[2] - iw) / 2.0, r[1] + 6.0 * c);
                     if opc { p.icono(ico_opcion(it), r[0] + (r[2] - ih) / 2.0, iy, ih, 2.0, [1.0; 4]);
                         let lc = [r[0] + r[2] - 10.0 * c, r[1] + 10.0 * c]; if on { p.disco(lc[0], lc[1], 7.0 * c, rgba(0x2f8ae8, 0.4)); } p.disco(lc[0], lc[1], 4.0 * c, if on { AMA } else { rgba(0x4a4b50, 1.0) }); }
                     else if atlas_ok { let (u0, v0) = ((k as u32 % ICO_COLS * ICO) as f32 / 1024.0, ((k as u32 / ICO_COLS) * ICO) as f32 / ah); let (u1, v1) = (u0 + ICO as f32 / 1024.0, v0 + ICO as f32 / ah);
-                        // (contain: el cuadrado del ícono en el rectángulo de 72 × 54)
                         let l = ih; let x0 = ix + (iw - l) / 2.0; p.quad(TEX_ICONOS, [[x0, iy], [x0 + l, iy], [x0 + l, iy + l], [x0, iy + l]], [[u0, v0], [u1, v0], [u1, v1], [u0, v1]], [[1.0; 4]; 4]); }
                     let f = 11.0 * c; p.texto_max(Cara::S4, f, r[0] + 4.0 * c, iy + ih + 4.0 * c + f, T1, 0.0, &self.mo_nombre(it), r[2] - 8.0 * c);
                 }
@@ -125,59 +134,84 @@ impl Juego {
         }
         // ---- el pie: Congelado, o cómo se usan las Opciones ----
         let pi = g.pie; p.rect(pi[0], pi[1], pi[2], pi[3], BARRA); p.rect(pi[0], pi[1], pi[2], 1.0 * c, LIN);
-        let opciones = !her && q.is_empty() && self.cat(pe).get(sub).map_or(false, |s| s.0 == "Opciones");
+        let opciones = q.is_empty() && self.cat(pe).get(sub).map_or(false, |s| s.0 == "Opciones");
         if opciones { p.texto_max(Cara::S4, 12.0 * c, pi[0] + 12.0 * c, p.at.base_centrada(Cara::S4, 12.0 * c, 12.0 * c, pi[1], pi[3]), T2, 0.0, "Tocá una para prenderla o apagarla (sirve en cualquier momento).", pi[2] - 24.0 * c); }
-        else if !her { let k = g.chk; let s = k[2] / (16.0 * g.u); p.con(crate::pincel::escalar_en(s, s, k[0], k[1]), |p| aero::casilla(p, k[0], k[1], g.u, congelar, false));
-            p.texto(Cara::S4, 14.0 * c, k[0] + k[2] + 9.0 * c, p.at.base_centrada(Cara::S4, 14.0 * c, 14.0 * c, pi[1], pi[3]), T1, 0.0, "Congelado"); }
-        if let Some(mm) = self.menu.as_mut() { mm.col_x1 = col[0] + col[2]; mm.max_cats = (alto_c - col[3]).max(0.0); mm.max_scroll = (alto_g - gr[3]).max(0.0); mm.scroll = mm.scroll.min(mm.max_scroll); mm.scroll_cats = mm.scroll_cats.min(mm.max_cats); }
+        else { let k = g.chk; let s = k[2] / (16.0 * g.u); p.con(crate::pincel::escalar_en(s, s, k[0], k[1]), |p| aero::casilla(p, k[0], k[1], g.u, congelar, false));
+            p.texto(Cara::S4, 13.5 * c, k[0] + k[2] + 9.0 * c, p.at.base_centrada(Cara::S4, 13.5 * c, 13.5 * c, pi[1], pi[3]), T1, 0.0, "Congelado"); }
+        // ———— la ventana de herramientas ————
+        aero::ventana(p, g.ven_h, g.u, &OpVentana { titulo: "Herramientas", ico: Some("ico_herr"), atras: false, cerrar: false, blanco: false, apretado: 0 });
+        let ch = g.caja_h; p.rect(ch[0], ch[1], ch[2], ch[3], FONDO); p.borde(ch[0], ch[1], ch[2], ch[3], 1.0, negro(0.6));
+        let lh = g.lista_h; p.rect(lh[0], lh[1], lh[2], lh[3], COLUMNA); p.rect(lh[0] + lh[2], lh[1], 1.0, lh[3], LIN);
+        let sh = self.menu.as_ref().map_or(0.0, |m| m.scroll_her);
+        p.con_recorte(lh, |p| {
+            let mut yy = lh[1] + 6.0 * c - sh;
+            for (k, hh) in self.her.lista.iter().enumerate() {
+                let r = [lh[0], yy, lh[2], g.fila_h]; let s = k == self.her.sel;
+                if s { aero::fila_vidrio(p, [r[0] + 3.0 * c, r[1] + 1.0 * c, r[2] - 6.0 * c, r[3] - 2.0 * c], g.u, true); }
+                p.icono("martillo", r[0] + 9.0 * c, r[1] + (r[3] - 13.0 * c) / 2.0, 13.0 * c, 2.2, if s { T1 } else { T3 });
+                let f = 12.5 * c; p.texto_max(if s { Cara::S7 } else { Cara::S4 }, f, r[0] + 27.0 * c, p.at.base_centrada(Cara::S4, f, f, r[1], r[3]), if s { T1 } else { T2 }, 0.0, &hh.n, r[2] - 32.0 * c);
+                yy += g.fila_h;
+            }
+        });
+        self.mo_inspector(p, &g);
+        let max_her = (self.her.lista.len() as f32 * g.fila_h + 12.0 * c - lh[3]).max(0.0);
+        if let Some(mm) = self.menu.as_mut() { mm.her_x0 = g.ven_h[0]; mm.max_her = max_her; mm.scroll_her = mm.scroll_her.min(max_her); mm.col_x1 = col[0] + col[2]; mm.max_cats = (alto_c - col[3]).max(0.0); mm.max_scroll = (alto_g - gr[3]).max(0.0); mm.scroll = mm.scroll.min(mm.max_scroll); mm.scroll_cats = mm.scroll_cats.min(mm.max_cats); }
     }
-    /// el inspector de la herramienta elegida: su nombre, la ayuda y cada parámetro con sus valores para tocar
+    /// el panel de la herramienta elegida (el de la derecha): su nombre, la ayuda y cada parámetro con sus valores para tocar
     fn mo_inspector(&self, p: &mut Pincel, g: &Geo) {
-        let Some(hh) = self.her.lista.get(self.her.sel) else { return }; let c = g.c; let gr = g.grilla; let x = gr[0] + 14.0 * c; let mut y = gr[1] + 14.0 * c;
-        p.texto(Cara::S7, 16.0 * c, x, y + 16.0 * c, T1, 0.0, &format!("Tool Gun: {}", hh.n)); y += 26.0 * c;
-        for r in p.at.renglones(Cara::S4, 12.0 * c, 0.0, herramientas::ayuda(&hh.n), gr[2] - 28.0 * c) { p.texto(Cara::S4, 12.0 * c, x, y + 12.0 * c, T2, 0.0, &r); y += 16.0 * c; }
-        y += 8.0 * c; let vals = self.her.params.get(&hh.n);
-        for (f, (pr, cajas)) in hh.p.iter().zip(self.mo_cajas_param(g)).enumerate() {
-            let v = vals.and_then(|m| m.get(&pr.n)); let ops = self.valores_param(pr, v); let _ = f;
-            if let Some(b0) = cajas.first() { p.texto_max(Cara::S4, 13.0 * c, x, p.at.base_centrada(Cara::S4, 13.0 * c, 13.0 * c, b0[1], b0[3]), T1, 0.0, &pr.n, b0[0] - x - 8.0 * c); }
+        let Some(hh) = self.her.lista.get(self.her.sel) else { return }; let c = g.c; let pr = g.panel_h; let x = pr[0] + 9.0 * c; let mut y = pr[1] + 8.0 * c;
+        p.texto_max(Cara::S7, 14.5 * c, x, y + 14.0 * c, T1, 0.0, &hh.n, pr[2] - 18.0 * c); y += 22.0 * c;
+        for r in p.at.renglones(Cara::S4, 11.0 * c, 0.0, herramientas::ayuda(&hh.n), pr[2] - 18.0 * c).iter().take(4) { p.texto(Cara::S4, 11.0 * c, x, y + 11.0 * c, T2, 0.0, r); y += 14.0 * c; }
+        let vals = self.her.params.get(&hh.n);
+        for (pr_, cajas) in hh.p.iter().zip(self.mo_cajas_param(g)) {
+            let v = vals.and_then(|m| m.get(&pr_.n)); let ops = self.valores_param(pr_, v);
+            if let Some(b0) = cajas.first() { p.texto_max(Cara::S4, 12.0 * c, x, b0[1] - 5.0 * c, T2, 0.0, &pr_.n, pr[2] - 18.0 * c); }
             for (k, (o, b)) in ops.iter().zip(cajas.iter()).enumerate() {
-                let s = match (pr.t.as_str(), v) { ("String[]", Some(x)) => x.txt() == *o, ("Boolean", Some(x)) => x.si() == (k == 1), ("Single" | "Int32", _) => k == 1, _ => false };
+                let s = match (pr_.t.as_str(), v) { ("String[]", Some(x)) => x.txt() == *o, ("Boolean", Some(x)) => x.si() == (k == 1), ("Single" | "Int32", _) => k == 1, _ => false };
                 if s { aero::boton_azul(p, *b, c, false); } else { aero::boton_vidrio(p, *b, c, false, false); }
-                let mut f = 13.0 * c; while p.at.ancho(Cara::S4, f, 0.0, o) > b[2] - 6.0 * c && f > 8.0 { f *= 0.92; }
+                let mut f = 12.5 * c; while p.at.ancho(Cara::S4, f, 0.0, o) > b[2] - 6.0 * c && f > 8.0 { f *= 0.92; }
                 p.texto_c(Cara::S4, f, b[0] + b[2] / 2.0, p.at.base_centrada(Cara::S4, f, f, b[1], b[3]), if s { NEG } else { T1 }, 0.0, o);
             }
-            let _ = y;
         }
     }
     /// dónde van los valores de cada parámetro de la herramienta (un renglón por parámetro)
     fn mo_cajas_param(&self, g: &Geo) -> Vec<Vec<[f32; 4]>> {
-        let Some(hh) = self.her.lista.get(self.her.sel) else { return vec![] }; let c = g.c; let gr = g.grilla;
-        let y0 = gr[1] + 14.0 * c + 26.0 * c + 16.0 * c * 2.0 + 8.0 * c; let fila = 44.0 * c; let x0 = gr[0] + 14.0 * c + 150.0 * c; let wv = gr[0] + gr[2] - 14.0 * c - x0;
-        hh.p.iter().enumerate().map(|(f, pr)| { let n = self.valores_param(pr, self.her.params.get(&hh.n).and_then(|m| m.get(&pr.n))).len().max(1); let bw = (wv / n as f32).min(110.0 * c);
-            (0..n).map(|k| [x0 + k as f32 * bw, y0 + f as f32 * fila, bw - 3.0 * c, fila - 6.0 * c]).collect() }).collect()
+        let Some(hh) = self.her.lista.get(self.her.sel) else { return vec![] }; let c = g.c; let pr = g.panel_h;
+        // (debajo del nombre y la ayuda: cada parámetro con su nombre y sus valores, de a tres por renglón)
+        let x0 = pr[0] + 9.0 * c; let wv = pr[2] - 18.0 * c; let mut y = pr[1] + 8.0 * c + 22.0 * c + 4.0 * 14.0 * c + 10.0 * c;
+        hh.p.iter().map(|pr_| { let n = self.valores_param(pr_, self.her.params.get(&hh.n).and_then(|m| m.get(&pr_.n))).len().max(1);
+            let por = n.min(3); let bw = wv / por as f32; let fil = 30.0 * c; y += 16.0 * c;
+            let v: Vec<[f32; 4]> = (0..n).map(|k| [x0 + (k % por) as f32 * bw, y + (k / por) as f32 * (fil + 4.0 * c), bw - 4.0 * c, fil]).collect();
+            y += n.div_ceil(por) as f32 * (fil + 4.0 * c) + 6.0 * c; v }).collect()
     }
     /// un toque con el menú abierto (estilo nuevo)
     pub(super) fn mo_toque(&mut self, x: f32, y: f32, w: f32, h: f32) {
         let Some(at) = self.ini.rec.atlas.as_ref() else { return }; let Some(mm) = self.menu.as_ref() else { return }; let g = geo(at, w, h, mm.pestana);
-        if !dentro(g.ven, x, y) || dentro(g.cerrar, x, y) { self.menu = None; return; }
-        if !dentro(g.caja, x, y) { return; }
-        for (i, (r, _)) in g.tabs.iter().enumerate() { if dentro(*r, x, y) {
-            if i == PESTANA_MODS { self.menu = None; self.gmod_abrir(); return; }
-            let her = self.her.sel; if let Some(m) = self.menu.as_mut() { if m.pestana != i { m.pestana = i; m.sub = if i == PESTANA_HER { her } else { 0 }; m.scroll = 0.0; m.scroll_cats = 0.0; m.q.clear(); } } return; } }
-        let (pe, sub, sc, scc) = { let m = self.menu.as_ref().unwrap(); (m.pestana, m.sub, m.scroll, m.scroll_cats) }; let her = pe == PESTANA_HER;
-        if dentro(g.col, x, y) {
-            let mut yy = g.col[1] + 8.0 * g.c - scc;
-            if !her { if y >= yy && y <= yy + g.bus[3] { let q = self.menu.as_ref().map(|m| m.q.clone()).unwrap_or_default(); self.pedir_texto(Escribir::Buscar, "Buscar", &q, 30, false); return; } yy += 44.0 * g.c; }
-            let k = ((y - yy) / g.fila).floor(); if k < 0.0 { return; } let k = k as usize;
-            if her { if k < self.her.lista.len() { if let Some(m) = self.menu.as_mut() { m.sub = k; } self.equipar_herramienta(k); } }
-            else if k < self.cat(pe).len() { if let Some(m) = self.menu.as_mut() { m.sub = k; m.scroll = 0.0; m.q.clear(); } }
+        // (la ventana de herramientas: elegir una —y tenerla en la mano— o tocar sus valores)
+        if dentro(g.ven_h, x, y) {
+            if dentro(g.lista_h, x, y) { let sh = self.menu.as_ref().map_or(0.0, |m| m.scroll_her); let k = ((y - g.lista_h[1] - 6.0 * g.c + sh) / g.fila_h).floor(); if k >= 0.0 && (k as usize) < self.her.lista.len() { self.her.sel = k as usize; self.equipar_herramienta(k as usize); } }
+            else if dentro(g.panel_h, x, y) { self.mo_toque_inspector(x, y, &g); }
             return;
         }
-        if dentro(g.pie, x, y) { if !her && x <= g.chk[0] + 140.0 * g.c { self.poner_congelado = !self.poner_congelado; } return; }
-        if her { self.mo_toque_inspector(x, y, &g); return; }
-        let gr = g.grilla; let (cx, fy) = (((x - gr[0] - 8.0 * g.c) / (g.tile[0] + g.gap)).floor(), ((y - gr[1] - 8.0 * g.c + sc) / (g.tile[1] + g.gap)).floor());
+        if !dentro(g.ven, x, y) || dentro(g.cerrar, x, y) { self.menu = None; return; }
+        if !dentro(g.caja, x, y) { return; }
+        for (r, _, i) in g.tabs.iter() { if dentro(*r, x, y) {
+            if *i == PESTANA_MODS { self.menu = None; self.gmod_abrir(); return; }
+            if let Some(m) = self.menu.as_mut() { if m.pestana != *i { m.pestana = *i; m.sub = 0; m.scroll = 0.0; m.scroll_cats = 0.0; m.q.clear(); } } return; } }
+        let (pe, sc, scc) = { let m = self.menu.as_ref().unwrap(); (m.pestana, m.scroll, m.scroll_cats) };
+        if dentro(g.col, x, y) {
+            let mut yy = g.col[1] + 7.0 * g.c - scc;
+            if y >= yy && y <= yy + g.bus[3] { let q = self.menu.as_ref().map(|m| m.q.clone()).unwrap_or_default(); self.pedir_texto(Escribir::Buscar, "Buscar", &q, 30, false); return; }
+            yy += g.bus[3] + 7.0 * g.c;
+            let k = ((y - yy) / g.fila).floor(); if k < 0.0 { return; } let k = k as usize;
+            if k < self.cat(pe).len() { if let Some(m) = self.menu.as_mut() { m.sub = k; m.scroll = 0.0; m.q.clear(); } }
+            return;
+        }
+        if dentro(g.pie, x, y) { if x <= g.chk[0] + 140.0 * g.c { self.poner_congelado = !self.poner_congelado; } return; }
+        let gr = g.grilla; if !dentro(gr, x, y) { return; }
+        let (cx, fy) = (((x - gr[0] - 8.0 * g.c) / (g.tile[0] + g.gap)).floor(), ((y - gr[1] - 8.0 * g.c + sc) / (g.tile[1] + g.gap)).floor());
         if cx < 0.0 || cx as usize >= g.cols || fy < 0.0 { return; }
-        let i = fy as usize * g.cols + cx as usize; let _ = sub;
+        let i = fy as usize * g.cols + cx as usize;
         if let Some(n) = self.mo_items().get(i).cloned() { self.pendientes.push(n); }
     }
     fn mo_toque_inspector(&mut self, x: f32, y: f32, g: &Geo) {

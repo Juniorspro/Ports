@@ -334,10 +334,11 @@ impl Juego {
     pub(super) fn ini_vidrio(&self, w: f32, h: f32) -> Option<pincel::Vidrio> {
         if (self.mapa.is_some() && self.ini.desde_juego) || matches!(self.ini.panel, Some(super::paneles_juego::PanelIni::Personajes { .. })) { return None; }
         let (s, dx) = self.ini_ken(w); let mut v = pincel::Vidrio::default();
+        let mapa = |tw: f32, th: f32| { let kc = (w / tw).max(h / th); let (vw, vh) = (w / kc / tw, h / kc / th); let (u0, v0) = ((1.0 - vw) * 0.5, (1.0 - vh) * 0.5);
+            [vw / (w * s), u0 + vw / w * (w / 2.0 - (w / 2.0 + dx) / s), vh / (h * s), v0 + vh / h * (h / 2.0 - h / 2.0 / s)] };
         for (k, a) in self.ini_capas() {
-            let Some((id, tw, th)) = self.ini_foto(&format!("b:{k}")) else { continue };
-            let kc = (w / tw).max(h / th); let (vw, vh) = (w / kc / tw, h / kc / th); let (u0, v0) = ((1.0 - vw) * 0.5, (1.0 - vh) * 0.5);
-            v.capas.push((id, [vw / (w * s), u0 + vw / w * (w / 2.0 - (w / 2.0 + dx) / s), vh / (h * s), v0 + vh / h * (h / 2.0 - h / 2.0 / s)], a));
+            if let Some((id, tw, th)) = self.ini_foto(&format!("b:{k}")) { v.capas.push((id, mapa(tw, th), a)); }
+            if let Some((id, tw, th)) = self.ini_foto(&k) { v.nitidas.push((id, mapa(tw, th), a)); }
         }
         if v.capas.is_empty() { None } else { Some(v) }
     }

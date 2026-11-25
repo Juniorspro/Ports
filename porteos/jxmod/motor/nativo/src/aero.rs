@@ -109,6 +109,8 @@ pub trait Aero {
     fn vidrio(&mut self, c: &[[f32; 2]], sin: Col);
     /// los reflejos en diagonal del vidrio
     fn reflejos(&mut self, r: [f32; 4], a: f32);
+    /// la lente del vidrio líquido: lo de atrás nítido y agrandado `zoom` veces alrededor de `cen` (false si no hay fondo)
+    fn lente(&mut self, c: &[[f32; 2]], cen: [f32; 2], zoom: f32) -> bool;
     fn a_pantalla(&self, r: [f32; 4]) -> [f32; 4];
     /// un texto con sombra (el de los menús sobre el fondo)
     fn texto_sombra(&mut self, cara: Cara, tam: f32, x: f32, base: f32, col: Col, s: &str, d: f32) -> f32;
@@ -166,6 +168,14 @@ impl<'a> Aero for Pincel<'a> {
             }
             _ => self.relleno(c, sin),
         }
+    }
+    fn lente(&mut self, c: &[[f32; 2]], cen: [f32; 2], zoom: f32) -> bool {
+        let Some(v) = self.vidrio.clone() else { return false }; if v.nitidas.is_empty() { return false; }
+        self.relleno(c, hex(0x1a1d24)); let m = self.m; let cs = [m[0] * cen[0] + m[2] * cen[1] + m[4], m[1] * cen[0] + m[3] * cen[1] + m[5]];
+        for (tex, k, a) in v.nitidas.iter() { let (k, a) = (*k, *a);
+            self.poli_gen(*tex, c, |q| { let (sx, sy) = (m[0] * q[0] + m[2] * q[1] + m[4], m[1] * q[0] + m[3] * q[1] + m[5]);
+                let (lx, ly) = (cs[0] + (sx - cs[0]) / zoom, cs[1] + (sy - cs[1]) / zoom); [k[0] * lx + k[1], k[2] * ly + k[3]] }, |_| [1.0, 1.0, 1.0, a]); }
+        true
     }
     fn reflejos(&mut self, r: [f32; 4], a: f32) {
         let (x, y, w, h) = (r[0], r[1], r[2], r[3]); let uv = self.uv_liso(); let rp = self.a_pantalla(r);
@@ -422,4 +432,24 @@ pub fn orbe(p: &mut Pincel, cx: f32, cy: f32, ra: f32, u: f32, apretado: bool) {
     p.contorno(cx - ra + u, cy - ra + u, ra * 2.0 - 2.0 * u, ra * 2.0 - 2.0 * u, [ra - u; 4], (0.75 * u).max(1.0), blanco(0.3));
     let tam = ra * 0.95; let base = p.at.base_centrada(Cara::O6, tam, ra * 2.0, cy - ra, ra * 2.0);
     p.texto_c(Cara::O6, tam, cx + ra * 0.03, base + u * 0.6, negro(0.6), 0.02, "JX"); p.texto_c(Cara::O6, tam, cx, base, BLANCO, 0.02, "JX");
+}
+
+/// un recuadro de vidrio líquido (las opciones del menú): una cápsula con la sombra suave, el borde de vidrio grueso
+/// (desenfocado), el centro como una lente (lo de atrás nítido y un poco agrandado), un velo blanco leve, el brillo de arriba,
+/// el filo con luz (fuerte arriba, tenue abajo) y un reflejo chico. Jugando (sin fondo de fotos), vidrio liso translúcido
+pub fn vidrio_liquido(p: &mut Pincel, r: [f32; 4], u: f32, apretado: bool) {
+    let (x, y, w, h) = (r[0], r[1], r[2], r[3]); let ra = h * 0.5; let rr = [ra; 4]; let c = camino(x, y, w, h, rr); let g = (0.9 * u).max(1.0);
+    p.nube(x + 3.0 * u, y + 4.0 * u, w - 6.0 * u, h - 4.0 * u, 9.0 * u, negro(0.28), false);
+    p.vidrio(&c, hexa(0x1c2a3c, 0.5));
+    let e = (h * 0.16).min(5.0 * u); let ci = camino(x + e, y + e, w - 2.0 * e, h - 2.0 * e, [ra - e; 4]);
+    p.lente(&ci, [x + w / 2.0, y + h / 2.0], 1.12);
+    // (un velo oscuro para que la letra blanca se lea sobre un cielo claro, y el blanco del vidrio encima)
+    p.relleno(&c, hexa(0x0c1420, if apretado { 0.12 } else { 0.30 }));
+    p.relleno(&c, blanco(if apretado { 0.20 } else { 0.05 }));
+    p.degrade(&c, true, y, y + h, &[(0.0, blanco(0.22)), (0.42, blanco(0.05)), (0.55, blanco(0.0)), (1.0, blanco(0.05))]);
+    let rp = p.a_pantalla(r);
+    p.con_recorte([rp[0] - 2.0, rp[1] - 2.0, rp[2] + 4.0, rp[3] * 0.5 + 2.0], |p| p.contorno(x, y, w, h, rr, g, blanco(0.78)));
+    p.con_recorte([rp[0] - 2.0, rp[1] + rp[3] * 0.5, rp[2] + 4.0, rp[3] * 0.5 + 2.0], |p| p.contorno(x, y, w, h, rr, g, blanco(0.32)));
+    p.contorno(x - g, y - g, w + 2.0 * g, h + 2.0 * g, rr.map(|v| v + g), g, negro(0.22));
+    p.con_recorte(rp, |p| p.nube(x + ra * 0.9, y + h * 0.14, (w * 0.22).min(60.0 * u), h * 0.06, h * 0.18, blanco(0.45), true));
 }

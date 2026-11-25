@@ -348,7 +348,7 @@ pub struct Pincel<'a> {
 }
 /// el fondo desenfocado para el vidrio: cada capa (su textura, de la pantalla a la UV —u = a x + b, v = c y + d— y su opacidad)
 #[derive(Clone, Debug, Default)]
-pub struct Vidrio { pub capas: Vec<(i64, [f32; 4], f32)> }
+pub struct Vidrio { pub capas: Vec<(i64, [f32; 4], f32)>, /** las mismas, nítidas (para la lente del vidrio líquido) */ pub nitidas: Vec<(i64, [f32; 4], f32)> }
 pub const IDENT: [f32; 6] = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
 /// m1 después de m2 (primero m2)
 pub fn mm(m1: [f32; 6], m2: [f32; 6]) -> [f32; 6] {
