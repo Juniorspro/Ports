@@ -165,11 +165,25 @@ pub const ICONOS: [(&str, &str); 32] = [
     ("volar", r##"<path d="M11.4 9.6C9.6 6.4 6.6 4.6 2.2 4.4c.8 3.3 2.4 5.6 4.9 6.7-1.6.6-2.6 1.7-3.1 3.2 2.7.5 5.1-.2 7.4-2.4z" fill="#fff"/><path d="M12.6 9.6c1.8-3.2 4.8-5 9.2-5.2-.8 3.3-2.4 5.6-4.9 6.7 1.6.6 2.6 1.7 3.1 3.2-2.7.5-5.1-.2-7.4-2.4z" fill="#fff"/><path d="M12 8.6v11.4M9.4 17.4l2.6 2.6 2.6-2.6" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>"##),
 ];
 /// las piezas de vidrio líquido de los botones (pintadas acá, no son SVG), después de los íconos
-pub const VIDRIOS: [&str; 2] = ["vl_disco", "vl_caja"];
+pub const VIDRIOS: [&str; 4] = ["vl_disco", "vl_caja", "vl_sombra_d", "vl_sombra_c"];
 /// el lado de cada ícono en el atlas y cuántos por fila
 pub const LADO: u32 = 128;
 pub const COLS: u32 = 8;
 const CELDAS: u32 = (ICONOS.len() + VIDRIOS.len()) as u32;
+/// lo que se agranda la sombra de un botón a cada lado (en fracción de la pieza)
+pub const SOMBRA_M: f32 = 0.1;
+/// la sombra suave de un botón ya esfumada (una sola pieza en vez de tres capas): la forma del botón en el medio —a SOMBRA_M
+/// del borde— y alrededor la sombra que se apaga; negra con alfa
+pub fn pintar_sombra(caja: bool, lado: usize) -> Vec<u8> {
+    let mut px = vec![0u8; lado * lado * 4]; let l = lado as f32; let h = l / 2.0; let m = SOMBRA_M * l; let hi = h - m; let r = if caja { (l - 2.0 * m) * 0.24 } else { hi };
+    for y in 0..lado { for x in 0..lado {
+        let (fx, fy) = (x as f32 + 0.5 - h, y as f32 + 0.5 - h);
+        let sd = if caja { let (qx, qy) = (fx.abs() - (hi - r), fy.abs() - (hi - r)); qx.max(0.0).hypot(qy.max(0.0)) + qx.max(qy).min(0.0) - r } else { (fx * fx + fy * fy).sqrt() - hi };
+        let t = ((sd + m * 0.3) / (m * 1.3)).clamp(0.0, 1.0); let a = 0.13 * (1.0 - t * t * (3.0 - 2.0 * t));
+        px[(y * lado + x) * 4 + 3] = (a * 255.0).round() as u8;
+    } }
+    px
+}
 /// un recuadro de vidrio líquido (redondo o cuadrado redondeado): el cuerpo oscuro translúcido, el borde de adentro que dobla
 /// la luz, un velo blanco, el brillo grande de arriba, la luz que rebota abajo, el filo con luz (fuerte arriba a la izquierda,
 /// tenue abajo a la derecha) y un reflejo chico. RGBA sin premultiplicar
@@ -202,7 +216,7 @@ pub fn atlas() -> &'static (u32, u32, Vec<u8>) {
     A.get_or_init(|| {
         let (aw, ah) = (COLS * LADO, CELDAS.div_ceil(COLS).next_power_of_two() * LADO); let mut px = vec![0u8; (aw * ah * 4) as usize];
         let celdas = ICONOS.iter().map(|(_, cuerpo)| crate::iconos::pintar_svg(&format!("<svg viewBox=\"0 0 24 24\">{cuerpo}</svg>"), LADO as usize))
-            .chain(VIDRIOS.iter().map(|n| pintar_vidrio(*n == "vl_caja", LADO as usize)));
+            .chain(VIDRIOS.iter().map(|n| if n.starts_with("vl_sombra") { pintar_sombra(*n == "vl_sombra_c", LADO as usize) } else { pintar_vidrio(*n == "vl_caja", LADO as usize) }));
         for (i, ic) in celdas.enumerate() {
             let (cx, cy) = ((i as u32 % COLS) * LADO, (i as u32 / COLS) * LADO);
             for y in 0..LADO { let d = (((cy + y) * aw + cx) * 4) as usize; let s = (y * LADO * 4) as usize; px[d..d + (LADO * 4) as usize].copy_from_slice(&ic[s..s + (LADO * 4) as usize]); }
@@ -289,7 +303,9 @@ pub(super) fn pieza9(v: &mut Vec<f32>, n: &str, x: f32, y: f32, w: f32, h: f32, 
 }
 /// la sombra de abajo de un botón (box-shadow: 0 2px 10px rgba(0,0,0,.28)): capas apenas oscuras, cada vez más grandes
 fn sombra(v: &mut Vec<f32>, n: &str, x: f32, y: f32, w: f32, h: f32, c: f32) {
-    for k in [6.0f32, 4.0, 2.0] { let e = k * c; pieza(v, n, x - e, y - e + 2.0 * c, w + 2.0 * e, h + 2.0 * e, [0.0, 0.0, 0.0, 0.045]); }
+    // (una sola pieza ya esfumada: la forma en el medio y la sombra alrededor —antes, tres capas—)
+    let k = 1.0 / (1.0 - 2.0 * SOMBRA_M); let (ww, hh) = (w * k, h * k); let s = if n == "disco" { "vl_sombra_d" } else { "vl_sombra_c" };
+    if w > h * 1.6 || h > w * 1.6 { pieza9(v, s, x - (ww - w) / 2.0, y - (hh - h) / 2.0 + 2.0 * c, ww, hh, [1.0; 4]); } else { pieza(v, s, x - (ww - w) / 2.0, y - (hh - h) / 2.0 + 2.0 * c, ww, hh, [1.0; 4]); }
 }
 
 impl super::Juego {

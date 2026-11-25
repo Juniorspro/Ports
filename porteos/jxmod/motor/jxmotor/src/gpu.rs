@@ -502,7 +502,9 @@ pub struct Motor {
     dbg: bool, sin_agua: bool,
     /// la oclusión por consultas: por cosa (su clave), la consulta, si espera respuesta, si se vio y el último cuadro en que se
     /// probó; la caja de prueba (un cubo de 0 a 1) y lo que este cuadro no se dibuja por tapado
-    oclu: HashMap<u64, (glow::Query, bool, bool, u64)>, cubo_oclu: (glow::VertexArray, glow::Buffer, glow::Buffer), tapados: Vec<bool>,
+    oclu: HashMap<u64, (glow::Query, bool, bool, u64)>,
+    /// la huella de lo que se dibujó en cada mitad de la sombra (la matriz y cada cosa con su lugar y sus huesos): si no cambió, la mitad se deja como está
+    sombra_huella: [u64; 2], cubo_oclu: (glow::VertexArray, glow::Buffer, glow::Buffer), tapados: Vec<bool>,
     /// las luces que ya están puestas en el programa de ahora (para no volver a mandarlas si la cosa siguiente usa las mismas)
     luces_puestas: std::cell::Cell<(u64, u32)>,
     /// la oclusión va dentro de la pasada de luz (calculada antes, con la profundidad) y el tamaño de la escena
@@ -560,7 +562,7 @@ impl Motor {
         Ok(Motor { gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
             p_luz, p_luz_piel, p_luz_c, p_luz_piel_c, p_luz_inst_c, p_pre, p_pre_piel, p_pre_inst, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_lin, p_ui, ui, p_luz_inst, p_sombra_inst, inst_buf, part, marcas, ao_rt: None, refr_rt: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], svp2: mat::id(), sesgo2: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
             opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new(), ranuras: Vec::new(), instancias: std::env::var("JXM_SIN_INST").is_err(),
-            ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])) })
+            ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])) })
     }
 
     /// sube a la placa los recursos nuevos (los que ya estaban con el mismo número se reemplazan)
@@ -913,7 +915,7 @@ impl Motor {
             let f = gl.create_framebuffer().unwrap(); gl.bind_framebuffer(glow::FRAMEBUFFER, Some(f));
             gl.framebuffer_texture_2d(glow::FRAMEBUFFER, glow::DEPTH_ATTACHMENT, glow::TEXTURE_2D, Some(t), 0);
             gl.draw_buffers(&[glow::NONE]);
-            self.sombra = Some((f, t, px)); self.svp2 = mat::id();
+            self.sombra = Some((f, t, px)); self.svp2 = mat::id(); self.sombra_huella = [0; 2];
         }
         // (la de lejos —todo el radio, píxeles de 4 cm— cambia poco de un cuadro al otro: se dibuja un cuadro sí y uno no, y en
         // el medio se sigue usando con su matriz; la de cerca, siempre)
@@ -921,18 +923,45 @@ impl Motor {
         let (svp0, ses0) = self.cascada(0); let (svp1, ses1) = if lejos { self.cascada(1) } else { (self.svp2, self.sesgo2) };
         self.svp = svp0; self.sesgo = ses0; self.svp2 = svp1; self.sesgo2 = ses1;
         let l0 = self.recortar(&svp0, true); let l1 = if lejos { self.recortar(&svp1, true) } else { vec![] };
+        // (lo que no cambió no se vuelve a dibujar: con todo quieto —o la cámara girando en el lugar— la sombra no cuesta nada)
+        let h0 = self.huella(&svp0, &l0); let h1 = if lejos { self.huella(&svp1, &l1) } else { self.sombra_huella[1] };
+        let (d0, d1) = (h0 != self.sombra_huella[0], lejos && h1 != self.sombra_huella[1]);
+        if !d0 && !d1 { return; }
+        self.sombra_huella = [h0, h1];
         if self.dbg && self.cuadro == 0 {
             let piel: Vec<_> = self.items.iter().filter(|it| !it.h.is_empty()).map(|it| (it.m, it.esf, it.fl, it.h.len())).collect();
             eprintln!("sombra: {} + {} cosas, {} con huesos · {:?}", l0.len(), l1.len(), piel.len(), &piel[..piel.len().min(6)]);
         }
         let (f, _, _) = *self.sombra.as_ref().unwrap();
         { let gl = &self.gl; gl.bind_framebuffer(glow::FRAMEBUFFER, Some(f)); gl.viewport(0, 0, px * 2, px);
-          // (sin la de lejos, sólo se borra la mitad de la de cerca)
-          if !lejos { gl.enable(glow::SCISSOR_TEST); gl.scissor(0, 0, px, px); }
+          // (se borra sólo la mitad que se vuelve a dibujar)
+          if !(d0 && d1) { gl.enable(glow::SCISSOR_TEST); if d0 { gl.scissor(0, 0, px, px); } else { gl.scissor(px, 0, px, px); } }
           gl.clear(glow::DEPTH_BUFFER_BIT); gl.disable(glow::SCISSOR_TEST); gl.enable(glow::POLYGON_OFFSET_FILL); gl.polygon_offset(1.5, 3.0); }
-        self.gl.viewport(0, 0, px, px); self.dibujos += self.dibujar_lista(&l0, &svp0, -1e9, true);
-        if lejos { self.gl.viewport(px, 0, px, px); self.dibujos += self.dibujar_lista(&l1, &svp1, -1e9, true); }
+        if d0 { self.gl.viewport(0, 0, px, px); self.dibujos += self.dibujar_lista(&l0, &svp0, -1e9, true); }
+        if d1 { self.gl.viewport(px, 0, px, px); self.dibujos += self.dibujar_lista(&l1, &svp1, -1e9, true); }
         self.gl.disable(glow::POLYGON_OFFSET_FILL);
+    }
+    /// dónde está el agua en la pantalla (en −1..1, de la cámara de ahora): la caja de sus esferas, más un margen por lo que las
+    /// olas corren el reflejo; si alguna rodea a la cámara, la pantalla entera
+    fn agua_en_pantalla(&self) -> ([f32; 2], [f32; 2]) {
+        let Some(c) = self.c.as_ref() else { return ([-1.0; 2], [1.0; 2]) }; let v = &c.vp;
+        let (fx, fy) = ((v[0] * v[0] + v[4] * v[4] + v[8] * v[8]).sqrt(), (v[1] * v[1] + v[5] * v[5] + v[9] * v[9]).sqrt());
+        let (mut lo, mut hi) = ([1.0f32; 2], [-1.0f32; 2]);
+        for &i in &self.aguas {
+            let e = self.items[i].esf; let w = v[3] * e[0] + v[7] * e[1] + v[11] * e[2] + v[15];
+            if w <= e[3] * 1.05 { return ([-1.0; 2], [1.0; 2]); }
+            let (x, y) = ((v[0] * e[0] + v[4] * e[1] + v[8] * e[2] + v[12]) / w, (v[1] * e[0] + v[5] * e[1] + v[9] * e[2] + v[13]) / w);
+            let (rx, ry) = (e[3] * fx / w, e[3] * fy / w);
+            lo = [lo[0].min(x - rx), lo[1].min(y - ry)]; hi = [hi[0].max(x + rx), hi[1].max(y + ry)];
+        }
+        let m = 0.15; ([(lo[0] - m).max(-1.0), (lo[1] - m).max(-1.0)], [(hi[0] + m).min(1.0), (hi[1] + m).min(1.0)])
+    }
+    /// la huella de una mitad de la sombra: su matriz y, de cada cosa, la malla, la parte, el material, la matriz y los huesos
+    fn huella(&self, svp: &M4, lista: &[usize]) -> u64 {
+        let mut h: u64 = 0xcbf29ce484222325; let mut mete = |x: u64| { h ^= x; h = h.wrapping_mul(0x100000001b3); };
+        for v in svp { mete(v.to_bits() as u64); }
+        for &i in lista { let it = &self.items[i]; mete(it.m as u64); mete(it.s0 as u64); mete(it.mat as u64); for v in &it.mm { mete(v.to_bits() as u64); } for v in &it.h { mete(v.to_bits() as u64); } }
+        h.max(1)
     }
     fn cascada(&self, k: usize) -> (M4, [f32; 2]) { cascada(self.c.as_ref().unwrap(), self.sol(), &self.op, k) }
 
@@ -941,11 +970,24 @@ impl Motor {
         let (rw, rh) = ((w / self.op.reflejo_div).max(16), (h / self.op.reflejo_div).max(16));
         if self.reflejo.as_ref().map(|d| d.w != rw || d.h != rh).unwrap_or(true) { if let Some(d) = self.reflejo.take() { borrar_destino(&self.gl, d); } self.reflejo = Some(destino(&self.gl, rw, rh)); }
         let vp = mat::mul(&self.c.as_ref().unwrap().vp, &mat::espejo_y(ay));
+        // (el reflejo sólo se mira donde está el agua en la pantalla —más lo que la corren las olas—: ese rectángulo y nada más;
+        // lo que no puede caer adentro, afuera)
+        let (r0, r1) = self.agua_en_pantalla();
+        let pl = { let f = |i: usize| [vp[i], vp[4 + i], vp[8 + i], vp[12 + i]]; let (x, y, w) = (f(0), f(1), f(3));
+            let pn = |a: [f32; 4], k: f32, b: [f32; 4]| { let q = [a[0] * k + b[0], a[1] * k + b[1], a[2] * k + b[2], a[3] * k + b[3]]; let l = (q[0] * q[0] + q[1] * q[1] + q[2] * q[2]).sqrt().max(1e-12); [q[0] / l, q[1] / l, q[2] / l, q[3] / l] };
+            let neg = |a: [f32; 4]| [-a[0], -a[1], -a[2], -a[3]]; let esc = |a: [f32; 4], k: f32| [a[0] * k, a[1] * k, a[2] * k, a[3] * k];
+            let base = mat::planos(&vp);
+            [pn(x, 1.0, esc(w, -r0[0])), pn(neg(x), 1.0, esc(w, r1[0])), pn(y, 1.0, esc(w, -r0[1])), pn(neg(y), 1.0, esc(w, r1[1])), base[4], base[5]] };
         // (lo que está entero debajo del agua no se refleja)
-        let lista: Vec<usize> = self.recortar(&vp, false).into_iter().filter(|&i| self.items[i].esf[1] + self.items[i].esf[3] > ay - 0.05).collect();
-        { let gl = &self.gl; let d = self.reflejo.as_ref().unwrap(); gl.bind_framebuffer(glow::FRAMEBUFFER, Some(d.fb)); gl.viewport(0, 0, d.w, d.h); gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT); }
+        let lista: Vec<usize> = self.recortar(&vp, false).into_iter().filter(|&i| { let e = self.items[i].esf; e[1] + e[3] > ay - 0.05 && mat::esfera_dentro(&pl, &e) }).collect();
+        { let gl = &self.gl; let d = self.reflejo.as_ref().unwrap(); gl.bind_framebuffer(glow::FRAMEBUFFER, Some(d.fb)); gl.viewport(0, 0, d.w, d.h);
+          let (sx0, sy0) = (((r0[0] * 0.5 + 0.5) * d.w as f32).floor() as i32, ((r0[1] * 0.5 + 0.5) * d.h as f32).floor() as i32);
+          let (sx1, sy1) = (((r1[0] * 0.5 + 0.5) * d.w as f32).ceil() as i32, ((r1[1] * 0.5 + 0.5) * d.h as f32).ceil() as i32);
+          gl.enable(glow::SCISSOR_TEST); gl.scissor(sx0.max(0), sy0.max(0), (sx1 - sx0).max(1), (sy1 - sy0).max(1));
+          gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT); }
         self.cielo(&vp);
         self.dibujos += self.dibujar_lista(&lista, &vp, ay - 0.05, false);
+        self.gl.disable(glow::SCISSOR_TEST);
         self.gl.invalidate_framebuffer(glow::FRAMEBUFFER, &[glow::DEPTH_ATTACHMENT]);
     }
 
@@ -1195,7 +1237,10 @@ pub fn cascada(c: &crate::escena::Cuadro, s: [f32; 3], op: &Opciones, k: usize) 
     let r = if k == 0 { op.sombra_radio * 0.25 } else { op.sombra_radio };
     // (la fila de w de la matriz de la cámara es para adelante)
     let mut c0 = c.pos;
-    if k == 0 { let f = mat::norm([c.vp[3], c.vp[7], c.vp[11]]); for i in 0..3 { c0[i] += f[i] * r * 0.6; } }
+    // (la de cerca va delante de la cámara: hacia uno de 16 rumbos —sin lo vertical—, así girando un poco no se mueve y su
+    // sombra guardada sigue sirviendo)
+    if k == 0 { let f = mat::norm([c.vp[3], c.vp[7], c.vp[11]]); let hz = (f[0] * f[0] + f[2] * f[2]).sqrt();
+        if hz > 0.3 { let paso = std::f32::consts::TAU / 16.0; let a = (f[2].atan2(f[0]) / paso).round() * paso; c0[0] += a.cos() * r * 0.6; c0[2] += a.sin() * r * 0.6; } }
     let paso = 2.0 * r / px as f32; let cen = [(c0[0] / paso).round() * paso, (c0[1] / paso).round() * paso, (c0[2] / paso).round() * paso];
     // (lo que hay entre el sol y la caja, hasta 80 m más arriba, también tapa; el margen de profundidad, en metros)
     let alto = r + 80.0; let rango = alto + r;
