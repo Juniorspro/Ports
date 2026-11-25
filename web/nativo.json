@@ -1,0 +1,9 @@
+{
+ "codigo": 26112522,
+ "version": "0.22",
+ "apk": "jxmod/JXModNativo.apk",
+ "tam": 53316044,
+ "sha256": "95e5f01b46d47054aff7658727c5efe5aa83ce2aa7b3b5733155952966ff9415",
+ "notas_es": "JXMod Nativo 0.22 — Menús nuevos estilo Windows Vista con vidrio (el inicio con la idea del menú de GMod, ventanas, opciones como las de Source y la pausa), el menú de objetos y herramientas como el de GMod y los controles de vidrio líquido. Al entrar elegís qué contenido bajar (la biblioteca de GMod, los mapas, los personajes, los extras). El agua ahora es como la de Half-Life 2. Los tres motores (Vulkan, OpenGL 3 y OpenGL 2) andan más rápido sin bajar la calidad: lo tapado no se dibuja, las sombras no se rehacen si nada se movió y el reflejo se dibuja sólo donde está el agua. Todavía faltan cosas de la versión web: se van agregando en las próximas.",
+ "notas_en": "JXMod Native 0.22 — New Windows Vista style menus with glass (a home screen based on the GMod menu, windows, Source-like options and the pause menu), a GMod-style spawn and tool menu and liquid glass controls. On first launch you choose what content to download (the GMod library, maps, characters, extras). Water now looks like Half-Life 2. All three engines (Vulkan, OpenGL 3 and OpenGL 2) run faster without lowering quality: hidden things are not drawn, shadows are not redrawn when nothing moved and reflections are only drawn where the water is. Some things from the web version are still missing: they will come in the next updates."
+}

@@ -396,7 +396,8 @@ tool, GLB/OBJ como props, sección ragdolls; «compatible con c_hands» quedó p
 (`libjxmod.so`) + un poco de Java (`Juego.java`, `Novedad.java`, `Actualizar.java`). Gráficos con wgpu (Vulkan, con
 OpenGL de respaldo). `motor/PORTEO.md` dice archivo por archivo de la web qué está portado (✔), a medias (◐) o falta (✘).
 
-- **0.21** (la última, mandada al dueño; no publicada):
+- **0.22 publicada el 25/11** (`jxmod/JXModNativo.apk` y `web/nativo.json`; ver `motor/LEEME.md`): menús Aero, contenido a elegir al entrar, menú de objetos como GMod, controles de vidrio, agua de HL2 y los motores optimizados.
+- **0.21** (mandada al dueño; no publicada):
   - **APK liviana: 192 → 49 MB.** Trae sólo RB_Flatgrass y RB_Construct y el menú de GMod; lo demás (mapas, skins,
     la biblioteca de GMod de 86 MB) se baja de `web/rb/` cuando hace falta, revisado con la huella del nombre
     (`bajas.rs`), con progreso en la pantalla de carga. Íconos del menú en WebP.

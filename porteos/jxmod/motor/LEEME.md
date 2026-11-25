@@ -33,6 +33,20 @@ otro jugador que camina, habla, pone cosas y tiene un NPC), `JXM_CARGA=1` (500 o
 parte), `JXM_MAPAS_FOTO=1`, `JXM_SOLO_AUTO=1`; los addons con `--example gmod_foto` (`JXM_ADDONS=<carpeta>`).
 La APK: `motor/armar_nativo.sh` y `python3 -I apk/armar_nativo.py <salida.apk> --www <www> --version-name X --version-code N`.
 
+## Publicada: JXMod Nativo 0.22 (25/11/2026)
+
+La primera versión nativa publicada (pedido del dueño: «publica lo que tienes ya y seguí mejorando y agregando lo que
+falta»). `jxmod/JXModNativo.apk` (com.jxmod.nativo, versionCode 26112522, 50,9 MB, firma de JXMod SHA-256 04:4A:87:38…,
+v2+v3) y `web/nativo.json` (lo que mira la app al abrir para ofrecer instalar la nueva encima: Novedad.java,
+Actualizar.java). Se instala al lado de JXMod (la web con WebView); el contenido es el de la 3.9.14.
+Armada con `armar_nativo.sh` (arm64-v8a y armeabi-v7a) y
+`python3 -I apk/armar_nativo.py SALIDA --www /tmp/claude-0/jxm/www_todo --rb-extra /tmp/claude-0/jxp_rb2 --mapas base
+--gmod menu --paquete /tmp/claude-0/pk39e --version-name 0.22` (trae RB_Flatgrass, RB_Construct y el menú de GMod; lo
+demás se elige y se baja desde la app). Las fotos de los menús con `examples/menus_foto` antes de publicar: bien.
+Nuevo desde la 0.21: los menús Aero (estilo Windows Vista, con vidrio), elegir el contenido al entrar, el menú de objetos
+y herramientas como el de GMod, los controles de vidrio líquido, el agua de HL2 y las optimizaciones de los tres motores
+(ver `PORTEO.md` para lo que falta de la web).
+
 ## Por qué empieza por el dibujo (medido)
 
 Con el procesador frenado ×6 (`Emulation.setCPUThrottlingRate`, como un celular flojo), en gm_construct con 12 props, 4
