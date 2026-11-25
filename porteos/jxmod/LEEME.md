@@ -5436,6 +5436,64 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
     - Todos los roles del servidor están en la posición 1, así que la jerarquía la decide la antigüedad y JXBot, el
       más nuevo, queda último. Para dar «Miembro» hay que arrastrar JXBot arriba en Ajustes → Roles.
 
+## Después de la 3.9.13 (sin publicar todavía): lo que quedaba de «Bugs y sugerencias»
+
+Todo en el código del juego; se prueba con `pruebas/` (entre paréntesis, la prueba y su resultado).
+
+- **Muñecos de trapo de cualquier modelo** (`juego/gmod_rag.js`; dvq7d92i, za7gix4d): los modelos de GMod que no
+  tienen el esqueleto humano de Valve —animales, criaturas, robots, el Foxy de FNaF— ya no salen duros en pose T.
+  - Un cuerpo por sólido del `.phy`, con su casco convexo, unidos con las restricciones del `.phy` (o por la jerarquía).
+  - Pesos con un mínimo de 45 kg en total y 2 kg por pieza, e inercia mínima: las piezas de 1 kg vibraban sin parar.
+  - Se agarran con las pistolas, los tiros los empujan y el tacho los borra (`muneco_generico.mjs` 6/6).
+- **La cámara al morir** sigue a tu muñeco (`jugador.js`; q55n3p6u; `camara_muneco.mjs` 2/2).
+- **El sacudón de las explosiones** es una vibración suave en los tres giros, no ruido al azar (`principal.js`; q55n3p6u).
+- **El chat sin teclado** en el celular: abrirlo no abre el teclado hasta tocar el campo (`ui.js`; 2b52vbp2).
+- **Bon the Rabbit se agachaba en campo abierto** (`gmod_api.js`; 3ydzqpjd; `bon_agacha.mjs` 5/5).
+  - Su IA mira con una traza desde los pies hacia arriba si hay techo bajo. Los triángulos del mapa se tocaban por los dos
+    lados y desde t = 0: la traza tocaba el piso del que salía, a 0 unidades, y se agachaba siempre (40 de 40 muestras).
+  - Ahora un rayo de Lua que sube no toca el triángulo acostado del que sale (a menos de 6 cm).
+  - `TraceHull` mira la caja con una línea por su centro y otra cerca de su techo, y si va para arriba o abajo, desde la
+    cara que va adelante; antes era una sola línea por los pies y la caja de parado y la de agachado eran la misma.
+- **Personajes importados «con sus huesos» que no cargaban** (`pjimportar.js`; yx3crm92; `importar_propio.mjs` 9/9).
+  - Más de 255 huesos (anime, MMD, VRChat): se quitan los que no mueven ningún vértice y, si siguen sobrando, las puntas que
+    no son del cuerpo pasan su peso al padre. Uno de prueba con 414 huesos queda en 161 y se ve igual.
+  - Los VRoid pasados a GLB (sin los datos de VRM) traen `J_Aim_R_UpperLeg` y `J_Bip_R_UpperLeg` colgando de la cadera: se
+    elegía el del ayudante, sin rodilla debajo, y no se reconocía el esqueleto. Ahora se saltean los ayudantes (aim, sec,
+    adj…), se prefiere el que tiene la parte siguiente debajo y el de nombre más limpio.
+  - **Arreglo de una regresión de la 3.9.13:** los importados salían blancos (la textura de la vista del arma pedía otra
+    clave de material). `gmvMallas` pide la resolución del arma sólo para la vista y sus manos.
+- **Pestaña Ragdolls** en el menú (`ui.js`, `gmod_rag.js`; za7gix4d, 582w89z5; `ragdolls_menu.mjs` 3/3, compu y celular).
+  - Los personajes del juego, una sección por addon y los personajes importados.
+  - Por addon: sus personajes (esqueleto humano) y cualquier modelo cuyo `.phy` traiga dos o más sólidos (se mira la
+    cabecera, 12 bytes; los de un addon que se lee de a pedazos se miran de a uno y la pestaña se rearma).
+  - No entran los props que el rig automático adivina como personas (una botella parada).
+  - El `.phy` ahora se lee junto con el modelo al ponerlo (`gmModeloFaltan`): antes un muñeco podía salir como prop duro.
+- **Importar props: GLB, GLTF, OBJ o el ZIP de Sketchfab** (`juego/propimportar.js`; f5piayqr).
+  - En Props → «Tus props importados» → «Importar prop»: nombre y tamaño (el del archivo si va de 5 cm a 20 m; si no, 1 m),
+    con una vista previa.
+  - Queda como un prop: cae, choca con el casco convexo de su malla, pesa según su tamaño y flota como la madera.
+  - Se guarda en el aparato (IndexedDB `jxmod-props`) y se borra con la cruz.
+  - En la sala, los demás lo piden y lo bajan de a pedazos, como los accesorios (54 KB en 3 s).
+  - Pruebas: `importar_prop.mjs` 9/9 (pato, farol, mesa en cm, caja en ZIP; al recargar siguen) y `red_prop.mjs` 5/5.
+- **Herramienta Cámara mejor** (`herramientas.js`; 582w89z5; `camara_tool.mjs` 6/6).
+  - Se pone donde apuntás o donde estás parado.
+  - Sobre algo que se mueve, queda pegada y viaja con eso.
+  - Clic derecho sobre alguien o algo: la última cámara lo sigue con la mirada, suave como un camarógrafo (o seco).
+  - Zoom por cámara.
+  - Mientras mirás por una, arriba dice cuál es y a quién sigue; el clic izquierdo vuelve a tus ojos.
+  - Los ajustes de las herramientas ahora pueden tener nombres traducidos (`l`, `ol`) y valor de entrada (`d`).
+- **Munición en la pestaña Armas** (`juego/municion.js`; q55n3p6u; `municion.mjs` 7/7).
+  - Las diez cajas de HL2 de la biblioteca de GMod, que se agarran pasando por encima.
+  - Abajo, «Munición limitada (como en GMod)», apagada: la reserva es infinita, como siempre.
+  - Prendida: cada tipo tiene su reserva (empieza con un poco, se gasta al recargar, las cajas la llenan y al reaparecer
+    vuelve a lo del principio), para las armas del juego y las de los addons (`GetAmmoCount`, `GiveAmmo`, `Ammo1`,
+    `DefaultReload`, `game.GetAmmoID`…).
+  - Las armas de los addons muestran abajo el cargador y la reserva, como el HUD de GMod.
+- **MMod** (q55n3p6u): «Half-Life 2: MMod Weapon Replacements» (1606822274) cambia los modelos `c_` de las armas de HL2.
+  - Los addons que usan esos modelos ya toman los de MMod (lo de un addon tiene prioridad sobre la biblioteca), y su Lua
+    carga sin errores.
+  - Las armas propias del juego todavía no: haría falta rearmar las de HL2 sobre la vista de GMod.
+
 ## JXMod 3.9.13: las ventanas de los mods, las texturas como en GMod y lo del panel del 23–24/11
 
 - Publicada con el paquete pk39e. **Sólo cambia el código del juego:** `version.json` 3913 con `"ota": {"apkMin": 3912}`:
