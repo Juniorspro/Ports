@@ -2,7 +2,7 @@
 //! pared de RB_Construct a 100 km/h (como pruebas/destruccion.mjs), una explosión al costado de otro auto, una nuclear
 //! (Little Boy) vista de lejos, la catapulta, la bomba de Rick Prime, la patada, la linterna, la cámara libre, volar, el
 //! muñeco, el SCP, el Cíclope y Pepe (forzado con JXM_PEPE). Saca fotos de cada cosa y escribe los números.
-//! Uso: jugabilidad_foto CARPETA [ANCHO ALTO]  (JXM_WWW, JXM_LETRAS y JXM_MOTOR como foto.rs; JXM_SOLO=destruccion,nuclear,hud,editor,…)
+//! Uso: jugabilidad_foto CARPETA [ANCHO ALTO]  (JXM_WWW, JXM_LETRAS y JXM_MOTOR como foto.rs; JXM_SOLO=destruccion,nuclear,hud,editor,tutorial,…)
 use glow::HasContext;
 use jxjuego::paquete::Paquete;
 use jxmod::comun::{Juego, Placa};
@@ -123,6 +123,19 @@ fn main() {
         j.ed_abrir(); tocar_barra(&mut j, AccEd::Fabrica); tocar_barra(&mut j, AccEd::Guardar); j.ajustes = None; paso(&mut j, &mut m, 2);
         let (sx2, sy2) = jxmod::comun::pos_boton(wf, hf, Boton::Saltar); println!("   de fábrica: salto en ({sx2:.0}, {sy2:.0}) · «{}»", j.aj.hud_pos);
         assert!((sx2 - sx0).abs() < 0.5 && (sy2 - sy0).abs() < 0.5 && j.aj.hud_pos.is_empty());
+    }
+    if hace("tutorial") {
+        // el tutorial (tutorial.js): la bienvenida, la palanca, el disparo, la pausa y el final, tocando Siguiente en la tarjeta
+        use jxmod::comun::tutorial_juego::{AccTut, PASOS};
+        let tocar = |j: &mut Juego, a: AccTut| { let r = j.tut_carta(wf, hf).unwrap().botones.into_iter().find(|x| x.0 == a).unwrap().2; j.dedo_abajo(80, r[0] + r[2] / 2.0, r[1] + r[3] / 2.0, wf, hf); j.dedo_arriba(80); };
+        j.tut_abrir(); paso(&mut j, &mut m, 2); foto(&mut m, "tut_0_bienvenida");
+        let nombres: Vec<&str> = j.tut.pasos.iter().map(|&k| PASOS[k].0).collect(); println!("tutorial: {} pasos: {}", nombres.len(), nombres.join(", "));
+        tocar(&mut j, AccTut::Siguiente); paso(&mut j, &mut m, 30); foto(&mut m, "tut_1_palanca");
+        while PASOS[j.tut.pasos[j.tut.i]].0 != "disparo" { tocar(&mut j, AccTut::Siguiente); } paso(&mut j, &mut m, 2); foto(&mut m, "tut_2_disparo");
+        while PASOS[j.tut.pasos[j.tut.i]].0 != "pausa" { tocar(&mut j, AccTut::Siguiente); } paso(&mut j, &mut m, 2); foto(&mut m, "tut_3_pausa");
+        tocar(&mut j, AccTut::Anterior); println!("   Anterior: {}", PASOS[j.tut.pasos[j.tut.i]].0); tocar(&mut j, AccTut::Siguiente); tocar(&mut j, AccTut::Siguiente); paso(&mut j, &mut m, 2); foto(&mut m, "tut_4_fin");
+        tocar(&mut j, AccTut::Siguiente); paso(&mut j, &mut m, 2);
+        println!("   cerrado: {} · visto (no sale solo otra vez): {}", !j.tut.on, j.aj.tut); assert!(!j.tut.on && j.aj.tut);
     }
     if hace("linterna") {
         boton(&mut j, Boton::Jg(Bj::Linterna)); j.poner_ojos([base[0], base[1] + 0.72, base[2]], j.jug.yaw, -0.5); paso(&mut j, &mut m, 3); foto(&mut m, "linterna"); println!("linterna: {}", j.jg.lint); boton(&mut j, Boton::Jg(Bj::Linterna)); j.jug.noclip = false;

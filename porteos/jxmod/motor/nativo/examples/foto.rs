@@ -216,7 +216,7 @@ fn main() {
     // los cuadros y lo anota; JXM_REFRESCO=Hz es el refresco de la pantalla que se supone —en la compu, 60—)
     if std::env::var("JXM_GFX_AUTO").is_ok() {
         j.gfx_medir = true; j.refresco = std::env::var("JXM_REFRESCO").ok().and_then(|v| v.parse().ok()).unwrap_or(60.0);
-        j.dt_fijo = None; j.aj.medido = None; j.aj.poner_calidad(2);
+        j.dt_fijo = None; j.aj.medido = None; j.aj.poner_calidad(2); j.aj.tut = true;
         let t = Instant::now(); let mut n = 0; let mut sacada = false;
         while n < 3000 { paso(&mut j, &mut m, 1); n += 1;
             if !sacada && j.gfxa.midiendo() && n > 5 { foto(&mut m, "9g_gfx_midiendo"); sacada = true; }

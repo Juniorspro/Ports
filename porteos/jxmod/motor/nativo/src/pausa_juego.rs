@@ -202,7 +202,7 @@ impl Juego {
             Pz::Borrar => { self.pz_borrar_todo(); self.ini.pz.abierta = false; self.avisar("Se borró todo".into()); }
             Pz::Salir => { self.ini.pz.abierta = false; self.lan_salir(); self.inicio_abrir(); }
             Pz::Arma => { self.ini.pz.abierta = false; self.arma_aj_abrir(); }
-            Pz::Tutorial => self.avisar("El tutorial todavía no está en la versión nativa".into()),
+            Pz::Tutorial => self.tut_abrir(),
             Pz::Guardar | Pz::Cargar => self.avisar("Guardar y cargar el mapa todavía no está en la versión nativa".into()),
             Pz::Vr => self.avisar("El modo VR todavía no está en la versión nativa".into()),
             Pz::Grabar => self.avisar("Grabar todavía no está en la versión nativa".into()),

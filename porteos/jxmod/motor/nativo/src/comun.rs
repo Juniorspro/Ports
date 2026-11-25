@@ -35,6 +35,8 @@ use herramientas::{Herramientas, Logica, Valor};
 #[path = "pausa_juego.rs"] pub mod pausa_juego;
 /// el HUD como el de la web: dónde va cada botón y sus íconos
 #[path = "hud_web.rs"] pub mod hud_web;
+/// el tutorial (tutorial.js)
+#[path = "tutorial_juego.rs"] pub mod tutorial_juego;
 // (los gráficos automáticos: gfxauto.js)
 #[path = "gfx_juego.rs"] pub mod gfx_juego;
 // (el pad de memes: memes.js)
@@ -268,6 +270,8 @@ pub struct Juego {
     pub jg: jugabilidad::Jugabilidad,
     /// el editor de los botones de la pantalla (hud_web.rs)
     pub ed: hud_web::Editor,
+    /// el tutorial abierto
+    pub tut: tutorial_juego::Tut,
     /// lo de personajes.rs
     pub pjs: personajes::Pjs,
     /// el inicio, los paneles y la pausa (inicio_juego.rs)
@@ -316,7 +320,7 @@ impl Juego {
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
             npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
-            her: Herramientas::default(), en_red, gmod, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), ed: hud_web::Editor::default(), pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
+            her: Herramientas::default(), en_red, gmod, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), ed: hud_web::Editor::default(), tut: Default::default(), pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
             armas_ico: false, armas_ico_h: 256, hud_ico: false, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         // los mapas: todos los de la web (DATA.esc), primero los RB (los de la versión personal); empieza en el último elegido
@@ -356,6 +360,7 @@ impl Juego {
         // (mientras se miden los gráficos está la pantalla de carga: no se toca nada)
         if self.gfxa.midiendo() { return; }
         if self.ed.activo { self.ed_abajo(id, x, y, w, h); return; }
+        if self.tut.on { self.tut_toque(x, y, w, h); return; }
         self.dedos.retain(|d| d.id != id);
         if self.ini_dedo_abajo(id, x, y, w, h) { return; }
         if self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel || self.gmod.panel || self.emotes_panel || self.jg.panel() || self.pjs.panel() { self.dedos.push(Dedo { id, palanca: false, boton: None, x0: x, y0: y, x, y }); return; }
@@ -963,6 +968,7 @@ impl Juego {
         // la Tool Gun: lo que se disparó, y lo que hacen las cosas que puso (en pausa, nada)
         if let Some(alt) = self.armas.herr.take() { self.herramienta_usar(m, alt); }
         if self.ajustes.is_none() && self.mapa.is_some() { self.herramientas_paso(m, dt); }
+        self.tut_paso(dt);
         let pend = std::mem::take(&mut self.pendientes);
         for n in pend { if let Err(e) = self.poner(m, &n, ojos, fw) { self.avisar(format!("{n}: {e}")); } }
         // el arma en la mano: el modelo del arma elegida, su clip (sacar; después quieto o sosteniendo) y el vaivén (armasPaso)
@@ -1066,6 +1072,7 @@ impl Juego {
         }
         let mut u = self.hud(w, h, placa_txt);
         unsafe { self.ini_hud(m, w, h, &mut u); }
+        self.tut_hud(&mut u, w, h);
         let r = m.dibujar(w, h, self.mapa.is_some(), &u);
         marca(&mut self.perf, &mut self.perf_t, 4);
         r

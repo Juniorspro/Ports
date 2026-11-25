@@ -128,7 +128,7 @@ pub fn palanca(w: f32, h: f32) -> (f32, f32, f32) {
 
 // ---- los íconos ----
 /// los de HUD_SVG (hud.js, viewBox 0 0 24 24), con «volar» propio (las alas y la flecha para arriba)
-pub const ICONOS: [(&str, &str); 31] = [
+pub const ICONOS: [(&str, &str); 32] = [
     ("pausa", r##"<rect x="6.5" y="5" width="4" height="14" rx="1.2" fill="#fff"/><rect x="13.5" y="5" width="4" height="14" rx="1.2" fill="#fff"/>"##),
     ("props", r##"<path d="M12 2.8l8 4.2v9.8l-8 4.4-8-4.4V7z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M4.3 7.2L12 11.4l7.7-4.2M12 11.4v9.4" fill="none" stroke="#fff" stroke-width="1.6" opacity=".8"/>"##),
     ("chat", r##"<path d="M4 5.5h16a1.5 1.5 0 0 1 1.5 1.5v8.5A1.5 1.5 0 0 1 20 17h-8.5L7 20.5V17H4a1.5 1.5 0 0 1-1.5-1.5V7A1.5 1.5 0 0 1 4 5.5z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><circle cx="8" cy="11.3" r="1.3" fill="#fff"/><circle cx="12" cy="11.3" r="1.3" fill="#fff"/><circle cx="16" cy="11.3" r="1.3" fill="#fff"/>"##),
@@ -159,6 +159,8 @@ pub const ICONOS: [(&str, &str); 31] = [
     ("disco", r##"<circle cx="12" cy="12" r="12" fill="#fff"/>"##),
     ("aro", r##"<circle cx="12" cy="12" r="11.7" fill="none" stroke="#fff" stroke-width="0.6"/>"##),
     ("caja", r##"<rect x="0" y="0" width="24" height="24" rx="2.9" fill="#fff"/>"##),
+    // (el velo del tutorial con el hueco redondo: el cuadrado lleno menos el círculo, dado vuelta)
+    ("hueco", r##"<path d="M0 0H24V24H0Z M12 0A12 12 0 0 0 0 12A12 12 0 0 0 12 24A12 12 0 0 0 24 12A12 12 0 0 0 12 0Z" fill="#fff"/>"##),
     ("caja_aro", r##"<rect x="0.3" y="0.3" width="23.4" height="23.4" rx="2.6" fill="none" stroke="#fff" stroke-width="0.6"/>"##),
     ("volar", r##"<path d="M11.4 9.6C9.6 6.4 6.6 4.6 2.2 4.4c.8 3.3 2.4 5.6 4.9 6.7-1.6.6-2.6 1.7-3.1 3.2 2.7.5 5.1-.2 7.4-2.4z" fill="#fff"/><path d="M12.6 9.6c1.8-3.2 4.8-5 9.2-5.2-.8 3.3-2.4 5.6-4.9 6.7 1.6.6 2.6 1.7 3.1 3.2-2.7.5-5.1-.2-7.4-2.4z" fill="#fff"/><path d="M12 8.6v11.4M9.4 17.4l2.6 2.6 2.6-2.6" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>"##),
 ];
@@ -182,7 +184,9 @@ pub fn atlas() -> &'static (u32, u32, Vec<u8>) {
 pub fn uv(nombre: &str) -> Option<[f32; 4]> {
     let i = ICONOS.iter().position(|x| x.0 == nombre)? as u32; let (aw, ah) = (COLS * LADO, (ICONOS.len() as u32).div_ceil(COLS).next_power_of_two() * LADO);
     let (cx, cy) = ((i % COLS) * LADO, (i / COLS) * LADO);
-    Some([cx as f32 / aw as f32, cy as f32 / ah as f32, (cx + LADO) as f32 / aw as f32, (cy + LADO) as f32 / ah as f32])
+    // (medio píxel adentro: el filtrado no toma el borde del vecino —se veía una costura alrededor del hueco del tutorial—)
+    let (cx, cy, e) = (cx as f32, cy as f32, 0.5); let l = LADO as f32;
+    Some([(cx + e) / aw as f32, (cy + e) / ah as f32, (cx + l - e) / aw as f32, (cy + l - e) / ah as f32])
 }
 
 #[cfg(test)]
@@ -230,6 +234,9 @@ mod pruebas {
         for i in 0..ICONOS.len() as u32 { let (cx, cy) = ((i % COLS) * LADO, (i / COLS) * LADO); let mut n = 0;
             for y in 0..LADO { for x in 0..LADO { if px[(((cy + y) * aw + cx + x) * 4 + 3) as usize] > 128 { n += 1; } } }
             assert!(n > 300, "{} casi vacío: {n}", ICONOS[i as usize].0); }
+        let i = ICONOS.iter().position(|x| x.0 == "hueco").unwrap() as u32; let (cx, cy) = ((i % COLS) * LADO, (i / COLS) * LADO);
+        let a = |x: u32, y: u32| px[(((cy + y) * aw + cx + x) * 4 + 3) as usize];
+        assert!(a(LADO / 2, LADO / 2) < 5 && a(1, 1) > 250 && a(LADO - 2, LADO - 2) > 250, "el hueco: medio {} esquina {}", a(LADO / 2, LADO / 2), a(1, 1));
     }
 }
 
@@ -242,6 +249,7 @@ const NEGRO_T: [f32; 4] = [20.0 / 255.0, 20.0 / 255.0, 20.0 / 255.0, 1.0];
 /// la textura del atlas del HUD
 pub const TEX_HUD: i64 = -2003;
 fn pieza(v: &mut Vec<f32>, n: &str, x: f32, y: f32, w: f32, h: f32, col: [f32; 4]) { if let Some(uv) = uv(n) { super::rect_uv(v, x, y, w, h, uv, col); } }
+pub(super) fn pieza_pub(v: &mut Vec<f32>, n: &str, x: f32, y: f32, w: f32, h: f32, col: [f32; 4]) { pieza(v, n, x, y, w, h, col) }
 /// la sombra de abajo de un botón (box-shadow: 0 2px 10px rgba(0,0,0,.28)): capas apenas oscuras, cada vez más grandes
 fn sombra(v: &mut Vec<f32>, n: &str, x: f32, y: f32, w: f32, h: f32, c: f32) {
     for k in [6.0f32, 4.0, 2.0] { let e = k * c; pieza(v, n, x - e, y - e + 2.0 * c, w + 2.0 * e, h + 2.0 * e, [0.0, 0.0, 0.0, 0.045]); }
