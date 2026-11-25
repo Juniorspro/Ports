@@ -5489,6 +5489,12 @@ Todo en el código del juego; se prueba con `pruebas/` (entre paréntesis, la pr
     vuelve a lo del principio), para las armas del juego y las de los addons (`GetAmmoCount`, `GiveAmmo`, `Ammo1`,
     `DefaultReload`, `game.GetAmmoID`…).
   - Las armas de los addons muestran abajo el cargador y la reserva, como el HUD de GMod.
+- **El celular con más usos** (`celular.js`; 9iipm4vz; `celular_apps.mjs` 6/6, compu y celular).
+  - Autos: los vehículos del menú (los del juego y los de los addons); tocar uno lo pone delante.
+  - Radar: vos en el centro (la flecha, adelante es arriba), los jugadores de la sala en azul con su nombre, los NPC en
+    rojo, los nextbots en violeta, los vehículos en amarillo y los props en gris; con zoom.
+  - Hora: amanecer, mediodía, atardecer, noche, la barra y «que el tiempo corra solo»; en una sala sólo el anfitrión.
+  - Linterna: un toque la prende o la apaga.
 - **MMod** (q55n3p6u): «Half-Life 2: MMod Weapon Replacements» (1606822274) cambia los modelos `c_` de las armas de HL2.
   - Los addons que usan esos modelos ya toman los de MMod (lo de un addon tiene prioridad sobre la biblioteca), y su Lua
     carga sin errores.
