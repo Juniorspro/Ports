@@ -102,6 +102,6 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | grabar.js | ✘ | |
 | vr.js, manos_jx.js | ✘ | |
 | pepe_vuelve.js | ◐ | nativo/pepe_juego.rs (la cinta VHS, aproximada con el HUD: vhs.js no está) |
-| evento.js | ✘ | |
+| evento.js | ◐ (la grieta en el cielo de los mapas del juego —la misma forma, las vetas y el resplandor horneados igual que la web, píxel a píxel, con el tono de la web sobre el cielo del juego— en el pase del cielo del motor, y las caídas: de 1 a 6 cada 100 a 260 s, con estela de fuego y humo, luz, silbido, golpe con polvo y temblor, la cosa de verdad o la explosión, las 12 últimas. Falta: el pulso que corre por las vetas y el parpadeo de las líneas —quedan quietos—, y en una sala no caen: el reparto por la red no está) | nativo/grieta_juego.rs |
 | ev300*.js (evento terminado) | — | |
 | ios.js, suelto.js, inflar.js | — | sólo de la web |

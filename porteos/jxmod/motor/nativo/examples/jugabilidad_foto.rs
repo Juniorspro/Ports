@@ -2,7 +2,7 @@
 //! pared de RB_Construct a 100 km/h (como pruebas/destruccion.mjs), una explosión al costado de otro auto, una nuclear
 //! (Little Boy) vista de lejos, la catapulta, la bomba de Rick Prime, la patada, la linterna, la cámara libre, volar, el
 //! muñeco, el SCP, el Cíclope y Pepe (forzado con JXM_PEPE). Saca fotos de cada cosa y escribe los números.
-//! Uso: jugabilidad_foto CARPETA [ANCHO ALTO]  (JXM_WWW, JXM_LETRAS y JXM_MOTOR como foto.rs; JXM_SOLO=destruccion,nuclear,hud,editor,tutorial,…)
+//! Uso: jugabilidad_foto CARPETA [ANCHO ALTO]  (JXM_WWW, JXM_LETRAS y JXM_MOTOR como foto.rs; JXM_SOLO=destruccion,nuclear,hud,editor,tutorial,grieta,…)
 use glow::HasContext;
 use jxjuego::paquete::Paquete;
 use jxmod::comun::{Juego, Placa};
@@ -136,6 +136,22 @@ fn main() {
         tocar(&mut j, AccTut::Anterior); println!("   Anterior: {}", PASOS[j.tut.pasos[j.tut.i]].0); tocar(&mut j, AccTut::Siguiente); tocar(&mut j, AccTut::Siguiente); paso(&mut j, &mut m, 2); foto(&mut m, "tut_4_fin");
         tocar(&mut j, AccTut::Siguiente); paso(&mut j, &mut m, 2);
         println!("   cerrado: {} · visto (no sale solo otra vez): {}", !j.tut.on, j.aj.tut); assert!(!j.tut.on && j.aj.tut);
+    }
+    if hace("grieta") {
+        // la grieta (evento.js) en un mapa del juego: mirarla, hacer caer cosas y ver la caída, el golpe y lo que queda
+        if let Some(mapa) = j.mapas.iter().find(|m| jxmod::comun::grieta_juego::con_caidas(m) && ["Desert", "FlatGrass", "RB_Llanura", "City"].contains(&m.as_str())).cloned() {
+            j.poner_mapa(&mapa); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 90);
+            let d = j.gr.dir; let o = [j.jug.pos[0], j.jug.pos[1] + 0.72, j.jug.pos[2]];
+            j.poner_ojos(o, d[0].atan2(d[2]), d[1].asin() * 0.8); paso(&mut j, &mut m, 3); foto(&mut m, "grieta_cielo");
+            println!("grieta en {mapa}: dir {:?} · cargada {} · exposición del mapa {:?}", d, j.gr.cargada, j.mapa.as_ref().map(|m| m.luz.expo));
+            let n = j.grieta_forzar(3); let objs0 = j.objs.len(); println!("   caen {n}: {:?}", j.grieta_cayendo().iter().map(|c| c.0.clone()).collect::<Vec<_>>());
+            let mut sacada = false;
+            for f in 0..360 { paso(&mut j, &mut m, 1);
+                let l = j.grieta_cayendo(); if let Some(c) = l.iter().find(|c| c.2 == 1) { if !sacada && f > 120 { let p = c.1; let o = [j.jug.pos[0], j.jug.pos[1] + 0.72, j.jug.pos[2]]; let dd = [p[0] - o[0], p[1] - o[1], p[2] - o[2]]; let ll = (dd[0] * dd[0] + dd[1] * dd[1] + dd[2] * dd[2]).sqrt(); j.poner_ojos(o, dd[0].atan2(dd[2]), (dd[1] / ll).asin()); paso(&mut j, &mut m, 1); foto(&mut m, "grieta_cae"); sacada = true; } } }
+            let l = j.grieta_cayendo(); println!("   después de 6 s: {} en la cola, {} objetos más (antes {objs0}, ahora {})", l.len(), j.objs.len() as i64 - objs0 as i64, j.objs.len());
+            if let Some((p, nombre)) = j.objs.last().map(|o| (o.pos, o.nombre.clone())) { let e = [j.jug.pos[0], j.jug.pos[1] + 0.72, j.jug.pos[2]]; let dd = [p[0] - e[0], p[1] - e[1], p[2] - e[2]]; let ll = (dd[0] * dd[0] + dd[1] * dd[1] + dd[2] * dd[2]).sqrt();
+                j.poner_ojos(e, dd[0].atan2(dd[2]), (dd[1] / ll).asin()); paso(&mut j, &mut m, 2); foto(&mut m, "grieta_quedo"); println!("   quedó {} a {:.1} m", nombre, ll); }
+        } else { println!("grieta: no hay un mapa con grieta en este paquete"); }
     }
     if hace("linterna") {
         boton(&mut j, Boton::Jg(Bj::Linterna)); j.poner_ojos([base[0], base[1] + 0.72, base[2]], j.jug.yaw, -0.5); paso(&mut j, &mut m, 3); foto(&mut m, "linterna"); println!("linterna: {}", j.jg.lint); boton(&mut j, Boton::Jg(Bj::Linterna)); j.jug.noclip = false;
