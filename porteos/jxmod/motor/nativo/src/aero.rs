@@ -271,6 +271,16 @@ pub fn boton(p: &mut Pincel, r: [f32; 4], u: f32, txt: &str, ico: Option<&'stati
     p.texto_max(Cara::S4, tam, x0 + iw, base, col, 0.0, txt, w - 8.0 * u - iw);
 }
 
+/// el botón principal sobre el vidrio oscuro: azul con brillo (la mitad de arriba clara) y un resplandor celeste abajo
+pub fn boton_azul(p: &mut Pincel, r: [f32; 4], u: f32, apretado: bool) {
+    let (x, y, w, h) = (r[0], r[1], r[2], r[3]); let rr = [3.0 * u; 4]; let c = camino(x, y, w, h, rr); let g = (0.75 * u).max(1.0);
+    let k = if apretado { 0.78 } else { 1.0 }; let f = |c: u32| { let v = hex(c); [v[0] * k, v[1] * k, v[2] * k, 1.0] };
+    p.degrade(&c, true, y, y + h, &[(0.0, f(0x86c6ff)), (0.5, f(0x3a8ee6)), (0.5, f(0x1b6acc)), (1.0, f(0x3d97f0))]);
+    p.con_recorte(p.a_pantalla(r), |p| p.nube(x + w * 0.2, y + h * 0.88, w * 0.6, h * 0.12, h * 0.45, hexa(0xa8e4ff, if apretado { 0.3 } else { 0.5 }), true));
+    p.contorno(x, y, w, h, rr, g, hex(0x0a2b5e));
+    p.contorno(x + g, y + g, w - 2.0 * g, h - 2.0 * g, rr.map(|v| (v - g).max(0.0)), g, blanco(0.42));
+}
+
 /// un botón de vidrio (los de la barra de tareas y los que van sobre el vidrio)
 pub fn boton_vidrio(p: &mut Pincel, r: [f32; 4], u: f32, apretado: bool, activo: bool) {
     let (x, y, w, h) = (r[0], r[1], r[2], r[3]); let rr = [3.0 * u; 4]; let c = camino(x, y, w, h, rr); let g = (0.75 * u).max(1.0);

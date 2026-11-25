@@ -5,15 +5,10 @@
 //! Social) encima del juego y «Volver» vuelve a la pausa. Y la pantalla de carga al empezar una partida (la foto del mapa,
 //! el logo y su nombre).
 use super::*;
-use super::inicio_juego::{AMA, NEGRO, TX};
+use super::inicio_juego::{AMA, TX};
 use super::paneles_juego::PanelIni;
-use crate::pincel::{self, rgba, con_a, Cara, Col, Pincel};
+use crate::pincel::{rgba, con_a, Cara, Col, Pincel};
 
-const PZ_PL: Col = rgba(0x0c0d0f, 0.96);
-const PZ_TAR: Col = rgba(0x1b1c1f, 1.0);
-const PZ_BTN: Col = rgba(0x26272b, 1.0);
-const PZ_T2: Col = rgba(0xaeaca6, 1.0);
-const PZ_RO: Col = rgba(0xff8a7e, 1.0);
 
 /// lo que se toca en la pausa
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -74,74 +69,56 @@ impl Juego {
         ver.then_some(self.ini.pz.apretado == Some(Pz::Boton))
     }
     /// la pausa: el velo, la caja, Seguir, las tarjetas y el pie
+    /// la pausa como el menú de escape de GMod: el juego oscurecido detrás, el logo y la lista grande a la izquierda (Seguir
+    /// jugando y Salir al menú arriba), un panel de vidrio con la partida a la derecha y la barra de tareas de vidrio abajo
+    /// (el orbe sigue jugando; Guardar, Cargar, VR y Grabar; el modo y los cuadros por segundo)
     fn pz_dibujar(&mut self, p: &mut Pincel, w: f32, h: f32) {
-        let mut z = vec![]; let t = self.ini.reloj - self.ini.pz.t0;
-        let k = inicio_juego::bezier(0.2, 0.8, 0.2, 1.0, inicio_juego::prog(t, 0.0, 0.25));
-        p.rect(0.0, 0.0, w, h, rgba(0x050608, 0.55 * k));
-        let chico = h < 500.0; let cw = 620.0f32.min(w - 24.0); let ch = (0.088 * h).clamp(44.0, 52.0); let ftit = (0.036 * h).clamp(21.0, 24.0); let fseg = (0.034 * h).clamp(18.0, 20.0);
-        let tar_h = if chico { 77.0 } else { 92.0 }; let pad_g = if chico { 10.0 } else { 14.0 };
-        let alto = 1.0 + ch + 12.0 + ch + 8.0 + 2.0 * tar_h + 6.0 + pad_g + 1.0 + 10.0 + 44.0 + 10.0 + 1.0;
-        let (x0, y0) = ((w - cw) / 2.0, ((h - alto) / 2.0).max(4.0));
-        p.con(pincel::mm(pincel::mover(0.0, 10.0 * (1.0 - k)), IDENT_), |p| p.con_alfa(k, |p| {
-            p.rect(x0, y0, cw, alto, PZ_PL); p.grano(x0, y0, cw, alto, x0, y0, 0.6); p.borde(x0, y0, cw, alto, 1.0, rgba(0xefede7, 0.12));
-            let (x, y) = (x0 + 1.0, y0 + 1.0); let iw = cw - 2.0;
-            // (la cabecera: el cuadrado amarillo con la pausa, «PAUSA», el modo y la X)
-            p.rect(x, y, ch, ch, AMA); let l = ch * 18.0 / 52.0; p.icono("pausa", x + (ch - l) / 2.0, y + (ch - l) / 2.0, l, 3.2, NEGRO);
-            let base = p.at.base_centrada(Cara::O6, ftit, ftit * 1.3, y, ch); let wt = p.texto(Cara::O6, ftit, x + ch + 14.0, base, TX, 0.03, "PAUSA");
-            let modo = if self.en_red.en_sala() { self.en_red.red.sala.as_ref().map(|s| s.n.clone()).unwrap_or_default() } else { "Un solo jugador".into() };
-            let fm = 12.0; let wm = p.at.ancho(Cara::O5, fm, 0.08, &modo.to_uppercase()) + 16.0; let rm = [x + ch + 14.0 + wt + 14.0, y + (ch - 23.6) / 2.0, wm, 23.6];
-            p.borde(rm[0], rm[1], rm[2], rm[3], 1.0, rgba(0xefede7, 0.12)); p.texto(Cara::O5, fm, rm[0] + 8.0, p.at.base_centrada(Cara::O5, fm, fm * 1.2, rm[1], rm[3]), PZ_T2, 0.08, &modo.to_uppercase());
-            let rx = [x + iw - 12.0 - 40.0, y + (ch - 40.0) / 2.0, 40.0, 40.0]; p.rect(rx[0], rx[1], rx[2], rx[3], if self.ini.pz.apretado == Some(Pz::Cerrar) { rgba(0x303137, 1.0) } else { PZ_BTN });
-            p.icono("no", rx[0] + 11.0, rx[1] + 11.0, 18.0, 2.4, TX); z.push((rx, Pz::Cerrar));
-            // (Seguir)
-            let rs = [x + 14.0, y + ch + 12.0, iw - 28.0, ch]; self.pz_golpe(p, Pz::Seguir, rs, |p| {
-                p.rect(rs[0], rs[1], rs[2], rs[3], if self.ini.pz.apretado == Some(Pz::Seguir) { rgba(0xffc531, 1.0) } else { AMA });
-                p.icono("jugar", rs[0] + 15.0, rs[1] + (rs[3] - 20.0) / 2.0, 20.0, 2.2, NEGRO);
-                p.texto(Cara::O6, fseg, rs[0] + 48.0, p.at.base_centrada(Cara::O6, fseg, fseg, rs[1], rs[3]), NEGRO, 0.05, "SEGUIR"); });
-            z.push((rs, Pz::Seguir));
-            // (las tarjetas, tres por fila)
-            let tars = [(Pz::Personaje, "persona", "Personaje", "Cambiar skin"), (Pz::Arma, "pistola", "Arma en la mano", "Equipar"), (Pz::Social, "gente", "Social", "Amigos y chats"),
-                (Pz::Ajustes, "ajustes", "Ajustes", "Controles y gráficos"), (Pz::Tutorial, "pregunta", "Ver el tutorial", "Aprendé a jugar"), (Pz::Borrar, "basura", "Borrar todo", "Limpiar el mapa")];
-            let gy = rs[1] + rs[3] + 8.0; let tw = (iw - 28.0 - 12.0) / 3.0;
-            for (i, (pz, ic, tit, sub)) in tars.iter().enumerate() {
-                let r = [x + 14.0 + (i % 3) as f32 * (tw + 6.0), gy + (i / 3) as f32 * (tar_h + 6.0), tw, tar_h]; let rojo = *pz == Pz::Borrar;
-                self.pz_golpe(p, *pz, r, |p| {
-                    p.rect(r[0], r[1], r[2], r[3], if self.ini.pz.apretado == Some(*pz) { rgba(0x26272b, 1.0) } else { PZ_TAR });
-                    let (pl, pt, li) = if chico { (14.0, 9.0, 20.0) } else { (16.0, 12.0, 22.0) };
-                    p.icono(ic, r[0] + pl, r[1] + pt, li, 1.9, if rojo { PZ_RO } else { PZ_T2 });
-                    let yb = r[1] + pt + li + if chico { 3.0 } else { 10.0 };
-                    p.texto_max(Cara::O5, 16.0, r[0] + pl, p.at.base_centrada(Cara::O5, 16.0, 20.8, yb, 20.8), if rojo { PZ_RO } else { TX }, 0.03, &tit.to_uppercase(), r[2] - pl - 8.0);
-                    let (a, d) = p.at.metricas(Cara::S4, 12.0); p.texto(Cara::S4, 12.0, r[0] + pl, yb + 20.8 + (16.2 - a - d) / 2.0 + a, PZ_T2, 0.0, sub);
-                });
-                z.push((r, *pz));
-            }
-            // (el pie: Salir al menú, Guardar, Cargar, VR, Grabar y los fps)
-            let py = gy + 2.0 * tar_h + 6.0 + pad_g; p.rect(x, py, iw, 1.0, rgba(0xefede7, 0.12));
-            let by = py + 1.0 + 10.0; let f = 14.0; let mut bx = x + 14.0;
-            let pie = [(Pz::Salir, "salir", "Salir al menú"), (Pz::Guardar, "guardar", "Guardar"), (Pz::Cargar, "subir", "Cargar"), (Pz::Vr, "vr", "VR"), (Pz::Grabar, "", "Grabar")];
-            let fps = format!("{:.0} FPS", self.fps); let wf_ = p.at.ancho(Cara::O5, 12.0, 0.08, &fps);
-            let anchos: Vec<f32> = pie.iter().map(|(_, _, s)| 28.0 + 16.0 + 8.0 + p.at.ancho(Cara::O5, f, 0.05, &s.to_uppercase())).collect();
-            let sobra = iw - 28.0 - wf_ - 6.0 * pie.len() as f32 - anchos.iter().sum::<f32>();
-            for (k, (pz, ic, s)) in pie.iter().enumerate() {
-                let mut bw = anchos[k]; if k == 0 && sobra < 0.0 { bw += sobra; }
-                let r = [bx, by, bw.max(44.0), 44.0];
-                self.pz_golpe(p, *pz, r, |p| {
-                    p.rect(r[0], r[1], r[2], r[3], if self.ini.pz.apretado == Some(*pz) { rgba(0x303137, 1.0) } else { PZ_BTN });
-                    if ic.is_empty() { p.disco(r[0] + 14.0 + 8.0, r[1] + 22.0, 5.0, rgba(0xff5a50, 1.0)); } else { p.icono(ic, r[0] + 14.0, r[1] + 14.0, 16.0, 2.2, TX); }
-                    let txt = s.to_uppercase(); let wmax = r[2] - 14.0 - 16.0 - 8.0 - 8.0;
-                    if p.at.ancho(Cara::O5, f, 0.05, &txt) > wmax { let rs = p.at.renglones(Cara::O5, f, 0.05, &txt, wmax); let n = rs.len() as f32;
-                        for (j, rr) in rs.iter().enumerate() { p.texto_c(Cara::O5, f, r[0] + 38.0 + wmax / 2.0, r[1] + 22.0 - n * 7.0 + j as f32 * 14.0 + 11.0, TX, 0.05, rr); } }
-                    else { p.texto(Cara::O5, f, r[0] + 38.0, p.at.base_centrada(Cara::O5, f, f, r[1], r[3]), TX, 0.05, &txt); }
-                });
-                z.push((r, *pz)); bx += r[2] + 6.0;
-            }
-            p.texto(Cara::O5, 12.0, bx, p.at.base_centrada(Cara::O5, 12.0, 12.0, by, 44.0), rgba(0x8f8d88, 1.0), 0.08, &fps);
-        }));
+        use super::aero::{self, blanco, hex, negro, Aero, BLANCO};
+        use super::inicio_aero::{botones_barra, lista_gmod, Op};
+        let mut z = vec![]; let t = self.ini.reloj - self.ini.pz.t0; let u = aero::unidad(w, h); let ins = self.ini.ins;
+        let anim = self.ini.nivel != inicio_juego::Nivel::Quieto;
+        let ent = |d: f32, dur: f32| if anim { let k = inicio_juego::prog(t, d, dur); 1.0 - (1.0 - k).powi(3) } else { 1.0 };
+        let k = ent(0.0, 0.25); let apr = |pz: Pz| self.ini.pz.apretado == Some(pz);
+        p.rect(0.0, 0.0, w, h, negro(0.5 * k)); p.degrade_h(0.0, 0.0, w, h, &[(0.0, negro(0.45 * k)), (0.55, negro(0.0))]);
+        let x0 = ins[0] + 30.0 * u; let y_top = ins[2] + 16.0 * u; let tb = 34.0 * u; let y_tb = h - ins[3] - tb; let alto_logo = 54.0 * u;
+        if let Some((id, lw, lh)) = self.ini_foto("logo") { let an = alto_logo * lw / lh; p.con_alfa(k, |p| p.foto(id, x0 - 2.0 * u, y_top - (1.0 - k) * 8.0 * u, an, alto_logo, BLANCO)); }
+        // (la lista)
+        let ops: [(Pz, &str, usize, Col); 8] = [(Pz::Seguir, "Seguir jugando", 0, BLANCO), (Pz::Salir, "Salir al menú", 0, BLANCO), (Pz::Personaje, "Personaje", 1, BLANCO),
+            (Pz::Arma, "Arma en la mano", 1, BLANCO), (Pz::Social, "Social", 1, BLANCO), (Pz::Ajustes, "Opciones", 2, BLANCO), (Pz::Tutorial, "Ver el tutorial", 2, BLANCO), (Pz::Borrar, "Borrar todo", 3, hex(0xff9a8e))];
+        let lista: Vec<Op> = ops.iter().map(|o| Op { txt: o.1, grupo: o.2, col: o.3, apretada: apr(o.0) }).collect();
+        let y_l = y_top + alto_logo + 14.0 * u;
+        let (rs, ancho) = lista_gmod(p, u, x0, y_l, y_tb - 8.0 * u - y_l, &lista, &ent);
+        for (r, o) in rs.into_iter().zip(ops.iter()) { z.push((r, o.0)); }
+        // (la partida, a la derecha)
+        let modo = if self.en_red.en_sala() { self.en_red.red.sala.as_ref().map(|s| s.n.clone()).unwrap_or_default() } else { "Un solo jugador".into() };
+        let gw = 206.0 * u; let gx = w - ins[1] - 16.0 * u - gw;
+        if gx > x0 + ancho + 40.0 * u {
+            let kg = ent(0.3, 0.45); let r = [gx + (1.0 - kg) * 30.0 * u, y_top, gw, 74.0 * u];
+            let mapa = self.mapas.get(self.mapa_i).map(|m| super::paneles_juego::nombre_mapa(m)).unwrap_or_default();
+            p.con_alfa(kg, |p| {
+                aero::tarjeta(p, r, u, false);
+                p.icono("mapa", r[0] + 10.0 * u, r[1] + 8.0 * u, 14.0 * u, 2.2, hex(0x8cc8ff));
+                p.texto_sombra(Cara::S7, 12.5 * u, r[0] + 30.0 * u, r[1] + 19.5 * u, BLANCO, "Partida", u);
+                p.rect(r[0] + 10.0 * u, r[1] + 27.0 * u, gw - 20.0 * u, (0.75 * u).max(1.0), blanco(0.22));
+                p.texto_max(Cara::S7, 13.0 * u, r[0] + 11.0 * u, r[1] + 46.0 * u, BLANCO, 0.0, &mapa, gw - 22.0 * u);
+                p.texto_max(Cara::S4, 11.5 * u, r[0] + 11.0 * u, r[1] + 63.0 * u, blanco(0.78), 0.0, &modo, gw - 22.0 * u);
+            });
+        }
+        // (la barra de tareas)
+        aero::barra_tareas(p, [0.0, y_tb, w, h - y_tb], u);
+        let (ocx, ocy, ora) = (ins[0] + 25.0 * u, y_tb + tb / 2.0 - 1.5 * u, 17.0 * u);
+        aero::orbe(p, ocx, ocy, ora, u, apr(Pz::Seguir)); z.push(([ocx - ora - 6.0 * u, y_tb, ora * 2.0 + 12.0 * u, tb], Pz::Seguir));
+        let tn = 11.5 * u; let fps = format!("{:.0} FPS", self.fps);
+        let rw = p.at.ancho(Cara::S4, tn, 0.0, &modo).min(150.0 * u).max(p.at.ancho(Cara::S4, 10.5 * u, 0.0, &fps)) + 24.0 * u; let ax = w - ins[1] - rw; let g = (0.75 * u).max(1.0);
+        p.rect(ax, y_tb + 2.0 * g, rw + ins[1], tb - 2.0 * g, negro(0.22)); p.rect(ax, y_tb + 2.0 * g, g, tb - 2.0 * g, negro(0.5)); p.rect(ax + g, y_tb + 2.0 * g, g, tb - 2.0 * g, blanco(0.16));
+        p.texto_max(Cara::S4, tn, ax + 12.0 * u, y_tb + tb * 0.45, BLANCO, 0.0, &modo, 150.0 * u);
+        p.texto(Cara::S4, 10.5 * u, ax + 12.0 * u, y_tb + tb * 0.83, blanco(0.78), 0.0, &fps);
+        let bh = 26.0 * u; let by = y_tb + (tb - bh) / 2.0 + 0.5 * u;
+        let bt = [(Pz::Guardar, "guardar", "Guardar"), (Pz::Cargar, "subir", "Cargar"), (Pz::Vr, "vr", "VR"), (Pz::Grabar, "video", "Grabar")];
+        let datos: Vec<(&'static str, &str, bool)> = bt.iter().map(|b| (b.1, b.2, apr(b.0))).collect();
+        let rs = botones_barra(p, u, ocx + ora + 12.0 * u, ax - 8.0 * u, by, bh, &datos);
+        for (r, b) in rs.into_iter().zip(bt.iter()) { z.push((r, b.0)); }
         self.ini.pz.zonas = z;
-    }
-    fn pz_golpe(&self, p: &mut Pincel, pz: Pz, r: [f32; 4], f: impl FnOnce(&mut Pincel)) {
-        let mut k = 0.0; if let Some((g, t0)) = self.ini.pz.golpe { if g == pz { let x = ((self.ini.reloj - t0) / 0.2).clamp(0.0, 1.0); k = if x < 0.35 { x / 0.35 } else { 1.0 - (x - 0.35) / 0.65 }; } }
-        let s = 1.0 - 0.035 * k; p.con(pincel::escalar_en(s, s, r[0] + r[2] / 2.0, r[1] + r[3] / 2.0), f);
     }
     /// las fotos de la pantalla de carga: la del mapa (carga/x.webp) o su ícono
     fn pz_foto_carga(&self) -> Vec<String> {
@@ -194,7 +171,7 @@ impl Juego {
         true
     }
     /// abrir la pausa (abrirPausa)
-    pub fn pz_abrir(&mut self) { self.ini.pz.abierta = true; self.ini.pz.t0 = self.ini.reloj; self.dedos.clear(); }
+    pub fn pz_abrir(&mut self) { self.ini_pedir_foto("logo"); self.ini.pz.abierta = true; self.ini.pz.t0 = self.ini.reloj; self.dedos.clear(); }
     fn pz_accion(&mut self, a: Pz) {
         match a {
             Pz::Boton => self.pz_abrir(),
@@ -219,7 +196,6 @@ impl Juego {
         self.npcs.todos(&mut self.fis); self.pila.clear(); self.proys.clear(); self.por_explotar.clear();
     }
 }
-const IDENT_: [f32; 6] = pincel::IDENT;
 impl super::inicio_juego::Inicio {
     /// (para las pruebas) dónde está algo de la pausa
     pub fn pz_zona(&self, p: Pz) -> Option<[f32; 4]> { self.pz.zonas.iter().find(|z| z.1 == p).map(|z| z.0) }

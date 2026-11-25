@@ -14,7 +14,6 @@ use std::cell::Cell;
 /// los colores de la web (--jxA, --jxT, --clPl, --clPl2 y el texto sobre amarillo)
 pub(super) const AMA: Col = rgba(0xf2b31b, 1.0);
 pub(super) const TX: Col = rgba(0xefede7, 1.0);
-pub(super) const NEGRO: Col = rgba(0x121212, 1.0);
 
 /// las opciones del menú, en el orden de la 3.3 (CL_K), su texto y su ícono (CL_ICO); los grupos (CL_G): 3, 4 y 1
 pub const CL_K: [&str; 8] = ["nueva", "multi", "social", "tienda", "crear", "personajes", "opciones", "salir"];
@@ -295,9 +294,13 @@ impl Juego {
             { let mut p = Pincel::nuevo(&at, &mut ico, &mut gl); let f = (0.034 * h).clamp(14.0, 18.0);
               if let Some((a, ta)) = &self.aviso { let t = ta.elapsed().as_secs_f32(); if t < 4.0 { let k = (t / 0.2).min(1.0) * ((4.0 - t) / 0.3).min(1.0);
                   let rs = at.renglones(Cara::S4, f, 0.0, a, (w * 0.7).min(620.0)); let ancho = rs.iter().map(|x| at.ancho(Cara::S4, f, 0.0, x)).fold(0.0f32, f32::max); let lh = f * 1.4;
-                  let (cw, ch) = (ancho + f * 2.4, rs.len() as f32 * lh + f * 1.4); let (x0, y0) = ((w - cw) / 2.0, h * 0.62);
-                  p.con_alfa(k, |p| { p.rect(x0 + 4.0, y0 + 4.0, cw, ch, [0.0, 0.0, 0.0, 0.5]); p.rect(x0, y0, cw, ch, rgba(0x0c0d0f, 0.96)); p.rect(x0, y0, 4.0, ch, AMA); p.borde(x0, y0, cw, ch, 1.0, rgba(0xefede7, 0.12));
-                      for (i, rr) in rs.iter().enumerate() { let base = p.at.base_centrada(Cara::S4, f, lh, y0 + f * 0.7 + i as f32 * lh, lh); p.texto(Cara::S4, f, x0 + f * 1.2, base, TX, 0.0, rr); } }); } }
+                  let (cw, ch) = (ancho + f * 3.0, rs.len() as f32 * lh + f * 1.4); let (x0, y0) = ((w - cw) / 2.0, h * 0.62);
+                  // (como los globos de aviso de Vista: blanco a celeste, el borde gris, la sombra suave y el texto oscuro)
+                  p.con_alfa(k, |p| { use aero::Aero; let u = aero::unidad(w, h); let ra = [4.0 * u; 4]; let c = aero::camino(x0, y0, cw, ch, ra);
+                      p.nube(x0, y0 + 2.0 * u, cw, ch, 10.0 * u, [0.0, 0.0, 0.0, 0.35], false);
+                      p.degrade(&c, true, y0, y0 + ch, &[(0.0, rgba(0xffffff, 1.0)), (1.0, rgba(0xe3ebf6, 1.0))]); p.contorno(x0, y0, cw, ch, ra, 1.0, rgba(0x767676, 1.0));
+                      p.icono("info", x0 + f * 0.55, y0 + (ch - f * 1.1) / 2.0, f * 1.1, 2.2, rgba(0x1c5fb0, 1.0));
+                      for (i, rr) in rs.iter().enumerate() { let base = p.at.base_centrada(Cara::S4, f, lh, y0 + f * 0.7 + i as f32 * lh, lh); p.texto(Cara::S4, f, x0 + f * 2.1, base, aero::TXT, 0.0, rr); } }); } }
               if let Some(e) = &self.error { let rs = at.renglones(Cara::S4, f, 0.0, e, w * 0.8); let ch = (rs.len() + 1) as f32 * f * 1.4 + f; p.rect(w * 0.08, h * 0.3, w * 0.84, ch, rgba(0x5a0000, 0.9));
                   p.texto(Cara::S7, f, w * 0.1, h * 0.3 + f * 1.4, rgba(0xffd84d, 1.0), 0.0, "Algo salió mal (sacale una captura):");
                   for (i, rr) in rs.iter().enumerate() { p.texto(Cara::S4, f, w * 0.1, h * 0.3 + f * 1.4 * (i as f32 + 2.0), TX, 0.0, rr); } }

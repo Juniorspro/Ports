@@ -204,6 +204,8 @@ impl Atlas {
     /// el ancho de un texto de letra `tam` con `esp` em de espacio entre letras (letter-spacing de CSS: también después de la
     /// última)
     pub fn ancho(&self, c: Cara, tam: f32, esp: f32, s: &str) -> f32 {
+        // (la sans va sin espaciado entre letras: como las letras de Vista)
+        let esp = if matches!(c, Cara::S4 | Cara::S7) { 0.0 } else { esp };
         let f = self.cara(c); let k = tam / f.tam; let mut w = 0.0; let mut ant: Option<char> = None;
         for ch in s.chars() { let m = f.c.get(&ch).or(f.c.get(&'?')); w += m.map(|m| m[6]).unwrap_or(0.0) * k + esp * tam; if let Some(a) = ant { w += f.k.get(&(a, ch)).copied().unwrap_or(0.0) * k; } ant = Some(ch); }
         w
@@ -478,6 +480,7 @@ impl<'a> Pincel<'a> {
     /// la transformación) y puesta en un píxel entero
     pub fn texto(&mut self, cara: Cara, tam: f32, x: f32, base: f32, c: Col, esp: f32, s: &str) -> f32 {
         let at = self.at; let f = at.cara(cara); let k = tam / f.tam; let mut px = x; let mut ant: Option<char> = None;
+        let esp = if matches!(cara, Cara::S4 | Cara::S7) { 0.0 } else { esp };
         let esc = (self.m[0] * self.m[0] + self.m[1] * self.m[1]).sqrt().max(0.01); let t_pant = tam * esc;
         let plano = self.m[1].abs() < 1e-4 && self.m[2].abs() < 1e-4;
         for ch in s.chars() {

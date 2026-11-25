@@ -5,7 +5,7 @@
 use super::*;
 use super::aero::{self, blanco, negro, Aero, BLANCO};
 use super::inicio_juego::{prog, Nivel, Pieza, CL_TXT};
-use crate::pincel::{Cara, Pincel};
+use crate::pincel::{Cara, Col, Pincel};
 use std::sync::OnceLock;
 
 /// los grupos de la lista (como los del menú de GMod: jugar, lo demás, las opciones y salir)
@@ -36,25 +36,11 @@ impl Juego {
                 p.foto(id, x0 - 2.0 * u, y_top - (1.0 - k) * 8.0 * u, an, alto_logo, BLANCO); });
         }
 
-        // —— la lista (si no entra en pantallas bajas, más apretada) ——
-        let (mut fila, mut hueco, mut tam) = (25.0 * u, 9.0 * u, 17.5 * u);
-        let y_lista = y_top + alto_logo + 14.0 * u; let disp = y_tb - 8.0 * u - y_lista; let total = 8.0 * fila + 3.0 * hueco;
-        if total > disp { let k = (disp / total).max(0.7); fila *= k; hueco *= k; tam *= k.max(0.86); }
-        let mut y = y_lista; let mut ancho_lista = 0.0f32;
-        for i in 0..8 {
-            if i > 0 && GRUPO[i] != GRUPO[i - 1] { y += hueco; }
-            let txt = CL_TXT[i]; let tw = p.at.ancho(Cara::S4, tam, 0.0, txt); ancho_lista = ancho_lista.max(tw);
-            let k = ent(0.12 + i as f32 * 0.045, 0.35); let a = apr(Pieza::Op(i));
-            let dx = (1.0 - k) * -26.0 * u + if a { 3.0 * u } else { 0.0 };
-            let r = [x0 - 10.0 * u + dx, y, tw + 20.0 * u, fila];
-            p.con_alfa(k, |p| {
-                if a { aero::fila_vidrio(p, r, u, true); }
-                let base = p.at.base_centrada(Cara::S4, tam, fila, y, fila);
-                p.texto_sombra(Cara::S4, tam, x0 + dx, base, BLANCO, txt, 1.4 * u);
-            });
-            z.push(([x0 - 14.0 * u, y, tw + 50.0 * u, fila], Pieza::Op(i)));
-            y += fila;
-        }
+        // —— la lista ——
+        let y_lista = y_top + alto_logo + 14.0 * u;
+        let ops: Vec<Op> = (0..8).map(|i| Op { txt: CL_TXT[i], grupo: GRUPO[i], col: BLANCO, apretada: apr(Pieza::Op(i)) }).collect();
+        let (rs, ancho_lista) = lista_gmod(p, u, x0, y_lista, y_tb - 8.0 * u - y_lista, &ops, &ent);
+        for (i, r) in rs.into_iter().enumerate() { z.push((r, Pieza::Op(i))); }
 
         // —— los paneles de la derecha: las novedades y el evento ——
         let gw = 206.0 * u; let gx = w - ins[1] - 16.0 * u - gw;
@@ -121,22 +107,61 @@ impl Juego {
         let rx = cx + 4.0 * u + rw / 2.0;
         p.texto_c(Cara::S4, tn, rx, y_tb + tb * 0.45, BLANCO, 0.0, &ver);
         p.texto_c(Cara::S4, 10.5 * u, rx, y_tb + tb * 0.83, blanco(0.78), 0.0, &ini.armado);
-        // (los botones: con el texto si entran; si no, sólo el ícono)
+        // (los botones)
         let bt: [(Pieza, &'static str, &str); 4] = [(Pieza::Contenido, "ico_gmod", "Contenido de GMod"), (Pieza::Avisos, "campana", "Avisos"), (Pieza::Bugs, "bicho", "Bugs y sugerencias"), (Pieza::Idioma, "mundo", "Idioma")];
-        let tbt = 12.0 * u; let x_b = ocx + ora + 12.0 * u; let disp = ax - 8.0 * u - x_b;
-        let anchos: Vec<f32> = bt.iter().map(|b| 16.0 * u + 7.0 * u + p.at.ancho(Cara::S4, tbt, 0.0, b.2) + 20.0 * u).collect();
-        let solo_ico = anchos.iter().sum::<f32>() + 4.0 * u * 3.0 > disp;
-        let mut bx = x_b;
-        for (i, (pz, ico, txt)) in bt.iter().enumerate() {
-            let bw = if solo_ico { 36.0 * u } else { anchos[i] }; let r = [bx, by, bw, bh];
-            aero::boton_vidrio(p, r, u, apr(*pz), false);
-            let ix = if solo_ico { bx + (bw - 16.0 * u) / 2.0 } else { bx + 10.0 * u };
-            p.icono(ico, ix, by + (bh - 16.0 * u) / 2.0, 16.0 * u, 2.2, BLANCO);
-            if !solo_ico { p.texto_sombra(Cara::S4, tbt, bx + 33.0 * u, p.at.base_centrada(Cara::S4, tbt, bh, by, bh), BLANCO, txt, u); }
-            if *pz == Pieza::Contenido { if let Some(f) = self.cont_progreso() { let (px0, pw) = (bx + 4.0 * u, bw - 8.0 * u);
-                p.rect(px0, by + bh - 4.0 * u, pw, 2.0 * u, negro(0.5)); p.rect(px0, by + bh - 4.0 * u, pw * f.clamp(0.0, 1.0), 2.0 * u, aero::hex(0x3ccb45)); } }
-            z.push((r, *pz)); bx += bw + 4.0 * u;
+        let datos: Vec<(&'static str, &str, bool)> = bt.iter().map(|b| (b.1, b.2, apr(b.0))).collect();
+        let rs = botones_barra(p, u, ocx + ora + 12.0 * u, ax - 8.0 * u, by, bh, &datos);
+        for (r, (pz, _, _)) in rs.into_iter().zip(bt.iter()) {
+            if *pz == Pieza::Contenido { if let Some(f) = self.cont_progreso() { let (px0, pw) = (r[0] + 4.0 * u, r[2] - 8.0 * u);
+                p.rect(px0, r[1] + r[3] - 4.0 * u, pw, 2.0 * u, negro(0.5)); p.rect(px0, r[1] + r[3] - 4.0 * u, pw * f.clamp(0.0, 1.0), 2.0 * u, aero::hex(0x3ccb45)); } }
+            z.push((r, *pz));
         }
         z
     }
+}
+
+/// una opción de la lista del menú
+pub struct Op<'s> { pub txt: &'s str, pub grupo: usize, pub col: Col, pub apretada: bool }
+
+/// la lista del menú (como la de GMod): letras blancas grandes por grupos, cada una entrando desde la izquierda, y la apretada
+/// con la fila de vidrio; si no entra en `alto`, más apretada. Devuelve lo que se toca de cada una y el ancho del texto más
+/// largo
+pub fn lista_gmod(p: &mut Pincel, u: f32, x0: f32, y0: f32, alto: f32, ops: &[Op], ent: &dyn Fn(f32, f32) -> f32) -> (Vec<[f32; 4]>, f32) {
+    let grupos = ops.windows(2).filter(|w| w[0].grupo != w[1].grupo).count();
+    let (mut fila, mut hueco, mut tam) = (25.0 * u, 9.0 * u, 17.5 * u);
+    let total = ops.len() as f32 * fila + grupos as f32 * hueco;
+    if total > alto { let k = (alto / total).max(0.7); fila *= k; hueco *= k; tam *= k.max(0.86); }
+    let mut y = y0; let mut ancho = 0.0f32; let mut v = vec![];
+    for (i, o) in ops.iter().enumerate() {
+        if i > 0 && o.grupo != ops[i - 1].grupo { y += hueco; }
+        let tw = p.at.ancho(Cara::S4, tam, 0.0, o.txt); ancho = ancho.max(tw);
+        let k = ent(0.12 + i as f32 * 0.045, 0.35);
+        let dx = (1.0 - k) * -26.0 * u + if o.apretada { 3.0 * u } else { 0.0 };
+        let r = [x0 - 10.0 * u + dx, y, tw + 20.0 * u, fila];
+        p.con_alfa(k, |p| {
+            if o.apretada { aero::fila_vidrio(p, r, u, true); }
+            let base = p.at.base_centrada(Cara::S4, tam, fila, y, fila);
+            p.texto_sombra(Cara::S4, tam, x0 + dx, base, o.col, o.txt, 1.4 * u);
+        });
+        v.push([x0 - 14.0 * u, y, tw + 50.0 * u, fila]); y += fila;
+    }
+    (v, ancho)
+}
+
+/// los botones de vidrio de la barra de tareas, de x0 a x1 (con el texto si entran; si no, sólo el ícono): (ícono, texto,
+/// apretado). Devuelve dónde quedó cada uno
+pub fn botones_barra(p: &mut Pincel, u: f32, x0: f32, x1: f32, by: f32, bh: f32, bt: &[(&'static str, &str, bool)]) -> Vec<[f32; 4]> {
+    let tbt = 12.0 * u;
+    let anchos: Vec<f32> = bt.iter().map(|b| 16.0 * u + 7.0 * u + p.at.ancho(Cara::S4, tbt, 0.0, b.1) + 20.0 * u).collect();
+    let solo_ico = anchos.iter().sum::<f32>() + 4.0 * u * bt.len().saturating_sub(1) as f32 > x1 - x0;
+    let mut bx = x0; let mut v = vec![];
+    for (i, (ico, txt, a)) in bt.iter().enumerate() {
+        let bw = if solo_ico { 36.0 * u } else { anchos[i] }; let r = [bx, by, bw, bh];
+        aero::boton_vidrio(p, r, u, *a, false);
+        let ix = if solo_ico { bx + (bw - 16.0 * u) / 2.0 } else { bx + 10.0 * u };
+        p.icono(ico, ix, by + (bh - 16.0 * u) / 2.0, 16.0 * u, 2.2, BLANCO);
+        if !solo_ico { p.texto_sombra(Cara::S4, tbt, bx + 33.0 * u, p.at.base_centrada(Cara::S4, tbt, bh, by, bh), BLANCO, txt, u); }
+        v.push(r); bx += bw + 4.0 * u;
+    }
+    v
 }

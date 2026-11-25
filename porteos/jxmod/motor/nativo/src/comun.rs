@@ -1257,7 +1257,7 @@ impl Juego {
         let usa = self.en_uso;
         let gm_tex = self.gmod_hud(l, &mut u, wf, hf, t);
         self.jg_hud_fondo(l, &mut u, wf, hf);
-        if self.aj.fps && !self.ed.activo && self.menu.is_none() && self.ajustes.is_none() {
+        if self.aj.fps && !self.ed.activo && self.menu.is_none() && self.ajustes.is_none() && !self.ini.pz.abierta && self.ini.panel.is_none() {
             // (debajo de los botones de arriba a la izquierda; en el editor no, que ahí va su ayuda)
             let y0 = hud_web::bajo_izq(wf, hf);
             let (ew, eh) = ((wf * self.aj.res as f32 / 100.0).round(), (hf * self.aj.res as f32 / 100.0).round());
@@ -1270,7 +1270,7 @@ impl Juego {
             if !self.detalle.is_empty() { l.texto_sombra(&mut u, t * 0.5, y0 + t * 3.65, t * 0.6, [1.0, 1.0, 1.0, 0.75], &format!("placa: {}", self.detalle)); }
         }
         // (los botones, como los de la web: hud_web.rs; con un menú abierto, ninguno —quedarían debajo del panel—)
-        let abierto = self.pjs.panel.is_some() || self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel || self.emotes_panel;
+        let abierto = self.pjs.panel.is_some() || self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel || self.emotes_panel || self.ini.pz.abierta || self.ini.panel.is_some();
         let ih = self.hud_botones(l, &mut u, &mut ia, wf, hf, abierto);
         // (lo que dicen los NPC: un globo arriba de la cabeza, npcGloboPaso)
         if !abierto { for n in &self.npcs.lista {
