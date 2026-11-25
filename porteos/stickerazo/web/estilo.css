@@ -1192,7 +1192,6 @@ html[data-tema="claro"] .soPost, html[data-tema="claro"] .soNuevo { background: 
 .vvFila { position: relative; margin: 6px 0; }
 .vvPista0 { margin: 26px auto; text-align: center; color: #6f6b82; font-size: 13px; display: flex; gap: 6px; justify-content: center; align-items: center; }
 .vvClip { position: absolute; top: 0; left: 0; height: 100%; border-radius: 9px; overflow: visible; background: var(--c, #333); border: 2px solid transparent; box-shadow: 0 2px 8px rgba(0,0,0,.4); will-change: transform; animation: vvPop .32s cubic-bezier(.2,1.4,.4,1); transition: border-color .15s, box-shadow .2s, filter .2s; }
-@keyframes vvPop { from { opacity: 0; filter: brightness(1.8); } }
 .vvClip.video { background-color: #22222c; background-repeat: repeat-x; border-radius: 8px; }
 .vvClip.sel { border-color: #fff; box-shadow: 0 0 0 3px rgba(255,255,255,.18), 0 6px 18px rgba(0,0,0,.6); z-index: 2; }
 .vvClip.levanta { transform-origin: center; filter: brightness(1.15); box-shadow: 0 14px 30px rgba(0,0,0,.7); animation: vvLevanta .18s ease-out forwards; }
@@ -1234,12 +1233,3 @@ html[data-tema="claro"] .soPost, html[data-tema="claro"] .soNuevo { background: 
 .vvGuia ol { margin: 10px 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; }
 .vvGuia li { line-height: 1.35; animation: vvSube .3s ease-out backwards; }
 .vvGuia li:nth-child(2) { animation-delay: .06s; } .vvGuia li:nth-child(3) { animation-delay: .12s; } .vvGuia li:nth-child(4) { animation-delay: .18s; }
-.vvRiesgo { color: #ffb4a8; }
-.vvAcepto { display: flex; gap: 8px; align-items: center; margin: 10px 0; font-size: 14px; }
-.vvAcepto input { width: 20px; height: 20px; accent-color: var(--ama); }
-.vvCodigo { font: 700 38px/1.2 ui-monospace, monospace; letter-spacing: 4px; text-align: center; padding: 14px; margin: 10px 0; border-radius: 16px; background: var(--panel2); color: var(--ama); animation: vvPop .4s cubic-bezier(.2,1.4,.4,1); user-select: all; -webkit-user-select: all; }
-.vvSeg { display: flex; gap: 6px; margin: 10px 0; }
-.vvSeg button { flex: 1; padding: 10px 6px; border-radius: 12px; background: var(--panel2); font-size: 13px; font-weight: 700; transition: background .2s, transform .15s; }
-.vvSeg button.act { background: var(--ama); color: #1c1503; }
-.vvItem.act { background: var(--panel2); outline: 2px solid var(--ama); }
-@keyframes vvPop { from { transform: scale(.7); opacity: 0; } }

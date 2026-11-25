@@ -1,6 +1,7 @@
 // El editor de video (web/video.js): elegir un video (su sonido queda como un audio verde), texto (amarillo), un audio del
 // celu (verde), elegir con un toque (aparecen las manijas), alargar el audio con la manija (se repite), mover el texto
-// manteniendo apretado, reproducir, exportar el sticker animado (≤ 500 KB, se guarda en un pack) y el video con sonido.
+// manteniendo apretado, reproducir, exportar el sticker animado (≤ 500 KB, se guarda en un pack), el video con sonido y el
+// clip para el buscador de WhatsApp (KLIPY/GIPHY).
 // uso: node video.mjs [CARPETA_FOTOS] (los archivos de prueba: /tmp/claude-0/sz_video/prueba.webm y musica.webm, de ffmpeg)
 import { createRequire } from 'module'; import fs from 'fs'; import path from 'path'; import http from 'http';
 const require = createRequire('/home/user/Ports/porteos/jxmod/pruebas/x.mjs'); const { chromium } = require('playwright');
@@ -93,40 +94,18 @@ const bajadas = []; const oye = (d) => bajadas.push(d); p.on('download', oye);
 await p.click('#modal [data-e="wa10"]'); await p.waitForSelector('#modal .vvGuia', { timeout: 20000 }).catch(() => {}); await espera(800); p.off('download', oye);
 const info = []; for (const d of bajadas) { const ruta = SAL + '/' + d.suggestedFilename(); await d.saveAs(ruta); info.push({ n: path.basename(ruta), kb: Math.round(fs.statSync(ruta).size / 1024) }); }
 ok(info.some((x) => /\.png$/.test(x.n)) && info.some((x) => /\.wav$/.test(x.n)), 'quieto con audio: la imagen y el audio', info); await foto('guia_quieto');
-// 12. mandar con sonido (el motor de WhatsApp, simulado): vincular con el código, elegir los segundos y mandar
+// 12. clip con sonido para KLIPY/GIPHY (el buscador de stickers de WhatsApp): cuadrado, 30 cuadros, hasta 10 s, con audio
 await p.click('#modal [data-x="0"]').catch(() => {}); await espera(200);
-await E(() => {
-  const st = { vinculado: false, pedidos: [], enviado: null };
-  window.__waPrueba = st;
-  window.SZN = { waPedir: (id, ruta, json) => { const d = JSON.parse(json); st.pedidos.push(ruta);
-    let r = { ok: true };
-    if (ruta === 'estado') r = { ok: true, vinculado: st.vinculado, yo: st.vinculado ? '•••••••6789' : null };
-    if (ruta === 'vincular') { r = { ok: true, codigo: 'K7QW2M9P' }; setTimeout(() => { st.vinculado = true; }, 3000); }
-    if (ruta === 'grupos') r = { ok: true, lista: [{ id: '1203@g.us', nombre: 'Los pibes' }, { id: '1204@g.us', nombre: 'Familia' }] };
-    if (ruta === 'enviar') { st.enviado = d; r = { ok: true, para: d.destino === 'yo' ? 'yo' : d.destino }; }
-    setTimeout(() => window.__szWA(id, JSON.stringify(r)), 60); } };
-});
 await E(() => window.__vv().irA(0)); await p.click('#vVideo [data-a="exportar"]'); await espera(300);
-await p.click('#modal [data-e="wamotor"]'); await p.waitForSelector('#modal #vvAc', { timeout: 8000 }).catch(() => {});
-ok(await p.isVisible('#modal #vvAc'), 'sin vincular: pide aceptar el riesgo y el número'); await foto('wa_vincular');
-ok(await E(() => document.querySelector('#modal [data-x="1"]').disabled), 'sin aceptar no deja pedir el código');
-await p.click('#modal #vvAc'); await p.fill('#modal #vvNum', '54 9 11 2345 6789'); await p.click('#modal [data-x="1"]');
-await p.waitForSelector('#modal .vvCodigo', { timeout: 8000 }).catch(() => {});
-ok((await E(() => (document.querySelector('#modal .vvCodigo') || {}).textContent)) === 'K7QW-2M9P', 'muestra el código de 8 letras'); await foto('wa_codigo');
-await p.waitForSelector('#modal #vvSegR', { timeout: 15000 }).catch(() => {});
-ok(await p.isVisible('#modal #vvSegR'), 'al vincularse pasa a la hoja de mandar'); 
-await p.click('#modal [data-d="grupo"]'); await p.waitForSelector('#modal [data-g]', { timeout: 5000 }).catch(() => {});
-ok((await E(() => document.querySelectorAll('#modal [data-g]').length)) === 2, 'lista los grupos'); await foto('wa_grupos');
-await p.click('#modal [data-d="yo"]');
-const segMax = await E(() => { const r = document.querySelector('#modal #vvSegR'); r.value = r.max; r.dispatchEvent(new Event('input')); return +r.max; });
-await foto('wa_mandar');
-await p.click('#modal [data-x="1"]');
-await p.waitForFunction(() => window.__waPrueba.enviado, null, { timeout: 90000 }).catch(() => {});
-const env = await E(() => { const d = window.__waPrueba.enviado; if (!d) return null; return { ...d, webp: d.webp.length, ogg: d.ogg.length, webpIni: atob(d.webp.slice(0, 16)).slice(0, 12), oggIni: atob(d.ogg.slice(0, 8)).slice(0, 4), oggB64: d.ogg }; });
-ok(env && /^RIFF....WEBP/s.test(env.webpIni) && env.webp * 0.75 <= 500 * 1024, 'manda un WebP de 500 KB o menos', env && { kb: Math.round(env.webp * 0.75 / 1024) });
-let durOgg = -1; if (env) { const ruta = SAL + '/wa_audio.ogg'; fs.writeFileSync(ruta, Buffer.from(env.oggB64, 'base64')); const { execSync } = await import('child_process'); durOgg = +execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 ${ruta}`).toString().trim(); }
-ok(env && env.oggIni === 'OggS' && env.segundos === segMax && Math.abs(durOgg - segMax) < 0.1 && env.destino === 'yo' && env.animado === true, 'manda el Ogg/Opus con los segundos elegidos, a mi chat', env && { segundos: env.segundos, segMax, durOgg, kb: Math.round(env.ogg * 0.75 / 1024), destino: env.destino });
-await espera(400); await foto('wa_mandado');
+const [dc] = await Promise.all([p.waitForEvent('download', { timeout: 60000 }).catch(() => null), p.click('#modal [data-e="clip"]')]);
+let rc = null; if (dc) { const ruta = SAL + '/' + dc.suggestedFilename(); await dc.saveAs(ruta); const { execSync } = await import('child_process');
+  const v = execSync(`ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 ${ruta}`).toString().trim().split(',');
+  const nf = +execSync(`ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of csv=p=0 ${ruta}`).toString().trim();
+  const dur = +execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 ${ruta}`).toString().trim();
+  rc = { nombre: path.basename(ruta), w: +v[0], h: +v[1], dur, fps: Math.round(nf / dur), audio: execSync(`ffprobe -v error -select_streams a -show_entries stream=codec_name -of csv=p=0 ${ruta}`).toString().trim() }; }
+ok(rc && rc.w === 720 && rc.h === 720 && rc.dur > 4 && rc.dur <= 10.3 && rc.fps >= 25 && rc.fps <= 32 && !!rc.audio && /^clip_con_sonido/.test(rc.nombre), 'clip para KLIPY/GIPHY: 720×720, 30 cuadros, ≤ 10 s, con sonido', rc);
+await p.waitForSelector('#modal .vvGuia', { timeout: 10000 }).catch(() => {}); await foto('guia_clip');
+ok(/klipy\.com\/create/.test(await E(() => (document.querySelector('#modal .vvGuia a') || {}).href || '')), 'la guía lleva a KLIPY');
 ok(!err.length, 'sin errores de JS', err.slice(0, 5));
 await b.close(); srv.close(); com.close && com.close();
 console.log(fallas ? `${fallas} FALLAS` : 'TODO BIEN'); process.exit(fallas ? 1 : 0);
