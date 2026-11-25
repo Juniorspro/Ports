@@ -108,10 +108,10 @@ function priArmar(id) {
       for (let i = 0; i < n; i += paso) pts.push(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]);
       for (const i of ext) if (i >= 0) pts.push(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]);
       const col = gmCascoNuevo('PRI_col_' + id, Float32Array.from(pts));
-      // (el peso: como un mueble de madera lleno a medias —la caja por 180 kg/m³—, entre 1 y 800 kg)
+      // (el peso: como un mueble de madera lleno a medias —la caja por 180 kg/m³—, entre 1 y 800 kg; flota como la madera)
       const masa = clamp((mx[0] - mn[0]) * (mx[1] - mn[1]) * (mx[2] - mn[2]) * 180, 1, 800);
       const nom = 'pri:' + id, key = nom + '#pri';
-      DATA.pf[key] = [{ n: nom, p: [0, 0, 0], r: [0, 0, 0, 1], s: [1, 1, 1], pa: -1, m: mi, mt: mats, col: [{ k: 'm', m: col, cv: 2, tr: 0 }], rb: { m: masa, d: 0, k: 0, g: 1, snd: masa > 60 ? 'madera' : 'plastico' }, mb: ['Prop'] }];
+      DATA.pf[key] = [{ n: nom, p: [0, 0, 0], r: [0, 0, 0, 1], s: [1, 1, 1], pa: -1, m: mi, mt: mats, col: [{ k: 'm', m: col, cv: 2, tr: 0 }], rb: { m: masa, d: 0, k: 0, g: 1 }, mb: ['Prop'] }];
       DATA.pfPorNombre[nom] = key;
       return true;
     } catch (e) { if (typeof gmErr === 'function') gmErr('prop importado ' + id, e); return false; }
