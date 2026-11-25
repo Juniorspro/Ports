@@ -258,7 +258,7 @@ function camaraActualizar(dt) {
   CAM.der.copy(CAM.qVista.rot(v3(1, 0, 0))); CAM.arr.copy(CAM.qVista.rot(v3(0, 1, 0)));
   // (con un mod de velocidad, la vista se abre al correr rápido)
   // (o el zoom que pidió el Lua de un addon con Player:SetFOV: gmaFovLua, gmod_vista.js)
-  const vh = Math.hypot(JUG.vel.x, JUG.vel.z), z = ARM.zoom ? 18 : (typeof gmaFovLua === 'function' && gmaFovLua()) || (fovBase() + ((MODS.velocidad || 1) > 1.15 && !JUG.vehiculo ? clamp((vh - 7) * 0.8, 0, 14) : 0)) * (1 - 0.27 * (ARM.apK || 0)); const fb = CAM.fovB || CAM.fov; CAM.fovB = fb + (z - fb) * Math.min(1, dt * (Math.abs(z - fb) > 10 ? 12 : 4));
+  const vh = Math.hypot(JUG.vel.x, JUG.vel.z), z = typeof HCAM !== 'undefined' && HCAM.ver && HCAM.fov ? HCAM.fov : ARM.zoom ? 18 : (typeof gmaFovLua === 'function' && gmaFovLua()) || (fovBase() + ((MODS.velocidad || 1) > 1.15 && !JUG.vehiculo ? clamp((vh - 7) * 0.8, 0, 14) : 0)) * (1 - 0.27 * (ARM.apK || 0)); const fb = CAM.fovB || CAM.fov; CAM.fovB = fb + (z - fb) * Math.min(1, dt * (Math.abs(z - fb) > 10 ? 12 : 4));
   // (el campo que devolvió el CalcView de un addon —view.fov: el zoom de una cámara o unos prismáticos—, como proporción
   // del que se le pasó; gmaVistaLua, gmod_vista.js)
   CAM.fov = CAM.fovB * (!DBG.cam && typeof GMA !== 'undefined' && GMA.vlFov > 0 ? Math.max(0.02, Math.min(3, GMA.vlFov)) : 1);

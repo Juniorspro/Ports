@@ -9,7 +9,7 @@ const HER = { sel: 0, params: {}, cable: null, ents: [] };
 const PREFAB_HER = { SimpleNextbot: 'Nextbot', Nextbot: 'Nextbot' };
 function equiparHerramienta(i) {
   HER.sel = i; const k = ARM.lista.indexOf('ToolBaton'); if (k >= 0) elegirArma(k); else darArma('ToolBaton');
-  const h = DATA.herr[i]; if (!HER.params[h.n]) { HER.params[h.n] = {}; for (const p of h.p) HER.params[h.n][p.n] = p.t === 'String[]' ? p.o[0] : p.t === 'Boolean' ? false : p.t === 'Single' ? (/Speed/.test(p.n) ? 2 : /Distance|Size|Range/.test(p.n) ? 4 : /Force/.test(p.n) ? 20 : /Degree/.test(p.n) ? 90 : /Time|Delete/.test(p.n) ? 1 : 1) : p.t === 'Int32' ? 0 : p.n === 'Prop name' ? 'Crate' : p.n === 'Password' ? '1234' : ''; }
+  const h = DATA.herr[i]; if (!HER.params[h.n]) { HER.params[h.n] = {}; for (const p of h.p) HER.params[h.n][p.n] = p.d !== undefined ? p.d : p.t === 'String[]' ? p.o[0] : p.t === 'Boolean' ? false : p.t === 'Single' ? (/Speed/.test(p.n) ? 2 : /Distance|Size|Range/.test(p.n) ? 4 : /Force/.test(p.n) ? 20 : /Degree/.test(p.n) ? 90 : /Time|Delete/.test(p.n) ? 1 : 1) : p.t === 'Int32' ? 0 : p.n === 'Prop name' ? 'Crate' : p.n === 'Password' ? '1234' : ''; }
   HER.cable = null;
   aviso('Tool Gun: ' + (h.nom || h.n), 1.5);
 }
@@ -22,12 +22,14 @@ function inspectorHerramienta(el) {
     return;
   }
   el.oninput = el.onchange = null;
-  let s = `<h4>${h.n}</h4>`;
+  let s = `<h4>${esc(T('her.' + h.n) !== 'her.' + h.n ? T('her.' + h.n) : h.n)}</h4>`;
   for (const p of h.p) {
     const v = HER.params[h.n][p.n], id = 'hp_' + p.n.replace(/\W/g, '');
-    if (p.t === 'String[]') s += `<label>${p.n}</label><select id="${id}">${p.o.map((o) => `<option ${o === v ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
-    else if (p.t === 'Boolean') s += `<label><input type="checkbox" id="${id}" ${v ? 'checked' : ''} style="width:auto"> ${p.n}</label>`;
-    else s += `<label>${p.n}</label><input id="${id}" value="${String(v).replace(/"/g, '')}" ${p.t === 'Single' || p.t === 'Int32' ? 'type="number" step="any"' : ''}>`;
+    // (p.l: el nombre que se muestra, traducido; p.ol: el de cada opción)
+    const et = p.l ? esc(T(p.l)) : p.n;
+    if (p.t === 'String[]') s += `<label>${et}</label><select id="${id}">${p.o.map((o, k) => `<option value="${esc(o)}" ${o === v ? 'selected' : ''}>${p.ol ? esc(T(p.ol[k])) : o}</option>`).join('')}</select>`;
+    else if (p.t === 'Boolean') s += `<label><input type="checkbox" id="${id}" ${v ? 'checked' : ''} style="width:auto"> ${et}</label>`;
+    else s += `<label>${et}</label><input id="${id}" value="${String(v).replace(/"/g, '')}" ${p.t === 'Single' || p.t === 'Int32' ? 'type="number" step="any"' : ''}>`;
   }
   const ayuda = { Actitud: T('npc.ayudaHer'), Camara: T('her.camAyuda'), Remove: 'Clic: borra lo que apuntás.', Duplicate: 'Clic: copia lo que apuntás.', Wire: 'Clic en lo que da la señal y después en lo que la recibe.', Mover: 'Prop Id 0 = se mueve él mismo. El ID de cada cosa se ve al apuntarla con la Tool Gun.' };
   if (ayuda[h.n]) s += `<p style="color:#aaa;font-size:11px">${ayuda[h.n]}</p>`;
@@ -198,34 +200,94 @@ function dibujarNextbot(o) {
 }
 
 // ---------------- herramienta Cámara: poner cámaras y mirar por ellas ----------------
-// Clic: pone una cámara en un trípode donde apuntás, mirando hacia donde mirás vos. Clic derecho: pasa a ver por tus
-// cámaras, una por una, y después vuelve a tus ojos. En la sala las cámaras se ven (son objetos); lo que se ve por cada
-// una es de cada uno.
-const HCAM = { ver: null };
+// Clic: pone una cámara en un trípode donde apuntás (o donde estás parado, según «Dónde»), mirando hacia donde mirás vos; si
+// la ponés sobre algo que se mueve —un auto, un prop suelto— queda pegada y viaja con él. Clic derecho sobre alguien o algo
+// (un jugador, un NPC, un prop): la última cámara lo sigue con la mirada; sobre una cámara, deja de seguir; sobre nada,
+// mirás por tus cámaras, una por una, y volvés a tus ojos. Cada cámara guarda su zoom y si sigue suave (como un camarógrafo)
+// o seco. Mientras mirás por una, arriba dice cuál es y a quién sigue. En la sala las cámaras se ven (son objetos); lo que
+// se ve por cada una es de cada uno. Bugs y sugerencias 582w89z5: «mejor camera tool».
+const HCAM = { ver: null, q: new Quat(), qOk: false, fov: 0, hud: null };
+function herCamParams() { return Object.assign({ Lugar: 'apunto', Zoom: 70, Suave: true }, HER.params.Camara || {}); }
+// ¿sigue existiendo ese cuerpo? (un prop borrado, un NPC que se fue)
+const herCamVivo = (b) => !!b && !b.borrado && PH.bodies.includes(b);
 function herCamara(alt, r) {
-  if (alt) {
-    const mias = OBJS.filter((o) => o.art === 'camara' && !o.remoto);
-    if (!mias.length) { aviso(T('her.camNinguna'), 2); return; }
-    const i = HCAM.ver ? mias.indexOf(HCAM.ver) + 1 : 0;
-    HCAM.ver = i < mias.length ? mias[i] : null;
+  const mias = OBJS.filter((o) => o.art === 'camara' && !o.remoto);
+  // (mirando por una cámara, la mira es la de la cámara: el clic derecho pasa a la siguiente y el izquierdo vuelve a tus ojos)
+  if (HCAM.ver && mias.includes(HCAM.ver)) {
+    const i = alt ? mias.indexOf(HCAM.ver) + 1 : mias.length;
+    HCAM.ver = i < mias.length ? mias[i] : null; HCAM.qOk = false;
     aviso(HCAM.ver ? T('her.Camara') + ' ' + (i + 1) + '/' + mias.length : T('her.camVos'), 1.5); sonar('Click', null, 0.5, 1.6);
     return;
   }
-  if (!r) return;
+  if (alt) {
+    const b = r && r.body, oc = b && b.obj && b.obj.art === 'camara' ? b.obj : null;
+    if (oc && !oc.remoto) { oc.camMira = null; aviso(T('her.camSueltaBlanco'), 1.6); return; }
+    if (b && (b.persona || b.gmRag || (b.obj && b.obj.art !== 'camara') || b.npc) && mias.length) {
+      const c = HCAM.ver && mias.includes(HCAM.ver) ? HCAM.ver : mias[mias.length - 1]; c.camMira = b;
+      aviso(T('her.camSigue').replace('{n}', String(mias.indexOf(c) + 1)), 1.8); sonar('Click', null, 0.5, 1.8); return;
+    }
+    if (!mias.length) { aviso(T('her.camNinguna'), 2); return; }
+    const i = HCAM.ver ? mias.indexOf(HCAM.ver) + 1 : 0;
+    HCAM.ver = i < mias.length ? mias[i] : null; HCAM.qOk = false;
+    aviso(HCAM.ver ? T('her.Camara') + ' ' + (i + 1) + '/' + mias.length : T('her.camVos'), 1.5); sonar('Click', null, 0.5, 1.6);
+    return;
+  }
+  const P = herCamParams(), aca = P.Lugar === 'yo';
+  if (!r && !aca) return;
   const f = miraDir(), ang = Math.atan2(f.z, -f.x);   // (el lente del modelo mira a -x)
-  const o = crearObjeto('CamaraTripode', r.p, Quat.axis(0, 1, 0, ang), { congelado: true });
+  const o = crearObjeto('CamaraTripode', aca ? JUG.pos.clone() : r.p, Quat.axis(0, 1, 0, ang), { congelado: true });
   if (!o) return;
-  o.camPitch = JUG.pitch; DESHACER.push(o); redObjeto(o);
+  o.camPitch = JUG.pitch; o.camFov = clamp(+P.Zoom || 70, 10, 120); o.camSuave = P.Suave !== false;
+  // (la vista, relativa al trípode: así una pegada a un auto gira con el auto)
+  o.camRel = o.b.q.clone().conj().mul(Quat.euler(JUG.yaw, JUG.pitch));
+  if (aca) o.b.noJug = true;   // (la que ponés donde estás parado no te empuja)
+  // (sobre algo que se mueve: pegada a eso, como una cámara de tablero)
+  const b = !aca && r && r.body, base = b && b.obj && b.obj.art !== 'camara' && !b.frozen && b.dynamic ? b : b && b.obj && b.obj.veh ? b : null;
+  if (base) { const qi = base.q.clone().conj(); o.camPega = { b: base, p: qi.rot(vsub(o.b.pos, base.pos)), q: qi.mul(o.b.q.clone()) }; o.b.noPhys = true; o.b.noJug = true; }
+  DESHACER.push(o); redObjeto(o);
+  aviso(T(base ? 'her.camPegada' : 'her.camPuesta').replace('{n}', String(mias.length + 1)), 1.6);
 }
-// la vista de la cámara que se está mirando (desde el lente, hacia donde mira, con la inclinación que tenía el que la puso)
+// cada cuadro: las pegadas siguen a lo suyo (si eso se borró, quedan donde estaban)
+function herCamarasPaso() {
+  for (const o of OBJS) {
+    const g = o.camPega; if (!g) continue;
+    if (!herCamVivo(g.b)) { o.camPega = null; continue; }
+    o.b.pos.copy(vadd(g.b.pos, g.b.q.rot(g.p.clone()))); o.b.q.copy(g.b.q.clone().mul(g.q)); o.b.vel.set(0, 0, 0); if (o.b.updateWorld) o.b.updateWorld();
+  }
+}
+// la vista de la cámara que se está mirando (desde el lente; hacia donde la dejaste, o hacia lo que sigue)
 function herCamaraVista() {
-  const o = HCAM.ver; if (!o) return false;
+  herCamarasPaso();
+  const o = HCAM.ver; if (!o) { herCamHud(null); HCAM.fov = 0; return false; }
   // (sigue mirando aunque cambies de arma; con otra arma en la mano, caminar o saltar te devuelve a tus ojos)
-  if (!OBJS.includes(o) || !JUG.vivo || (ARM.lista[ARM.i] !== 'ToolBaton' && (ENT.x || ENT.y || ENT.saltar))) { HCAM.ver = null; return false; }
-  const ad = o.b.q.rot(v3(-1, 0, 0)), yaw = Math.atan2(ad.x, ad.z), d = DATA.ms[(DATA.pf[DATA.pfPorNombre.CamaraTripode] || []).find((x) => x.m !== undefined).m];
+  if (!OBJS.includes(o) || !JUG.vivo || (ARM.lista[ARM.i] !== 'ToolBaton' && (ENT.x || ENT.y || ENT.saltar))) { HCAM.ver = null; herCamHud(null); HCAM.fov = 0; return false; }
+  const d = DATA.ms[(DATA.pf[DATA.pfPorNombre.CamaraTripode] || []).find((x) => x.m !== undefined).m];
   // el lente en el modelo: adelante de la punta de -x, a la altura de la caja de arriba (el cuerpo está corrido o.c)
   const L = v3(d.mn[0] - 0.04, d.mn[1] + d.sc[1] * 0.875, d.mn[2] + d.sc[2] * 0.5);
   CAM.pos.copy(vadd(o.b.pos, o.b.q.rot(vsub(L, o.c))));
-  CAM.q.copy(Quat.euler(yaw, o.camPitch || 0));
+  let q;
+  if (o.camMira && herCamVivo(o.camMira)) {
+    const b = o.camMira, t = vadd(b.pos, v3(0, b.persona ? 0.55 : 0, 0)), dd = vsub(t, CAM.pos);
+    q = Quat.euler(Math.atan2(dd.x, dd.z), -Math.atan2(dd.y, Math.hypot(dd.x, dd.z)));
+  } else {
+    if (o.camMira) o.camMira = null;
+    if (o.camRel) q = o.b.q.clone().mul(o.camRel);
+    else { const ad = o.b.q.rot(v3(-1, 0, 0)); q = Quat.euler(Math.atan2(ad.x, ad.z), o.camPitch || 0); }
+  }
+  // (suave: la mirada alcanza a lo que sigue con un poco de retraso, como un camarógrafo; al cambiar de cámara, de golpe)
+  if (HCAM.qOk && o.camSuave !== false && HCAM.de === o) HCAM.q.slerpTo(q, 1 - Math.exp(-TIEMPO.dt * 4.5)); else HCAM.q.copy(q);
+  HCAM.qOk = true; HCAM.de = o; CAM.q.copy(HCAM.q);
+  HCAM.fov = o.camFov || 0;
+  const mias = OBJS.filter((x) => x.art === 'camara' && !x.remoto);
+  herCamHud(T('her.Camara') + ' ' + (mias.indexOf(o) + 1) + '/' + mias.length + (o.camMira ? ' · ' + T('her.camSiguiendo') : '') + (o.camPega ? ' · ' + T('her.camEnMovil') : ''));
   return true;
 }
+// el cartelito de arriba mientras se mira por una cámara (con un punto rojo, como grabando)
+function herCamHud(txt) {
+  let e = HCAM.hud || (HCAM.hud = document.getElementById('camHud'));
+  if (!txt) { if (e) e.classList.add('oc'); return; }
+  if (!e) { e = HCAM.hud = document.createElement('div'); e.id = 'camHud'; e.className = 'oc'; e.style.cssText = 'position:fixed;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:4;pointer-events:none;background:rgba(0,0,0,.55);color:#fff;font:600 13px/1 var(--jxF,Arial),Arial,sans-serif;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;display:flex;align-items:center;gap:8px'; document.body.appendChild(e); }
+  if (e.dataset.t !== txt) { e.innerHTML = `<i style="width:9px;height:9px;border-radius:50%;background:#ff3b30;display:inline-block"></i>${esc(txt)}`; e.dataset.t = txt; }
+  e.classList.remove('oc');
+}
+

@@ -92,6 +92,8 @@ async function cargarPaquete(progreso) {
   for (const k in DATA.pf) { const n = k.split('#')[0]; if (!DATA.pfPorNombre[n]) DATA.pfPorNombre[n] = k; }
   // herramientas nuestras de la Tool Gun (después de las del juego)
   for (const n of ['Camara', 'Actitud']) if (!DATA.herr.some((h) => h.n === n)) DATA.herr.push({ n, p: [] });
+  // (los ajustes de la Cámara: dónde se pone, el zoom y si sigue suave; herramientas.js)
+  { const h = DATA.herr.find((x) => x.n === 'Camara'); if (h && !h.p.length) h.p.push({ n: 'Lugar', t: 'String[]', o: ['apunto', 'yo'], ol: ['her.camLugarA', 'her.camLugarY'], l: 'her.camLugar' }, { n: 'Zoom', t: 'Single', d: 70, l: 'her.camZoom' }, { n: 'Suave', t: 'Boolean', d: true, l: 'her.camSuave' }); }
   DATA.anPorNombre = {};
   for (const k in DATA.an.clips) { for (const c of DATA.an.clips[k]) animCompactar(c); DATA.anPorNombre[k] = DATA.an.clips[k][0]; }
 }
