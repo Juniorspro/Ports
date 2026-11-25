@@ -506,7 +506,7 @@ fn a_01(m: &M4) -> M4 { let mut r = *m; for c in 0..4 { for i in 0..3 { r[c * 4 
 /// para rehacer el mundo desde la profundidad sin la inversa por píxel: el ojo, el rayo por cada punto de la pantalla (uv de
 /// 0 a 1: r0 + u·rx + v·ry, medido para que la w de recorte crezca 1 por unidad) y lo que pasa de la profundidad (−1..1) a la
 /// distancia por ese rayo: t = zl[0] / (z − zl[1])
-fn rayos(vp: &M4) -> ([f32; 3], [f32; 3], [f32; 3], [f32; 3], [f32; 2]) {
+pub(crate) fn rayos(vp: &M4) -> ([f32; 3], [f32; 3], [f32; 3], [f32; 3], [f32; 2]) {
     let iv = mat::inv(vp);
     let un = |x: f32, y: f32, z: f32| { let v = [iv[0] * x + iv[4] * y + iv[8] * z + iv[12], iv[1] * x + iv[5] * y + iv[9] * z + iv[13], iv[2] * x + iv[6] * y + iv[10] * z + iv[14], iv[3] * x + iv[7] * y + iv[11] * z + iv[15]]; [v[0] / v[3], v[1] / v[3], v[2] / v[3]] };
     let fw = |p: [f32; 3], w: f32| vp[3] * p[0] + vp[7] * p[1] + vp[11] * p[2] + vp[15] * w;

@@ -20,7 +20,7 @@ const G_PASO: u64 = 1280;
 const O_PASO: u64 = 256;
 const H_PASO: u64 = 2816;
 const U_PASO: u64 = 256;
-const G_TAM: u64 = 1072;
+const G_TAM: u64 = 1136;
 const O_TAM: u64 = 176;
 const H_TAM: u64 = 2688;
 const U_TAM: u64 = 32;
@@ -391,6 +391,8 @@ impl Motor {
         let (tinte, tc, dia) = match &self.cielo { Some(ci) => (ci.tinte, if ci.cubo != 0 && self.cubo.is_some() { 2.0 } else { 1.0 }, ci.dia), None => ([1.0; 3], 0.0, 0.0) };
         g[240..244].copy_from_slice(&[tinte[0], tinte[1], tinte[2], tc]); g[244..248].copy_from_slice(&[dia, 0.0, 0.0, 0.0]);
         g[248..264].copy_from_slice(&self.svp2); g[264..268].copy_from_slice(&[self.sesgo2[0], self.sesgo2[1], 0.0, 0.0]);
+        // (para rehacer el mundo desde la profundidad sin la inversa: los rayos de la cámara y lo que pasa de la profundidad a la distancia)
+        { let (ojo, r0, rx, ry, zl) = crate::gpu::rayos(vp); g[268..272].copy_from_slice(&[r0[0], r0[1], r0[2], zl[0]]); g[272..276].copy_from_slice(&[rx[0], rx[1], rx[2], zl[1]]); g[276..280].copy_from_slice(&[ry[0], ry[1], ry[2], 0.0]); g[280..284].copy_from_slice(&[ojo[0], ojo[1], ojo[2], 0.0]); }
     }
 
     /// las texturas de un material con la luz horneada de su malla, y su modo
