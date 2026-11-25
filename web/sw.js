@@ -1,4 +1,4 @@
-// JXMod sin internet (lo arma herramientas/web_app.py: no editar acá). Versión b396a1732f65
+// JXMod sin internet (lo arma herramientas/web_app.py: no editar acá). Versión de200d212180
 // - el juego (index.html y pk.bin) y los íconos se guardan al instalar; si hay una versión nueva, el navegador baja este
 //   archivo distinto, guarda la nueva y borra la vieja;
 // - los fondos animados del menú (fondos/) se guardan con la versión cuando el juego los pide (con el menú ya andando);
@@ -6,7 +6,7 @@
 // - todo lo demás (la tienda, Steam, la sala en línea) va por internet como siempre; la app admin (panel/) no la toca;
 // - las notificaciones del juego (panel_juego.js las activa en este aparato): el aviso llega sin texto y acá se trae el
 //   último del panel (la dirección del panel la deja el juego en la caché jx-conf; si no, la de siempre).
-const V = 'jxmod-b396a1732f65', REC = 'jxmod-recursos', BASICOS = ["index.html", "pk.bin", "juego.bin", "manifest.webmanifest", "app/icono-180.png", "app/icono-192.png", "app/icono-512.png", "app/icono-512-mascara.png"];
+const V = 'jxmod-de200d212180', REC = 'jxmod-recursos', BASICOS = ["index.html", "pk.bin", "juego.bin", "manifest.webmanifest", "app/icono-180.png", "app/icono-192.png", "app/icono-512.png", "app/icono-512-mascara.png"];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(V).then((c) => c.addAll(BASICOS)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith('jxmod-') && k !== V && k !== REC).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 const base = new URL('./', self.location).href;

@@ -3,7 +3,7 @@
 // Los modelos, texturas, sonidos y la lista de cosas salen del APK; el código es nuestro.
 // =========================================================================================================
 // la versión del juego (se ve en el inicio, va en la caja negra y es la del APK: apk/armar_apk.py --version-name)
-const JX_VERSION = '3.9.13';
+const JX_VERSION = '3.9.14';
 // la versión personal del dueño (armar.py con PERSONAL=1; la app com.jxmod.app.personal): no se publica
 const JXP = typeof window !== 'undefined' && !!window.JX_PERSONAL;
 // (el guardado lo comparten los motores de la app: si se viene del motor nativo con V8, lo que guardó ahí se trae antes

@@ -5436,7 +5436,17 @@ entrando». Un archivo en el disco no se puede reescribir solo; lo que hace:
     - Todos los roles del servidor están en la posición 1, así que la jerarquía la decide la antigüedad y JXBot, el
       más nuevo, queda último. Para dar «Miembro» hay que arrastrar JXBot arriba en Ajustes → Roles.
 
-## Después de la 3.9.13 (sin publicar todavía): lo que quedaba de «Bugs y sugerencias»
+## JXMod 3.9.14: Ragdolls, props importados, munición, Cámara, celular y lo que quedaba de «Bugs y sugerencias»
+
+- Publicada con el paquete pk39e. **Sólo cambia el código del juego:** `version.json` 3914 con `"ota": {"apkMin": 3912}`:
+  quien tiene la 3.9.12 o la 3.9.13 se actualiza por partes bajando sólo `index.html` (5,3 MB). `web/ota/` comprobada con
+  la llave de la firma oficial (6/6: HMAC bien, descifradas iguales a las originales), `ota.sh` 3/3. APK 3.9.14
+  (versionCode 26112506, `VERSION_PROPIA` 3914) con la misma firma (SHA-256 04:4A:87:38…), `correr.sh` 6/6 y 12/12, el
+  motor de manos adentro (`assets/jxhand`) y `ota_base.json` con las 6 huellas iguales a las de `web/ota/ota.json`. Web
+  con código: lo pide, muestra 3.9.14, uno inventado no entra, el juego no queda en claro, sin errores; `suelto.json`
+  3914. Novedades: 28 versiones.
+- Los modos de juego propios (TTT, Murder, Quemados: 9822f4yw, 9wf49sdk, bvqthmdf) quedan fuera: el dueño pidió no
+  hacerlos. Los modos de los addons de GMod siguen andando como antes (`gmod_modos.js`).
 
 Todo en el código del juego; se prueba con `pruebas/` (entre paréntesis, la prueba y su resultado).
 
