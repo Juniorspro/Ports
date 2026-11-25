@@ -118,6 +118,11 @@ void main() {
   col = mix(col, nc, f);
   gl_FragColor = vec4(retoque(enc(aces(col * uExpo))), t.a);
 }"#;
+// la caja de la oclusión: sólo se prueba contra la profundidad
+const VS_CAJA: &str = r#"
+attribute vec3 aP; uniform mat4 uVP; uniform vec3 uMn, uSc; void main() { gl_Position = uVP * vec4(uMn + aP * uSc, 1.0); }"#;
+const FS_CAJA: &str = r#"
+precision mediump float; void main() { gl_FragColor = vec4(1.0); }"#;
 const VS_CIELO: &str = r#"
 attribute vec2 aP; varying vec2 vP;
 void main() { vP = aP; gl_Position = vec4(aP, 1.0, 1.0); }"#;
@@ -295,6 +300,9 @@ pub fn part_vertices(f: &[f32], der: [f32; 3], arr: [f32; 3], cam: [f32; 3], o: 
 pub struct Motor {
     pub gl: glow::Context,
     pub op: Opciones2,
+    /// la oclusión (sólo con un contexto ES 3 o más, donde las pruebas son del núcleo): por cosa, su prueba, si está en
+    /// camino, si la última la vio y en qué cuadro; la caja y su programa; el número de cuadro
+    oclu: Option<(HashMap<u64, (glow::Query, bool, bool, u64)>, Prog2, glow::Buffer, glow::Buffer)>, n_cuadro: u64,
     p_luz: Prog2, p_luz_c: Prog2, p_cielo: Prog2, p_ui: Prog2, p_copia: Prog2, p_agua: Prog2, p_part: Prog2, p_lin: Prog2,
     /// las partículas: el búfer de vértices, el de índices (para cuántas alcanza) y lo armado en la CPU; las marcas: su búfer,
     /// cuántos vértices y las que llegaron y todavía no se subieron
@@ -308,6 +316,8 @@ pub struct Motor {
     uint32: bool, npot: bool,
     escena_rt: Option<(glow::Framebuffer, glow::Texture, glow::Renderbuffer, i32, i32)>,
     pub dibujos: u32, pub memoria: usize, pub mapa: String,
+    /// (JXM_FASES: lo que tardó cada parte del cuadro, sumado)
+    pub fases: Option<(std::time::Instant, Vec<(&'static str, f64)>)>,
     poses: Vec<Pose2>, poses_n: usize, pose_p: Vec<[f32; 3]>, pose_v: Vec<u8>,
 }
 
@@ -331,7 +341,16 @@ impl Motor {
         let blanca = gl.create_texture()?; gl.bind_texture(glow::TEXTURE_2D, Some(blanca));
         gl.tex_image_2d(glow::TEXTURE_2D, 0, glow::RGBA as i32, 1, 1, 0, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelUnpackData::Slice(Some(&[255, 255, 255, 255])));
         gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::LINEAR as i32);
-        Ok(Motor { gl, op, cubo: None, p_luz, p_luz_c, p_cielo, p_ui, p_copia, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), marcas_vb, marcas_n: 0, poses: vec![], poses_n: 0, pose_p: vec![], pose_v: vec![], marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
+        // (la oclusión: si el contexto es ES 3 —las pruebas son del núcleo—; la caja de 0 a 1 con 36 índices)
+        let oclu = if gl.version().major >= 3 && std::env::var_os("JXM_GL2_SIN_OCLU").is_none() {
+            let pc = programa(&gl, VS_CAJA, FS_CAJA, &["aP"])?;
+            let v: Vec<f32> = (0..8).flat_map(|k: u32| [(k & 1) as f32, (k >> 1 & 1) as f32, (k >> 2 & 1) as f32]).collect();
+            let caras: [u16; 36] = [0, 1, 3, 0, 3, 2, 4, 6, 7, 4, 7, 5, 0, 4, 5, 0, 5, 1, 2, 3, 7, 2, 7, 6, 0, 2, 6, 0, 6, 4, 1, 5, 7, 1, 7, 3];
+            let vb = gl.create_buffer()?; gl.bind_buffer(glow::ARRAY_BUFFER, Some(vb)); gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, f32b(&v), glow::STATIC_DRAW);
+            let ib = gl.create_buffer()?; gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ib)); let ibb: Vec<u8> = caras.iter().flat_map(|x| x.to_le_bytes()).collect(); gl.buffer_data_u8_slice(glow::ELEMENT_ARRAY_BUFFER, &ibb, glow::STATIC_DRAW);
+            Some((HashMap::new(), pc, vb, ib))
+        } else { None };
+        Ok(Motor { oclu, n_cuadro: 0, fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), gl, op, cubo: None, p_luz, p_luz_c, p_cielo, p_ui, p_copia, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), marcas_vb, marcas_n: 0, poses: vec![], poses_n: 0, pose_p: vec![], pose_v: vec![], marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
             c: None, items: vec![], opacos: vec![], transp: vec![], uint32, npot, escena_rt: None, dibujos: 0, memoria: 0, mapa: String::new() })
     }
 
@@ -457,6 +476,7 @@ impl Motor {
 
     /// un cuadro: la escena (a la escala pedida) en `salida` de w × h
     pub unsafe fn dibujar(&mut self, salida: Option<glow::Framebuffer>, w: i32, h: i32) {
+        self.marca("interfaz_y_cpu");
         self.dibujos = 0; self.poses_n = 0;
         let (ew, eh) = (((w as f32) * self.op.escala).round().max(16.0) as i32, ((h as f32) * self.op.escala).round().max(16.0) as i32);
         let escalada = self.op.escala < 0.999;
@@ -483,7 +503,9 @@ impl Motor {
         for p in [&self.p_luz, &self.p_luz_c, &self.p_cielo] { gl.use_program(Some(p.p)); gl.uniform_3_f32(p.u("uRet"), 1.0 / rw as f32, 1.0 / rh as f32, if self.op.retoque { 1.0 } else { 0.0 }); }
         self.luces(&vp);
         // (el cielo 3D: primero el cielo, la maqueta y lo transparente de ella, y la profundidad borrada; el mapa, siempre adelante)
-        let opacos = self.opacos.clone();
+        // (lo que la última prueba de su caja dio tapado del todo no se dibuja; las cajas se prueban con lo opaco ya dibujado)
+        self.n_cuadro += 1; self.oclu_leer();
+        let opacos: Vec<usize> = self.opacos.iter().copied().filter(|&i| !self.tapado(i)).collect();
         if self.items.iter().any(|it| it.fl & FL_CIELO != 0) {
             let es = |me: &Self, i: usize| me.items[i].fl & FL_CIELO != 0;
             let (op_c, op_r): (Vec<usize>, Vec<usize>) = opacos.into_iter().partition(|&i| es(self, i));
@@ -495,6 +517,8 @@ impl Motor {
             { let gl = &self.gl; gl.disable(glow::BLEND); gl.depth_mask(true); gl.clear(glow::DEPTH_BUFFER_BIT); gl.use_program(Some(self.p_luz.p)); }
             for i in self.de_cerca(&op_r) { self.dibujar_item(i); }
         } else { for i in self.de_cerca(&opacos) { self.dibujar_item(i); } self.cielo_dibujar(&vp); }
+        self.oclu_probar(&vp);
+        self.marca("opaco_cielo");
         self.marcas(&vp, rw, rh);
         // lo transparente (sin escribir la profundidad), de lo más lejos a lo más cerca
         let gl = &self.gl; gl.enable(glow::BLEND); gl.depth_mask(false); gl.use_program(Some(self.p_luz.p));
@@ -522,7 +546,9 @@ impl Motor {
                 gl.draw_elements(glow::TRIANGLES, it.sn as i32, tipo, (it.s0 * tam) as i32); self.dibujos += 1;
             }
         } }
+        self.marca("transp_agua");
         self.particulas(&vp, rw, rh);
+        self.marca("particulas");
         let gl = &self.gl; gl.depth_mask(true); gl.disable(glow::BLEND);
         // (la escena chica, estirada a la pantalla)
         if escalada {
@@ -693,6 +719,58 @@ impl Motor {
     }
 
     /// el HUD: rectángulos del atlas (x, y en píxeles; u, v; color), con la textura `tex`
+    /// la clave de una cosa para la oclusión (como gpu.rs): sin huesos, con al menos 32 triángulos y no pegada a la cámara
+    fn oclu_clave(&self, i: usize) -> Option<u64> {
+        let it = &self.items[i]; let c = self.c.as_ref()?;
+        if !it.h.is_empty() || it.sn < 96 || it.esf[3] < 0.3 || it.fl & FL_CIELO != 0 { return None; }
+        let (x, y, z) = (it.esf[0] - c.pos[0], it.esf[1] - c.pos[1], it.esf[2] - c.pos[2]);
+        if (x * x + y * y + z * z).sqrt() < it.esf[3] * 1.8 + 1.5 { return None; }
+        let q = |v: f32| (v * 4.0).round() as i64 as u64;
+        let mut h = (it.m as u64).wrapping_mul(0x9E3779B97F4A7C15) ^ (it.s0 as u64).wrapping_mul(0xC2B2AE3D27D4EB4F) ^ (it.mat as u64).wrapping_mul(0x165667B19E3779F9);
+        for v in [q(it.esf[0]), q(it.esf[1]), q(it.esf[2])] { h = (h ^ v).wrapping_mul(0x100000001B3); }
+        Some(h)
+    }
+    fn tapado(&self, i: usize) -> bool { let Some((m, ..)) = self.oclu.as_ref() else { return false }; self.oclu_clave(i).and_then(|k| m.get(&k)).map_or(false, |e| !e.2) }
+    /// los resultados que ya llegaron (sin esperar)
+    unsafe fn oclu_leer(&mut self) {
+        let gl = &self.gl; let Some((m, ..)) = self.oclu.as_mut() else { return };
+        for e in m.values_mut() { if e.1 && gl.get_query_parameter_u32(e.0, glow::QUERY_RESULT_AVAILABLE) != 0 { e.2 = gl.get_query_parameter_u32(e.0, glow::QUERY_RESULT) != 0; e.1 = false; } }
+    }
+    /// prueba la caja de cada candidata contra la profundidad (sin escribir nada); lo visto se vuelve a probar cada 4 cuadros,
+    /// lo tapado siempre, lo que ocupa más de un tercio de la pantalla se da por visto; lo que no se prueba hace rato se olvida
+    unsafe fn oclu_probar(&mut self, vp: &M4) {
+        if self.oclu.is_none() { return; }
+        let cand: Vec<(usize, u64)> = self.opacos.iter().filter_map(|&i| self.oclu_clave(i).map(|k| (i, k))).collect();
+        let n = self.n_cuadro; let fy = (vp[1] * vp[1] + vp[5] * vp[5] + vp[9] * vp[9]).sqrt();
+        let esf: Vec<[f32; 4]> = cand.iter().map(|&(i, _)| self.items[i].esf).collect();
+        let gl = &self.gl; let (m, p, vb, ib) = self.oclu.as_mut().unwrap();
+        gl.use_program(Some(p.p)); gl.uniform_matrix_4_f32_slice(p.u("uVP"), false, vp);
+        gl.color_mask(false, false, false, false); gl.depth_mask(false);
+        gl.bind_buffer(glow::ARRAY_BUFFER, Some(*vb)); gl.enable_vertex_attrib_array(0); gl.vertex_attrib_pointer_f32(0, 3, glow::FLOAT, false, 12, 0);
+        for a in 1..4 { gl.disable_vertex_attrib_array(a); }
+        gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(*ib));
+        for (&(_, k), e) in cand.iter().zip(esf) {
+            let ent = match m.get_mut(&k) { Some(x) => x, None => { let Ok(q) = gl.create_query() else { continue }; m.entry(k).or_insert((q, false, true, n)) } };
+            ent.3 = n; if ent.1 { continue; }
+            if ent.2 && (n + (k & 3)) % 4 != 0 { continue; }
+            let w = vp[3] * e[0] + vp[7] * e[1] + vp[11] * e[2] + vp[15];
+            if w <= 0.0 || e[3] * fy / w > 0.33 { ent.2 = true; continue; }
+            let r = e[3] * 1.02 + 0.02;
+            gl.uniform_3_f32(p.u("uMn"), e[0] - r, e[1] - r, e[2] - r); gl.uniform_3_f32(p.u("uSc"), 2.0 * r, 2.0 * r, 2.0 * r);
+            gl.begin_query(glow::ANY_SAMPLES_PASSED_CONSERVATIVE, ent.0); gl.draw_elements(glow::TRIANGLES, 36, glow::UNSIGNED_SHORT, 0); gl.end_query(glow::ANY_SAMPLES_PASSED_CONSERVATIVE);
+            ent.1 = true;
+        }
+        gl.color_mask(true, true, true, true); gl.depth_mask(true);
+        let viejo = n.saturating_sub(300);
+        let fuera: Vec<u64> = m.iter().filter(|(_, e)| e.3 < viejo && !e.1).map(|(k, _)| *k).collect();
+        for k in fuera { if let Some(e) = m.remove(&k) { gl.delete_query(e.0); } }
+    }
+    /// (JXM_FASES) termina lo mandado y anota cuánto tardó desde la marca anterior
+    pub unsafe fn marca(&mut self, n: &'static str) {
+        let Some((t, v)) = self.fases.as_mut() else { return };
+        self.gl.finish(); let ms = t.elapsed().as_secs_f64() * 1000.0; *t = std::time::Instant::now();
+        match v.iter_mut().find(|x| x.0 == n) { Some(x) => x.1 += ms, None => v.push((n, ms)) }
+    }
     pub unsafe fn ui(&mut self, salida: Option<glow::Framebuffer>, w: i32, h: i32, tex: i64, v: &[f32]) {
         if v.len() < 8 { return; }
         let gl = &self.gl; let p = &self.p_ui;
