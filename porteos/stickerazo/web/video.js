@@ -8,6 +8,7 @@
 // cuadros) o el sticker con sonido (un video cuadrado: WhatsApp todavía no tiene stickers con sonido para las apps; está
 // en prueba en su beta, y cuando lo abra se agrega acá). Todo se hace en el celular.
 import { LADO, anmf, recortarCuadro, webpDePartes, aBlob, lienzo, cargarFuente } from './editor.js';
+import { oggOpus, puedeOpus } from './ogg.js';
 
 const MAX_ST = 10, MAX_BYTES = 500 * 1024;
 const ORIGEN = { tt: { nom: 'TikTok', col: '#121212', borde: '#3a3a3a', ico: 'musica' }, yt: { nom: 'YouTube', col: '#d81f26', borde: '#ff6b6b', ico: 'musica' },
@@ -350,6 +351,7 @@ function hojaExportar() {
   const largo = Math.min(MAX_ST, V.dur - V.t > 1 ? V.dur - V.t : V.dur);
   const m = H.modal(`<div class="hoja vvHojaA"><h3>Exportar</h3>
     <button class="vvFuente" data-e="st"><b class="vvPunto" style="background:var(--ama)"></b><span><b>Sticker animado</b><small>Para WhatsApp: ${largo.toFixed(1)} s desde ${V.t > 0.05 && V.dur - V.t > 1 ? 'el cabezal' : 'el principio'} (hasta 10 s)</small></span></button>
+    <button class="vvFuente" data-e="wamotor"><b class="vvPunto" style="background:var(--verde)"></b><span><b>Mandar con sonido a WhatsApp</b><small>Automático: el sticker con hasta 60 s de audio, a tu chat o a un grupo</small></span></button>
     <button class="vvFuente" data-e="wa5"><b class="vvPunto" style="background:var(--rosa)"></b><span><b>Sticker con sonido (WhatsApp)</b><small>5 s en movimiento con su audio: WhatsApp le deja el sonido al hacerlo sticker</small></span></button>
     <button class="vvFuente" data-e="wa10"><b class="vvPunto" style="background:#ff7a1a"></b><span><b>Sticker quieto con 10 s de audio</b><small>La imagen del cabezal y su audio, listos para el editor de WhatsApp</small></span></button>
     <button class="vvFuente" data-e="mp4"><b class="vvPunto" style="background:#3ec7ff"></b><span><b>Video con sonido</b><small>MP4 a 60 cuadros, ${fmt(V.dur)}</small></span></button></div>`);
@@ -357,6 +359,7 @@ function hojaExportar() {
     const b = ev.target.closest('[data-e]'); if (!b) return; H.cerrarModal();
     const desde = V.dur - V.t > 1 ? V.t : 0;
     if (b.dataset.e === 'st') return exportarSticker(desde, largo);
+    if (b.dataset.e === 'wamotor') return mandarConSonido(desde);
     if (b.dataset.e === 'wa5') return exportarVideo(true, { desde, max: 5, nombre: 'wa_sticker_sonido' });
     if (b.dataset.e === 'wa10') return exportarQuietoConAudio(desde);
     return exportarVideo(false);
@@ -367,7 +370,8 @@ async function cuadroEn(t, W, Hh, vid) {
   if (vid && V.base && t < V.base.dur) { vid.currentTime = Math.min(t, V.base.dur - 0.03); await new Promise((ok) => { const f = () => { vid.removeEventListener('seeked', f); ok(); }; vid.addEventListener('seeked', f); setTimeout(f, 1200); }); }
   const c = lienzo(W, Hh); componer(c.getContext('2d'), W, Hh, t, vid); return c;
 }
-export async function exportarSticker(desde, largo) {
+export async function exportarSticker(desde, largo) { const r = await hacerWebP(desde, largo); if (r) await H.guardar(r); }
+async function hacerWebP(desde, largo) {
   pausa(); const vid = V.video ? Object.assign(document.createElement('video'), { src: V.video.src, muted: true, playsInline: true, preload: 'auto' }) : null;
   if (vid) await new Promise((ok) => { vid.onloadeddata = ok; vid.onerror = ok; });
   const m = H.modal(`<div class="hoja"><div class="progreso"><div class="rueda"></div><b id="vvP">Armando el sticker…</b><span>Todo en tu celular</span></div></div>`), txt = m.querySelector('#vvP');
@@ -391,8 +395,8 @@ export async function exportarSticker(desde, largo) {
     }
     if (!blob) throw new Error('no entró en 500 KB: probá con un pedazo más corto');
     const tapa = await cuadroEn(desde, LADO, LADO, vid); H.cerrarModal();
-    await H.guardar({ blob, tapa, segundos: largo, fps: elegido.fps });
-  } catch (e) { H.cerrarModal(); H.aviso('No se pudo: ' + e.message); }
+    return { blob, tapa, segundos: largo, fps: elegido.fps };
+  } catch (e) { H.cerrarModal(); H.aviso('No se pudo: ' + e.message); return null; }
 }
 // el video con sonido, grabando la composición en tiempo real (60 cuadros por segundo) con el audio mezclado
 async function exportarVideo(cuadrado, op = {}) {
@@ -455,4 +459,88 @@ function guiaWhatsApp(tipo) {
     <div class="botones"><button class="sec" data-x="0">Después</button><button class="pri" data-x="1">Abrir WhatsApp</button></div></div>`);
   m.querySelector('[data-x="0"]').onclick = () => H.cerrarModal();
   m.querySelector('[data-x="1"]').onclick = () => { H.cerrarModal(); if (window.SZN && window.SZN.abrirWhatsApp) window.SZN.abrirWhatsApp(); else H.aviso('Abrí WhatsApp desde el celular'); };
+}
+
+// ---------------- mandar con sonido (el motor de WhatsApp de la app: android/wa) ----------------
+// La app se vincula a tu WhatsApp como un dispositivo más (código de 8 dígitos), se conecta sólo para mandar y se
+// desconecta; el sticker va con su audio adentro (hasta 60 s) a tu chat, a un grupo o a un número.
+const waEsperas = new Map(); let waN = 0;
+window.__szWA = (id, json) => { const f = waEsperas.get(id); if (!f) return; waEsperas.delete(id); let r; try { r = JSON.parse(json); } catch (e) { r = { ok: false, error: 'respuesta rara' }; } f(r); };
+const hayMotor = () => !!(window.SZN && window.SZN.waPedir);
+function wa(ruta, datos) { const id = 'w' + (++waN); return new Promise((ok) => { waEsperas.set(id, ok); window.SZN.waPedir(id, ruta, JSON.stringify(datos || {})); }); }
+const b64 = (bl) => new Promise((ok, mal) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = mal; r.readAsDataURL(bl); });
+async function mandarConSonido(desde) {
+  if (!hayMotor()) return H.aviso('Esto anda en la app de Android');
+  if (!puedeOpus()) return H.aviso('Este celular no puede codificar el audio (actualizá «Android System WebView»)');
+  const m = H.modal(`<div class="hoja"><div class="progreso"><div class="rueda"></div><b>Preparando WhatsApp…</b><span>La primera vez tarda unos segundos</span></div></div>`); void m;
+  const e = await wa('estado'); H.cerrarModal();
+  if (!e.ok) return H.aviso(e.error || 'El motor de WhatsApp no arrancó');
+  if (!e.vinculado) return hojaVincular(desde);
+  hojaMandar(desde, e);
+}
+function hojaVincular(desde) {
+  const m = H.modal(`<div class="hoja vvGuia"><h3>Vincular tu WhatsApp</h3>
+    <p class="vvNota">Stickerazo se suma como un dispositivo más de tu WhatsApp (como WhatsApp Web) sólo para mandar los stickers con sonido: se conecta un momento y se desconecta. No lee tus chats.</p>
+    <p class="vvNota vvRiesgo">Ojo: WhatsApp no aprueba programas que no son suyos y puede limitar o bloquear cuentas que los usan. Para cuidarte, la app sólo se conecta al mandar, manda a tu chat por defecto y no más de 20 por hora.</p>
+    <label class="vvAcepto"><input type="checkbox" id="vvAc"> Entiendo el riesgo y quiero vincularlo</label>
+    <input class="campo" id="vvNum" inputmode="tel" placeholder="Tu número con código de país (ej. 54 9 11 2345 6789)" maxlength="22">
+    <div class="botones"><button class="sec" data-x="0">Cancelar</button><button class="pri" data-x="1" disabled>Pedir código</button></div></div>`);
+  const ac = m.querySelector('#vvAc'), bt = m.querySelector('[data-x="1"]'), num = m.querySelector('#vvNum');
+  const valido = () => { bt.disabled = !(ac.checked && num.value.replace(/\D/g, '').length >= 10); };
+  ac.onchange = valido; num.oninput = valido;
+  m.querySelector('[data-x="0"]').onclick = () => H.cerrarModal();
+  bt.onclick = async () => {
+    const n = num.value.replace(/\D/g, ''); m.querySelector('.hoja').innerHTML = '<div class="progreso"><div class="rueda"></div><b>Pidiendo el código…</b></div>';
+    const r = await wa('vincular', { numero: n });
+    if (!r.ok) { H.cerrarModal(); return H.aviso(r.error || 'No se pudo pedir el código'); }
+    if (r.ya) { H.cerrarModal(); return hojaMandar(desde, await wa('estado')); }
+    const cod = String(r.codigo || '').replace(/(.{4})(.{4})/, '$1-$2');
+    m.querySelector('.hoja').innerHTML = `<h3>Tu código</h3><div class="vvCodigo">${esc(cod)}</div>
+      <ol><li>En WhatsApp: ⋮ → <b>Dispositivos vinculados</b> → <b>Vincular un dispositivo</b></li><li>Tocá <b>Vincular con número de teléfono</b></li><li>Escribí este código</li></ol>
+      <p class="vvNota" id="vvEsp">Esperando que lo escribas…</p><div class="botones"><button class="sec" data-x="0">Cancelar</button></div>`;
+    m.querySelector('[data-x="0"]').onclick = () => { fin = true; H.cerrarModal(); };
+    let fin = false; const t0 = Date.now();
+    while (!fin && Date.now() - t0 < 180000) { await new Promise((ok) => setTimeout(ok, 2500)); const e = await wa('estado'); if (e.vinculado) { fin = true; H.cerrarModal(); H.aviso('¡Vinculado!'); return hojaMandar(desde, e); } if (e.error) { const x = m.querySelector('#vvEsp'); if (x) x.textContent = e.error; } }
+    if (!fin) { H.cerrarModal(); H.aviso('Se venció el código: probá de nuevo'); }
+  };
+}
+function hojaMandar(desde, est) {
+  const max = Math.max(1, Math.min(60, Math.floor(V.dur - desde))), def = max;
+  let destino = 'yo', grupo = null;
+  const m = H.modal(`<div class="hoja vvGuia"><h3>Mandar con sonido</h3><p class="vvNota">Vinculado: ${esc(est.yo || 'tu WhatsApp')}</p>
+    <div class="vvSeg" id="vvDest"><button data-d="yo" class="act">Mi chat</button><button data-d="grupo">Un grupo</button><button data-d="num">Un número</button></div>
+    <div id="vvDestX"></div>
+    <label class="vvVol"><span>Audio</span><input type="range" min="1" max="${max}" value="${def}" id="vvSegR"><b id="vvSegB">${def} s</b></label>
+    <label class="vvAcepto"><input type="checkbox" id="vvDesv"> Desvincular después de mandar</label>
+    <p class="vvNota">Después, en WhatsApp: mantené apretado el sticker → <b>Agregar a favoritos</b> y usalo donde quieras (suena al tocarlo).</p>
+    <div class="botones"><button class="sec" data-x="2">Desvincular ya</button><button class="pri" data-x="1">Mandar</button></div></div>`);
+  const r = m.querySelector('#vvSegR'); r.oninput = () => { m.querySelector('#vvSegB').textContent = r.value + ' s'; };
+  const destX = m.querySelector('#vvDestX');
+  m.querySelector('#vvDest').onclick = async (ev) => {
+    const b = ev.target.closest('[data-d]'); if (!b) return; destino = b.dataset.d; for (const x of m.querySelectorAll('[data-d]')) x.classList.toggle('act', x === b);
+    if (destino === 'num') destX.innerHTML = '<input class="campo" id="vvPara" inputmode="tel" placeholder="Número con código de país">';
+    else if (destino === 'grupo') {
+      destX.innerHTML = '<div class="progreso"><div class="rueda"></div></div>'; const g = await wa('grupos');
+      destX.innerHTML = g.ok && g.lista.length ? `<div class="vvRes">${g.lista.map((x) => `<button class="vvItem" data-g="${esc(x.id)}"><span><b>${esc(x.nombre)}</b></span></button>`).join('')}</div>` : `<p class="vvNada">${esc(g.error || 'No estás en ningún grupo')}</p>`;
+      destX.onclick = (e2) => { const x = e2.target.closest('[data-g]'); if (!x) return; grupo = x.dataset.g; for (const y of destX.querySelectorAll('[data-g]')) y.classList.toggle('act', y === x); };
+    } else destX.innerHTML = '';
+  };
+  m.querySelector('[data-x="2"]').onclick = async () => { await wa('desvincular'); H.cerrarModal(); H.aviso('Listo: Stickerazo ya no está vinculado'); };
+  m.querySelector('[data-x="1"]').onclick = async () => {
+    const seg = +r.value, para = destino === 'yo' ? 'yo' : destino === 'grupo' ? grupo : (m.querySelector('#vvPara') || {}).value;
+    if (!para || (destino === 'num' && String(para).replace(/\D/g, '').length < 10)) return H.aviso(destino === 'grupo' ? 'Elegí un grupo' : 'Escribí el número');
+    const desv = m.querySelector('#vvDesv').checked; H.cerrarModal();
+    // (el sticker: hasta 10 s en movimiento —el WebP de 500 KB—; el audio, lo que elegiste, hasta 60 s)
+    const st = await hacerWebP(desde, Math.min(10, Math.max(0.5, V.dur - desde))); if (!st) return;
+    const mm = H.modal(`<div class="hoja"><div class="progreso"><div class="rueda"></div><b id="vvP">Preparando el audio…</b></div></div>`), txt = mm.querySelector('#vvP');
+    try {
+      const sr = 48000, off = new OfflineAudioContext(1, Math.ceil(seg * sr), sr); programar(off, off.destination, desde, 0);
+      const ogg = await oggOpus(await off.startRendering(), 48);
+      txt.textContent = 'Mandando a WhatsApp…';
+      const res = await wa('enviar', { webp: await b64(st.blob), ogg: await b64(ogg), segundos: seg, destino: para, desvincular: desv, animado: true });
+      H.cerrarModal();
+      if (!res.ok) return H.aviso(res.error || 'No se pudo mandar');
+      H.aviso(res.para === 'yo' ? '¡Mandado a tu chat! Guardalo en favoritos' : '¡Mandado!');
+    } catch (e) { H.cerrarModal(); H.aviso('No se pudo: ' + (e.message || e)); }
+  };
 }
