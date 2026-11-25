@@ -240,7 +240,19 @@ function camaraActualizar(dt) {
   else if (typeof herCamaraVista === 'function') herCamaraVista();   // (la herramienta Cámara: mirando por una)
   if (typeof GMA !== 'undefined') GMA.vlFov = 0;
   if (!DBG.cam && !EDA.on && !(typeof CLIB !== 'undefined' && CLIB.modo) && typeof gmaVistaLua === 'function') gmaVistaLua(CAM);   // (CalcView de los addons de GMod)
-  if (CAM.temblor > 0) { CAM.temblor = Math.max(0, CAM.temblor - dt * 1.5); const k = CAM.temblor * 0.03; CAM.q.mul(Quat.euler((Math.random() - 0.5) * k, (Math.random() - 0.5) * k)); }
+  // el sacudón (explosiones, caídas fuertes, ScreenShake y ViewPunch del Lua): una vibración suave —ondas de varias
+  // frecuencias mezcladas, no ruido nuevo en cada cuadro, que con muchos cuadros zumbaba y con pocos saltaba— en los tres
+  // giros y un poco de lugar, fuerte al principio y que se apaga rápido (la fuerza al cuadrado). Bugs y sugerencias
+  // q55n3p6u: «mejorar el sacudimiento de cámara al explotar algo». Hasta ~4° y 4 cm en una explosión al lado
+  if (CAM.temblor > 0) {
+    CAM.temblor = Math.max(0, CAM.temblor - dt * 1.25);
+    const t = TIEMPO.t, k = Math.min(1.4, CAM.temblor) ** 2 * 0.07;
+    const sp = Math.sin(t * 23.1) * 0.55 + Math.sin(t * 37.7 + 1.3) * 0.3 + Math.sin(t * 9.7 + 2.1) * 0.15;
+    const sy = Math.sin(t * 19.3 + 0.7) * 0.55 + Math.sin(t * 31.9 + 2.9) * 0.3 + Math.sin(t * 7.9 + 4.2) * 0.15;
+    const sr = Math.sin(t * 15.7 + 5.1) * 0.7 + Math.sin(t * 27.3 + 0.4) * 0.3;
+    CAM.q.mul(Quat.euler(sy * k, sp * k, sr * k * 0.6));
+    CAM.pos.addS(CAM.der, sy * k * 0.55).addS(CAM.arr, sp * k * 0.55);
+  }
   CAM.qVista.copy(CAM.q).mul(MEDIA_VUELTA);
   CAM.fwd.copy(CAM.q.rot(v3(0, 0, 1)));
   CAM.der.copy(CAM.qVista.rot(v3(1, 0, 0))); CAM.arr.copy(CAM.qVista.rot(v3(0, 1, 0)));
