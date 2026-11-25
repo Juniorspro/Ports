@@ -106,6 +106,28 @@ let rc = null; if (dc) { const ruta = SAL + '/' + dc.suggestedFilename(); await 
 ok(rc && rc.w === 720 && rc.h === 720 && rc.dur > 4 && rc.dur <= 10.3 && rc.fps >= 25 && rc.fps <= 32 && !!rc.audio && /^clip_con_sonido/.test(rc.nombre), 'clip para KLIPY/GIPHY: 720×720, 30 cuadros, ≤ 10 s, con sonido', rc);
 await p.waitForSelector('#modal .vvGuia', { timeout: 10000 }).catch(() => {}); await foto('guia_clip');
 ok(/klipy\.com\/create/.test(await E(() => (document.querySelector('#modal .vvGuia a') || {}).href || '')), 'la guía lleva a KLIPY');
+// 13. publicar con sonido: entra con una cuenta, sube el clip en pedazos y le dan un código; el admin lo ve para revisar
+await p.click('#modal [data-x="1"]').catch(() => {}); await espera(200);
+const reg = await (await fetch('http://127.0.0.1:8996/api/registro', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre: 'probador.clips' }) })).json();
+await E((c) => localStorage.setItem('sz_cuenta', JSON.stringify(c)), { token: reg.token, id: reg.usuario.id, nombre: reg.usuario.nombre, google: false });
+await E(() => window.__vv().irA(0)); await p.click('#vVideo [data-a="exportar"]'); await espera(300);
+await p.click('#modal [data-e="publicar"]'); await p.waitForSelector('#modal #vvTit', { timeout: 5000 }).catch(() => {}); await foto('publicar');
+ok(await E(() => document.querySelector('#modal [data-x="1"]').disabled), 'sin título ni las dos casillas no deja publicar');
+await p.fill('#modal #vvTit', 'Che, ¿vamos?'); await p.fill('#modal #vvEt', 'jaja, mate'); await p.click('#modal #vvMio'); await p.click('#modal #vvPub');
+await p.click('#modal [data-x="1"]');
+await p.waitForSelector('#modal .vvCodigo', { timeout: 90000 }).catch(() => {});
+const cod = await E(() => (document.querySelector('#modal .vvCodigo') || {}).textContent || ''); await foto('codigo');
+ok(/^sz[a-z2-9]{5}$/.test(cod), 'le dan su código para buscarlo en WhatsApp', cod);
+const lista = await (await fetch('http://127.0.0.1:8996/api/admin/clips?estado=revision', { headers: { 'X-Admin': 'clave-admin' } })).json();
+const cl = lista.clips.find((c) => c.codigo === cod) || {};
+const vb = cl.id ? Buffer.from(await (await fetch(`http://127.0.0.1:8996/api/admin/clips/${cl.id}/video`, { headers: { 'X-Admin': 'clave-admin' } })).arrayBuffer()) : Buffer.alloc(0);
+let infoClip = null; if (vb.length) { const f = SAL + '/publicado.' + cl.tipo; fs.writeFileSync(f, vb); const { execSync } = await import('child_process'); infoClip = execSync(`ffprobe -v error -show_entries stream=codec_type,width,height -of csv=p=0 ${f}`).toString().trim().split('\n').join(' | '); }
+ok(cl.titulo === 'Che, ¿vamos?' && cl.etiquetas.join() === 'jaja,mate' && vb.length === cl.n && /video,720,720/.test(infoClip || '') && /audio/.test(infoClip || ''), 'el admin lo ve para revisar: 720×720 con sonido, entero', { kb: Math.round(vb.length / 1024), infoClip });
+await p.click('#modal [data-x="1"]'); await espera(200);
+await p.click('#vVideo [data-a="exportar"]'); await espera(300); await p.click('#modal [data-e="publicar"]'); await espera(300); await p.click('#modal [data-x="2"]');
+await p.waitForSelector('#modal .vvClipItem', { timeout: 8000 }).catch(() => {}); await foto('mis_clips');
+ok(/En revisión/.test(await E(() => (document.querySelector('#modal .vvClipItem') || {}).textContent || '')), '«Mis clips» lo muestra en revisión');
+await p.click('#modal [data-x="0"]').catch(() => {});
 ok(!err.length, 'sin errores de JS', err.slice(0, 5));
 await b.close(); srv.close(); com.close && com.close();
 console.log(fallas ? `${fallas} FALLAS` : 'TODO BIEN'); process.exit(fallas ? 1 : 0);

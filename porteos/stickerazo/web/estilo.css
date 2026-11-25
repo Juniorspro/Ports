@@ -1233,3 +1233,10 @@ html[data-tema="claro"] .soPost, html[data-tema="claro"] .soNuevo { background: 
 .vvGuia ol { margin: 10px 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; }
 .vvGuia li { line-height: 1.35; animation: vvSube .3s ease-out backwards; }
 .vvGuia li:nth-child(2) { animation-delay: .06s; } .vvGuia li:nth-child(3) { animation-delay: .12s; } .vvGuia li:nth-child(4) { animation-delay: .18s; }
+.vvAcepto { display: flex; gap: 8px; align-items: center; margin: 10px 0; font-size: 14px; }
+.vvAcepto input { width: 20px; height: 20px; accent-color: var(--ama); flex: none; }
+.vvGuia .campo { margin: 6px 0; }
+.vvCodigo { font: 800 34px/1.2 ui-monospace, monospace; letter-spacing: 3px; text-align: center; padding: 12px; margin: 8px 0; border-radius: 16px; background: var(--panel2); color: var(--ama); animation: vvPop .45s cubic-bezier(.2,1.4,.4,1); user-select: all; -webkit-user-select: all; }
+.vvCod { color: var(--ama); font-family: ui-monospace, monospace; }
+.vvClipItem { cursor: pointer; }
+@keyframes vvPop { from { transform: scale(.7); opacity: 0; } }

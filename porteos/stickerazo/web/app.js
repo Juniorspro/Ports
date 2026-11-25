@@ -240,7 +240,9 @@ $('#bTexto').onclick = () => crear('texto', 'vInicio');
 const ayudaVideo = () => ({ iconos, aviso, modal, cerrarModal, confirmar,
   guardar: async ({ blob, tapa }) => { const st = { video: true, capas: [{ tipo: 'video' }], sel: -1, hecho: { blob }, animado: () => true, componer: () => tapa, seSale: () => 0, encajar() {}, aProyecto: () => ({ proyecto: { video: 1, capas: [] }, imgs: [] }) }; E.editando = null; await hojaGuardar(st); },
   guardarVideo: async (blob, nombre) => { const r = await P.guardarVideo(blob, nombre); if (!/^wa_/.test(nombre) || !r) aviso(r ? 'Listo: está en tu galería (Películas › Stickerazo)' : 'No se pudo guardar el video'); return r; },
-  guardarArchivo: (blob, nombre, ext) => P.guardarVideo(blob, nombre, ext) });
+  guardarArchivo: (blob, nombre, ext) => P.guardarVideo(blob, nombre, ext),
+  // (publicar con sonido: el servidor de la comunidad, con tu cuenta)
+  api: C.api, cuenta: C.cuenta });
 $('#bVideo').onclick = () => abrirVideo(ayudaVideo());
 $('#bExpress').onclick = () => { const i = $('#archivoVarios'); i.value = ''; i.click(); };
 $('#archivoVarios').addEventListener('change', (ev) => { const fs = [...(ev.target.files || [])].slice(0, MAX_ST); if (fs.length) packExpress(fs); });

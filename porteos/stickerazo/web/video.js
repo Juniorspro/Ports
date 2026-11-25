@@ -350,6 +350,7 @@ function hojaExportar() {
   const largo = Math.min(MAX_ST, V.dur - V.t > 1 ? V.dur - V.t : V.dur);
   const m = H.modal(`<div class="hoja vvHojaA"><h3>Exportar</h3>
     <button class="vvFuente" data-e="st"><b class="vvPunto" style="background:var(--ama)"></b><span><b>Sticker animado</b><small>Para WhatsApp: ${largo.toFixed(1)} s desde ${V.t > 0.05 && V.dur - V.t > 1 ? 'el cabezal' : 'el principio'} (hasta 10 s)</small></span></button>
+    <button class="vvFuente" data-e="publicar"><b class="vvPunto" style="background:var(--ama)"></b><span><b>Publicar con sonido en WhatsApp</b><small>Lo subimos nosotros y te damos un código: lo buscás en los stickers de WhatsApp y sale con sonido</small></span></button>
     <button class="vvFuente" data-e="clip"><b class="vvPunto" style="background:var(--verde)"></b><span><b>Clip con sonido para el buscador de WhatsApp</b><small>Cuadrado, 30 cuadros y hasta 10 s: se sube a KLIPY o GIPHY y aparece con sonido en los stickers de WhatsApp</small></span></button>
     <button class="vvFuente" data-e="wa5"><b class="vvPunto" style="background:var(--rosa)"></b><span><b>Sticker con sonido (WhatsApp)</b><small>5 s en movimiento con su audio: WhatsApp le deja el sonido al hacerlo sticker</small></span></button>
     <button class="vvFuente" data-e="wa10"><b class="vvPunto" style="background:#ff7a1a"></b><span><b>Sticker quieto con 10 s de audio</b><small>La imagen del cabezal y su audio, listos para el editor de WhatsApp</small></span></button>
@@ -358,6 +359,7 @@ function hojaExportar() {
     const b = ev.target.closest('[data-e]'); if (!b) return; H.cerrarModal();
     const desde = V.dur - V.t > 1 ? V.t : 0;
     if (b.dataset.e === 'st') return exportarSticker(desde, largo);
+    if (b.dataset.e === 'publicar') return publicarConSonido(desde);
     if (b.dataset.e === 'clip') return exportarVideo(true, { desde, max: 10, nombre: 'clip_con_sonido', fps: 30, lado: 720, guia: 'clip' });
     if (b.dataset.e === 'wa5') return exportarVideo(true, { desde, max: 5, nombre: 'wa_sticker_sonido' });
     if (b.dataset.e === 'wa10') return exportarQuietoConAudio(desde);
@@ -405,7 +407,7 @@ async function exportarVideo(cuadrado, op = {}) {
   if (!tipo) return H.aviso('Este celular no sabe grabar video desde la app');
   const largo = Math.max(0.5, Math.min(V.dur - desde, op.max || (cuadrado ? MAX_ST : V.dur))), c = lienzo(W, Hh), g = c.getContext('2d'), ctx = audioCtx(); await ctx.resume();
   const dest = ctx.createMediaStreamDestination(), flujo = c.captureStream(fps); for (const pista of dest.stream.getAudioTracks()) flujo.addTrack(pista);
-  const rec = new MediaRecorder(flujo, { mimeType: tipo, videoBitsPerSecond: cuadrado ? (lado > 512 ? 4_000_000 : 2_500_000) : 8_000_000, audioBitsPerSecond: 160_000 }), trozos = [];
+  const rec = new MediaRecorder(flujo, { mimeType: tipo, videoBitsPerSecond: op.bits || (cuadrado ? (lado > 512 ? 4_000_000 : 2_500_000) : 8_000_000), audioBitsPerSecond: 160_000 }), trozos = [];
   rec.ondataavailable = (e) => { if (e.data && e.data.size) trozos.push(e.data); };
   const m = H.modal(`<div class="hoja"><div class="progreso"><div class="rueda"></div><b id="vvP">Grabando el video…</b><span>Tarda lo que dura el video</span></div></div>`), txt = m.querySelector('#vvP');
   const vid = V.video; const when = ctx.currentTime + 0.25, srcs = programar(ctx, dest, desde, when);
@@ -423,6 +425,7 @@ async function exportarVideo(cuadrado, op = {}) {
   for (const s of srcs) { try { s.stop(); } catch (e) { /* ya paró */ } } if (vid) vid.pause();
   await new Promise((ok) => { rec.onstop = ok; rec.stop(); });
   const blob = new Blob(trozos, { type: tipo.split(';')[0] }); H.cerrarModal();
+  if (op.devolver) return blob;
   const ok = await H.guardarVideo(blob, op.nombre || (cuadrado ? 'sticker_con_sonido' : 'video'));
   if (ok && op.guia === 'clip') guiaClip(); else if (op.nombre && ok) guiaWhatsApp('video');
 }
@@ -476,4 +479,58 @@ function guiaClip() {
     <div class="botones"><button class="sec" data-x="0">Después</button><a class="pri" data-x="1" href="https://klipy.com/create" target="_blank" rel="noopener">Abrir KLIPY</a></div></div>`);
   m.querySelector('[data-x="0"]').onclick = () => H.cerrarModal();
   m.querySelector('[data-x="1"]').onclick = () => H.cerrarModal();
+}
+
+// ---------------- publicar con sonido (servidor/clips.js): lo subimos nosotros al canal de Stickerazo ----------------
+// El clip va al servidor de la comunidad; lo revisamos y lo publicamos en el canal de Stickerazo (GIPHY/KLIPY) con un código
+// propio. Ese código, escrito en el buscador de stickers de WhatsApp, trae el sticker con sonido. Sin vincular WhatsApp.
+const ESTADOS = { revision: 'En revisión', aprobado: 'Aprobado: lo estamos subiendo', publicado: 'Publicado', rechazado: 'No se publicó' };
+function copiar(t) { try { navigator.clipboard.writeText(t); H.aviso('Código copiado'); } catch (e) { H.aviso('Tu código: ' + t); } }
+async function publicarConSonido(desde) {
+  if (!H.cuenta || !H.cuenta()) return H.aviso('Para publicar con sonido entrá con tu cuenta (pestaña Perfil)');
+  const m = H.modal(`<div class="hoja vvGuia"><h3>Publicar con sonido</h3>
+    <p class="vvNota">Lo revisamos y lo subimos al canal de Stickerazo. Te damos un código: lo escribís en el buscador de stickers de WhatsApp y te sale con sonido. No hace falta vincular nada.</p>
+    <input class="campo" id="vvTit" maxlength="60" placeholder="Título (ej.: Che, ¿vamos?)">
+    <input class="campo" id="vvEt" maxlength="120" placeholder="Palabras para encontrarlo: jaja, mate, gol">
+    <label class="vvAcepto"><input type="checkbox" id="vvMio"> Es mío o tengo permiso (la imagen y el sonido)</label>
+    <label class="vvAcepto"><input type="checkbox" id="vvPub"> Entiendo que va a ser público</label>
+    <div class="botones"><button class="sec" data-x="2">Mis clips</button><button class="pri" data-x="1" disabled>Publicar</button></div></div>`);
+  const tit = m.querySelector('#vvTit'), bt = m.querySelector('[data-x="1"]'), chk = [m.querySelector('#vvMio'), m.querySelector('#vvPub')];
+  const valido = () => { bt.disabled = !(tit.value.trim() && chk.every((c) => c.checked)); };
+  tit.oninput = valido; for (const c of chk) c.onchange = valido;
+  m.querySelector('[data-x="2"]').onclick = () => { H.cerrarModal(); misClips(); };
+  bt.onclick = async () => {
+    const titulo = tit.value.trim(), etiquetas = m.querySelector('#vvEt').value; H.cerrarModal();
+    const clip = await exportarVideo(true, { desde, max: 10, fps: 30, lado: 720, bits: 2_500_000, devolver: true });
+    if (!(clip instanceof Blob)) return;
+    const mm = H.modal(`<div class="hoja"><div class="progreso"><div class="rueda"></div><b id="vvP">Subiendo…</b><span>No cierres la app</span></div></div>`), txt = mm.querySelector('#vvP');
+    try {
+      const r = await H.api('/api/clips', { method: 'POST', json: { titulo, etiquetas, n: clip.size, tipo: clip.type } });
+      const total = Math.ceil(clip.size / r.parte);
+      for (let k = 0; k < total; k++) {
+        txt.textContent = `Subiendo… ${Math.round(k / total * 100)}%`;
+        await H.api(`/api/clips/${r.id}/partes/${k}`, { method: 'PUT', body: clip.slice(k * r.parte, (k + 1) * r.parte), headers: { 'Content-Type': 'application/octet-stream' }, tiempo: 90000 });
+      }
+      await H.api(`/api/clips/${r.id}/listo`, { method: 'POST' }); H.cerrarModal();
+      hojaCodigo(r.codigo);
+    } catch (e) { H.cerrarModal(); H.aviso(e.message || 'No se pudo subir'); }
+  };
+}
+function hojaCodigo(codigo) {
+  const m = H.modal(`<div class="hoja vvGuia"><h3>¡Mandado!</h3><p class="vvNota">Tu código:</p><div class="vvCodigo">${esc(codigo)}</div>
+    <ol><li>Lo revisamos (suele ser en el día) y lo publicamos</li><li>En WhatsApp: ícono de stickers → buscar → escribí <b>${esc(codigo)}</b></li><li>Te sale con sonido: mandalo o guardalo en favoritos</li></ol>
+    <p class="vvNota">WhatsApp está habilitando los stickers con sonido de a poco. El estado lo ves en «Mis clips».</p>
+    <div class="botones"><button class="sec" data-x="0">Copiar código</button><button class="pri" data-x="1">Listo</button></div></div>`);
+  m.querySelector('[data-x="0"]').onclick = () => copiar(codigo);
+  m.querySelector('[data-x="1"]').onclick = () => H.cerrarModal();
+}
+async function misClips() {
+  const m = H.modal(`<div class="hoja vvGuia"><h3>Mis clips con sonido</h3><div id="vvMis"><div class="progreso"><div class="rueda"></div></div></div><div class="botones"><button class="pri" data-x="0">Cerrar</button></div></div>`);
+  m.querySelector('[data-x="0"]').onclick = () => H.cerrarModal();
+  const caja = m.querySelector('#vvMis');
+  try {
+    const { clips } = await H.api('/api/clips');
+    caja.innerHTML = clips.length ? `<div class="vvRes">${clips.map((c) => `<div class="vvItem vvClipItem" data-c="${esc(c.codigo)}"><span><b>${esc(c.titulo)}</b><small>${esc(ESTADOS[c.estado] || c.estado)} · <b class="vvCod">${esc(c.codigo)}</b></small></span></div>`).join('')}</div><p class="vvNota">Tocá uno para copiar su código.</p>` : '<p class="vvNada">Todavía no publicaste ninguno.</p>';
+    caja.onclick = (ev) => { const x = ev.target.closest('[data-c]'); if (x) copiar(x.dataset.c); };
+  } catch (e) { caja.innerHTML = `<p class="vvNada">${esc(e.message)}</p>`; }
 }

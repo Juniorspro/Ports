@@ -10,6 +10,7 @@
 // (todavía no está en las tiendas: el botón «Bajá Stickerazo» lleva a nuestra página, que tiene el APK y, cuando estén, las tiendas)
 import { verificarGoogle, paginaGoogle, googleObligatorio, huellaGoogle, sha256 } from './google.js';
 import { nubeRutas, borrarNube } from './nube.js';
+import { clipsRutas, clipsAdmin, borrarClips, PAGINA_ADMIN_CLIPS, TABLAS_CLIPS } from './clips.js';
 import { pagosRutas, paginaPremium, pagosAlBorrar, ESQUEMA_PAGOS, cuentaDelTicket, estadoPremium, pagosPrendidos, quitarPremium } from './pagos.js';
 import { socialRutas, socialAdmin, socialAlBorrar, socialAlBloquear, ESQUEMA_SOCIAL, TABLAS_SOCIAL } from './social.js';
 // (la nube de cada cuenta: en su propia base si está, SZ_NUBE; si no, en la de siempre)
@@ -61,7 +62,7 @@ const ESQUEMA = [
 const COLUMNAS_NUEVAS = ['ALTER TABLE usuarios ADD COLUMN cancion TEXT', 'ALTER TABLE packs ADD COLUMN privado INTEGER NOT NULL DEFAULT 0', 'ALTER TABLE usuarios ADD COLUMN google TEXT',
   'CREATE UNIQUE INDEX IF NOT EXISTS i_usuarios_google ON usuarios(google)', 'ALTER TABLE usuarios ADD COLUMN premium_hasta INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE usuarios ADD COLUMN donador INTEGER NOT NULL DEFAULT 0'];
-const TABLAS = 'usuarios|packs|archivos|likes|descargas|sigue|reportes|bloqueos|limites|evento|entradas|contacto|nube_packs|nube_archivos|premium|pagos|tickets_pago|ofertas|' + TABLAS_SOCIAL;
+const TABLAS = 'usuarios|packs|archivos|likes|descargas|sigue|reportes|bloqueos|limites|evento|entradas|contacto|nube_packs|nube_archivos|premium|pagos|tickets_pago|ofertas|' + TABLAS_SOCIAL + '|' + TABLAS_CLIPS;
 const RE_TABLA = new RegExp(`\\b(FROM|JOIN|INTO|UPDATE|ALTER TABLE|TABLE IF NOT EXISTS|ON)\\s+(${TABLAS})\\b`, 'g'), RE_INDICE = /\bINDEX IF NOT EXISTS (\w+)/g;
 export const conPrefijo = (sql, pre) => sql.replace(RE_TABLA, `$1 ${pre}$2`).replace(RE_INDICE, `INDEX IF NOT EXISTS ${pre}$1`);
 // la base de JXMod, vista con las tablas de Stickerazo («sz_usuarios», «sz_packs»…)
@@ -135,6 +136,7 @@ async function borrarCuenta(env, idCuenta) {
     await env.DB.batch(ops);
   await env.DB.prepare('DELETE FROM entradas WHERE usuario = ?').bind(idCuenta).run();
   await borrarNube(nubeDb(env), idCuenta);   // (y lo que tenía guardado en su cuenta)
+  await borrarClips(nubeDb(env), idCuenta);   // (y sus clips con sonido: clips.js)
   await pagosAlBorrar(env, env.DB, idCuenta);   // (si pagaba Premium por mes o por año, se da de baja)
   await socialAlBorrar(env.DB, idCuenta, (pack) => borrarArchivos(env, pack));   // (sus publicaciones, amigos y mensajes)
 }
@@ -204,6 +206,8 @@ async function manejar(req, env, ctx, base) {
         return r.ok ? r : html(pagina('Stickerazo', '<h1>Stickerazo</h1><p>Hacé stickers para WhatsApp con tus fotos y compartilos con la comunidad.</p><a class="b" href="descargar">Bajar para Android</a>'));
       }
       if (ruta.startsWith('/a/')) return delRepo(env, 'sitio/a/' + ruta.slice(3));
+      // (la revisión de los clips con sonido: clips.js)
+      if (ruta === '/admin/clips') return new Response(PAGINA_ADMIN_CLIPS, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } });
       // las actualizaciones de la app (lo mismo que web/ en el repo) y el APK de ahora con sus datos
       if (ruta.startsWith('/web/')) return delRepo(env, 'web/' + ruta.slice(5));
       // las «más letras» del editor (fuentes/ del repo: no van en la app, se bajan cuando alguien elige una)
@@ -300,6 +304,8 @@ async function api(req, env, u, r, metodo, servidor) {
   }
   // ---- tus packs guardados en tu cuenta (nube.js) ----
   { const rn = await nubeRutas(req, nubeDb(env), yo, r, metodo, { json, error, limite: (k, n, s) => limite(env, k, n, s) }); if (rn) return rn; }
+  // ---- clips con sonido para el buscador de stickers de WhatsApp (clips.js) ----
+  { const rc = await clipsRutas(req, nubeDb(env), yo, r, metodo, { json, error, limite: (k, n, s) => limite(env, k, n, s), cuerpo, textoProhibido }); if (rc) return rc; }
   { const rp = await pagosRutas(req, env, env.DB, yo, r, metodo, servidor, { json, error, limite: (k, n, s) => limite(env, k, n, s), cuerpo }); if (rp) return rp; }
   // ---- publicaciones, amigos y chat (social.js) ----
   { const rs = await socialRutas(req, env, env.DB, yo, r, metodo, { json, error, limite: (k, n, s) => limite(env, k, n, s), cuerpo, textoProhibido, publico, infoWebP, nuevoId,
@@ -521,6 +527,7 @@ async function api(req, env, u, r, metodo, servidor) {
   // ---- moderación (con ADMIN_CLAVE) ----
   if (r.startsWith('admin/')) {
     if (!env.ADMIN_CLAVE || req.headers.get('X-Admin') !== env.ADMIN_CLAVE) return error('No', 403);
+    { const rk = await clipsAdmin(req, env, nubeDb(env), r, metodo, { json, error, cuerpo }); if (rk) return rk; }
     if (r === 'admin/social') { const ra = await socialAdmin(env.DB, r, metodo, metodo === 'POST' ? await cuerpo() : {}, { json, error, borrarArchivos: (pk) => borrarArchivos(env, pk) }); if (ra) return ra; }   // (publicaciones y mensajes denunciados)
     if (r === 'admin/reportados' && metodo === 'GET') {
       const { results } = await env.DB.prepare('SELECT p.*, u.nombre AS a_nombre, u.avatar AS a_avatar, u.premium_hasta AS a_premium, u.bloqueado AS a_bloq FROM packs p JOIN usuarios u ON u.id = p.autor WHERE p.reportes > 0 ORDER BY p.oculto DESC, p.reportes DESC LIMIT 100').all();
