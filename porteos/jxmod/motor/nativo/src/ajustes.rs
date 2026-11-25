@@ -12,6 +12,9 @@ pub const SENS: [u32; 6] = [4, 8, 12, 16, 20, 26];
 /// el campo de visión (grados de alto de la imagen, como CAM.fov: 70 el de siempre; la web va de 50 a 110)
 pub const FOV: [u32; 6] = [60, 70, 80, 90, 100, 110];
 pub const VOL: [u32; 5] = [0, 25, 50, 80, 100];
+/// el tamaño de los botones (PREFS.hud de la web: 80 de fábrica; hudTam lo deja entre 60 y 120) y el de la palanca (palTam)
+pub const TAM_HUD: [u32; 7] = [60, 70, 80, 90, 100, 110, 120];
+pub const TAM_PAL: [u32; 6] = [60, 80, 100, 120, 140, 160];
 /// la hora del día (dia.js: los botones del Anfitrión: amanecer, día, atardecer, noche)
 pub const HORAS: [(&str, f32); 4] = [("Amanecer", 7.0), ("Día", 12.0), ("Atardecer", 17.5), ("Noche", 0.0)];
 
@@ -35,20 +38,23 @@ pub struct Ajustes {
     pub auto: bool,
     /// lo que salió la vez anterior (PREFS.gfxMedido): la calidad y el aparato (si cambia la placa, se vuelve a empezar)
     pub medido: Option<(usize, String)>,
+    /// el tamaño de los botones y el de la palanca (en %) y los botones movidos o agrandados en el editor (hud_web.rs:
+    /// «clave:ancla x,ancla y,x,y,tamaño;…», como PREFS.hudPos)
+    pub hud: u32, pub pal: u32, pub hud_pos: String,
 }
 impl Default for Ajustes {
-    fn default() -> Self { Ajustes { calidad: 4, res: 100, sombras: true, ao: true, reflejo: true, retoque: true, sens: 12, fov: 70, fps: true, vol: 80, ambiente: true, hora: 12.0, ciclo: false, auto: true, medido: None } }
+    fn default() -> Self { Ajustes { calidad: 4, res: 100, sombras: true, ao: true, reflejo: true, retoque: true, sens: 12, fov: 70, fps: true, vol: 80, ambiente: true, hora: 12.0, ciclo: false, auto: true, medido: None, hud: 80, pal: 100, hud_pos: String::new() } }
 }
 
 /// lo que se puede tocar en el menú, un renglón cada uno
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Clave { Calidad, Res, Sombras, Ao, Reflejo, Retoque, Sens, Fov, Fps, Vol, Ambiente, Motor, Mapa, Hora, Ciclo }
+pub enum Clave { Calidad, Res, Sombras, Ao, Reflejo, Retoque, Sens, Fov, Fps, Vol, Ambiente, Motor, Mapa, Hora, Ciclo, TamBotones, TamPalanca, Botones }
 /// las pestañas del menú y sus renglones
 pub const PESTANAS: [&str; 6] = ["Gráficos", "Controles", "Sonido", "Motor", "Mapa", "Día"];
 pub fn claves(pestana: usize) -> &'static [Clave] {
     match pestana {
         0 => &[Clave::Calidad, Clave::Res, Clave::Sombras, Clave::Ao, Clave::Reflejo, Clave::Retoque],
-        1 => &[Clave::Sens, Clave::Fov, Clave::Fps],
+        1 => &[Clave::Sens, Clave::Fov, Clave::Fps, Clave::TamBotones, Clave::TamPalanca, Clave::Botones],
         2 => &[Clave::Vol, Clave::Ambiente],
         3 => &[Clave::Motor],
         5 => &[Clave::Hora, Clave::Ciclo],
@@ -60,6 +66,7 @@ pub fn nombre(c: Clave) -> &'static str {
         Clave::Calidad => "Calidad", Clave::Res => "Resolución", Clave::Sombras => "Sombras", Clave::Ao => "Oclusión ambiental", Clave::Reflejo => "Reflejos del agua",
         Clave::Retoque => "Retoque de color", Clave::Sens => "Sensibilidad", Clave::Fov => "Campo de visión", Clave::Fps => "Mostrar fps", Clave::Vol => "Volumen",
         Clave::Ambiente => "Sonido del ambiente", Clave::Motor => "Motor", Clave::Mapa => "Mapa", Clave::Hora => "Hora", Clave::Ciclo => "Ciclo (2 horas por minuto)",
+        Clave::TamBotones => "Tamaño de los botones", Clave::TamPalanca => "Tamaño de la palanca", Clave::Botones => "Botones de la pantalla",
     }
 }
 const NO_SI: [&str; 2] = ["No", "Sí"];
@@ -80,6 +87,8 @@ impl Ajustes {
                 "fov" => if let Some(n) = n { a.fov = n.clamp(50, 110) },
                 "fps" => a.fps = b, "vol" => if let Some(n) = n { a.vol = n.min(100) }, "ambiente" => a.ambiente = b,
                 "auto" => a.auto = b,
+                "hud" => if let Some(n) = n { a.hud = n.clamp(60, 120) }, "pal" => if let Some(n) = n { a.pal = n.clamp(60, 160) },
+                "hudpos" => a.hud_pos = v.to_string(),
                 "medido" => if let Some((q, g)) = v.split_once('|') { if let Ok(q) = q.parse::<usize>() { if q < 5 { a.medido = Some((q, g.to_string())) } } },
                 _ => {}
             }
@@ -91,6 +100,7 @@ impl Ajustes {
         let mut t = format!("calidad={}\nres={}\nsombras={}\nao={}\nreflejo={}\nretoque={}\nsens={}\nfov={}\nfps={}\nvol={}\nambiente={}\nauto={}\n",
             self.calidad, self.res, b(self.sombras), b(self.ao), b(self.reflejo), b(self.retoque), self.sens, self.fov, b(self.fps), self.vol, b(self.ambiente), b(self.auto));
         if let Some((q, g)) = &self.medido { t += &format!("medido={q}|{}\n", g.replace('\n', " ")); }
+        t += &format!("hud={}\npal={}\n", self.hud, self.pal); if !self.hud_pos.is_empty() { t += &format!("hudpos={}\n", self.hud_pos.replace('\n', "")); }
         t
     }
     /// pone una calidad entera (como gfx de la web: cada una con su resolución y sus pasadas)
@@ -115,6 +125,9 @@ impl Ajustes {
             Clave::Res => num(&RES, "%"), Clave::Sens => num(&SENS, ""), Clave::Fov => num(&FOV, "°"), Clave::Vol => num(&VOL, "%"),
             Clave::Sombras | Clave::Ao | Clave::Reflejo | Clave::Retoque | Clave::Fps | Clave::Ambiente | Clave::Ciclo => NO_SI.iter().map(|s| s.to_string()).collect(),
             Clave::Hora => HORAS.iter().map(|h| h.0.to_string()).collect(),
+            Clave::TamBotones => num(&TAM_HUD, "%"), Clave::TamPalanca => num(&TAM_PAL, "%"),
+            // (el primero abre el editor —lo hace el juego—; el segundo vuelve todo a como viene)
+            Clave::Botones => vec!["Mover y agrandar".into(), "De fábrica".into()],
             Clave::Motor | Clave::Mapa => vec![],
         }
     }
@@ -127,7 +140,8 @@ impl Ajustes {
             Clave::Sombras => Some(self.sombras as usize), Clave::Ao => Some(self.ao as usize), Clave::Reflejo => Some(self.reflejo as usize),
             Clave::Retoque => Some(self.retoque as usize), Clave::Fps => Some(self.fps as usize), Clave::Ambiente => Some(self.ambiente as usize),
             Clave::Hora => HORAS.iter().position(|h| h.1 == self.hora), Clave::Ciclo => Some(self.ciclo as usize),
-            Clave::Motor | Clave::Mapa => None,
+            Clave::TamBotones => pos(&TAM_HUD, self.hud), Clave::TamPalanca => pos(&TAM_PAL, self.pal),
+            Clave::Motor | Clave::Mapa | Clave::Botones => None,
         }
     }
     /// elige el valor `k` de un renglón (tocar algo de la calidad a mano la deja en «Personal»)
@@ -143,6 +157,9 @@ impl Ajustes {
             Clave::Sens => self.sens = toma(&SENS), Clave::Fov => self.fov = toma(&FOV), Clave::Vol => self.vol = toma(&VOL),
             Clave::Fps => self.fps = k == 1, Clave::Ambiente => self.ambiente = k == 1,
             Clave::Hora => self.hora = HORAS[k.min(HORAS.len() - 1)].1, Clave::Ciclo => self.ciclo = k == 1,
+            Clave::TamBotones => self.hud = toma(&TAM_HUD), Clave::TamPalanca => self.pal = toma(&TAM_PAL),
+            // (De fábrica: los lugares, el tamaño y la palanca como vienen —hudFab de la web—)
+            Clave::Botones => if k == 1 { self.hud_pos.clear(); self.hud = 80; self.pal = 100; },
             Clave::Motor | Clave::Mapa => {}
         }
         // (si lo tocado a mano coincide con una calidad entera, vuelve a ser esa)

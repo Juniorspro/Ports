@@ -266,6 +266,8 @@ pub struct Juego {
     pub mj: mapas_juego::EnMapas,
     /// lo de jugabilidad.rs
     pub jg: jugabilidad::Jugabilidad,
+    /// el editor de los botones de la pantalla (hud_web.rs)
+    pub ed: hud_web::Editor,
     /// lo de personajes.rs
     pub pjs: personajes::Pjs,
     /// el inicio, los paneles y la pausa (inicio_juego.rs)
@@ -314,7 +316,7 @@ impl Juego {
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
             npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
-            her: Herramientas::default(), en_red, gmod, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
+            her: Herramientas::default(), en_red, gmod, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), ed: hud_web::Editor::default(), pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
             armas_ico: false, armas_ico_h: 256, hud_ico: false, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         // los mapas: todos los de la web (DATA.esc), primero los RB (los de la versión personal); empieza en el último elegido
@@ -353,6 +355,7 @@ impl Juego {
     pub fn dedo_abajo(&mut self, id: i32, x: f32, y: f32, w: f32, h: f32) {
         // (mientras se miden los gráficos está la pantalla de carga: no se toca nada)
         if self.gfxa.midiendo() { return; }
+        if self.ed.activo { self.ed_abajo(id, x, y, w, h); return; }
         self.dedos.retain(|d| d.id != id);
         if self.ini_dedo_abajo(id, x, y, w, h) { return; }
         if self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel || self.gmod.panel || self.emotes_panel || self.jg.panel() || self.pjs.panel() { self.dedos.push(Dedo { id, palanca: false, boton: None, x0: x, y0: y, x, y }); return; }
@@ -398,6 +401,7 @@ impl Juego {
         self.dedos.push(Dedo { id, palanca, boton: None, x0: x, y0: y, x, y });
     }
     pub fn dedo_mueve(&mut self, id: i32, x: f32, y: f32, h: f32) {
+        if self.ed.activo { self.ed_mueve(id, x, y); return; }
         if self.ini_dedo_mueve(id, x, y, h) { return; }
         if self.ajustes.is_some() || self.npc_panel.is_some() { if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { d.x = x; d.y = y; } return; }
         // (en el panel de salas, arrastrar baja la lista)
@@ -419,6 +423,7 @@ impl Juego {
     }
     /// al soltar: en el menú, un toque (sin arrastrar) elige
     pub fn dedo_arriba_en(&mut self, id: i32, w: f32, h: f32) {
+        if self.ed.activo { self.ed_arriba(id); return; }
         self.pj_dedo_arriba(id);
         if self.ini_dedo_arriba(id, w, h) { self.dedo_arriba(id); return; }
         if self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel || self.gmod.panel || self.emotes_panel || self.jg.panel() || self.pjs.panel() {
@@ -427,7 +432,7 @@ impl Juego {
         }
         self.dedo_arriba(id);
     }
-    pub fn dedo_arriba(&mut self, id: i32) { self.dedos.retain(|d| d.id != id); }
+    pub fn dedo_arriba(&mut self, id: i32) { if self.ed.activo { self.ed_arriba(id); } self.dedos.retain(|d| d.id != id); }
     /// un toque en el panel de Actitud (el clic de npcPanel)
     fn toque_npc(&mut self, x: f32, y: f32, w: f32, h: f32) {
         let Some(pn) = self.npc_panel.as_ref() else { return }; let quien = pn.npc;
@@ -701,6 +706,8 @@ impl Juego {
     fn tipo_manejo(&self) -> Option<veh::Tipo> { self.vehs.jugador.filter(|j| j.1 == 0).and_then(|j| self.vehs.de(j.0)).map(|v| v.tipo) }
     /// qué botones se ven: los de la Physics Gun sólo con algo agarrado; la barra de armas, abierta
     fn boton_visible(&self, b: Boton) -> bool {
+        // (en el editor: todos los que se mueven en ese modo, aunque el arma o la situación los escondan)
+        if self.ed.activo { return b != Boton::Girar && hud_web::clave(b).is_some_and(|c| hud_web::editable(c, self.ed.veh)); }
         if self.jg.sin_hud() { return false; }
         // (con la barra de armas abierta, como la web —#arribaDe escondido—: el arma, la cámara y los emotes, que quedan debajo)
         if self.armas.barra_t > 0.0 && matches!(b, Boton::Arma | Boton::Camara | Boton::Emotes) { return false; }
@@ -763,6 +770,7 @@ impl Juego {
                     self.sonido.tocar("Click", 0.5, 1.0, None);
                     match c {
                         Clave::Motor => self.elegir_motor(k),
+                        Clave::Botones if k == 0 => self.ed_abrir(),
                         Clave::Mapa => { if k != self.mapa_i { self.mapa_i = k; self.recargar = true; self.ajustes = None; if let Some(d) = &self.datos { let _ = std::fs::write(d.join("mapa.txt"), &self.mapas[k]); } } }
                         _ => { self.aj.elegir(*c, k); if let Some(d) = &self.datos { let _ = std::fs::write(d.join("ajustes.txt"), self.aj.texto()); } }
                     }
@@ -1209,8 +1217,8 @@ impl Juego {
         let usa = self.en_uso;
         let gm_tex = self.gmod_hud(l, &mut u, wf, hf, t);
         self.jg_hud_fondo(l, &mut u, wf, hf);
-        if self.aj.fps {
-            // (debajo de los botones de arriba a la izquierda)
+        if self.aj.fps && !self.ed.activo {
+            // (debajo de los botones de arriba a la izquierda; en el editor no, que ahí va su ayuda)
             let y0 = hud_web::bajo_izq(wf, hf);
             let (ew, eh) = ((wf * self.aj.res as f32 / 100.0).round(), (hf * self.aj.res as f32 / 100.0).round());
             l.texto_sombra(&mut u, t * 0.5, y0 + t * 0.5, t, bl, &format!("{:.0} fps · cuadro {:.1} ms · placa {:.1} ms · {}×{}", self.fps, self.ms, self.placa_ms, ew, eh));

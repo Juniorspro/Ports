@@ -2,7 +2,7 @@
 //! pared de RB_Construct a 100 km/h (como pruebas/destruccion.mjs), una explosión al costado de otro auto, una nuclear
 //! (Little Boy) vista de lejos, la catapulta, la bomba de Rick Prime, la patada, la linterna, la cámara libre, volar, el
 //! muñeco, el SCP, el Cíclope y Pepe (forzado con JXM_PEPE). Saca fotos de cada cosa y escribe los números.
-//! Uso: jugabilidad_foto CARPETA [ANCHO ALTO]  (JXM_WWW, JXM_LETRAS y JXM_MOTOR como foto.rs; JXM_SOLO=destruccion,nuclear,hud,…)
+//! Uso: jugabilidad_foto CARPETA [ANCHO ALTO]  (JXM_WWW, JXM_LETRAS y JXM_MOTOR como foto.rs; JXM_SOLO=destruccion,nuclear,hud,editor,…)
 use glow::HasContext;
 use jxjuego::paquete::Paquete;
 use jxmod::comun::{Juego, Placa};
@@ -103,6 +103,26 @@ fn main() {
         boton(&mut j, Boton::Jg(Bj::Linterna)); boton(&mut j, Boton::Jg(Bj::CamLibre)); boton(&mut j, Boton::Jg(Bj::CamL)); paso(&mut j, &mut m, 3); foto(&mut m, "hud_prendidos");
         boton(&mut j, Boton::Jg(Bj::CamLibre)); boton(&mut j, Boton::Jg(Bj::Linterna)); paso(&mut j, &mut m, 3);
         println!("hud: arma {} · balas {:?} · linterna {} · cámara libre {}", j.armas.def().n, j.armas.balas.get(k), j.jg.lint, j.jg.clib.menu);
+    }
+    if hace("editor") {
+        // el editor de los botones (controles.js): mover el salto arrastrándolo, agrandar el disparo con dos dedos y con «+»,
+        // guardar (queda en ajustes.txt) y volver a los de fábrica
+        use jxmod::comun::hud_web::{barra_editor, AccEd};
+        let tocar_barra = |j: &mut Juego, a: AccEd| { let r = barra_editor(wf, hf, j.ed.veh).into_iter().find(|x| x.0 == a).unwrap().2; j.dedo_abajo(70, r[0] + r[2] / 2.0, r[1] + r[3] / 2.0, wf, hf); j.dedo_arriba(70); };
+        let (sx0, sy0) = jxmod::comun::pos_boton(wf, hf, Boton::Saltar); let (dx0, dy0) = jxmod::comun::pos_boton(wf, hf, Boton::Disparo);
+        j.ed_abrir(); paso(&mut j, &mut m, 2); foto(&mut m, "ctl_editor");
+        j.dedo_abajo(71, sx0, sy0, wf, hf); for k in 1..=10 { j.dedo_mueve(71, sx0 - 32.0 * k as f32, sy0 - 14.0 * k as f32, hf); } j.dedo_arriba(71); paso(&mut j, &mut m, 1);
+        j.dedo_abajo(72, dx0, dy0, wf, hf); j.dedo_abajo(73, dx0 + 60.0, dy0, wf, hf); for k in 1..=6 { j.dedo_mueve(73, dx0 + 60.0 + 10.0 * k as f32, dy0, hf); } j.dedo_arriba(73); j.dedo_arriba(72);
+        tocar_barra(&mut j, AccEd::Mas); paso(&mut j, &mut m, 2); foto(&mut m, "ctl_editado");
+        tocar_barra(&mut j, AccEd::Guardar); paso(&mut j, &mut m, 2); j.ajustes = None; paso(&mut j, &mut m, 2); foto(&mut m, "ctl_guardado");
+        let (sx1, sy1) = jxmod::comun::pos_boton(wf, hf, Boton::Saltar);
+        println!("editor: salto de ({sx0:.0}, {sy0:.0}) a ({sx1:.0}, {sy1:.0}) · guardado «{}» · editor abierto {}", j.aj.hud_pos, j.ed.activo);
+        assert!((sx1 - (sx0 - 320.0)).abs() < 2.0 && (sy1 - (sy0 - 140.0)).abs() < 2.0 && j.aj.hud_pos.contains("disparo:") && !j.ed.activo, "el editor no movió o no guardó");
+        // (tocar el salto en su lugar nuevo salta)
+        j.dedo_abajo(74, sx1, sy1, wf, hf); paso(&mut j, &mut m, 3); println!("   salto en su lugar nuevo apretado: {}", j.jug.vel[1] > 0.5 || !j.jug.suelo); j.dedo_arriba(74); paso(&mut j, &mut m, 40);
+        j.ed_abrir(); tocar_barra(&mut j, AccEd::Fabrica); tocar_barra(&mut j, AccEd::Guardar); j.ajustes = None; paso(&mut j, &mut m, 2);
+        let (sx2, sy2) = jxmod::comun::pos_boton(wf, hf, Boton::Saltar); println!("   de fábrica: salto en ({sx2:.0}, {sy2:.0}) · «{}»", j.aj.hud_pos);
+        assert!((sx2 - sx0).abs() < 0.5 && (sy2 - sy0).abs() < 0.5 && j.aj.hud_pos.is_empty());
     }
     if hace("linterna") {
         boton(&mut j, Boton::Jg(Bj::Linterna)); j.poner_ojos([base[0], base[1] + 0.72, base[2]], j.jug.yaw, -0.5); paso(&mut j, &mut m, 3); foto(&mut m, "linterna"); println!("linterna: {}", j.jg.lint); boton(&mut j, Boton::Jg(Bj::Linterna)); j.jug.noclip = false;

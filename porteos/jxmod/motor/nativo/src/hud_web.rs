@@ -7,11 +7,13 @@ use super::{Boton, Btn};
 use super::jugabilidad::Bj;
 use super::personajes::Bp;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::OnceLock;
+use std::sync::{OnceLock, RwLock};
 
-/// el tamaño de los controles en milésimos (hudTam de la web: 0,776 de fábrica; lo cambia el editor de controles)
-pub static TAM: AtomicU32 = AtomicU32::new(776);
-pub fn tam() -> f32 { TAM.load(Ordering::Relaxed) as f32 / 1000.0 }
+/// el tamaño de los controles en milésimos (hudTam de la web: PREFS.hud / 100, 0,8 de fábrica, entre 0,6 y 1,2) y el de la
+/// palanca en % (palTam): los pone el juego desde Ajustes
+pub static TAM: AtomicU32 = AtomicU32::new(800);
+pub static PAL: AtomicU32 = AtomicU32::new(100);
+pub fn tam() -> f32 { (TAM.load(Ordering::Relaxed) as f32 / 1000.0).clamp(0.6, 1.2) }
 /// la escala de la referencia (1280 × 720, mezclando ancho y alto, como el CanvasScaler de la web)
 pub fn kb(w: f32, h: f32) -> f32 { ((w / 1280.0) * (h / 720.0)).sqrt() }
 /// cuántos píxeles de la pantalla son un px de la web: los de un celular de 873 × 393 (la web cuenta en px de CSS y el
@@ -67,6 +69,8 @@ pub(super) fn disposicion(w: f32, h: f32, n_armas: usize) -> (Vec<Btn>, [f32; 3]
     let tope = |t: &[[f32; 4]]| t.iter().fold(0f32, |q, x| q.max(x[1] + x[2] / 2.0));
     let (mut kd, mut kab) = (esc(&ad), esc(&ab));
     let q = ((h - 6.0 * c) / (tope(&ad) * kd + tope(&ab) * kab)).min(1.0); kd *= q; kab *= q;
+    let props = PROPIOS.read().map(|p| p.clone()).unwrap_or_default(); let propio = |c: &str| props.iter().find(|x| x.0 == c).map(|x| x.1);
+    let propio_b = |b: Boton| clave(b).and_then(|c| propio(c));
     for (b, [dx, dy, s, _]) in AD { v.push(Btn { b, x: w + dx * kd, y: dy * kd, w: s * kd, h: s * kd, redondo: b != Boton::Arma }); }
     for (b, [dx, dy, s, _]) in AB { v.push(Btn { b, x: w + dx * kab, y: h - dy * kab, w: s * kab, h: s * kab, redondo: true }); }
     for (b, [ax, x0, y0, s0, mn]) in TACTIL { let t = (s0 * k).max(mn * fz); v.push(Btn { b, x: ax * w + x0 * kb, y: h - y0 * kb, w: t, h: t, redondo: true }); }
@@ -78,11 +82,13 @@ pub(super) fn disposicion(w: f32, h: f32, n_armas: usize) -> (Vec<Btn>, [f32; 3]
     // ---- arriba a la izquierda: columnas por grupo, los que se ven primero; con 3 filas o con 2, la que deje los botones más
     // grandes sin bajar a la zona de la palanca (el 45 % del alto) ni llegar a los de arriba a la derecha ----
     let ve = ZONA_VE.load(Ordering::Relaxed); let visible = |z: &Iz| match z { Iz::Pausa => true, Iz::B(_, bit) => ve & bit != 0 };
+    // (los que el jugador movió no ocupan lugar en las columnas, que siguen sin huecos)
+    let suelto = |z: &Iz| match z { Iz::Pausa => propio("pausa").is_some(), Iz::B(b, _) => propio_b(*b).is_some() };
     let armar = |r: usize| {
         let (mut o, mut x, mut der) = (vec![], ZM, 0f32);
         for zona in [&SIS[..], &CREAR[..]] {
-            let nv = zona.iter().filter(|z| visible(z)).count();
-            for (i, z) in zona.iter().filter(|z| visible(z)).chain(zona.iter().filter(|z| !visible(z))).enumerate() {
+            let nv = zona.iter().filter(|z| !suelto(z) && visible(z)).count();
+            for (i, z) in zona.iter().filter(|z| !suelto(z) && visible(z)).chain(zona.iter().filter(|z| !suelto(z) && !visible(z))).enumerate() {
                 let (c, fi) = (i / r, i % r); let cx = x + c as f32 * (ZS + ZG) + ZS / 2.0;
                 o.push((*z, cx, ZM + fi as f32 * (ZS + ZG) + ZS / 2.0)); if i < nv { der = der.max(cx + ZS / 2.0); }
             }
@@ -99,6 +105,11 @@ pub(super) fn disposicion(w: f32, h: f32, n_armas: usize) -> (Vec<Btn>, [f32; 3]
     }
     let (ka, o) = mejor.unwrap_or((ka0, vec![])); let mut pausa = [(ZM + ZS / 2.0) * ka, (ZM + ZS / 2.0) * ka, ZS * ka];
     for (z, cx, cy) in o { match z { Iz::Pausa => pausa = [cx * ka, cy * ka, ZS * ka], Iz::B(b, _) => v.push(Btn { b, x: cx * ka, y: cy * ka, w: ZS * ka, h: ZS * ka, redondo: true }) } }
+    // ---- los que movió o agrandó el jugador (el editor): desde su esquina, en la referencia de 1280 × 720 ----
+    let lugar = |a: [f32; 5]| (a[0] * w + a[2] * kb, a[1] * h + a[3] * kb, a[4] * k);
+    for z in SIS.iter().chain(CREAR.iter()) { if let Iz::B(b, _) = z { if let Some(a) = propio_b(*b) { let (x, y, s) = lugar(a); v.push(Btn { b: *b, x, y, w: s, h: s, redondo: true }); } } }
+    for b in v.iter_mut() { if matches!(b.b, Boton::ArmaN(_)) { continue; } if let Some(a) = propio_b(b.b) { let (x, y, s) = lugar(a); b.x = x; b.y = y; b.w = s; b.h = s; } }
+    if let Some(a) = propio("pausa") { let (x, y, s) = lugar(a); pausa = [x, y, s]; }
     (v, pausa)
 }
 
@@ -111,7 +122,7 @@ pub(super) fn bajo_izq(w: f32, h: f32) -> f32 {
 /// la palanca de la web (#palanca): quieta abajo a la izquierda —40 px de los bordes—, de 230 unidades (entre 70 y 240 px);
 /// el dedo la mueve a donde se apoya. Devuelve el centro y el lado; el recorrido de la bolita es el 42 % del lado
 pub fn palanca(w: f32, h: f32) -> (f32, f32, f32) {
-    let c = css(w, h); let p = (230.0 * kb(w, h) * tam()).clamp(70.0 * c, 240.0 * c);
+    let c = css(w, h); let p = (230.0 * kb(w, h) * tam() * PAL.load(Ordering::Relaxed) as f32 / 100.0).clamp(70.0 * c, 240.0 * c);
     (40.0 * c + p / 2.0, h - 40.0 * c - p / 2.0, p)
 }
 
@@ -177,12 +188,15 @@ pub fn uv(nombre: &str) -> Option<[f32; 4]> {
 #[cfg(test)]
 mod pruebas {
     use super::*;
+    /// (las dos pruebas tocan lo mismo —qué se ve, los movidos—: de a una)
+    static CANDADO: std::sync::Mutex<()> = std::sync::Mutex::new(());
     /// (como la web en un celular de 873 × 393: la pausa en 10, 10 con 46 de lado y el salto abajo a la derecha)
     #[test]
     fn como_la_web() {
+        let _c = CANDADO.lock().unwrap_or_else(|e| e.into_inner());
         ZONA_VE.store(VE_CHAT | VE_CELU | VE_OBJ | VE_MOD, Ordering::Relaxed);
         let (v, p) = disposicion(873.0, 393.0, 15);
-        assert!((p[0] - p[2] / 2.0 - 9.5).abs() < 1.5 && (p[2] - 45.5).abs() < 1.5, "pausa {p:?}");
+        assert!((p[0] - p[2] / 2.0 - 9.8).abs() < 1.0 && (p[2] - 46.9).abs() < 1.0, "pausa {p:?}");
         let b = |x: Boton| v.iter().find(|b| b.b == x).map(|b| (b.x, b.y, b.w)).unwrap();
         let s = b(Boton::Saltar); assert!((s.0 - 829.0).abs() < 3.0 && (s.1 - 349.0).abs() < 3.0, "saltar {s:?}");
         let c = b(Boton::Chat); assert!((c.0 - p[0]).abs() < 0.5 && c.1 > p[1] + 40.0, "chat debajo de la pausa {c:?}");
@@ -193,6 +207,21 @@ mod pruebas {
         assert!((ce.x - p[0]).abs() < 0.5 && (ce.y - p[1] - p[2] - 18.0 * p[2] / 96.0).abs() < 1.0);
         // (la barra de armas entra en el ancho)
         assert!(v.iter().filter(|b| matches!(b.b, Boton::ArmaN(_))).all(|b| b.x - b.w / 2.0 >= 9.0 && b.x + b.w / 2.0 <= 864.0));
+    }
+    #[test]
+    fn movidos() {
+        let _c = CANDADO.lock().unwrap_or_else(|e| e.into_inner());
+        let v = leer_propios("saltar:1,1,-300,-200,120;nada:0,0,1,1,1;pausa:0,0,500,300,96;malo:1,2");
+        assert_eq!(v.len(), 2); assert_eq!(leer_propios(&texto_propios(&v)), v);
+        let mut a = crate::ajustes::Ajustes::default(); a.hud_pos = texto_propios(&v); a.hud = 100; a.pal = 140;
+        let b = crate::ajustes::Ajustes::leer(Some(&a.texto())); assert_eq!((b.hud_pos.as_str(), b.hud, b.pal), (a.hud_pos.as_str(), 100, 140));
+        // (la pausa movida: el celular sube a su lugar en la columna; el salto donde se lo dejó)
+        ZONA_VE.store(VE_CELU | VE_OBJ | VE_MOD, Ordering::Relaxed); poner_propios(&v);
+        let (w, h) = (873.0, 393.0); let (d, p) = disposicion(w, h, 15); poner_propios(&[]);
+        let k = kb(w, h); let ce = d.iter().find(|b| b.b == Boton::Pj(Bp::Celular)).unwrap(); let sa = d.iter().find(|b| b.b == Boton::Saltar).unwrap();
+        assert!((p[0] - 500.0 * k).abs() < 0.5 && (p[1] - 300.0 * k).abs() < 0.5, "pausa {p:?}");
+        assert!((ce.y - (ZM + ZS / 2.0) * ce.w / ZS).abs() < 0.5, "celular arriba {}", ce.y);
+        assert!((sa.x - (w - 300.0 * k)).abs() < 0.5 && (sa.y - (h - 200.0 * k)).abs() < 0.5 && (sa.w - 120.0 * k * tam()).abs() < 0.5);
     }
     #[test]
     fn iconos_pintados() {
@@ -221,6 +250,7 @@ fn sombra(v: &mut Vec<f32>, n: &str, x: f32, y: f32, w: f32, h: f32, c: f32) {
 impl super::Juego {
     /// cuáles de arriba a la izquierda se ven (para ubicarlos sin huecos, como la web)
     pub(super) fn zona_ve(&self) -> u32 {
+        if self.ed.activo { return VE_CHAT | VE_CELU | VE_OBJ | VE_MOD; }
         let mut z = 0;
         if self.boton_visible(Boton::Chat) { z |= VE_CHAT; }
         if self.boton_visible(Boton::Pj(Bp::Celular)) { z |= VE_CELU; }
@@ -231,10 +261,10 @@ impl super::Juego {
     /// los botones como los de la web: el fondo, el filo y el ícono (en el atlas del HUD, que va antes que las letras: los
     /// números y las palabras quedan encima), y el arma con su ícono (TEX_ARMAS) y sus balas. Devuelve lo del atlas del HUD
     pub(super) fn hud_botones(&self, l: &jxjuego::texto::Letras, u: &mut Vec<f32>, ia: &mut Vec<f32>, wf: f32, hf: f32, abierto: bool) -> Vec<f32> {
-        ZONA_VE.store(self.zona_ve(), Ordering::Relaxed);
+        sincronizar(&self.aj, &self.ed); ZONA_VE.store(self.zona_ve(), Ordering::Relaxed);
         let mut v: Vec<f32> = vec![]; let c = css(wf, hf);
         // (la palanca: quieta abajo a la izquierda, más clara; con el dedo, donde se apoyó y prendida)
-        if !abierto && self.mapa.is_some() && !self.jg.sin_hud() && (self.vehs.jugador.is_none() || matches!(self.tipo_manejo(), Some(jxjuego::vehiculo::Tipo::Heli | jxjuego::vehiculo::Tipo::Avion))) {
+        if !abierto && !self.ed.activo && self.mapa.is_some() && !self.jg.sin_hud() && (self.vehs.jugador.is_none() || matches!(self.tipo_manejo(), Some(jxjuego::vehiculo::Tipo::Heli | jxjuego::vehiculo::Tipo::Avion))) {
             let (px, py, p) = palanca(wf, hf); let dedo = self.dedos.iter().find(|d| d.palanca);
             let (cx, cy, op) = dedo.map_or((px, py, 0.6), |d| (d.x0, d.y0, 1.0)); let r = p / 2.0;
             pieza(&mut v, "disco", cx - r, cy - r, p, p, [1.0, 1.0, 1.0, 0.12 * op]); pieza(&mut v, "aro", cx - r, cy - r, p, p, [1.0, 1.0, 1.0, 0.25 * op]);
@@ -243,7 +273,7 @@ impl super::Juego {
         }
         if abierto { return v; }
         // (la pausa, primera arriba a la izquierda)
-        if let Some(ap) = self.pausa_boton() {
+        if let Some(ap) = if self.ed.activo { (!self.ed.veh).then_some(false) } else { self.pausa_boton() } {
             let [cx, cy, s] = disposicion(wf, hf, 0).1; let s = s * if ap { 0.94 } else { 1.0 }; let (x, y) = (cx - s / 2.0, cy - s / 2.0);
             sombra(&mut v, "disco", x, y, s, s, c);
             pieza(&mut v, "disco", x, y, s, s, if ap { [AMA[0], AMA[1], AMA[2], 0.34] } else { FONDO }); pieza(&mut v, "aro", x, y, s, s, if ap { [AMA[0], AMA[1], AMA[2], 1.0] } else { FILO });
@@ -334,11 +364,161 @@ impl super::Juego {
                 let tt = 10.0 * c; l.texto_sombra(u, b.x - l.ancho(tt, t) / 2.0, b.y + bh / 2.0 + 3.0 * c, tt, [1.0; 4], t);
             }
         }
+        if self.ed.activo { self.ed_dibujar(l, u, &mut v, wf, hf); }
         v
     }
     /// el ícono de un arma en el atlas de las armas (10 por fila, de ICO píxeles)
     fn uv_arma(&self, k: usize) -> [f32; 4] {
         let (cx, cy) = ((k as u32 % super::ICO_COLS) * super::ICO, (k as u32 / super::ICO_COLS) * super::ICO); let (aw, ah) = (1024.0f32, self.armas_ico_h as f32);
         [cx as f32 / aw, cy as f32 / ah, (cx + super::ICO) as f32 / aw, (cy + super::ICO) as f32 / ah]
+    }
+}
+
+// ---------------- el editor de los botones (controles.js: ctlEditar) ----------------
+/// los botones movidos o agrandados: clave → [ancla x (0 izquierda, 1 derecha), ancla y (0 arriba, 1 abajo), x, y (en la
+/// referencia de 1280 × 720, desde el ancla), tamaño (en unidades: px = tamaño × la escala)]. Los de ajustes.txt o, con el
+/// editor abierto, los del borrador
+static PROPIOS: RwLock<Vec<(&'static str, [f32; 5])>> = RwLock::new(Vec::new());
+/// las claves de los botones que se pueden mover (las de ajustes.txt)
+pub const CLAVES: [&str; 27] = ["pausa", "chat", "celular", "objetos", "mod", "arma", "camara", "emotes", "borrar", "bajar", "camlibre", "linterna", "caml", "camr",
+    "saltar", "agachar", "disparo", "disparo2", "patada", "volar", "recargar", "lejos", "cerca", "ciclope", "usar", "bocina", "turbo"];
+pub fn clave(b: Boton) -> Option<&'static str> {
+    Some(match b {
+        Boton::Chat => "chat", Boton::Pj(Bp::Celular) => "celular", Boton::Objetos => "objetos", Boton::Jg(Bj::Mod) => "mod", Boton::Arma => "arma", Boton::Camara => "camara",
+        Boton::Emotes => "emotes", Boton::Deshacer => "borrar", Boton::Bajar => "bajar", Boton::Jg(Bj::CamLibre) => "camlibre", Boton::Jg(Bj::Linterna) => "linterna",
+        Boton::Jg(Bj::CamL) => "caml", Boton::Jg(Bj::CamR) => "camr", Boton::Saltar => "saltar", Boton::Agachar => "agachar", Boton::Disparo => "disparo",
+        Boton::Disparo2 => "disparo2", Boton::Jg(Bj::Patada) => "patada", Boton::Volar => "volar", Boton::Recargar | Boton::Girar => "recargar", Boton::Lejos => "lejos",
+        Boton::Cerca => "cerca", Boton::Jg(Bj::Ciclope) => "ciclope", Boton::Usar => "usar", Boton::Bocina => "bocina", Boton::Turbo => "turbo",
+        _ => return None,
+    })
+}
+/// cuáles se mueven en cada modo del editor (a pie o en un vehículo: bajarse, la bocina y el turbo)
+pub fn editable(c: &str, veh: bool) -> bool { matches!(c, "bajar" | "bocina" | "turbo") == veh }
+/// «clave:ax,ay,x,y,tamaño;…» (lo que no se entiende se deja)
+pub fn leer_propios(t: &str) -> Vec<(&'static str, [f32; 5])> {
+    t.split(';').filter_map(|e| {
+        let (k, v) = e.split_once(':')?; let k = CLAVES.iter().find(|c| **c == k.trim())?;
+        let n: Vec<f32> = v.split(',').filter_map(|x| x.trim().parse().ok()).collect(); if n.len() != 5 || n.iter().any(|x| !x.is_finite()) { return None; }
+        Some((*k, [n[0].round().clamp(0.0, 1.0), n[1].round().clamp(0.0, 1.0), n[2], n[3], n[4].clamp(20.0, 400.0)]))
+    }).collect()
+}
+pub fn texto_propios(v: &[(&'static str, [f32; 5])]) -> String { v.iter().map(|(k, a)| format!("{k}:{},{},{:.1},{:.1},{:.1}", a[0], a[1], a[2], a[3], a[4])).collect::<Vec<_>>().join(";") }
+fn poner_propios(v: &[(&'static str, [f32; 5])]) { if let Ok(mut p) = PROPIOS.write() { if p.as_slice() != v { *p = v.to_vec(); } } }
+/// lo de Ajustes al HUD (cada cuadro): el tamaño, la palanca y los movidos (con el editor abierto, su borrador)
+pub(super) fn sincronizar(aj: &crate::ajustes::Ajustes, ed: &Editor) {
+    TAM.store(aj.hud * 10, Ordering::Relaxed); PAL.store(aj.pal, Ordering::Relaxed);
+    if ed.activo { poner_propios(&ed.borrador); } else { poner_propios(&leer_propios(&aj.hud_pos)); }
+}
+/// el tamaño de fábrica de cada uno, en unidades (para el «−» y el «+» y los límites al agrandar con dos dedos: del 40 al 260 %)
+fn tam_fabrica(c: &str) -> f32 {
+    AD.iter().chain(AB.iter()).find(|x| clave(x.0) == Some(c)).map(|x| x.1[2]).or_else(|| TACTIL.iter().find(|x| clave(x.0) == Some(c)).map(|x| x.1[3])).unwrap_or(ZS)
+}
+
+/// el editor abierto: a pie o en vehículo, el elegido, el borrador, el dedo que arrastra y los dos que agrandan
+#[derive(Default)]
+pub struct Editor { pub activo: bool, pub veh: bool, pub sel: Option<&'static str>, pub borrador: Vec<(&'static str, [f32; 5])>, arr: Option<(i32, f32, f32, [f32; 2])>, dedos: Vec<(i32, f32, f32)>, pinch: Option<(f32, f32)>, wh: (f32, f32) }
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum AccEd { Modo, Menos, Mas, Fabrica, Cancelar, Guardar }
+/// la barra de arriba del editor (como #ctlEd .ctlBarra): qué dice cada botón y dónde va
+pub fn barra_editor(w: f32, h: f32, veh: bool) -> Vec<(AccEd, &'static str, [f32; 4])> {
+    let c = css(w, h); let (bh, gap, pad) = (38.0 * c, 8.0 * c, 14.0 * c); let tt = 14.0 * c;
+    let l = [(AccEd::Modo, if veh { "En vehículo" } else { "A pie" }), (AccEd::Menos, "−"), (AccEd::Mas, "+"), (AccEd::Fabrica, "De fábrica"), (AccEd::Cancelar, "Cancelar"), (AccEd::Guardar, "Guardar")];
+    // (el ancho de las letras, aproximado: 0,58 del alto por letra)
+    let anchos: Vec<f32> = l.iter().map(|(_, t)| (t.chars().count() as f32 * tt * 0.58 + 2.0 * pad).max(bh)).collect();
+    let total: f32 = anchos.iter().sum::<f32>() + gap * (l.len() - 1) as f32; let mut x = (w - total) / 2.0; let y = h * 0.28;
+    l.iter().zip(anchos).map(|(&(a, t), aw)| { let r = (a, t, [x, y, aw, bh]); x += aw + gap; r }).collect()
+}
+
+impl super::Juego {
+    /// abrir el editor (Ajustes → Controles → Botones de la pantalla → Mover y agrandar)
+    pub fn ed_abrir(&mut self) {
+        if self.mapa.is_none() { self.avisar("Entrá a un mapa para mover los botones".into()); return; }
+        self.ajustes = None; self.menu = None; self.dedos.clear();
+        self.ed = Editor { activo: true, borrador: leer_propios(&self.aj.hud_pos), ..Default::default() }; poner_propios(&self.ed.borrador);
+    }
+    fn ed_salir(&mut self, guardar: bool) {
+        if guardar { self.aj.hud_pos = texto_propios(&self.ed.borrador); if let Some(d) = &self.datos { let _ = std::fs::write(d.join("ajustes.txt"), self.aj.texto()); } self.avisar("Botones guardados".into()); }
+        self.ed = Editor::default(); poner_propios(&leer_propios(&self.aj.hud_pos)); self.ajustes = Some(1);
+    }
+    /// dónde está ahora cada uno de los que se editan en este modo (centro y tamaño en px)
+    fn ed_lugares(&self, w: f32, h: f32) -> Vec<(&'static str, f32, f32, f32)> {
+        let (v, p) = disposicion(w, h, 0); let mut o: Vec<(&'static str, f32, f32, f32)> = vec![];
+        if !self.ed.veh { o.push(("pausa", p[0], p[1], p[2])); }
+        for b in v { if b.b == Boton::Girar { continue; } if let Some(c) = clave(b.b) { if editable(c, self.ed.veh) && !o.iter().any(|x| x.0 == c) { o.push((c, b.x, b.y, b.w.max(b.h))); } } }
+        o
+    }
+    fn ed_poner(&mut self, c: &'static str, cx: f32, cy: f32, s: f32) {
+        let (w, h) = self.ed.wh; let kb = kb(w, h); let (ax, ay) = (if cx > w / 2.0 { 1.0 } else { 0.0 }, if cy > h / 2.0 { 1.0 } else { 0.0 });
+        let a = [ax, ay, ((cx - ax * w) / kb * 10.0).round() / 10.0, ((cy - ay * h) / kb * 10.0).round() / 10.0, (s * 10.0).round() / 10.0];
+        if let Some(e) = self.ed.borrador.iter_mut().find(|x| x.0 == c) { e.1 = a; } else { self.ed.borrador.push((c, a)); }
+        poner_propios(&self.ed.borrador);
+    }
+    /// el tamaño (en unidades) y el centro (px) del elegido
+    fn ed_actual(&self, c: &str) -> Option<(f32, f32, f32)> {
+        let (w, h) = self.ed.wh; let k = kb(w, h) * tam();
+        self.ed_lugares(w, h).into_iter().find(|x| x.0 == c).map(|x| (x.1, x.2, x.3 / k))
+    }
+    pub(super) fn ed_abajo(&mut self, id: i32, x: f32, y: f32, w: f32, h: f32) {
+        self.ed.wh = (w, h); self.ed.dedos.retain(|d| d.0 != id); self.ed.dedos.push((id, x, y));
+        // (la barra de arriba)
+        if let Some((a, _, _)) = barra_editor(w, h, self.ed.veh).into_iter().find(|(_, _, r)| x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3]) {
+            self.sonido.tocar("Click", 0.5, 1.0, None); self.ed.dedos.retain(|d| d.0 != id);
+            match a {
+                AccEd::Modo => { self.ed.veh = !self.ed.veh; self.ed.sel = None; }
+                AccEd::Menos | AccEd::Mas => if let Some(c) = self.ed.sel { if let Some((cx, cy, s)) = self.ed_actual(c) { let f = tam_fabrica(c); let s = (s + if a == AccEd::Mas { f * 0.1 } else { -f * 0.1 }).clamp(f * 0.4, f * 2.6); self.ed_poner(c, cx, cy, s); } },
+                AccEd::Fabrica => { self.ed.borrador.clear(); poner_propios(&[]); }
+                AccEd::Cancelar => self.ed_salir(false),
+                AccEd::Guardar => self.ed_salir(true),
+            }
+            return;
+        }
+        // (dos dedos con uno elegido: más grande o más chico)
+        if self.ed.dedos.len() >= 2 { if let Some(c) = self.ed.sel { if let Some((_, _, s)) = self.ed_actual(c) { let (a, b) = (self.ed.dedos[0], self.ed.dedos[1]); self.ed.pinch = Some((((a.1 - b.1).powi(2) + (a.2 - b.2).powi(2)).sqrt().max(10.0), s)); self.ed.arr = None; return; } } }
+        // (el botón más cerca del dedo, si está encima)
+        let c = css(w, h); let mut mejor: Option<(&'static str, f32, f32, f32)> = None;
+        for (k, cx, cy, s) in self.ed_lugares(w, h) { let d = ((x - cx).powi(2) + (y - cy).powi(2)).sqrt(); if d < s / 2.0 + 10.0 * c && mejor.map_or(true, |m| d < m.3) { mejor = Some((k, cx, cy, d)); } }
+        self.ed.sel = mejor.map(|m| m.0); self.ed.arr = mejor.map(|m| (id, x, y, [m.1, m.2]));
+    }
+    pub(super) fn ed_mueve(&mut self, id: i32, x: f32, y: f32) {
+        if let Some(d) = self.ed.dedos.iter_mut().find(|d| d.0 == id) { d.1 = x; d.2 = y; } else { return; }
+        let Some(c) = self.ed.sel else { return };
+        if let (Some((d0, s0)), true) = (self.ed.pinch, self.ed.dedos.len() >= 2) {
+            let (a, b) = (self.ed.dedos[0], self.ed.dedos[1]); let f = tam_fabrica(c); let s = (s0 * ((a.1 - b.1).powi(2) + (a.2 - b.2).powi(2)).sqrt() / d0).clamp(f * 0.4, f * 2.6);
+            if let Some((cx, cy, _)) = self.ed_actual(c) { self.ed_poner(c, cx, cy, s); }
+            return;
+        }
+        if let Some((did, x0, y0, p0)) = self.ed.arr { if did == id {
+            // (se queda adentro de la pantalla, a 20 px del borde)
+            let (w, h) = self.ed.wh; let m = 20.0 * css(w, h); let (cx, cy) = (p0[0] + x - x0, p0[1] + y - y0);
+            if cx < m || cx > w - m || cy < m || cy > h - m { return; }
+            if let Some((_, _, s)) = self.ed_actual(c) { self.ed_poner(c, cx, cy, s); }
+        } }
+    }
+    pub(super) fn ed_arriba(&mut self, id: i32) {
+        self.ed.dedos.retain(|d| d.0 != id); if self.ed.dedos.len() < 2 { self.ed.pinch = None; }
+        if self.ed.arr.is_some_and(|a| a.0 == id) { self.ed.arr = None; }
+    }
+    /// lo que se dibuja encima con el editor abierto: el filo de los que se mueven, el elegido en amarillo, la barra y la ayuda
+    fn ed_dibujar(&self, l: &jxjuego::texto::Letras, u: &mut Vec<f32>, v: &mut Vec<f32>, wf: f32, hf: f32) {
+        let c = css(wf, hf);
+        for (k, cx, cy, s) in self.ed_lugares(wf, hf) {
+            let sel = self.ed.sel == Some(k); let e = if sel { 5.0 * c } else { 3.0 * c }; let r = s / 2.0 + e;
+            let col = if sel { [AMA[0], AMA[1], AMA[2], 1.0] } else { [1.0, 1.0, 1.0, 0.45] };
+            for d in [0.0, 1.0 * c] { pieza(v, "aro", cx - r + d, cy - r + d, 2.0 * (r - d), 2.0 * (r - d), col); }
+        }
+        // (la barra: el oscuro de los paneles; Guardar en amarillo)
+        let tt = 14.0 * c;
+        for (a, t, r) in barra_editor(wf, hf, self.ed.veh) {
+            let guardar = a == AccEd::Guardar; let apagado = matches!(a, AccEd::Menos | AccEd::Mas) && self.ed.sel.is_none();
+            l.caja(u, r[0], r[1], r[2], r[3], 8.0 * c, if guardar { [AMA[0], AMA[1], AMA[2], 1.0] } else { [0.09, 0.1, 0.12, 0.88] });
+            let mut t2 = if t.chars().count() == 1 { tt * 1.5 } else { tt }; while l.ancho(t2, t) > r[2] - 8.0 * c && t2 > 4.0 { t2 *= 0.92; }
+            l.texto(u, r[0] + (r[2] - l.ancho(t2, t)) / 2.0, r[1] + (r[3] - t2 * 1.2) / 2.0, t2, if guardar { NEGRO_T } else if apagado { [1.0, 1.0, 1.0, 0.35] } else { [1.0; 4] }, t);
+        }
+        let y = barra_editor(wf, hf, self.ed.veh)[0].2[1] + 46.0 * c;
+        let ayuda = match self.ed.sel {
+            Some(k) => { let f = tam_fabrica(k); let s = self.ed_actual(k).map_or(f, |x| x.2); format!("Arrastralo para moverlo · con dos dedos, más grande o más chico · tamaño {:.0} %", s / f * 100.0) }
+            None => if self.ed.veh { "Los botones de cuando manejás: tocá uno y arrastralo".to_string() } else { "Tocá un botón y arrastralo · con dos dedos, más grande o más chico".to_string() },
+        };
+        let t2 = 12.0 * c; l.texto_sombra(u, (wf - l.ancho(t2, &ayuda)) / 2.0, y, t2, [1.0; 4], &ayuda);
     }
 }

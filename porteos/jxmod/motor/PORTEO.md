@@ -84,7 +84,8 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | inicio.js, clasico.js, paneles.js | ✔ (sin la mancha de tinta ni el deslizamiento de la marca amarilla de las pestañas) | nativo/inicio_juego.rs, paneles_juego.rs, pincel.rs |
 | rbmenus.js, panel_juego.js | ◐ (salas y Personajes; el formulario de Crear server y el latido al panel, no) | nativo/paneles_juego.rs |
 | deposito.js (el menú 3D alternativo), menu.js (la web lo arma pero no lo muestra) | ✘ | |
-| controles.js, tutorial.js | ✘ | |
+| controles.js | ◐ (Ajustes → Controles: el tamaño de los botones y el de la palanca, y el editor de los botones de la pantalla —arrastrar para moverlos, dos dedos o «−» y «+» para agrandarlos, a pie y en vehículo, de fábrica, cancelar y guardar en ajustes.txt—; lo que se movió no ocupa lugar en las columnas, como la web. Falta: la tienda de controles; las teclas no hacen falta en el celular) | nativo/hud_web.rs, nativo/ajustes.rs |
+| tutorial.js | ✘ | |
 | idiomas.js, idiomas3.js | ✘ | (la nativa está en castellano) |
 | iconos.js, novedades.js | ✔ | nativo/iconos.rs, paneles_juego.rs |
 | musica.js, fondovideo.js, milogo.js, iconoapp.js | ✘ | (el fondo del inicio usa las fotos de las escenas, no el video) |
