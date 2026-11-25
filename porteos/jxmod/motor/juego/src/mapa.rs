@@ -80,6 +80,37 @@ pub fn pbr_de(nombre: &str) -> [f32; 3] {
 /// (bodyv seguido de un dígito, como /bodyv\d/)
 /// el mapa de normales del agua (propio): olitas de senos cruzados con un número entero de vueltas en el cuadro (se repite
 /// sin costura) y un poco de ruido suave; la normal en RGB como los de Source (inclinan poco: unos 0,04 de promedio)
+/// el mapa de normales animado del agua, como dev/water_normal de HL2 (que pasa sus cuadros a 30 por segundo —el proxy
+/// AnimatedTexture— y lleva en el alfa cuánto corre el reflejo y el fondo): `cuadros` de `lado` × `lado`, uno abajo del otro.
+/// Olas que viajan con números de onda enteros (se repite en el cuadro sin costura) y que dan vueltas enteras en la animación
+/// (se repite en el tiempo sin salto), las largas más lentas (como el agua honda: la velocidad con la raíz del número de onda);
+/// el alfa, más fuerte donde la ola es más empinada
+pub fn normales_agua_hl2(lado: u32, cuadros: u32) -> Vec<u8> {
+    let tau = std::f32::consts::TAU;
+    // (número de onda x, y; alto; fase)
+    let ondas: [(f32, f32, f32, f32); 12] = [(2.0, 1.0, 0.30, 0.0), (-1.0, 3.0, 0.24, 1.3), (3.0, -2.0, 0.18, 2.1), (1.0, 5.0, 0.13, 0.7), (-5.0, -2.0, 0.11, 4.0), (6.0, 3.0, 0.08, 2.8),
+        (-3.0, 7.0, 0.07, 5.1), (8.0, -5.0, 0.05, 1.9), (-9.0, 4.0, 0.04, 3.3), (4.0, 11.0, 0.035, 0.4), (-12.0, -7.0, 0.025, 2.2), (13.0, 9.0, 0.02, 4.6)];
+    let vueltas: Vec<f32> = ondas.iter().enumerate().map(|(i, o)| { let k = (o.0 * o.0 + o.1 * o.1).sqrt(); (k.sqrt() * 1.2).round().max(1.0) * if i % 3 == 2 { -1.0 } else { 1.0 } }).collect();
+    let (l, nf) = (lado as usize, cuadros.max(1) as usize); let mut o = vec![0u8; l * l * nf * 4];
+    let mut pend = vec![0f32; l * l * 2];
+    for f in 0..nf {
+        let t = f as f32 / nf as f32; let mut maxp = 1e-6f32;
+        for j in 0..l { for i in 0..l {
+            let (x, y) = (i as f32 / l as f32, j as f32 / l as f32); let (mut dx, mut dy) = (0f32, 0f32);
+            for (k, &(a, b, h, ph)) in ondas.iter().enumerate() { let ang = tau * (a * x + b * y - vueltas[k] * t) + ph; let c = ang.cos() * h * tau; dx += c * a; dy += c * b; }
+            let q = (j * l + i) * 2; pend[q] = dx; pend[q + 1] = dy; maxp = maxp.max((dx * dx + dy * dy).sqrt());
+        } }
+        for j in 0..l { for i in 0..l {
+            let q = (j * l + i) * 2; let (dx, dy) = (pend[q] / l as f32 * 3.2, pend[q + 1] / l as f32 * 3.2);
+            let (nx, ny, nz) = (-dx, -dy, 1.0f32); let m = (nx * nx + ny * ny + nz * nz).sqrt();
+            let a = 0.45 + 0.55 * ((pend[q] * pend[q] + pend[q + 1] * pend[q + 1]).sqrt() / maxp).clamp(0.0, 1.0);
+            let k = ((f * l + j) * l + i) * 4;
+            o[k] = ((nx / m * 0.5 + 0.5) * 255.0).round() as u8; o[k + 1] = ((ny / m * 0.5 + 0.5) * 255.0).round() as u8; o[k + 2] = ((nz / m * 0.5 + 0.5) * 255.0).round() as u8; o[k + 3] = (a * 255.0).round() as u8;
+        } }
+    }
+    o
+}
+#[allow(dead_code)]
 fn normales_agua(n: u32) -> Vec<u8> {
     let tau = std::f32::consts::TAU;
     let ondas: [(f32, f32, f32, f32); 7] = [(3.0, 1.0, 0.35, 0.0), (-2.0, 3.0, 0.28, 1.7), (5.0, -2.0, 0.18, 0.4), (1.0, 6.0, 0.15, 2.9), (-7.0, -4.0, 0.09, 4.1), (9.0, 5.0, 0.07, 0.8), (-4.0, 11.0, 0.05, 3.3)];
@@ -177,7 +208,7 @@ pub fn agua_hl2(aguas: &[[f32; 6]], mundo: &crate::mundo::Mundo, datos: &mut Vec
     let Some(v) = aguas.iter().max_by(|a, b| ((a[3] - a[0]) * (a[5] - a[2])).partial_cmp(&((b[3] - b[0]) * (b[5] - b[2]))).unwrap_or(std::cmp::Ordering::Equal)) else { return (None, None) };
     let (lo, hi) = ([v[0], v[1], v[2]], [v[3], v[4], v[5]]);
     while datos.len() % 4 != 0 { datos.push(0); }
-    let n = 256u32; let nrm = normales_agua(n); let o = datos.len(); datos.extend_from_slice(&nrm);
+    let (n, cuadros) = (128u32, 40u32); let nrm = normales_agua_hl2(n, cuadros); let o = datos.len(); datos.extend_from_slice(&nrm);
     let pn = 64usize; let dd = (hi[1] - lo[1]).max(0.5); let (w, h) = (hi[0] - lo[0], hi[2] - lo[2]);
     let mut px = vec![0u8; pn * pn * 4];
     for j in 0..pn { for i in 0..pn {
@@ -189,8 +220,8 @@ pub fn agua_hl2(aguas: &[[f32; 6]], mundo: &crate::mundo::Mundo, datos: &mut Vec
     // (el agua de la costa de HL2: niebla de este color, 400 unidades de largo, sin $refractamount ni $reflectamount)
     let fs = [0.08f32, 0.19, 0.2]; let fin = 400.0f32; let turbia = (1.05 - fin / 1500.0).clamp(0.55, 0.92);
     (Some(jxmotor::escena::Agua { fog: [srgb(fs[0]), srgb(fs[1]), srgb(fs[2]), turbia], esc: 0.38, fuerza: 0.55, dist: 0.4 * 0.5, refr: 0.5, s: [0.021, 0.016, -0.018, 0.024],
-        largo: (fin * 0.0254 / 2.5).max(1.5), normal: Some(jxmotor::escena::TexAgua { w: n, h: n, o }),
-        prof: Some(jxmotor::escena::Prof { x0: lo[0], z0: lo[2], w, h, d: dd, tex: Some(jxmotor::escena::TexAgua { w: pn as u32, h: pn as u32, o: op }) }), y: hi[1] }), Some(hi[1]))
+        largo: (fin * 0.0254 / 2.5).max(1.5), normal: Some(jxmotor::escena::TexAgua { w: n, h: n, o, n: cuadros }),
+        prof: Some(jxmotor::escena::Prof { x0: lo[0], z0: lo[2], w, h, d: dd, tex: Some(jxmotor::escena::TexAgua { w: pn as u32, h: pn as u32, o: op, n: 1 }) }), y: hi[1] }), Some(hi[1]))
 }
 
 impl Mapa {

@@ -57,10 +57,13 @@ fn main() {
     let cpu = std::cell::Cell::new(0.0f64);
     let paso = |j: &mut Juego, m: &mut Motor3d| -> f64 { let t = Instant::now(); unsafe { j.cuadro(m, w, h, &placa).expect("cuadro"); cpu.set(cpu.get() + t.elapsed().as_secs_f64() * 1000.0); m.esperar(); } let ms = t.elapsed().as_secs_f64() * 1000.0; j.medir(ms as f32); ms };
     for _ in 0..90 { paso(&mut j, &mut m); }
-    let ojos = [j.jug.pos[0], j.jug.pos[1] + 0.72, j.jug.pos[2]];
+    let mut ojos = [j.jug.pos[0], j.jug.pos[1] + 0.72, j.jug.pos[2]];
+    // (JXM_AGUA=1: mirando el agua del mapa desde su orilla, un poco arriba)
+    if std::env::var_os("JXM_AGUA").is_some() { if let Some(a) = j.mapa.as_ref().and_then(|m| m.esc.c.agua.clone()) { if let Some(pr) = a.prof.as_ref() {
+        ojos = [pr.x0 + pr.w * 0.5, a.y + 2.6, pr.z0 + pr.h * 0.5]; println!("agua: y {:.2} · de {:.1},{:.1} a {:.1},{:.1}", a.y, pr.x0, pr.z0, pr.x0 + pr.w, pr.z0 + pr.h); } } }
     cpu.set(0.0); if let Motor3d::Gl(g, _) = &mut m { if let Some(f) = g.fases.as_mut() { f.1.clear(); } } let mut total = 0.0; let mut n = 0; let mut peor = 0f64; let mut por_vista = vec![];
     for (k, yaw) in [0.0f32, 90.0, 180.0, 270.0].iter().enumerate() {
-        j.poner_ojos(ojos, yaw.to_radians(), -0.05);
+        j.poner_ojos(ojos, yaw.to_radians(), if std::env::var_os("JXM_AGUA").is_some() { -0.35 } else { -0.05 });
         for _ in 0..8 { paso(&mut j, &mut m); }
         let mut s = 0.0; for _ in 0..20 { let ms = paso(&mut j, &mut m); s += ms; peor = peor.max(ms); }
         total += s; n += 20; por_vista.push(s / 20.0);

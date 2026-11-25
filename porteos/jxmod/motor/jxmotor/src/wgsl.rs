@@ -96,7 +96,7 @@ fn brdf(n: vec3<f32>, v: vec3<f32>, l: vec3<f32>, dif: vec3<f32>, f0: vec3<f32>,
   let h = normalize(l + v); let nh = max(dot(n, h), 0.0); let nv = max(dot(n, v), 1e-3); let lh = max(dot(l, h), 0.0);
   let a2 = a * a; let d = nh * nh * (a2 - 1.0) + 1.0; let D = a2 / (PI * d * d);
   let k = a * 0.5; let V = 0.25 / ((nl * (1.0 - k) + k) * (nv * (1.0 - k) + k));
-  let F = f0 + (1.0 - f0) * pow(max(1.0 - lh, 0.0), 5.0);
+  let m1 = max(1.0 - lh, 0.0); let m2 = m1 * m1; let F = f0 + (1.0 - f0) * (m2 * m2 * m1);
   return (dif * (1.0 - F) + min(D * V, 40.0) * F * PI) * nl;
 }
 // la sombra en dos cascadas, una al lado de la otra en el mismo mapa: la de cerca (fina) y la de lejos; en el borde de la de
@@ -104,10 +104,11 @@ fn brdf(n: vec3<f32>, v: vec3<f32>, l: vec3<f32>, dif: vec3<f32>, f0: vec3<f32>,
 fn pcf(q: vec3<f32>, k: f32, b: f32) -> f32 {
   let t = 1.0 / vec2<f32>(textureDimensions(t_sombra, 0)); var s = 0.0;
   let x0 = k * 0.5 + 1.5 * t.x; let x1 = k * 0.5 + 0.5 - 1.5 * t.x;
-  for (var i = -1; i <= 1; i++) { for (var j = -1; j <= 1; j++) {
-    s += textureSampleCompareLevel(t_sombra, s_cmp, vec2<f32>(clamp((q.x + k) * 0.5 + f32(i) * t.x, x0, x1), q.y + f32(j) * t.y), q.z - b);
+  // (cuatro lecturas a medio texel: cada una compara y filtra 2 × 2 —la comparación lineal—: el mismo filtro de 3 × 3 de antes)
+  for (var i = 0; i < 2; i++) { for (var j = 0; j < 2; j++) {
+    s += textureSampleCompareLevel(t_sombra, s_cmp, vec2<f32>(clamp((q.x + k) * 0.5 + (f32(i) - 0.5) * t.x, x0, x1), q.y + (f32(j) - 0.5) * t.y), q.z - b);
   } }
-  return s / 9.0;
+  return s * 0.25;
 }
 fn proy(v: vec4<f32>) -> vec3<f32> { let q = v.xyz / v.w; return vec3<f32>(q.x * 0.5 + 0.5, 0.5 - q.y * 0.5, q.z * 0.5 + 0.5); }
 fn sombra(nd: f32, vs: vec4<f32>, vs2: vec4<f32>) -> f32 {
@@ -152,7 +153,7 @@ fn sombra(nd: f32, vs: vec4<f32>, vs2: vec4<f32>) -> f32 {
     let dif = alb * (1.0 - metal); let f0 = mix(vec3<f32>(O.mat.z), alb, metal); var lmL = vec3<f32>(0.0);
     if (lm) { lmL = pot3(textureSample(t_lm, s_cla, i.l).rgb, 2.2) * 4.0; col = dif * lmL; }   // (la luz horneada del mapa, en vez del sol y el cielo)
     else { if (nl > 0.0) { sh = sombra(max(nl, 0.0), i.s, i.s2); } else { sh = 0.0; } col = brdf(n, v, G.sol.xyz, dif, f0, a) * G.sol_c.xyz * sh; }
-    if (fol) { col += dif * G.sol_c.xyz * pow(max(dot(-v, G.sol.xyz), 0.0), 4.0) * 0.6 * sh; }   // (luz que atraviesa las hojas)
+    if (fol) { var tr = max(dot(-v, G.sol.xyz), 0.0); tr = tr * tr; col += dif * G.sol_c.xyz * (tr * tr) * 0.6 * sh; }   // (luz que atraviesa las hojas)
     let ln = i32(G.sesgo.z); let le = i32(G.sesgo.w);
     for (var k = 0; k < 12; k++) {
       if (k >= ln) { break; }
@@ -171,14 +172,14 @@ fn sombra(nd: f32, vs: vec4<f32>, vs2: vec4<f32>) -> f32 {
     var amb: vec3<f32>; var env: vec3<f32>;
     if (lm) { amb = vec3<f32>(0.0); env = lmL * 0.5; } else { amb = mix(G.amb_g.xyz, G.amb_s.xyz, n.y * 0.5 + 0.5); env = mix(cielo_col(rf), amb, clamp(rough * 1.15, 0.0, 1.0)); }
     let hor = clamp(1.0 + 1.3 * dot(rf, ng), 0.0, 1.0); env = env * hor * hor;
-    let Fr = f0 + (max(vec3<f32>(1.0 - rough), f0) - f0) * pow(1.0 - nv, 5.0);
+    let q1 = 1.0 - nv; let q2 = q1 * q1; let Fr = f0 + (max(vec3<f32>(1.0 - rough), f0) - f0) * (q2 * q2 * q1);
     col += dif * amb + env * Fr * mix(1.0, sh * 0.6 + 0.4, metal) + O.em.xyz * 1.6;
   }
   col += emAc;
   // la niebla (hasta cuánto tapa, la luz del sol en ella mirando para el sol y la de lo lejos y bajo)
   let dist = max(distance(i.w, G.cam.xyz), 1e-3);
   var f = clamp((dist - G.nie.x) / max(G.nie.y - G.nie.x, 0.001), 0.0, 1.0) * G.nie.z;
-  let vd = (i.w - G.cam.xyz) / dist; let nc = G.nie_c.xyz + G.nie_s.xyz * pow(max(dot(vd, G.sol.xyz), 0.0), 6.0);
+  let vd = (i.w - G.cam.xyz) / dist; let sd = max(dot(vd, G.sol.xyz), 0.0); let sd2 = sd * sd; let nc = G.nie_c.xyz + G.nie_s.xyz * (sd2 * sd2 * sd2);
   f = 1.0 - (1.0 - f) * exp(-max(0.0, dist - 20.0) * 0.0006 * exp(-max(i.w.y - G.cam.y + 5.0, 0.0) * 0.02));
   col = mix(col, nc, f);
   if (i.w.y < G.sol_c.w || ((modo & 2) != 0 && t.a < 0.5)) { discard; }   // (el reflejo: sólo lo de arriba del agua; lo recortado)
@@ -290,16 +291,16 @@ fn mundo(ndc: vec2<f32>) -> vec3<f32> { let p = G.ivp * vec4<f32>(ndc, prof_en(n
   var t: vec3<f32>; if (abs(n.y) < 0.9) { t = normalize(cross(n, vec3<f32>(0.0, 1.0, 0.0))); } else { t = normalize(cross(n, vec3<f32>(1.0, 0.0, 0.0))); }
   let b = cross(n, t);
   let a0 = ign(i.pos.xy) * 6.2831853; let r = 0.7 * clamp(distance(w, G.cam.xyz) * 0.1, 0.3, 1.0); var occ = 0.0;
-  for (var k = 0; k < 12; k++) {
-    // (una espiral en la media esfera de la normal, cada vez más lejos)
-    let h = (f32(k) + 0.5) / 12.0; let ang = a0 + f32(k) * 2.3999632; let c = sqrt(1.0 - h); let sn = sqrt(h);
+  for (var k = 0; k < 8; k++) {
+    // (una espiral en la media esfera de la normal, cada vez más lejos: 8 muestras con el ruido de cada píxel y el suavizado)
+    let h = (f32(k) + 0.5) / 8.0; let ang = a0 + f32(k) * 2.3999632; let c = sqrt(1.0 - h); let sn = sqrt(h);
     let s = w + (t * cos(ang) * sn + b * sin(ang) * sn + n * c) * r * mix(0.2, 1.0, h * h);
     let q = G.vp * vec4<f32>(s, 1.0); let su = q.xy / q.w;
     if (q.w <= 0.0 || su.x < -1.0 || su.y < -1.0 || su.x > 1.0 || su.y > 1.0) { continue; }
     let d = mundo(su);
     if (distance(d, G.cam.xyz) < distance(s, G.cam.xyz) - 0.02) { occ += smoothstep(0.0, 1.0, r / max(distance(d, w), 1e-3)); }
   }
-  let ao = 1.0 - occ / 12.0;
+  let ao = 1.0 - occ / 8.0;
   return vec4<f32>(ao, ao, ao, 1.0);
 }
 "#;

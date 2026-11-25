@@ -30,7 +30,7 @@ pub struct Niebla { pub c: [f32; 3], pub a: f32, pub b: f32, #[serde(default)] p
 #[derive(Deserialize, Debug, Clone, Copy, Default)]
 pub struct Luz { pub sol: [f32; 3], #[serde(rename = "solC")] pub sol_c: [f32; 3], #[serde(rename = "ambS")] pub amb_s: [f32; 3], #[serde(rename = "ambG")] pub amb_g: [f32; 3], pub nie: Niebla, pub expo: f32 }
 #[derive(Deserialize, Debug, Clone)]
-pub struct TexAgua { pub w: u32, pub h: u32, pub o: usize }
+pub struct TexAgua { pub w: u32, pub h: u32, pub o: usize, /** los cuadros de la animación, uno abajo del otro (0 o 1: quieto) */ #[serde(default)] pub n: u32 }
 #[derive(Deserialize, Debug, Clone)]
 pub struct Prof { pub x0: f32, pub z0: f32, pub w: f32, pub h: f32, #[serde(rename = "D")] pub d: f32, pub tex: Option<TexAgua> }
 #[derive(Deserialize, Debug, Clone)]
