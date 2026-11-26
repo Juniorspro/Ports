@@ -14,6 +14,8 @@ use jxmotor::escena::{Caras, Cielo, ItemDin, Lm, Luz, Malla, Mat, Niebla, FL_CIE
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
+/// la gravedad de Source (sv_gravity 600 unidades por segundo²: 15,24 m/s²) sobre la de la Tierra: la de los mapas de Source
+pub(crate) const GRAVEDAD_SOURCE: f32 = 600.0 * 0.0254 / 9.81;
 
 /// los números propios de las mallas, materiales y luz horneada de los mapas del Workshop
 const ID_WS: i64 = -8_000_000;
@@ -312,7 +314,8 @@ impl Juego {
         let base = LuzBase { sol, sol_col, amb_s, amb_g, nie, cielo: Cielo { caras: None, ..cielo.clone() } };
         let luz: Luz = jxjuego::mapa::luz_lineal(&base, 1.0);
         let n_tris = tris.len() / 9;
-        let mundo = jxjuego::mundo::Mundo::nuevo(tris, vec![], 1.0);
+        // (la gravedad de Source —sv_gravity 600 unidades/s², 15,2 m/s²—: en sus mapas todo cae, salta y rueda como allá)
+        let mundo = jxjuego::mundo::Mundo::nuevo(tris, vec![], GRAVEDAD_SOURCE);
         let aguas = armado.aguas.clone();
         let (agua, agua_y) = jxjuego::mapa::agua_hl2(&aguas, &mundo, &mut datos);
         let cab = Cabecera { mapa: nombre.to_string(), w: 0, h: 0, cam: None, luz: None, mallas, mats, texs: vec![], lms, items: vec![], agua, cielo: Some(cielo) };

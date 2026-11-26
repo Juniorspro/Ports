@@ -29,6 +29,7 @@ pub mod portales;
 pub mod puertas;
 pub mod personaje;
 pub mod red;
+pub mod superficies;
 pub mod texto;
 pub mod vehiculo;
 pub mod vista;

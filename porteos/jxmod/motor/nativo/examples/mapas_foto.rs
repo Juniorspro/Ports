@@ -23,6 +23,8 @@ fn main() {
     let (lj, lp) = (std::fs::read_to_string(Path::new(&let_).join("letras.json")).ok(), std::fs::read(Path::new(&let_).join("letras.png")).ok());
     let mut j = Juego::nuevo(paq, lj, lp, Some(datos.clone()));
     j.gmod.carpeta_externa = std::env::var("JXM_ADDONS").ok().map(std::path::PathBuf::from);
+    // (JXM_CALIDAD=0..5: la calidad —5, Definitivo—; sin la resolución dinámica: las fotos, nítidas)
+    if let Some(q) = std::env::var("JXM_CALIDAD").ok().and_then(|v| v.parse().ok()) { j.aj.poner_calidad(q); j.aj.auto = false; j.aj.dinamica = false; }
     j.gmod.lector_rb = Some(jxmod::comun::gmod_juego::lector_carpetas(vec![Path::new(&www).join("rb"), "/tmp/claude-0/jxp_pub/rb".into()]));
     let _ = std::fs::remove_file(datos.join("gmod_apagados.txt"));
     j.dt_fijo = Some(1.0 / 60.0);

@@ -219,8 +219,11 @@ impl Juego {
             };
             let sc = [(mx[0] - mn[0]) as f64, (mx[1] - mn[1]) as f64, (mx[2] - mn[2]) as f64];
             let masa = fphy.as_ref().and_then(|f| f.masa).map(|x| x as f64).unwrap_or_else(|| (sc[0] * sc[1] * sc[2] * 180.0).clamp(1.0, 2000.0));
-            let snd = sonido_sup(fphy.as_ref().and_then(|f| f.superficie.clone()).unwrap_or_default().as_str()).to_string();
-            Some(Arc::new(PrefabFisica { nombre: format!("gm:{ruta}"), clave: format!("gm:{ruta}#gm"), forma: Arc::new(forma), c, eje_cap: None, cap_q: None, partes: 1, masa: masa.clamp(0.5, 50000.0), fric: 0.6, rest: 0.12, tipo: "prop", sin_fisica: false, congelado: false, salta: false, snd, dens: None }))
+            let sup = fphy.as_ref().and_then(|f| f.superficie.clone()).unwrap_or_default();
+            let snd = sonido_sup(sup.as_str()).to_string();
+            // (la física de su material como en Source: surfaceproperties.txt —fricción, rebote y densidad—)
+            let (fric, rest, dens) = jxjuego::superficies::para_fisica(if sup.is_empty() { "default" } else { sup.as_str() });
+            Some(Arc::new(PrefabFisica { nombre: format!("gm:{ruta}"), clave: format!("gm:{ruta}#gm"), forma: Arc::new(forma), c, eje_cap: None, cap_q: None, partes: 1, masa: masa.clamp(0.5, 50000.0), fric, rest, tipo: "prop", sin_fisica: false, congelado: false, salta: false, snd, dens: if sup.is_empty() { None } else { Some(dens) } }))
         };
         marca("fisica"); if perfil { eprintln!("armar {ruta}: {:?}", marcas); }
         Some(ModeloGm { quieto: vec![quieto], piel: None, caja: [mn[0], mn[1], mn[2], mx[0], mx[1], mx[2]], fis, mats })

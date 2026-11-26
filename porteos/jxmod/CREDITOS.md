@@ -260,3 +260,10 @@ Google, Apache-2.0 y BSD-3) salió de la app y del repositorio en la 2.9: el APK
 | android-activity, glow, khronos-egl, libloading, png, serde_json, flate2, image-webp | sus autores (crates.io) | compiladas dentro de `libjxmod.so` | MIT o Apache-2.0 |
 
 Los mapas (`RB_Flatgrass`, `RB_Construct`) son los de la sección de Garry's Mod de arriba: van sólo en la APK personal.
+
+## Half-Life 2 para la calidad Definitivo (uso personal)
+
+| Qué | De dónde |
+|---|---|
+| Mapas de Half-Life 2 Deathmatch (`dm_resistance`, `dm_lostvillage`) con sus materiales y modelos de HL2 para probar la calidad Definitivo y para uso personal del dueño (un `.gma` que no se publica) | rip: Half-Life 2 / HL2 Deathmatch (Valve), de la copia de Garry's Mod 10 en archive.org (`herramientas/hl2_addon.py` baja sólo lo que usa cada mapa; `herramientas/armar_gma.py` arma el addon); fuera del repo (`/tmp/claude-0/hl2_addons`) |
+| La tabla de física de los materiales (fricción, elasticidad y densidad de cada `$surfaceprop`) en `motor/juego/src/superficies.rs` | Los números de `scripts/surfaceproperties.txt` y `surfaceproperties_hl2.txt` de Half-Life 2 (Valve), de la misma copia de GMod 10 |
