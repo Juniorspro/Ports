@@ -1,9 +1,9 @@
 {
- "codigo": 26112606,
- "version": "0.27",
+ "codigo": 26112608,
+ "version": "0.29",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 74373382,
- "sha256": "8a6bc3f341cc367ebd98ba9bc96a6718b2a35d27abf2eb6b9dbb68d6e3b59c48",
- "notas_es": "JXMod Nativo 0.27 — Nueva calidad Definitivo (arriba de Ultra): cielo con nubes y el disco del sol, resplandor, color de película y luz de día nublado, haces de luz volumétricos que pasan entre los fierros y sombras hasta 60 m. Rayos del sol como en la versión web y bombas nucleares con el hongo volumétrico de la web. OpenGL 2 ahora se ve como OpenGL 3: sombras mejores y más lejos, luz y colores parejos y reflejos en el piso. Ultra más liviano y la pantalla a su refresco más alto (90 o 120 Hz si el celular lo tiene). En los mapas de Source: el agua de verdad del mapa (su textura animada y su niebla), la física de Source (cada material rebota, frena y pesa como allá, y su gravedad) y las rejas y alambrados sin rayas.",
- "notas_en": "JXMod Native 0.27 — New Definitive quality (above Ultra): clouds and the sun disk, bloom, film color and overcast lighting, volumetric light shafts through railings and shadows up to 60 m. Sun rays like the web version and nukes with the web's volumetric mushroom cloud. OpenGL 2 now looks like OpenGL 3: better, longer shadows, even lighting and colors and floor reflections. Lighter Ultra and the screen at its highest refresh rate (90 or 120 Hz if the phone has it). On Source maps: the map's real water (its animated texture and fog), Source physics (each material bounces, slides and weighs like there, plus its gravity) and fences without stripes."
+ "tam": 74459398,
+ "sha256": "0cd9687ec9540554d868e02fd0a6d9cdd0d1fd885725a1d379c75728181130cb",
+ "notas_es": "JXMod Nativo 0.29 — La vista que se acostumbra: al entrar a la sombra todo se va aclarando y al salir al sol encandila y se acomoda. Más contraste y color en todas las calidades, sombras que se notan y los rayos del sol más suaves (sin el velo blanco). Definitivo ya no se ve blanco y tiene reflejos en el piso como con trazado de rayos, y en OpenGL 2 también la oclusión ambiental. El agua como la de Half-Life 2: desde abajo se ve la superficie con la luz de afuera, las cáusticas del sol en el fondo, más clara y con ondas cuando te movés o cae algo. Nuevo en el menú de objetos: Props → Mundo, para elegir la hora del día (amanecer, mañana, mediodía, tarde, atardecer, noche, ±1 hora) y el ciclo de día y noche.",
+ "notas_en": "JXMod Native 0.29 — Eye adaptation: stepping into the shade everything slowly brightens, stepping into the sun dazzles you and then settles. More contrast and color at every quality, visible shadows and softer sun rays (no white veil). Definitive no longer looks washed out and has ray-traced-style floor reflections, plus ambient occlusion on OpenGL 2. Half-Life 2 style water: from below you see the surface with the light from outside, sun caustics on the bottom, clearer water and ripples when you move or something falls in. New in the spawn menu: Props → World, to pick the time of day (dawn, morning, noon, afternoon, sunset, night, ±1 hour) and the day-night cycle."
 }
