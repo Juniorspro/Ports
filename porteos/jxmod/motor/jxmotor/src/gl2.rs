@@ -648,7 +648,7 @@ impl Motor {
         let p_rayos = programa(&gl, VS_COPIA, FS_RAYMASK, &["aP"])?; let p_rayos2 = programa(&gl, VS_COPIA, FS_RAYOS, &["aP"])?;
         // (la luz en el aire necesita precisión alta —la sombra va en 8 bits por canal—)
         let p_vol = if alta { programa(&gl, VS_COPIA, &format!("#define PASOS 16\n{FS_VOL}"), &["aP"]).ok() } else { None };
-        let p_vol_aaa = if alta { programa(&gl, VS_COPIA, &format!("#define PASOS 28\n{FS_VOL}"), &["aP"]).ok() } else { None };
+        let p_vol_aaa = if alta { programa(&gl, VS_COPIA, &format!("#define PASOS 20\n{FS_VOL}"), &["aP"]).ok() } else { None };
         let (p_brillo, p_baja, p_sube) = (programa(&gl, VS_COPIA, FS_BRILLO, &["aP"])?, programa(&gl, VS_COPIA, FS_BAJA, &["aP"])?, programa(&gl, VS_COPIA, FS_SUBE, &["aP"])?);
         let p_agua = programa(&gl, VS_AGUA, &format!("{}{FS_AGUA}", if std::env::var_os("JXM_GL2_VER_REFLEJO").is_some() { "#define VER_REFLEJO\n" } else { "" }), &["aP"])?;
         let p_part = programa(&gl, VS_PART, FS_PART, &["aP", "aU", "aC", "aF"])?;
