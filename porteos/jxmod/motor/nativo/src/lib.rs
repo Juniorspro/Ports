@@ -9,6 +9,8 @@ pub mod lan;
 /// los paquetes aparte que se bajan cuando hacen falta (datos.js: rbBajar)
 pub mod bajas;
 pub mod firma;
+pub mod steampipe;
+pub mod zstd;
 // (el dibujo 2D de los menús y los íconos de la web)
 pub mod iconos;
 pub mod pincel;

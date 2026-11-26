@@ -253,7 +253,10 @@ pub struct InfoAddon { pub ruta: PathBuf, pub nombre: String, pub prendido: bool
 /// fundido (desde cuándo y cuánto dura)
 struct BucleGm { clave: String, e: Option<f64>, vol: f32, tono: f32, ini: f32, ca: i32, fade: Option<(f32, f32)> }
 /// un resultado de la tienda
-pub struct ItemTienda { pub id: String, pub titulo: String, pub estado: String, pub mb: f32 }
+/// (pipe: no viene como archivo directo —SteamPipe, steampipe.rs—; prog: cómo va su bajada)
+pub struct ItemTienda { pub id: String, pub titulo: String, pub estado: String, pub mb: f32, pub pipe: bool, pub prog: Option<Arc<crate::steampipe::Progreso>> }
+/// los mapas destacados de la tienda (los pedidos): siempre arriba, aunque la lista de populares no llegue
+pub const DESTACADOS: [(&str, &str, f32); 2] = [("3317372577", "Sentimental 98 V3 Night (mapa)", 186.4), ("3566942044", "gm_pole (mapa)", 136.7)];
 
 /// los addons en el juego
 pub struct EnGmod {
@@ -886,6 +889,8 @@ impl Juego {
     pub fn gmod_tienda_pedir(&mut self) {
         let Some(h) = self.gmod_http_bin() else { self.avisar("Sin conexión para la tienda".into()); return };
         self.gmod.tienda_pedida = true;
+        // (los destacados, ya: no esperan a la lista)
+        for (id, t, mb) in DESTACADOS { if !self.gmod.tienda.iter().any(|x| x.id == id) { let ya = self.gmod.addons.iter().any(|a| a.ruta.to_string_lossy().contains(id)); self.gmod.tienda.push(ItemTienda { id: id.into(), titulo: format!("{t} ({mb:.0} MB)"), estado: if ya { "Instalado".into() } else { "Bajar".into() }, mb, pipe: true, prog: None }); } }
         let tx = self.gmod.tx.clone();
         std::thread::spawn(move || { let r = h(&format!("{}gmod/buscar?q=&tag=&orden=subs&p=1", TIENDA_URL)).and_then(|(c, b)| if c == 200 { Ok(b) } else { Err(format!("HTTP {c}")) }); let _ = tx.send(("lista".into(), r)); });
     }
@@ -896,21 +901,34 @@ impl Juego {
         let Some(h) = self.gmod.http_bin.clone() else { it.estado = "Sin HTTP".into(); return };
         it.estado = "Bajando…".into();
         let (tx, id) = (self.gmod.tx.clone(), it.id.clone());
+        if it.pipe {
+            // (SteamPipe: los pedazos de a 6 hilos, directo al CDN de Steam, y el .gma se escribe en addons/ a medida que llegan)
+            let Some(dir) = self.gmod.datos.as_ref().map(|d| d.join("addons")) else { it.estado = "Sin carpeta".into(); return };
+            let _ = std::fs::create_dir_all(&dir); let prog = Arc::new(crate::steampipe::Progreso::default()); it.prog = Some(prog.clone());
+            std::thread::spawn(move || { let r = crate::steampipe::bajar(h, TIENDA_URL, &id, &dir.join(format!("{id}.gma")), true, prog).map(|_| vec![]); let _ = tx.send((format!("pipe:{}", id), r)); });
+            return;
+        }
         std::thread::spawn(move || { let r = h(&format!("{}gmod/archivo/{}", TIENDA_URL, id)).and_then(|(c, b)| if c == 200 { Ok(b) } else { Err(format!("HTTP {c}")) }); let _ = tx.send((format!("gma:{}", id), r)); });
     }
     fn gmod_tienda_paso(&mut self) {
+        // (cómo van las bajadas por SteamPipe)
+        for it in self.gmod.tienda.iter_mut() { if let Some(p) = &it.prog { let (h, t) = (p.hecho.load(std::sync::atomic::Ordering::Relaxed), p.total.load(std::sync::atomic::Ordering::Relaxed)); if it.estado.starts_with("Bajando") && t > 0 { it.estado = format!("Bajando {}%", h * 100 / t); } } }
         while let Ok((k, r)) = self.gmod.rx.try_recv() {
             if k == "lista" {
                 match r.ok().and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok()) {
                     Some(v) => {
                         let items = v["items"].as_array().cloned().unwrap_or_default();
-                        // (sólo los que se bajan directo: los demás van por SteamPipe, que el nativo todavía no tiene)
-                        self.gmod.tienda = items.iter().filter(|x| x["dir"].as_bool().unwrap_or(false)).take(30).filter_map(|x| { let id = x["id"].as_str().map(String::from).or_else(|| x["id"].as_u64().map(|n| n.to_string()))?; Some(ItemTienda { id, titulo: format!("{} ({:.1} MB)", x["t"].as_str().unwrap_or("?"), x["mb"].as_f64().unwrap_or(0.0)), estado: "Bajar".into(), mb: x["mb"].as_f64().unwrap_or(0.0) as f32 }) }).collect();
+                        // (todos: los que no vienen como archivo directo, por SteamPipe; después de los destacados)
+                        let nuevos: Vec<ItemTienda> = items.iter().take(40).filter_map(|x| { let id = x["id"].as_str().map(String::from).or_else(|| x["id"].as_u64().map(|n| n.to_string()))?; Some(ItemTienda { id, titulo: format!("{} ({:.1} MB)", x["t"].as_str().unwrap_or("?"), x["mb"].as_f64().unwrap_or(0.0)), estado: "Bajar".into(), mb: x["mb"].as_f64().unwrap_or(0.0) as f32, pipe: !x["dir"].as_bool().unwrap_or(false), prog: None }) }).collect();
+                        for n in nuevos { if !self.gmod.tienda.iter().any(|x| x.id == n.id) { self.gmod.tienda.push(n); } }
                         if self.gmod.tienda.is_empty() { self.avisar("La tienda no trajo nada".into()); }
                     }
                     None => self.avisar("No se pudo leer la tienda".into()),
                 }
                 self.gmod.tienda_pedida = false;
+            } else if let Some(id) = k.strip_prefix("pipe:") {
+                let id = id.to_string(); let est = match r { Ok(_) => { self.gmod.buscar(); "Instalado".to_string() } Err(e) => e };
+                if let Some(it) = self.gmod.tienda.iter_mut().find(|x| x.id == id) { it.estado = est; it.prog = None; }
             } else if let Some(id) = k.strip_prefix("gma:") {
                 let id = id.to_string();
                 // (lo de Steam viene en LZMA)
