@@ -11,7 +11,9 @@ pub const TEX_AERO: i64 = -2104;
 const NUBE: u32 = 64;
 
 /// la unidad de esta pantalla
-pub fn unidad(w: f32, h: f32) -> f32 { (h / 393.0).min(w / 873.0).max(0.6) }
+/// el tamaño de los menús (Opciones → Controles → Tamaño de los menús, en %): lo pone el juego cada cuadro
+pub static ESCALA: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(80);
+pub fn unidad(w: f32, h: f32) -> f32 { (h / 393.0).min(w / 873.0).max(0.6) * ESCALA.load(std::sync::atomic::Ordering::Relaxed).clamp(50, 120) as f32 / 100.0 }
 pub const fn hex(c: u32) -> Col { pincel::rgba(c, 1.0) }
 pub const fn hexa(c: u32, a: f32) -> Col { pincel::rgba(c, a) }
 pub const BLANCO: Col = [1.0, 1.0, 1.0, 1.0];

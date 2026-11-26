@@ -942,6 +942,7 @@ impl Juego {
     unsafe fn cuadro_dentro(&mut self, m: &mut Motor3d, w: i32, h: i32, placa_txt: &str) -> Result<(), String> {
         self.cont_paso();
         self.musica_paso();
+        aero::ESCALA.store(self.aj.menus, std::sync::atomic::Ordering::Relaxed);
         if self.ini.abierto { return self.ini_cuadro(m, w, h); }
         // (al cargar: primero un cuadro con el cartel de «Cargando…», y en el siguiente se arma el mapa, que tarda)
         if self.recargar {
