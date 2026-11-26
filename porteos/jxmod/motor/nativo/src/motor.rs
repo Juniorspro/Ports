@@ -23,6 +23,8 @@ impl Motor3d {
             _ => false,
         }
     }
+    /// JX Turbo: si este motor puede armar ya un cuadro intermedio
+    pub fn turbo_listo(&self, w: i32, h: i32) -> bool { match self { Motor3d::Gl(m, _) => m.turbo_listo(w, h), _ => false } }
     /// la cámara (vista y proyección) del último cuadro
     pub fn vp_actual(&self) -> Option<[f32; 16]> { match self { Motor3d::Gl(m, _) => m.c.as_ref().map(|c| c.vp), Motor3d::Gl2(m, _) => m.c.as_ref().map(|c| c.vp), Motor3d::Vk(m) => m.c.as_ref().map(|c| c.vp) } }
     /// los dibujos (llamadas a la placa) del último cuadro

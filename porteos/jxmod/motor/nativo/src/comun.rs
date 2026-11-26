@@ -236,6 +236,10 @@ pub struct Juego {
     pub perf: [f32; 5], perf_t: Instant,
     /// la resolución dinámica: la fracción de la resolución elegida con la que se dibuja ahora (1: toda) y lo que se lleva medido
     pub drs: f32, drs_t: f32,
+    /// JX Turbo (cuadros intermedios): cuántos van desde el último real, el tiempo que se saltó (lo recupera el real), la cámara
+    /// del intermedio que toca, la del último real (posición y mirada, para no correr un cuadro viejo después de un salto) y lo que
+    /// tarda cada clase de cuadro (ms, promediado)
+    pub turbo_n: u8, turbo_dt: f32, turbo_vp: Option<M4>, turbo_cam: [f32; 6], pub ms_real: f32, pub ms_inter: f32, pub fue_inter: bool, pub n_inter: u32,
     recargar: bool,
     /// (para las pruebas: el tiempo fijo de cada cuadro, en vez del reloj)
     pub dt_fijo: Option<f32>,
@@ -355,7 +359,7 @@ impl Juego {
         let en_red = red_juego::EnRed::nueva(datos.as_deref());
         let gmod = gmod_juego::EnGmod::nueva(datos.as_deref());
         let mut j = Juego { paq, mapa: None, mapas: vec!["RB_Flatgrass".into(), "RB_Construct".into()], mapa_i: 0, letras, letras_px, jug: Jugador::nuevo(), acum: 0.0,
-            dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0, perf: [0.0; 5], drs: 1.0, drs_t: 0.0, perf_t: Instant::now(),
+            dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0, perf: [0.0; 5], drs: 1.0, drs_t: 0.0, turbo_n: 0, turbo_dt: 0.0, turbo_vp: None, turbo_cam: [0.0; 6], ms_real: 0.0, ms_inter: 0.0, fue_inter: false, n_inter: 0, perf_t: Instant::now(),
             recargar: true, dt_fijo: None, gfxa: Default::default(), gfx_medir: false, refresco: 60.0, memes: Default::default(), lan: Default::default(), bajas: None, bajada: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
             nombres: HashMap::new(), catalogo: vec![], cat_npc: vec![], cat_veh: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
@@ -1079,7 +1083,8 @@ impl Juego {
             }
         }
         let tj = [self.azar() - 0.5, self.azar() - 0.5, self.azar() - 0.5];
-        if let Some(mp) = &self.mapa {
+        let turbo = self.mapa.is_some() && self.turbo_n < self.turbo_max() && m.turbo_listo(w, h);
+        if let Some(mp) = &self.mapa { 'escena: {
             // (el campo de visión: el de Ajustes, más cerrado apuntando y 18° con la mira del francotirador; va de a poco)
             let z = if self.armas.zoom { 18.0 } else { self.aj.fov as f32 * (1.0 - 0.27 * self.armas.ap_k) };
             if self.fov_b == 0.0 { self.fov_b = z; } self.fov_b += (z - self.fov_b) * (dt * if (z - self.fov_b).abs() > 10.0 { 12.0 } else { 4.0 }).min(1.0);
@@ -1107,6 +1112,13 @@ impl Juego {
             let cam = if self.temblor > 0.001 { let k = self.temblor * 0.06; [cam[0] + tj[0] * k, cam[1] + tj[1] * k, cam[2] + tj[2] * k] } else { cam };
             self.temblor = (self.temblor - dt * 1.5).max(0.0); if self.golpe_t > 0.0 { self.golpe_t -= dt; }
             let vista = m4::mirar(cam, [cam[0] + mira[0], cam[1] + mira[1], cam[2] + mira[2]], [0.0, 1.0, 0.0]);
+            // (JX Turbo: en un cuadro intermedio no se arma la escena —el motor corre el último cuadro a esta cámara—; lo que avanza
+            // con el tiempo y se salta —los NPC, los efectos— lo recupera el próximo real. Después de un salto de la cámara —más de
+            // 75 cm o 25°: un cambio de vista, subir a un auto— va uno real)
+            let tc = self.turbo_cam; let salto = (cam[0] - tc[0]).powi(2) + (cam[1] - tc[1]).powi(2) + (cam[2] - tc[2]).powi(2) > 0.5625
+                || (mira[0] * tc[3] + mira[1] * tc[4] + mira[2] * tc[5]) / (mira[0] * mira[0] + mira[1] * mira[1] + mira[2] * mira[2]).sqrt().max(1e-6) < 0.906;
+            if turbo && !salto { let vpm = m4::mul(&p, &vista); self.vp_ult = vpm; self.turbo_vp = Some(vpm); self.turbo_dt += dt; break 'escena; }
+            self.turbo_cam = [cam[0], cam[1], cam[2], mira[0], mira[1], mira[2]]; let dt = dt + std::mem::take(&mut self.turbo_dt);
             // (con los ojos bajo el agua: la niebla de cerca, del color del agua —aguaNiebla—)
             let mut luz = mp.luz; jugabilidad::luz(&self.jg, &mut luz);
             let bajo_agua = self.jug.aguas.iter().any(|v| cam[1] < v[4] && cam[1] > v[1] && cam[0] >= v[0] && cam[0] <= v[3] && cam[2] >= v[2] && cam[2] <= v[5]);
@@ -1168,11 +1180,13 @@ impl Juego {
                 luces, esp: self.jg_esp(cam, mira), items, efectos };
             marca(&mut self.perf, &mut self.perf_t, 3);
             m.poner_cuadro(c);
-        }
+        } }
         let mut u = self.hud(w, h, placa_txt);
         unsafe { self.ini_hud(m, w, h, &mut u); }
         self.tut_hud(&mut u, w, h);
-        let r = m.dibujar(w, h, self.mapa.is_some(), &u);
+        let inter = match self.turbo_vp.take() { Some(vp) => m.intermedio(w, h, &vp, &u), None => false };
+        let r = if inter { Ok(()) } else { m.dibujar(w, h, self.mapa.is_some(), &u) };
+        self.turbo_n = if inter { self.turbo_n + 1 } else { 0 }; self.fue_inter = inter; if inter { self.n_inter += 1; }
         marca(&mut self.perf, &mut self.perf_t, 4);
         r
     }
@@ -1541,17 +1555,34 @@ impl Juego {
     /// lo que tardó el cuadro entero (ms, con la espera a la pantalla) y los cuadros por segundo
     pub fn medir(&mut self, ms: f32) {
         self.ms = if self.cuenta == 0 { ms } else { self.ms * 0.9 + ms * 0.1 }; self.cuenta += 1; self.n_med += 1;
+        { let x = if self.fue_inter { &mut self.ms_inter } else { &mut self.ms_real }; *x = if *x == 0.0 { ms } else { *x * 0.9 + ms * 0.1 }; }
+        // (con JX Turbo, la resolución dinámica mira los cuadros reales: con un intermedio entre cada dos, el real tiene el doble)
+        let turbo = self.aj.turbo && self.n_inter > 0; if self.fue_inter { return self.fps_paso(); }
+        let ms = if turbo { self.ms_real } else { self.ms };
         // (la resolución dinámica: cada cuarto de segundo, si el cuadro tarda más que el de la pantalla —60, 90 o 120 por segundo;
         // como mucho 90—, menos píxeles —lo que cuesta va con el cuadrado de la escala—; si sobra, de a poco hasta la elegida.
         // En pasos de 5 %, entre 50 % y 100 %)
         if self.aj.dinamica && self.mapa.is_some() && !self.ini.abierto && !self.recargar {
             self.drs_t += ms;
             if self.drs_t >= 250.0 {
-                self.drs_t = 0.0; let obj = 1000.0 / self.refresco.clamp(45.0, 90.0);
-                if self.ms > obj * 1.06 { self.drs = ((self.drs * (obj / self.ms).sqrt().max(0.85) * 20.0).floor() / 20.0).max(0.5); }
-                else if self.ms < obj * 0.78 { self.drs = (((self.drs + 0.05) * 20.0).round() / 20.0).min(1.0); }
+                self.drs_t = 0.0; let obj = 1000.0 / self.refresco.clamp(45.0, 90.0) * if turbo { 2.0 } else { 1.0 };
+                if ms > obj * 1.06 { self.drs = ((self.drs * (obj / ms).sqrt().max(0.85) * 20.0).floor() / 20.0).max(0.5); }
+                else if ms < obj * 0.78 { self.drs = (((self.drs + 0.05) * 20.0).round() / 20.0).min(1.0); }
             }
         } else if !self.aj.dinamica { self.drs = 1.0; }
-        let e = self.t_med.elapsed().as_secs_f32(); if e >= 0.5 { self.fps = self.n_med as f32 / e; self.n_med = 0; self.t_med = Instant::now(); }
+        self.fps_paso();
+    }
+    fn fps_paso(&mut self) { let e = self.t_med.elapsed().as_secs_f32(); if e >= 0.5 { self.fps = self.n_med as f32 / e; self.n_med = 0; self.t_med = Instant::now(); } }
+    /// JX Turbo: cuántos intermedios van entre dos reales. Ninguno si el real ya llega al refresco de la pantalla; si no, los que
+    /// hacen falta para que el promedio llegue al refresco —(real + n intermedios) / (n + 1) = el cuadro de la pantalla—, entre 1 y
+    /// 3, y sin pasar de un real cada 1/24 s con la pantalla llena (lo que se mueve solo —NPC, efectos— sigue fluido: a 60 Hz, 1;
+    /// a 90, 2; a 120, 3)
+    fn turbo_max(&self) -> u8 {
+        if !self.aj.turbo { return 0; }
+        let r = self.refresco.max(30.0); let tope = ((r / 24.0).floor() - 1.0).clamp(1.0, 3.0);
+        if self.ms_real == 0.0 { return 1; }
+        let t = 1000.0 / r; if self.ms_real <= t * 1.15 { return 0; }
+        let falta = if self.ms_inter < t * 0.95 { ((self.ms_real - t) / (t - self.ms_inter)).ceil() } else { tope };
+        falta.clamp(1.0, tope) as u8
     }
 }

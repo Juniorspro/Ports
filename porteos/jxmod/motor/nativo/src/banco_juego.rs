@@ -38,7 +38,8 @@ impl Juego {
         // (se cierran los menús: se mide el juego)
         self.ini.panel = None; self.ini.desde_juego = false; self.ini.abierto = false; self.ajustes = None;
         let antes = (self.placa, self.aj.clone());
-        self.aj.dinamica = false; self.drs = 1.0; if self.aj.auto { self.aj.poner_calidad(3); self.aj.auto = false; }
+        // (sin JX Turbo: se compara lo que dibuja cada motor de verdad; Ajustes vuelve como estaba al terminar)
+        self.aj.dinamica = false; self.aj.turbo = false; self.drs = 1.0; if self.aj.auto { self.aj.poner_calidad(3); self.aj.auto = false; }
         crate::caja_negra::paso("comparar los motores");
         self.banco.fin = None;
         self.banco.b = Some(Banco { motores, i: 0, t: 0.0, cuadros: 0, ms: 0.0, res: vec![], antes, yaw0: self.jug.yaw, t_ant: Instant::now() });

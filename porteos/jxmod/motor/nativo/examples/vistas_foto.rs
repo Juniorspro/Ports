@@ -133,6 +133,9 @@ fn main() {
     // (JXM_TURBO_PRUEBA=1: el cuadro intermedio contra el de verdad: para varias vistas y movimientos de 1/120 s, la foto de
     // verdad en la cámara nueva, la vieja —lo que se vería sin intermedio— y la armada; y cuánto tarda armarla)
     if std::env::var_os("JXM_TURBO_PRUEBA").is_some() {
+        // (el turbo prendido, pero acá cada cuadro del juego es de verdad —turbo_n alto: no toca intermedio—; el intermedio se arma a mano)
+        j.aj.turbo = true;
+        let paso = |j: &mut Juego, m: &mut Motor3d, n: usize| { for _ in 0..n { j.turbo_n = 250; paso(j, m, 1); } };
         let mut vistas: Vec<([f32; 3], f32, f32)> = (0..4).map(|k| ([p0[0], p0[1] + 0.7, p0[2]], y0 + k as f32 * 1.5708, -0.05)).collect();
         vistas.push(([-10.6472, -1.8074449, 27.8816], y0, -0.1)); vistas.push(([-10.6472, -1.8074449, 27.8816], y0 + 4.71, -0.1));
         let movs: [(f32, f32, f32, &str); 4] = [(1.5, 0.0, 0.0, "giro1.5"), (3.0, 0.0, 0.0, "giro3"), (1.5, 0.05, 0.0, "giro1.5_avanza5cm"), (0.0, 0.0, 0.04, "costado4cm")];

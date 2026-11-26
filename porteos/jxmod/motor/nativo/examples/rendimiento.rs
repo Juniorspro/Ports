@@ -55,6 +55,9 @@ fn main() {
     let sin = std::env::var("JXM_SIN").unwrap_or_default();
     for k in sin.split(',') { match k { "sombras" => j.aj.sombras = false, "ao" => j.aj.ao = false, "reflejo" => j.aj.reflejo = false, "retoque" => j.aj.retoque = false, _ => {} } }
     if std::env::var("JXM_DIN").as_deref() == Ok("0") { j.aj.dinamica = false; }
+    // (JXM_TURBO=1: JX Turbo, los cuadros intermedios; JXM_REFRESCO: el refresco de la pantalla que se simula —60 de fábrica—)
+    if std::env::var_os("JXM_TURBO").is_some() { j.aj.turbo = true; }
+    if let Some(r) = std::env::var("JXM_REFRESCO").ok().and_then(|v| v.parse().ok()) { j.refresco = r; }
     if let Ok(mp) = std::env::var("JXM_MAPA") { assert!(j.poner_mapa(&mp), "no existe el mapa {mp}"); }
     let cpu = std::cell::Cell::new(0.0f64);
     // (JXM_AB=1: los cuadros se alternan entre A —lo de siempre— y B —lo que se prueba, ver jxmotor::gpu::AB— y se miden aparte)
@@ -93,6 +96,7 @@ fn main() {
     println!("{} · {}x{} · calidad {} res {}% sombras {} ao {} reflejo {} retoque {} · {}", placa, w, h, cal, j.aj.res, j.aj.sombras, j.aj.ao, j.aj.reflejo, j.aj.retoque, std::env::var("JXM_MAPA").unwrap_or("el de siempre".into()));
     println!("cuadro {:.1} ms = {:.1} fps (por vista: {}) · peor {:.0} ms · resolución dinámica {:.0} % · cpu juego {:?}", prom, 1000.0 / prom, por_vista.iter().map(|x| format!("{x:.1}")).collect::<Vec<_>>().join(" / "), peor, j.drs * 100.0, j.perf);
     if let Some((t, d)) = m.tiempos() { println!("placa {t:.1} ms: {d}"); }
+    if j.aj.turbo { println!("JX Turbo: reales {:.1} ms · intermedios {:.1} ms · {} intermedios de {} cuadros", j.ms_real, j.ms_inter, j.n_inter, n + 32); }
     if seguido { let p = seg.iter().sum::<f64>() / seg.len() as f64; println!("seguido (sin esperar cada cuadro): {p:.1} ms = {:.1} fps (por vista: {})", 1000.0 / p, seg.iter().map(|x| format!("{x:.1}")).collect::<Vec<_>>().join(" / ")); }
     if std::env::var_os("JXM_RESUMEN").is_some() { println!("{}", m.resumen()); }
     if let Motor3d::Gl2(g, _) = &m { if let Some((_, v)) = &g.fases { println!("fases GL2 (ms por cuadro): {}", v.iter().map(|(k, ms)| format!("{k} {:.1}", ms / (n as f64 + 32.0))).collect::<Vec<_>>().join(" · ")); } }

@@ -54,9 +54,9 @@ struct Destino { fb: glow::Framebuffer, color: glow::Texture, prof: Option<glow:
 
 // los uniformes, por número (buscarlos por nombre en cada dibujo cuesta)
 #[derive(Clone, Copy)]
-enum U { Mat, NieS, Sesgo, VP, M, SVP, Mn, Sc, St, C, Em, Modo, S1, S3, Sol, SolC, AmbS, AmbG, NieC, Nie, Cam, Expo, Sombra, Clip, B, LP, LC, LD, LN, LE, F, H, S, Bq, D, RefInv, Tiempo, Top, Mid, Bot, Exp, Tinte, Dia, CieloK, TieneCubo, Radio, Inv, Fuerza, Retoque, Der, Arr, RefrOn, RefrK, IVP, SVP2, Sesgo2, Ti, Ti2, Ti3, AOk, NC, Ray0, RayX, RayY, Zl, RayP, RayK, Vol, Nubes, BloomK, RP, Adapta, Caus, CausB, Ond, OndN, GIo, GIn, ViejaI, Nueva }
-const NU: usize = U::Nueva as usize + 1;
-const NOMBRES: [&str; NU] = ["uMat", "uNieS", "uSesgo", "uVP", "uM", "uSVP", "uMn", "uSc", "uSt", "uC", "uEm", "uModo", "uS1", "uS3", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNie", "uCam", "uExpo", "uSombra", "uClip", "uB", "uLP", "uLC", "uLD", "uLN", "uLE", "uF", "uH", "uS", "uBq", "uD", "uRefInv", "uTiempo", "uTop", "uMid", "uBot", "uExp", "uTinte", "uDia", "uCieloK", "uTieneCubo", "uRadio", "uInv", "uFuerza", "uRetoque", "uDer", "uArr", "uRefrOn", "uRefrK", "uIVP", "uSVP2", "uSesgo2", "uTi", "uTi2", "uTi3", "uAOk", "uNC", "uRay0", "uRayX", "uRayY", "uZl", "uRayP", "uRayK", "uVol", "uNubes", "uBloomK", "uRP", "uAdapta", "uCaus", "uCausB", "uOnd", "uOndN", "uGIo", "uGIn", "uViejaI", "uNueva"];
+enum U { Mat, NieS, Sesgo, VP, M, SVP, Mn, Sc, St, C, Em, Modo, S1, S3, Sol, SolC, AmbS, AmbG, NieC, Nie, Cam, Expo, Sombra, Clip, B, LP, LC, LD, LN, LE, F, H, S, Bq, D, RefInv, Tiempo, Top, Mid, Bot, Exp, Tinte, Dia, CieloK, TieneCubo, Radio, Inv, Fuerza, Retoque, Der, Arr, RefrOn, RefrK, IVP, SVP2, Sesgo2, Ti, Ti2, Ti3, AOk, NC, Ray0, RayX, RayY, Zl, RayP, RayK, Vol, Nubes, BloomK, RP, Adapta, Caus, CausB, Ond, OndN, GIo, GIn, Corte }
+const NU: usize = U::Corte as usize + 1;
+const NOMBRES: [&str; NU] = ["uMat", "uNieS", "uSesgo", "uVP", "uM", "uSVP", "uMn", "uSc", "uSt", "uC", "uEm", "uModo", "uS1", "uS3", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNie", "uCam", "uExpo", "uSombra", "uClip", "uB", "uLP", "uLC", "uLD", "uLN", "uLE", "uF", "uH", "uS", "uBq", "uD", "uRefInv", "uTiempo", "uTop", "uMid", "uBot", "uExp", "uTinte", "uDia", "uCieloK", "uTieneCubo", "uRadio", "uInv", "uFuerza", "uRetoque", "uDer", "uArr", "uRefrOn", "uRefrK", "uIVP", "uSVP2", "uSesgo2", "uTi", "uTi2", "uTi3", "uAOk", "uNC", "uRay0", "uRayX", "uRayY", "uZl", "uRayP", "uRayK", "uVol", "uNubes", "uBloomK", "uRP", "uAdapta", "uCaus", "uCausB", "uOnd", "uOndN", "uGIo", "uGIn", "uCorte"];
 struct Prog { p: glow::Program, u: Vec<Option<glow::UniformLocation>>, piel: bool, corte: bool }
 #[derive(Default)]
 struct Puesto3 { vao: Option<glow::VertexArray>, unidad: Option<u32>, tex: [Option<glow::Texture>; 8], mat: HashMap<glow::Program, (i64, i32)>, pos: HashMap<glow::Program, ([f32; 3], [f32; 3])>, mm: HashMap<glow::Program, [f32; 16]> }
@@ -560,21 +560,29 @@ void main() {
   if (uAdapta.x > 0.0 && abs(paso) < 0.004) paso = clamp(d, -0.004, 0.004);
   o = enc16(antes + paso);
 }"#;
-// JX Turbo, el cuadro intermedio: para cada punto de la imagen nueva, dónde estaba en la anterior. Se adivina (el mismo lugar),
-// se lee la profundidad de ahí, se vuelve al mundo con la cámara vieja y se proyecta con la nueva; lo que falta para caer en
-// el punto se corrige y se repite (al girar la cámara cae justo a la primera; al moverse, lo cercano se acomoda después)
+// JX Turbo, el cuadro intermedio: la imagen terminada del último cuadro (con el retoque, sin la interfaz) corrida a la cámara de
+// ahora. Para cada punto de la imagen nueva, de dónde viene en la vieja: se adivina (el mismo lugar), con la profundidad de ahí
+// se pasa de la cámara vieja a la nueva (uM: la nueva por la vieja al revés, una sola cuenta) y lo que falta para caer en el
+// punto se corrige; dos veces (al girar cae justo a la primera; al moverse, lo cercano se acomoda en la segunda). Lo que está a
+// menos de uCorte de profundidad —el arma y las manos, a menos de 90 cm— va pegado a la cámara: no se corre
 const FS_REPRO: &str = r#"#version 300 es
-precision highp float; uniform highp sampler2D uEsc, uProf; uniform mat4 uViejaI, uNueva; in vec2 vP; out vec4 o;
+precision highp float; uniform highp sampler2D uEsc, uProf; uniform highp mat4 uM; uniform float uCorte; in vec2 vP; out vec4 o;
 void main() {
-  vec2 uv = vP * 0.5 + 0.5, q = uv;
-  for (int i = 0; i < 3; i++) {
-    float d = texture(uProf, q).r;
-    vec4 w = uViejaI * vec4(q * 2.0 - 1.0, d * 2.0 - 1.0, 1.0); w /= w.w;
-    vec4 n = uNueva * w; if (n.w <= 1e-5) break;
-    q = clamp(q + (uv - (n.xy / n.w * 0.5 + 0.5)), vec2(0.0), vec2(1.0));
+  vec2 uv = vP * 0.5 + 0.5, q = uv; float d = texture(uProf, uv).r;
+  if (d >= uCorte) {
+    for (int i = 0; i < 2; i++) {
+      if (i > 0) d = texture(uProf, q).r;
+      vec4 n = uM * vec4(q * 2.0 - 1.0, d * 2.0 - 1.0, 1.0); if (n.w <= 1e-5) break;
+      q = clamp(q + (uv - (n.xy / n.w * 0.5 + 0.5)), vec2(0.0), vec2(1.0));
+    }
   }
   o = texture(uEsc, q);
 }"#;
+// (la imagen guardada a la pantalla, tal cual: una pasada en vez de glBlitFramebuffer, que no anda con todas las ventanas de EGL)
+const FS_COPIA: &str = r#"#version 300 es
+precision mediump float; uniform sampler2D uEsc; in vec2 vP; out vec4 o;
+void main() { o = texture(uEsc, vP * 0.5 + 0.5); }"#;
+// la pasada final: la escena a la pantalla con los rayos, el resplandor, la exposición y el retoque
 const FS_FINAL: &str = r#"#version 300 es
 precision highp float; uniform highp sampler2D uEsc; uniform sampler2D uRay, uBlo; uniform highp sampler2D uAd; uniform float uRetoque, uFuerza, uRayK, uBloomK; uniform vec4 uAdapta; uniform vec2 uInv; in vec2 vP; out vec4 o;
 float dec16(vec4 t) { return (floor(t.r * 255.0 + 0.5) + floor(t.g * 255.0 + 0.5) / 256.0) * (4.0 / 255.0); }
@@ -771,6 +779,15 @@ unsafe fn textura(gl: &glow::Context, w: u32, h: u32, px: &[u8], repetir: bool, 
     t
 }
 unsafe fn destino(gl: &glow::Context, w: i32, h: i32) -> Destino { destino_con(gl, w, h, false) }
+/// JX Turbo: la profundidad (0..1, la del búfer) de lo que está a `dist` metros adelante de la cámara `vp` (en `pos`): lo que está
+/// más cerca es el arma o las manos
+fn corte(vp: &M4, pos: [f32; 3], dist: f32) -> f32 {
+    let por = |m: &M4, v: [f32; 4]| { let mut r = [0.0f32; 4]; for i in 0..4 { r[i] = m[i] * v[0] + m[4 + i] * v[1] + m[8 + i] * v[2] + m[12 + i] * v[3]; } r };
+    let inv = mat::inv(vp); let un = |z: f32| { let v = por(&inv, [0.0, 0.0, z, 1.0]); [v[0] / v[3], v[1] / v[3], v[2] / v[3]] };
+    let (a, b) = (un(-1.0), un(1.0)); let d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]; let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt().max(1e-6);
+    let c = por(vp, [pos[0] + d[0] / l * dist, pos[1] + d[1] / l * dist, pos[2] + d[2] / l * dist, 1.0]);
+    if c[3] <= 1e-6 { 0.0 } else { c[2] / c[3] * 0.5 + 0.5 }
+}
 /// el banco A/B (examples/rendimiento con JXM_AB): los cuadros se alternan entre la forma de siempre (A) y la que se prueba (B),
 /// así lo que cambia la máquina entre corridas les toca igual a las dos; el código a probar pregunta `ab()`
 pub static AB: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -940,7 +957,7 @@ pub struct Motor {
     /// las luces que ya están puestas en el programa de ahora (para no volver a mandarlas si la cosa siguiente usa las mismas)
     luces_puestas: std::cell::Cell<(u64, u32)>,
     /// JX Turbo: la cámara del último cuadro dibujado, su destino corrido, el programa que lo corre y lo de la pasada final
-    vp_ult: Option<M4>, repro_rt: Option<Destino>, p_repro: Prog, final_ult: (Option<(glow::Texture, f32)>, Option<glow::Texture>, Option<glow::Texture>),
+    vp_ult: Option<M4>, corte_ult: f32, final_rt: Option<Destino>, p_repro: Prog, p_copia: Prog,
     /// lo puesto en la placa dentro de una tanda de dibujos (dibujar_lista_con): la malla, las texturas, y por programa el
     /// material y la posición —como OpenGL 2: no rehacer lo mismo—; las llamadas hechas y las que se ahorraron
     puesto: std::cell::RefCell<Option<Puesto3>>, pub llamadas: std::cell::Cell<[u32; 2]>,
@@ -993,7 +1010,7 @@ impl Motor {
         let p_cielo = programa(&gl, VS_CIELO, &FS_CIELO.replace("@@NUBES@@", NUBES_GLSL), "")?;
         let p_ao = programa(&gl, VS_CIELO, FS_AO, "")?;
         let p_ao_poner = programa(&gl, VS_CIELO, FS_AO_PONER, "")?;
-        let p_final = programa(&gl, VS_CIELO, FS_FINAL, "")?; let p_repro = programa(&gl, VS_CIELO, FS_REPRO, "")?; let p_adapta = programa(&gl, VS_CIELO, FS_ADAPTA, "")?;
+        let p_final = programa(&gl, VS_CIELO, FS_FINAL, "")?; let p_repro = programa(&gl, VS_CIELO, FS_REPRO, "")?; let p_copia = programa(&gl, VS_CIELO, FS_COPIA, "")?; let p_adapta = programa(&gl, VS_CIELO, FS_ADAPTA, "")?;
         let p_rayos = programa(&gl, VS_CIELO, FS_RAYMASK, "")?; let p_rayos2 = programa(&gl, VS_CIELO, FS_RAYOS, "")?; let p_vol = programa(&gl, VS_CIELO, FS_VOL, "")?; let p_vol_aaa = programa(&gl, VS_CIELO, FS_VOL, "#define PASOS 24\n")?;
         let p_brillo = programa(&gl, VS_CIELO, FS_BRILLO, "")?; let p_baja = programa(&gl, VS_CIELO, FS_BAJA, "")?; let p_sube = programa(&gl, VS_CIELO, FS_SUBE, "")?;
         let p_part = programa(&gl, VS_PART, FS_PART, "")?;
@@ -1012,7 +1029,7 @@ impl Motor {
         Ok(Motor { gi_tex: None, gi_ver: -1.0, refl_agua: false, refl_piso: None, refl_piso_ult: (mat::id(), f32::NAN), p_adapta, adapta: None, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], rayos_rt: None, hongos: crate::hongo::Hongos::nuevo(true), gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
             p_luz, p_luz_piel, p_luz_c, p_luz_piel_c, p_luz_inst_c, p_pre, p_pre_piel, p_pre_inst, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_lin, p_ui, ui, p_luz_inst, p_sombra_inst, inst_buf, part, marcas, ao_rt: None, refr_rt: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], svp2: mat::id(), sesgo2: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
             opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new(), ranuras: Vec::new(), instancias: std::env::var("JXM_SIN_INST").is_err(),
-            ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), vp_ult: None, repro_rt: None, p_repro, final_ult: (None, None, None), puesto: std::cell::RefCell::new(None), llamadas: std::cell::Cell::new([0; 2]), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), fases_b: vec![], luz_b, perfil: std::env::var_os("JXM_PERFIL").map(|_| std::cell::RefCell::new(vec![])) })
+            ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), vp_ult: None, corte_ult: 0.0, final_rt: None, p_repro, p_copia, puesto: std::cell::RefCell::new(None), llamadas: std::cell::Cell::new([0; 2]), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), fases_b: vec![], luz_b, perfil: std::env::var_os("JXM_PERFIL").map(|_| std::cell::RefCell::new(vec![])) })
     }
 
     /// sube a la placa los recursos nuevos (los que ya estaban con el mismo número se reemplazan)
@@ -1861,9 +1878,25 @@ impl Motor {
         // (con JX Turbo la profundidad queda: con ella se arma el cuadro intermedio)
         if !self.op.turbo { gl.bind_framebuffer(glow::FRAMEBUFFER, Some(fb)); gl.invalidate_framebuffer(glow::FRAMEBUFFER, &[glow::DEPTH_ATTACHMENT]); }
         let col = self.escena_rt.as_ref().unwrap().color;
-        if let Some(c) = self.c.as_ref() { self.vp_ult = Some(c.vp); }
-        self.final_ult = (rayos, brillo, adapta);
-        self.pasada_final(salida, w, h, ew, eh, col, rayos, brillo, adapta);
+        // (JX Turbo: la imagen terminada queda guardada —para los cuadros intermedios— y se copia a la pantalla; con su cámara y la
+        // profundidad de 90 cm adelante —lo que está más cerca, el arma, no se corre—)
+        if self.op.turbo {
+            if self.final_rt.as_ref().map_or(true, |d| d.w != w || d.h != h) { if let Some(d) = self.final_rt.take() { borrar_destino(&self.gl, d); } self.final_rt = Some(destino(&self.gl, w, h)); }
+            let ffb = self.final_rt.as_ref().unwrap().fb;
+            self.pasada_final(Some(ffb), w, h, ew, eh, col, rayos, brillo, adapta);
+            let (gl, fcol) = (&self.gl, self.final_rt.as_ref().unwrap().color);
+            gl.bind_framebuffer(glow::FRAMEBUFFER, salida); gl.viewport(0, 0, w, h);
+            let todo: &[u32] = if salida.is_none() { &[glow::COLOR, glow::DEPTH, glow::STENCIL] } else { &[glow::COLOR_ATTACHMENT0, glow::DEPTH_ATTACHMENT] };
+            gl.invalidate_framebuffer(glow::FRAMEBUFFER, todo); gl.disable(glow::DEPTH_TEST); gl.depth_mask(false);
+            gl.use_program(Some(self.p_copia.p)); gl.active_texture(glow::TEXTURE11); gl.bind_texture(glow::TEXTURE_2D, Some(fcol));
+            gl.bind_vertex_array(None); gl.draw_arrays(glow::TRIANGLES, 0, 3);
+            gl.bind_texture(glow::TEXTURE_2D, None); gl.active_texture(glow::TEXTURE0);
+            gl.invalidate_framebuffer(glow::FRAMEBUFFER, &todo[1..]); gl.enable(glow::DEPTH_TEST); gl.depth_mask(true);
+            if let Some(c) = self.c.as_ref() { self.vp_ult = Some(c.vp); self.corte_ult = corte(&c.vp, c.pos, 0.9); }
+        } else {
+            if let Some(d) = self.final_rt.take() { borrar_destino(&self.gl, d); } self.vp_ult = None;
+            self.pasada_final(salida, w, h, ew, eh, col, rayos, brillo, adapta);
+        }
         self.cuadro += 1;
         self.marca("final");
     }
@@ -1892,28 +1925,30 @@ impl Motor {
         gl.enable(glow::DEPTH_TEST); gl.depth_mask(true);
     }
 
-    /// JX Turbo: el cuadro intermedio. El último cuadro dibujado, corrido a la cámara de ahora (`vp`) con su profundidad —cada
-    /// punto se vuelve a poner donde cae visto desde acá, como los visores de realidad virtual—, y la pasada final con lo del
-    /// último cuadro. Una pasada de pantalla en vez del mundo entero: el doble de cuadros por el mismo trabajo. false si no
-    /// hay cuadro guardado (falta el turbo, la profundidad o un cuadro de verdad antes)
+    /// JX Turbo: si hay un cuadro guardado para armar intermedios de este tamaño
+    pub fn turbo_listo(&self, w: i32, h: i32) -> bool {
+        self.op.turbo && self.vp_ult.is_some() && self.final_rt.as_ref().map_or(false, |d| d.w == w && d.h == h) && self.escena_rt.as_ref().map_or(false, |e| e.prof_t.is_some())
+    }
+    /// JX Turbo: el cuadro intermedio. La imagen terminada del último cuadro, corrida a la cámara de ahora (`vp`) con su
+    /// profundidad —cada punto se vuelve a poner donde cae visto desde acá, como los visores de realidad virtual—: una sola pasada
+    /// de pantalla en vez del mundo entero. false si no hay cuadro guardado (falta el turbo, la profundidad o un cuadro de verdad)
     pub unsafe fn intermedio(&mut self, salida: Option<glow::Framebuffer>, w: i32, h: i32, vp: &M4) -> bool {
-        if !self.op.turbo { return false; }
-        let (Some(vieja), Some(esc)) = (self.vp_ult, self.escena_rt.as_ref()) else { return false };
-        let Some(prof) = esc.prof_t else { return false };
-        let (ew, eh, col) = (esc.w, esc.h, esc.color);
-        if self.repro_rt.as_ref().map_or(true, |d| d.w != ew || d.h != eh) { if let Some(d) = self.repro_rt.take() { borrar_destino(&self.gl, d); } self.repro_rt = Some(destino(&self.gl, ew, eh)); }
-        let r = self.repro_rt.as_ref().unwrap(); let (rfb, rcol) = (r.fb, r.color);
-        { let gl = &self.gl;
-          gl.bind_framebuffer(glow::FRAMEBUFFER, Some(rfb)); gl.viewport(0, 0, ew, eh); gl.disable(glow::DEPTH_TEST); gl.depth_mask(false); gl.disable(glow::BLEND);
-          let p = &self.p_repro; gl.use_program(Some(p.p));
-          gl.uniform_matrix_4_f32_slice(p.u(U::ViejaI), false, &mat::inv(&vieja)); gl.uniform_matrix_4_f32_slice(p.u(U::Nueva), false, vp);
-          gl.active_texture(glow::TEXTURE11); gl.bind_texture(glow::TEXTURE_2D, Some(col));
-          gl.active_texture(glow::TEXTURE9); gl.bind_texture(glow::TEXTURE_2D, Some(prof));
-          gl.bind_vertex_array(None); gl.draw_arrays(glow::TRIANGLES, 0, 3);
-          gl.active_texture(glow::TEXTURE0); }
-        let (rayos, brillo, adapta) = self.final_ult;
-        self.pasada_final(salida, w, h, ew, eh, rcol, rayos, brillo, adapta);
-        self.dibujos = 2;
+        if !self.turbo_listo(w, h) { return false; }
+        let (Some(vieja), Some(prof), Some(f)) = (self.vp_ult, self.escena_rt.as_ref().and_then(|e| e.prof_t), self.final_rt.as_ref()) else { return false };
+        let gl = &self.gl;
+        gl.bind_framebuffer(glow::FRAMEBUFFER, salida); gl.viewport(0, 0, w, h);
+        let todo: &[u32] = if salida.is_none() { &[glow::COLOR, glow::DEPTH, glow::STENCIL] } else { &[glow::COLOR_ATTACHMENT0, glow::DEPTH_ATTACHMENT] };
+        gl.invalidate_framebuffer(glow::FRAMEBUFFER, todo);
+        gl.disable(glow::DEPTH_TEST); gl.depth_mask(false); gl.disable(glow::BLEND);
+        let p = &self.p_repro; gl.use_program(Some(p.p));
+        gl.uniform_matrix_4_f32_slice(p.u(U::M), false, &mat::mul(vp, &mat::inv(&vieja))); gl.uniform_1_f32(p.u(U::Corte), self.corte_ult);
+        gl.active_texture(glow::TEXTURE11); gl.bind_texture(glow::TEXTURE_2D, Some(f.color));
+        gl.active_texture(glow::TEXTURE9); gl.bind_texture(glow::TEXTURE_2D, Some(prof));
+        gl.bind_vertex_array(None); gl.draw_arrays(glow::TRIANGLES, 0, 3);
+        gl.bind_texture(glow::TEXTURE_2D, None); gl.active_texture(glow::TEXTURE11); gl.bind_texture(glow::TEXTURE_2D, None); gl.active_texture(glow::TEXTURE0);
+        gl.invalidate_framebuffer(glow::FRAMEBUFFER, &todo[1..]);
+        gl.enable(glow::DEPTH_TEST); gl.depth_mask(true);
+        self.dibujos = 1;
         true
     }
 
