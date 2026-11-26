@@ -1131,7 +1131,7 @@ impl Juego {
             self.npcs.animar(dt, cam, Some(&vpm), &self.fis); self.npcs.items(&mut items); self.gmp_items_npcs(&mut items, cam, dt); self.red_items(&mut items); self.mapas_items(&mut items); self.grieta_items(&mut items, cam, mira); self.jg_items(&mut items, cam); personajes::celu_juego::antes_items(&mut self.pjs.celu, self.ojos_ult, qcam(self.jug.yaw, self.jug.pitch), self.fov_b, wf / hf.max(1.0), self.sway); self.pjs_items(&mut items, cam, ver_cuerpo); self.gmod_items(ojos, yaw, pitch, &mut items);
             // los efectos: avanzan, y sus bloques (partículas, trazas, marcas) y sus luces —primero: GL2 usa 4—
             self.ef.calidad(self.aj.calidad.min(4)); self.ef.alto_px = hf; self.ef.paso(dt, efx::GRAV);
-            let mut efectos = self.ef.bloques(&vpm, cam); self.jg_efectos(&mut efectos, &vpm, cam);
+            self.jg.nuk.vol = m.hongo_listo(); let mut efectos = self.ef.bloques(&vpm, cam); self.jg_efectos(&mut efectos, &vpm, cam);
             let mut luces = self.ef.luces(); luces.extend(mp.luces_cerca(ojos, 6));
             self.herramientas_items(&mut items, &mut luces); luces.truncate(8); self.jg_luces(&mut luces); self.pjs_luces(&mut luces, ojos);
             // (el piso de abajo de la cámara, para su reflejo en OpenGL 2: sólo si es casi plano)

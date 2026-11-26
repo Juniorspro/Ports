@@ -27,8 +27,8 @@ const MAX_HUESOS2: usize = 56;
 #[derive(Clone, Debug)]
 /// lo que se puede elegir: la fracción de la pantalla, el retoque, la sombra del sol (lado del mapa, cada cuántos cuadros se
 /// rehace y su radio alrededor de la cámara), el reflejo del agua y del piso (a 1/`reflejo_div` del lado) y los rayos del sol
-pub struct Opciones2 { pub escala: f32, pub retoque: bool, pub sombras: bool, pub sombra_px: i32, pub sombra_cada: u32, pub sombra_radio: f32, pub reflejo: bool, pub reflejo_div: i32, pub reflejo_piso: bool, pub rayos: bool }
-impl Default for Opciones2 { fn default() -> Self { Opciones2 { escala: 1.0, retoque: true, sombras: true, sombra_px: 1024, sombra_cada: 2, sombra_radio: 60.0, reflejo: true, reflejo_div: 3, reflejo_piso: true, rayos: false } } }
+pub struct Opciones2 { pub escala: f32, pub retoque: bool, pub sombras: bool, pub sombra_px: i32, pub sombra_cada: u32, pub sombra_radio: f32, pub reflejo: bool, pub reflejo_div: i32, pub reflejo_piso: bool, pub rayos: bool, pub hongo: u8 }
+impl Default for Opciones2 { fn default() -> Self { Opciones2 { escala: 1.0, retoque: true, sombras: true, sombra_px: 1024, sombra_cada: 2, sombra_radio: 60.0, reflejo: true, reflejo_div: 3, reflejo_piso: true, rayos: false, hongo: 2 } } }
 
 struct Malla2 { vb: glow::Buffer, ib: glow::Buffer, lm: Option<glow::Buffer>, i32: bool, mn: [f32; 3], sc: [f32; 3], lm_id: i64, bytes: usize, piel: Option<Box<PielCpu>> }
 /// lo que hace falta para deformar una malla con huesos en la CPU: posición y normal sueltas, huesos y pesos por vértice
@@ -448,6 +448,8 @@ pub struct Motor {
     p_luz: Prog2, p_luz_c: Prog2, p_cielo: Prog2, p_ui: Prog2, p_copia: Prog2, p_agua: Prog2, p_part: Prog2, p_lin: Prog2,
     /// los rayos del sol: el programa, su destino (cuadro, textura, ancho, alto) y si van en este cuadro (el sol en la pantalla y su fuerza)
     p_rayos: Prog2, rayos_rt: Option<(glow::Framebuffer, glow::Texture, i32, i32)>, rayos_ahora: Option<[f32; 3]>,
+    /// el hongo de las nucleares con volumen (el ruido en un mosaico 2D: OpenGL ES 2 no tiene texturas 3D)
+    pub hongos: crate::hongo::Hongos, alta: bool,
     /// las partículas: el búfer de vértices, el de índices (para cuántas alcanza) y lo armado en la CPU; las marcas: su búfer,
     /// cuántos vértices y las que llegaron y todavía no se subieron
     part_vb: glow::Buffer, part_ib: glow::Buffer, part_cap: usize, part_v: Vec<f32>,
@@ -478,6 +480,8 @@ pub struct Motor {
 impl Motor {
     pub unsafe fn nuevo(gl: glow::Context, op: Opciones2) -> Result<Motor, String> {
         let ext = gl.supported_extensions();
+        // (la precisión alta en los sombreadores de píxeles: sin ella el hongo no se puede marchar —van los carteles—)
+        let alta = gl.get_shader_precision_format(glow::FRAGMENT_SHADER, glow::HIGH_FLOAT).map_or(true, |f| f.precision > 0);
         let uint32 = ext.contains("GL_OES_element_index_uint"); let npot = ext.contains("GL_OES_texture_npot") || ext.contains("GL_ARB_texture_non_power_of_two");
         // (JXM_GL2_VER_SOMBRA: lo opaco pinta sólo cuánto le llega del sol —para revisar la sombra—)
         let ver = if std::env::var_os("JXM_GL2_VER_SOMBRA").is_some() { "#define VER_SOMBRA\n" } else { "" };
@@ -511,7 +515,7 @@ impl Motor {
             let ib = gl.create_buffer()?; gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ib)); let ibb: Vec<u8> = caras.iter().flat_map(|x| x.to_le_bytes()).collect(); gl.buffer_data_u8_slice(glow::ELEMENT_ARRAY_BUFFER, &ibb, glow::STATIC_DRAW);
             Some((HashMap::new(), pc, vb, ib))
         } else { None };
-        Ok(Motor { p_rayos, rayos_rt: None, rayos_ahora: None, som: None, som_vp: [mat::id(); 2], som_n: 0, som_on: false, som_off: [[0.0; 2]; 2], som_huella: [0; 2], refl_n: 0, p_som, p_som_c, refl: None, refl_on: false, refl_activo: false, p_luz_r, p_luz_rc, refl_piso: None, refl_px: [0.0; 2], refl_ult: (mat::id(), f32::NAN), oclu, n_cuadro: 0, fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), gl, op, cubo: None, p_luz, p_luz_c, p_cielo, p_ui, p_copia, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), marcas_vb, marcas_n: 0, poses: vec![], poses_n: 0, pose_p: vec![], pose_v: vec![], marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
+        Ok(Motor { hongos: crate::hongo::Hongos::nuevo(false), alta, p_rayos, rayos_rt: None, rayos_ahora: None, som: None, som_vp: [mat::id(); 2], som_n: 0, som_on: false, som_off: [[0.0; 2]; 2], som_huella: [0; 2], refl_n: 0, p_som, p_som_c, refl: None, refl_on: false, refl_activo: false, p_luz_r, p_luz_rc, refl_piso: None, refl_px: [0.0; 2], refl_ult: (mat::id(), f32::NAN), oclu, n_cuadro: 0, fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), gl, op, cubo: None, p_luz, p_luz_c, p_cielo, p_ui, p_copia, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), marcas_vb, marcas_n: 0, poses: vec![], poses_n: 0, pose_p: vec![], pose_v: vec![], marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
             c: None, items: vec![], opacos: vec![], transp: vec![], uint32, npot, escena_rt: None, dibujos: 0, memoria: 0, mapa: String::new() })
     }
 
@@ -722,6 +726,8 @@ impl Motor {
         self.marca("transp_agua");
         self.particulas(&vp, rw, rh);
         self.marca("particulas");
+        // (los hongos de las nucleares —sólo con precisión alta en los sombreadores—)
+        if self.op.hongo > 0 && self.alta { if let Some(c) = self.c.as_ref() { if self.hongos.dibujar(&self.gl, c, self.op.hongo, destino, rw, rh) > 0 { self.marca("hongos"); } } }
         let gl = &self.gl; gl.depth_mask(true); gl.disable(glow::BLEND);
         // (los rayos del sol, a un cuarto del lado, de la escena ya dibujada)
         let rayos = if let Some(rp) = self.rayos_ahora { self.rayos_pasada(rp, ew, eh) } else { None };
@@ -972,6 +978,8 @@ impl Motor {
         gl.draw_elements(glow::TRIANGLES, it.sn as i32, tipo, (it.s0 * tam) as i32);
         self.dibujos += 1;
     }
+    /// si puede dibujar el hongo de las nucleares con volumen (con precisión alta y el ruido listo)
+    pub fn hongo_puede(&self) -> bool { self.alta && self.hongos.listo() }
     fn rayos_sol(&self) -> Option<[f32; 3]> { crate::gpu::sol_en_pantalla(self.c.as_ref()?, self.sol()) }
     /// los rayos del sol: de la escena dibujada (con su alfa: 0 el cielo) a una textura de un cuarto del lado; devuelve la textura
     unsafe fn rayos_pasada(&mut self, rp: [f32; 3], ew: i32, eh: i32) -> Option<glow::Texture> {

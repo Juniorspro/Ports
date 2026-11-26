@@ -134,6 +134,55 @@ pub fn soplido(k: f64, dura: f64, sr: f64, semilla: u32) -> Vec<f32> {
     }).collect()
 }
 
+/// el hongo con volumen (nuclear_vol.js): el del tráiler es una de R ≈ 260 m; todo se mide en «metros del tráiler» (R / 260)
+pub const NV_R0: f64 = 260.0;
+/// las que hacen hongo con volumen (la subterránea y la del espacio siguen con los carteles)
+pub fn nv_tipo(t: &str) -> bool { matches!(t, "aire" | "bomba" | "misil" | "ficcion" | "torre" | "suelo" | "artilleria" | "agua" | "barco") }
+/// la forma del hongo en un momento (nvEstado): la escala, el sombrero (altura, radio del anillo, grosor, giro), el tallo
+/// (radio abajo, arriba, alto, corrimiento), la falda de polvo (radio, alto, ancho, cuánto hay), el fuego (brillo, color,
+/// cuánto se enfrió, la luz que da), las densidades (sombrero, tallo, falda, cuánto subió el tallo) y la caja (radio, alto)
+#[derive(Clone, Debug)]
+pub struct NvEstado { pub s: f64, pub cap: [f64; 4], pub tallo: [f64; 4], pub falda: [f64; 4], pub fuego_v: [f64; 4], pub dens: [f64; 4], pub caja: [f64; 2], pub agua: bool }
+impl Explosion {
+    /// nvEstado: la forma del tráiler, a la escala de esta bomba (las grandes, más despacio)
+    pub fn nv_estado(&self) -> NvEstado {
+        let e = f64::exp; let sv = |x: f64| x * x * (3.0 - 2.0 * x); let tr = |t: f64, a: f64, b: f64| clamp((t - a) / (b - a), 0.0, 1.0); let mx = |a: f64, b: f64, k: f64| a + (b - a) * k;
+        let s = self.r / NV_R0; let ts = 1.5 * clamp(s.powf(0.35), 0.6, 1.9); let tau = self.t / ts;
+        let aire = en_aire(&self.tipo); let agua = self.tipo == "agua" || self.tipo == "barco";
+        // (en el aire: la bola nace a su altura —en metros del tráiler— y el tallo tarda en subir del piso)
+        let hb = if aire { ((self.p[1] - self.piso) / s - 25.0).max(0.0) } else { 0.0 }; let tallo0 = if aire { 1.2 } else { 0.0 };
+        let rf = 95.0 * (1.0 - e(-tau * 4.0));
+        let h = 25.0 + hb + if tau > 0.15 { 430.0 * (1.0 - e(-(tau - 0.15) / 2.4)) } else { 0.0 };
+        let m = sv(tr(tau, 0.45, 2.6));
+        let rm = m * 140.0 * (1.0 - e(-tau / 2.5));
+        let rn = mx(rf, 58.0 + 30.0 * (1.0 - e(-tau / 3.0)), m).max(1.0);
+        let top = (h - 0.4 * rn).min(160.0 * (tau - 0.4 - tallo0).max(0.0));
+        let rb = 30.0 + 400.0 * (1.0 - e(-tau / 2.2)); let hb2 = 12.0 + 30.0 * (1.0 - e(-tau / 2.0)); let wb = 40.0 + 50.0 * (1.0 - e(-tau / 3.0));
+        // (el fuego dura más que en el tráiler: en el juego se lo mira un rato)
+        let mut fuego = 60.0 * e(-tau * 3.5) + 8.0 * e(-tau * 0.6) + 2.0 * e(-tau / 5.0); if agua { fuego *= 0.55; }
+        // (se va: en los últimos 40 s se adelgaza; el polvo del piso y el tallo se van mucho antes que el sombrero)
+        let fin = clamp((self.dura - self.t) / 40.0, 0.0, 1.0);
+        let sz = s.max(0.05).sqrt(); let fin_f = 1.0 - sv(tr(self.t, 8.0 + 6.0 * sz, 25.0 + 20.0 * sz)); let fin_t = 1.0 - sv(tr(self.t, 40.0 + 20.0 * sz, 80.0 + 30.0 * sz));
+        NvEstado {
+            s, cap: [h, rm, rn, (self.seed % 7.0) + 0.33 * tau],
+            tallo: [28.0 + 14.0 * (1.0 - e(-tau / 3.0)), 20.0 + 14.0 * (1.0 - e(-tau / 3.0)), top.max(1.0), 32.0 * tau],
+            falda: [rb, hb2, wb, sv(tr(tau, 0.1, 0.6)) * (1.0 - 0.4 * sv(tr(tau, 4.0, 8.0))) * if aire { 0.7 } else { 1.0 } * (0.55 + 0.45 * fin_f)],
+            fuego_v: [fuego, 0.25 + 0.8 * e(-tau * 1.4), sv(tr(tau, 0.15, 1.5)), fuego * 0.12],
+            dens: [0.1 * fin, 0.06 * fin * fin_t, 0.04 * fin * fin_f, sv(tr(tau, 0.4 + tallo0, 1.2 + tallo0))],
+            caja: [(rb + 30.0).max(rm + rn * 1.4 + 40.0), h + rn * 1.6 + 40.0], agua,
+        }
+    }
+    /// el bloque del hongo para el motor (EF_HONGO): el origen (x, piso, z), la escala, el sombrero, el tallo, la falda, el
+    /// fuego, las densidades, la caja, la semilla y si es en el agua (28 números); None si ésta no hace hongo o ya terminó
+    pub fn nv_bloque(&self) -> Option<Vec<f32>> {
+        if !nv_tipo(&self.tipo) || self.t > self.dura { return None; }
+        let n = self.nv_estado(); let mut b = vec![self.p[0], self.piso, self.p[2], n.s];
+        for a in [n.cap, n.tallo, n.falda, n.fuego_v, n.dens] { b.extend_from_slice(&a); }
+        b.extend_from_slice(&[n.caja[0], n.caja[1], (self.seed % 977.0) * 7.31, if n.agua { 1.0 } else { 0.0 }]);
+        Some(b.into_iter().map(|x| x as f32).collect())
+    }
+}
+
 #[cfg(test)]
 mod pruebas {
     use super::*;
@@ -153,5 +202,21 @@ mod pruebas {
         let mut l2 = vec![]; e2.carteles(0.25, &mut l2); assert_eq!(l2.len(), 50);
         let r2 = [l2[0][0], l2[3][1], l2[20][7], l2[30][6]]; let w2 = [-30.981959948370775, 122.85985735086963, 48.45714285714286, 0.85];
         for k in 0..4 { assert!((r2[k] - w2[k]).abs() < 1e-9, "aire {k}: {} {}", r2[k], w2[k]); }
+    }
+    /// el hongo con volumen: los números de nvEstado (nuclear_vol.js en node)
+    #[test]
+    fn hongo_como_la_web() {
+        let casos: [(f64, f64, &str, f64, f64, f64, [f64; 23]); 3] = [
+            (160.0, 7.5, "suelo", 5.0, 4.0, 3.0 * 977.0, [0.6153846153846154, 416.25202314881415, 126.91843450999083, 83.83868117185449, 6.955611678318242, 40.058051213532096, 32.058051213532096, 382.7165506800724, 189.63507183692045, 402.9473613025378, 40.450163588784086, 83.06446861975746, 0.8110805551514283, 0.8398590826702137, 0.2501995036663359, 1.0, 0.10078308992042564, 0.1, 0.06, 0.04, 1.0, 432.9473613025378, 590.3939130237814]),
+            (300.0, 30.0, "aire", 150.0, 0.0, 5.0 * 977.0, [1.1538461538461537, 559.8346929396728, 139.93057747650465, 87.94712323362631, 12.277578731069077, 41.975324175692286, 33.975324175692286, 524.6558436462223, 608.7349072551833, 429.92972492625177, 41.99778008316209, 89.91187205604388, 0.32960679549382627, 0.04462484761608519, 0.25000000000217215, 1.0, 0.005354981713930223, 0.1, 0.06, 0.020869163067476465, 1.0, 459.92972492625177, 740.5500901134749]),
+            (60.0, 120.0, "agua", 1.0, 0.0, 977.0, [0.23076923076923078, 455.0, 140.0, 88.0, 48.00000000000001, 42.0, 34.0, 419.8, 4266.666666666667, 430.0, 42.0, 90.0, 0.33, 2.8854031466362244e-12, 0.25, 1.0, 3.462483775963469e-13, 0.07500000000000001, 0.0, 0.0, 1.0, 460.0, 635.8]),
+        ];
+        for (r, t, tipo, y, piso, seed, w) in casos {
+            let mut e = Explosion::nueva([0.0, y, 0.0], Some(piso), 1000.0, tipo, 1); e.r = r; e.t = t; e.p[1] = y; e.piso = piso; e.seed = seed; e.dura = 150.0;
+            let n = e.nv_estado(); let mut v = vec![n.s]; for a in [n.cap, n.tallo, n.falda, n.fuego_v] { v.extend_from_slice(&a); } v.extend_from_slice(&n.dens[..3]); v.extend_from_slice(&n.caja);
+            let w: Vec<f64> = w.iter().enumerate().filter(|(k, _)| *k != 20).map(|(_, x)| *x).collect();
+            for k in 0..w.len() { assert!((v[k] - w[k]).abs() < 1e-6 * w[k].abs().max(1.0), "{tipo} {k}: {} {}", v[k], w[k]); }
+            assert_eq!(e.nv_bloque().map(|b| b.len()), Some(28));
+        }
     }
 }

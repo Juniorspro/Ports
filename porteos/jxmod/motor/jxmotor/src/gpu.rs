@@ -27,14 +27,16 @@ pub struct Opciones {
     pub prepaso: bool,
     /// los rayos del sol (Ultra): entre lo que tapa el cielo, hacia el sol de la pantalla
     pub rayos: bool,
+    /// el hongo de las nucleares con volumen (hongo.rs): la calidad del juego (0: con carteles)
+    pub hongo: u8,
 }
 impl Default for Opciones {
-    fn default() -> Self { Opciones { escala: 1.0, sombras: true, sombra_px: 2048, sombra_cada: 1, sombra_radio: 45.0, reflejo: true, reflejo_div: 2, reflejo_cada: 1, ao: true, ao_fuerza: 0.6, retoque: true, prepaso: true, rayos: false } }
+    fn default() -> Self { Opciones { escala: 1.0, sombras: true, sombra_px: 2048, sombra_cada: 1, sombra_radio: 45.0, reflejo: true, reflejo_div: 2, reflejo_cada: 1, ao: true, ao_fuerza: 0.6, retoque: true, prepaso: true, rayos: false, hongo: 3 } }
 }
 impl Opciones {
     /// lo que se elige para un celular de 1 GB con una placa floja: dos tercios de la resolución, sombra de 1024 cada 2
     /// cuadros y reflejo a un cuarto cada 2
-    pub fn celular_flojo() -> Self { Opciones { escala: 0.67, sombras: true, sombra_px: 1024, sombra_cada: 2, sombra_radio: 35.0, reflejo: true, reflejo_div: 4, reflejo_cada: 2, ao: false, ao_fuerza: 0.6, retoque: true, prepaso: true, rayos: false } }
+    pub fn celular_flojo() -> Self { Opciones { escala: 0.67, sombras: true, sombra_px: 1024, sombra_cada: 2, sombra_radio: 35.0, reflejo: true, reflejo_div: 4, reflejo_cada: 2, ao: false, ao_fuerza: 0.6, retoque: true, prepaso: true, rayos: false, hongo: 3 } }
 }
 
 struct MallaGL { vao: glow::VertexArray, bufs: Vec<glow::Buffer>, i32: bool, mn: [f32; 3], sc: [f32; 3], lm: i64, piel: bool, bytes: usize }
@@ -626,6 +628,8 @@ pub struct Motor {
     escena_rt: Option<Destino>,
     /// los rayos del sol: el programa y su destino (un cuarto del lado)
     p_rayos: Prog, rayos_rt: Option<Destino>,
+    /// el hongo de las nucleares con volumen
+    pub hongos: crate::hongo::Hongos,
     svp: M4,
     sesgo: [f32; 2],
     /// la cascada de lejos (la de cerca es svp/sesgo)
@@ -715,7 +719,7 @@ impl Motor {
         let mv = vbo(&[(0, 3, 0), (1, 4, 12)], 28)?; let marcas = (mv.0, mv.1, 0);
         let ui = vbo(&[(0, 2, 0), (1, 2, 8), (2, 4, 16)], 32)?;
         let blanca = textura(&gl, 1, 1, &[255, 255, 255, 255], true, false);
-        Ok(Motor { p_rayos, rayos_rt: None, gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
+        Ok(Motor { p_rayos, rayos_rt: None, hongos: crate::hongo::Hongos::nuevo(true), gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
             p_luz, p_luz_piel, p_luz_c, p_luz_piel_c, p_luz_inst_c, p_pre, p_pre_piel, p_pre_inst, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_lin, p_ui, ui, p_luz_inst, p_sombra_inst, inst_buf, part, marcas, ao_rt: None, refr_rt: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], svp2: mat::id(), sesgo2: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
             opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new(), ranuras: Vec::new(), instancias: std::env::var("JXM_SIN_INST").is_err(),
             ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), fases_b: vec![], luz_b, perfil: std::env::var_os("JXM_PERFIL").map(|_| std::cell::RefCell::new(vec![])) })
@@ -1382,6 +1386,8 @@ impl Motor {
         }
         self.particulas(&vp);
         self.marca("transparente_agua");
+        // (los hongos de las nucleares, con la profundidad de la escena)
+        if self.op.hongo > 0 { if let Some(c) = self.c.as_ref() { let n = self.hongos.dibujar(&self.gl, c, self.op.hongo, Some(fb), ew, eh); if n > 0 { self.marca("hongos"); } } }
         let rayos = if self.op.rayos { self.pasada_rayos(ew, eh) } else { None };
         let gl = &self.gl;
         gl.depth_mask(true); gl.disable(glow::BLEND);

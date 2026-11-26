@@ -17,12 +17,20 @@ impl Motor3d {
     pub fn poner_cuadro(&mut self, c: Cuadro) { match self { Motor3d::Gl(m, _) => m.poner_cuadro(c), Motor3d::Vk(m) => m.poner_cuadro(c), Motor3d::Gl2(m, _) => m.poner_cuadro(c) } }
     pub fn resumen(&self) -> String { match self { Motor3d::Gl(m, _) => m.resumen(), Motor3d::Vk(m) => m.resumen(), Motor3d::Gl2(m, _) => m.resumen() } }
     pub fn es_vulkan(&self) -> bool { matches!(self, Motor3d::Vk(_)) }
+    /// si el motor dibuja el hongo de las nucleares con volumen (OpenGL 3 y 2 con la calidad en Bajo o más; si no, carteles)
+    pub fn hongo_listo(&self) -> bool {
+        match self {
+            Motor3d::Gl(m, _) => m.op.hongo > 0 && m.hongos.listo(),
+            Motor3d::Gl2(m, _) => m.op.hongo > 0 && m.hongo_puede(),
+            Motor3d::Vk(_) => false,
+        }
+    }
     /// lo de Ajustes (la calidad): OpenGL 3 y Vulkan usan todo; OpenGL 2 sólo la resolución y el retoque
     pub fn opciones(&mut self, op: &jxmotor::gpu::Opciones) {
         match self {
             Motor3d::Gl(m, _) => m.op = op.clone(),
             Motor3d::Vk(m) => m.op = op.clone(),
-            Motor3d::Gl2(m, _) => { m.op.escala = op.escala; m.op.retoque = op.retoque; m.op.sombras = op.sombras; m.op.sombra_px = op.sombra_px.min(1024); m.op.sombra_cada = op.sombra_cada.max(2); m.op.sombra_radio = (op.sombra_radio * 1.35).clamp(30.0, 60.0); m.op.reflejo = op.reflejo && op.sombras; m.op.reflejo_div = op.reflejo_div.max(3); m.op.reflejo_piso = std::env::var_os("JXM_GL2_SIN_PISO").is_none(); m.op.rayos = op.rayos && std::env::var_os("JXM_SIN_RAYOS").is_none(); }
+            Motor3d::Gl2(m, _) => { m.op.escala = op.escala; m.op.retoque = op.retoque; m.op.sombras = op.sombras; m.op.sombra_px = op.sombra_px.min(1024); m.op.sombra_cada = op.sombra_cada.max(2); m.op.sombra_radio = (op.sombra_radio * 1.35).clamp(30.0, 60.0); m.op.reflejo = op.reflejo && op.sombras; m.op.reflejo_div = op.reflejo_div.max(3); m.op.reflejo_piso = std::env::var_os("JXM_GL2_SIN_PISO").is_none(); m.op.rayos = op.rayos && std::env::var_os("JXM_SIN_RAYOS").is_none(); m.op.hongo = op.hongo; }
         }
     }
     /// el cuadro entero: la escena (si hay mapa) y el HUD (`ui`: tandas de vértices, cada una con su textura —las letras, los

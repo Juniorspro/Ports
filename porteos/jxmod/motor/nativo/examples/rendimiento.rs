@@ -69,6 +69,9 @@ fn main() {
     // (JXM_AGUA=1: mirando el agua del mapa desde su orilla, un poco arriba)
     if std::env::var_os("JXM_AGUA").is_some() { if let Some(a) = j.mapa.as_ref().and_then(|m| m.esc.c.agua.clone()) { if let Some(pr) = a.prof.as_ref() {
         ojos = [pr.x0 + pr.w * 0.5, a.y + 2.6, pr.z0 + pr.h * 0.5]; println!("agua: y {:.2} · de {:.1},{:.1} a {:.1},{:.1}", a.y, pr.x0, pr.z0, pr.x0 + pr.w, pr.z0 + pr.h); } } }
+    // (JXM_NUCLEAR=x,z,kilotones,segundos[,tipo]: una nuclear ya empezada ahí —el hongo—)
+    if let Ok(t) = std::env::var("JXM_NUCLEAR") { let v: Vec<&str> = t.split(',').collect(); let f = |i: usize| v.get(i).and_then(|x| x.trim().parse::<f64>().ok()).unwrap_or(0.0);
+        j.nuk_prueba([f(0) as f32, 30.0, f(1) as f32], f(2).max(1.0), v.get(4).map(|x| x.trim()).unwrap_or("suelo"), f(3)); }
     // (JXM_OJOS=x,y,z[,giro,inclinación en grados]: desde ahí —la foto, con ese giro—)
     let mut giro0 = 0.0f32; let mut incl: Option<f32> = None;
     if let Ok(t) = std::env::var("JXM_OJOS") { let v: Vec<f32> = t.split(',').filter_map(|x| x.trim().parse().ok()).collect();

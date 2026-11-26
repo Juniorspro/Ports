@@ -3,8 +3,9 @@
 //! armada, también explota si se la golpea fuerte. La explosión (los números en jxjuego::nucleares): destello que
 //! encandila, bola de fuego, onda que avanza y empuja, rompe y lastima lo que alcanza (muerte segura en la bola), el
 //! estruendo con la demora del sonido, el viento (la ráfaga hacia afuera, el polvo del frente y el retorno), el hongo
-//! que sube y queda, y las de superficie dejan radiación. El hongo se dibuja con los carteles de nukeCarteles (en la web,
-//! con WebGL 2 y calidad Media o más, va con volumen —nuclear_vol.js—: la nativa no tiene ese sombreador todavía).
+//! que sube y queda, y las de superficie dejan radiación. El hongo va con volumen como en la web (nuclear_vol.js:
+//! jxmotor::hongo, en OpenGL 3 y 2 con la calidad en Bajo o más); en Patata, en Vulkan o si la placa no puede, con los
+//! carteles de nukeCarteles.
 //! Artefactos (Props → Diversión): la catapulta (Usar: el brazo gira y lo que está en la cuchara sale volando) y la
 //! bomba de Rick Prime (Usar: se elige a qué personaje borrar; 5 s con pitidos y luz verde, y elimina a todos los que
 //! tienen ese personaje).
@@ -26,6 +27,8 @@ pub struct Nuk {
     pub armadas: Vec<Armada>, vivas: Vec<Viva>, zonas: Vec<Zona>,
     /// el destello (la capa blanca) y la radiación (el borde verde)
     pub flash: f32, flash_i: f32, flash_t: f32, pub rad: f32, rad_aviso: bool, rad_t: f32,
+    /// si el motor dibuja el hongo con volumen (lo dice cada cuadro: Motor3d::hongo_listo)
+    pub vol: bool,
     n: u32, sonidos: bool, objs_vistos: usize,
     /// los sonidos que vienen después (el rumor y el «después»): cuándo, cuál y el volumen
     luego: Vec<(f32, &'static str, f32)>,
@@ -114,6 +117,12 @@ impl Juego {
         self.ef.luz_temporal(add(p, [0.0, r * 0.3, 0.0]), r * 4.0, if subte { [6.0, 4.0, 2.0] } else { [900.0, 600.0, 300.0] }, if subte { 0.5 } else { 2.5 });
         if nk::deja_radiacion(&b.t) { self.jg.nuk.zonas.push(Zona { p: [p[0], e.piso as f32, p[2]], r: r * 0.85, t: 100.0 }); }
         self.jg.nuk.vivas.push(Viva { e, tocados: HashSet::new(), jug: false, son: false, viento: Viento::default() });
+    }
+    /// (el banco de pruebas: una explosión ya empezada —`t` segundos— en `p`, sin la bomba ni el destello)
+    pub fn nuk_prueba(&mut self, p: V, kt: f64, tipo: &str, t: f64) {
+        let piso = self.mapa.as_ref().and_then(|mp| jxjuego::persona::piso_bajo(&mp.mundo, v64([p[0], p[1] + 1.0, p[2]]), 50.0));
+        self.jg.nuk.n += 1; let mut e = Explosion::nueva(v64(p), piso, kt, tipo, self.jg.nuk.n); e.t = t; e.onda = e.alc * 3.0;
+        self.jg.nuk.vivas.push(Viva { e, tocados: HashSet::new(), jug: true, son: true, viento: Viento::default() });
     }
     /// nukeOnda: la onda avanza con su velocidad y a cada cosa la alcanza una vez
     fn nuk_onda(&mut self, i: usize, dt: f32) {
@@ -246,7 +255,14 @@ impl Juego {
     /// queda más allá de lo que se dibuja del mapa se acerca hasta el borde, del mismo tamaño en la pantalla (al fondo)
     pub(super) fn nuk_bloques(&self, ef: &mut Vec<(u32, Vec<f32>)>, vp: &M4, cam: V) {
         if self.jg.nuk.vivas.is_empty() { return; }
-        let mut l = vec![]; let part = self.ef.part as f64; for v in &self.jg.nuk.vivas { v.e.carteles(part, &mut l); }
+        // (las más cercanas que hacen hongo van con volumen —nuclear_vol.js—: 3 en Alto y Ultra, 2 si no; las demás, carteles)
+        let vol: Vec<usize> = if self.jg.nuk.vol {
+            let mut l: Vec<(f32, usize)> = self.jg.nuk.vivas.iter().enumerate().filter(|(_, v)| nk::nv_tipo(&v.e.tipo) && v.e.t <= v.e.dura)
+                .map(|(i, v)| (dist([v.e.p[0] as f32, v.e.p[1] as f32, v.e.p[2] as f32], cam), i)).collect();
+            l.sort_by(|a, b| a.0.total_cmp(&b.0)); l.truncate(if self.aj.calidad >= 3 { 3 } else { 2 }); l.into_iter().map(|x| x.1).collect()
+        } else { vec![] };
+        for &i in &vol { if let Some(b) = self.jg.nuk.vivas[i].e.nv_bloque() { ef.push((jxmotor::escena::EF_HONGO, b)); } }
+        let mut l = vec![]; let part = self.ef.part as f64; for (i, v) in self.jg.nuk.vivas.iter().enumerate() { if !vol.contains(&i) { v.e.carteles(part, &mut l); } }
         if l.is_empty() { return; }
         let (der, arr) = (norm([vp[0], vp[4], vp[8]]), norm([vp[1], vp[5], vp[9]])); let lejos = self.mapa.as_ref().map(|m| m.lejos).unwrap_or(300.0) * 0.95; let luz = self.ef.luz;
         let mut idx: Vec<(f32, usize)> = l.iter().enumerate().map(|(i, c)| (dist([c[0] as f32, c[1] as f32, c[2] as f32], cam), i)).collect();

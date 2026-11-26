@@ -92,6 +92,8 @@ pub type LuzP = [f32; 12];
 pub struct Cuadro { pub vp: [f32; 16], pub pos: [f32; 3], pub luz: Luz, pub agua_y: Option<f32>, pub suelo_y: Option<f32>, pub tiempo: f32, pub luces: Vec<LuzP>, pub esp: Vec<LuzP>, pub items: Vec<ItemDin>, pub efectos: Vec<(u32, Vec<f32>)> }
 /// los bloques de efectos que van después de las cosas: tipo, cuántos floats y los floats
 pub const EF_PART_ALFA: u32 = 1; pub const EF_PART_SUMA: u32 = 2; pub const EF_MARCAS: u32 = 3;
+/// el hongo con volumen de una nuclear (jxjuego::nucleares::Explosion::nv_bloque, 28 números): hongo.rs
+pub const EF_HONGO: u32 = 4;
 
 pub const CAB_CUADRO: usize = 47;
 pub const POR_ITEM: usize = 26;

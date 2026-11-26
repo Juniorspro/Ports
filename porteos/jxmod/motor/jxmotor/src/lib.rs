@@ -3,6 +3,7 @@
 pub mod escena;
 pub mod gl2;
 pub mod gpu;
+pub mod hongo;
 pub mod mat;
 pub mod proto;
 pub mod wg;

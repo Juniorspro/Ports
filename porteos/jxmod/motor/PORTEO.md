@@ -47,7 +47,7 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | herramientas.js | ✔ | nativo/herramientas.rs |
 | armaaj.js | ✔ | nativo/personajes.rs |
 | nucleares.js, artefactos.js, ciclope.js | ◐ | juego/nucleares.rs, nativo/nuk_juego.rs, cic_juego.rs (sin lo de la red) |
-| nuclear_vol.js | ✘ | (el hongo con volumen necesita su sombreador en jxmotor: va con los carteles de nucleares.js) |
+| nuclear_vol.js | ✔ | jxmotor/hongo.rs (el mismo sombreador y el mismo ruido 3D; OpenGL 3 y OpenGL 2 —el ruido en un mosaico 2D—; Vulkan y Patata, con los carteles), juego/nucleares.rs (nv_estado, probado contra la web) |
 | celumano.js, celular.js, celulares.js | ✔ (los memes del celular sin sonido; la app de cámara espera la Camera nativa) | juego/celu_ik.rs, celu_pj.rs, celu_vista.rs, celulares.rs, nativo/celu_juego.rs |
 
 ## Multijugador
