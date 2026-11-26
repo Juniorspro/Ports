@@ -1422,7 +1422,7 @@ impl Juego {
             }
             // (una nota abajo: lo que no usa OpenGL 2, o qué cambia el motor)
             let nota = match pe {
-                0 if self.en_uso == Placa::Gl2 => "OpenGL 2 sólo usa la resolución y el retoque (no tiene sombras, oclusión ni reflejos)",
+                0 if self.en_uso == Placa::Gl2 => "OpenGL 2 no tiene oclusión ambiental: las sombras y el reflejo del agua, desde Medio",
                 0 => "Patata y Bajo: sin sombras · Medio: sombras de 1024 cada 2 cuadros · Ultra: todo, con oclusión",
                 3 => "El motor se cambia al momento y queda guardado para la próxima vez",
                 _ => "",
