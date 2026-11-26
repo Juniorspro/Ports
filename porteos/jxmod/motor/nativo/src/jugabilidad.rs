@@ -15,6 +15,10 @@ use jxmotor::escena::{ItemDin, LuzP, Mat, Malla, FL_SIN_SOMBRA};
 #[path = "cic_juego.rs"] pub mod cic_juego;
 #[path = "pepe_juego.rs"] pub mod pepe_juego;
 pub use nat_juego::{estado, pose_jugador};
+/// los ajustes del Mundo en el menú de objetos (Props → Mundo): el ítem, su nombre y su ícono (propios, iconos.rs)
+pub const MUNDO: [(&str, &str, &str); 9] = [("mundo:hora:6.5", "Amanecer", "ico_amanecer"), ("mundo:hora:9", "Mañana", "ico_manana"), ("mundo:hora:12", "Mediodía", "ico_dia"),
+    ("mundo:hora:15.5", "Tarde", "ico_tarde"), ("mundo:hora:17.5", "Atardecer", "ico_atardecer"), ("mundo:hora:0", "Noche", "ico_noche"),
+    ("mundo:mas", "+1 hora", "ico_hora_mas"), ("mundo:menos", "-1 hora", "ico_hora_menos"), ("mundo:ciclo", "Día y noche", "ico_ciclo")];
 
 // ---------------- números propios del motor (lejos de los del paquete y de los de gmod_juego: -5 000 000…) ----------------
 pub const ID_JG: i64 = -8_000_000;
@@ -162,6 +166,7 @@ impl Jugabilidad {
     pub fn inmune(&self) -> bool { self.cic.mia() }
     /// el nombre de una cosa del menú (las nucleares con su nombre de verdad; las Opciones)
     pub fn nombre_item<'a>(&'a self, it: &'a str) -> &'a str {
+        if let Some(m) = MUNDO.iter().find(|m| m.0 == it) { return m.1; }
         match it { "opc:volar" => "Volar", "opc:ragdoll" => "Muñeco de trapo", "opc:scp" => "SCP en cuatro patas", "opc:ciclope" => "Cíclope", _ => self.nombres.get(it).map(|s| s.as_str()).unwrap_or(it) }
     }
     pub fn activo(&self, k: &str) -> bool { self.mods.contains(&k) }
@@ -200,6 +205,9 @@ impl Juego {
         let _ = m.cargar(&Escena { c: cab, datos });
         // (las Opciones de JXMod, primeras en Props: ui.js, spawnSubs; las de los mods nativos de esta parte)
         if !self.catalogo.iter().any(|c| c.0 == "Opciones") { self.catalogo.insert(0, ("Opciones".into(), ["opc:volar", "opc:ragdoll", "opc:scp", "opc:ciclope"].iter().map(|s| s.to_string()).collect())); }
+        // (los ajustes del mundo: la hora del día —tocar una la pone ya— y el ciclo de día y noche)
+        if !self.catalogo.iter().any(|c| c.0 == "Mundo") { let k = self.catalogo.iter().position(|c| c.0 == "Opciones").map_or(0, |i| i + 1);
+            self.catalogo.insert(k, ("Mundo".into(), MUNDO.iter().map(|m| m.0.to_string()).collect())); }
         if let Some(paq) = &self.paq { if let Some(pf) = paq.d["pf"].as_object() { for (k, a) in pf { if let Some(b) = jxjuego::nucleares::Bomba::de(&a[0]) { self.jg.nombres.insert(k.split('#').next().unwrap_or(k).to_string(), b.n.clone()); } } } }
     }
 
@@ -308,8 +316,19 @@ impl Juego {
         if self.nuk_bomba(&o.nombre).is_some() { return if self.jg.nuk.armadas.iter().any(|a| a.id == o.id) { None } else { Some("Armar") }; }
         match self.art_tipo(&o.nombre) { Some("catapulta") => Some("Disparar"), Some("omega") => Some("Elegir"), _ => None }
     }
+    /// un ajuste del Mundo (menú de objetos → Props → Mundo): la hora, una hora más o menos, o el ciclo de día y noche; queda
+    /// guardado en los ajustes
+    fn mundo_poner(&mut self, k: &str) {
+        match k {
+            "ciclo" => { self.aj.ciclo = !self.aj.ciclo; self.avisar(if self.aj.ciclo { "Día y noche: el tiempo corre" } else { "Día y noche: la hora queda quieta" }.to_string()); }
+            "mas" | "menos" => { let h = self.mj.dia.hora.rem_euclid(24.0); let n = ((h + if k == "mas" { 1.0 } else { -1.0 }).round()).rem_euclid(24.0); self.aj.hora = n; self.avisar(format!("Hora: {:02}:00", n as u32)); }
+            _ => if let Some(h) = k.strip_prefix("hora:").and_then(|x| x.parse::<f32>().ok()) { self.aj.hora = h; self.avisar(format!("Hora: {:02}:{:02}", h as u32, ((h.fract()) * 60.0).round() as u32)); },
+        }
+        if let Some(d) = &self.datos { let _ = std::fs::write(d.join("ajustes.txt"), self.aj.texto()); }
+    }
     /// poner algo del menú: las Opciones se prenden y apagan (ui.js: modAlternar)
     pub(super) fn jg_poner(&mut self, nombre: &str) -> bool {
+        if let Some(k) = nombre.strip_prefix("mundo:") { self.mundo_poner(k); return true; }
         let Some(k) = nombre.strip_prefix("opc:") else { return false };
         let k: &'static str = match k { "volar" => "volar", "ragdoll" => "ragdoll", "scp" => "scp", "ciclope" => "ciclope", _ => return true };
         if let Some(i) = self.jg.mods.iter().position(|x| *x == k) {
@@ -478,6 +497,20 @@ impl Juego {
                 let g = match k2 { "volar" => "✈", "ragdoll" => "☠", "scp" => "SCP", _ => "◉" };
                 let tt = p.celda * if g.chars().count() > 1 { 0.18 } else { 0.32 }; let an = l.ancho(tt, g);
                 l.texto(u, x + (p.celda - an) / 2.0, y + p.celda * 0.25, tt, if on { [0.55, 1.0, 0.5, 1.0] } else { [1.0, 1.0, 1.0, 0.8] }, g);
+                l.disco(u, x + p.celda - p.celda * 0.14, y + p.celda * 0.14, p.celda * 0.05, if on { [0.35, 1.0, 0.35, 1.0] } else { [0.4, 0.4, 0.4, 0.8] });
+            }
+        } }
+        // (el Mundo en este menú —sin el kit Aero—: la hora escrita y la luz de puesta)
+        if let (Some(mm), None) = (&self.menu, self.ini.rec.atlas.as_ref()) { if mm.pestana == 0 && self.catalogo.get(mm.sub).map_or(false, |c| c.0 == "Mundo") {
+            let p = panel(wf, hf, self.catalogo.len());
+            for (k, it) in self.catalogo[mm.sub].1.iter().enumerate() {
+                let (col, fila) = (k % p.cols, k / p.cols); let (x, y) = (p.gx + col as f32 * p.celda, p.gy + fila as f32 * p.celda - mm.scroll);
+                if y + p.celda < p.gy || y > p.gy + p.gh { continue; }
+                let on = if it == "mundo:ciclo" { self.aj.ciclo } else { it.strip_prefix("mundo:hora:").and_then(|x| x.parse::<f32>().ok()).map_or(false, |h| !self.aj.ciclo && (self.aj.hora - h).abs() < 0.01) };
+                let g = match it.as_str() { "mundo:mas" => "+1 h".to_string(), "mundo:menos" => "-1 h".to_string(), "mundo:ciclo" => "Ciclo".to_string(),
+                    _ => it.strip_prefix("mundo:hora:").and_then(|x| x.parse::<f32>().ok()).map_or(String::new(), |h| format!("{:02}:{:02}", h as u32, (h.fract() * 60.0) as u32)) };
+                let tt = p.celda * 0.2; let an = l.ancho(tt, &g);
+                l.texto(u, x + (p.celda - an) / 2.0, y + p.celda * 0.3, tt, if on { [0.55, 1.0, 0.5, 1.0] } else { [1.0, 1.0, 1.0, 0.85] }, &g);
                 l.disco(u, x + p.celda - p.celda * 0.14, y + p.celda * 0.14, p.celda * 0.05, if on { [0.35, 1.0, 0.35, 1.0] } else { [0.4, 0.4, 0.4, 0.8] });
             }
         } }

@@ -71,6 +71,11 @@ impl Juego {
         let Some(paq) = &self.paq else { return false }; let tab = match pe { 0 => "Props", 2 => "Vehicles", _ => return false };
         paq.d["menu"].as_array().and_then(|a| a.iter().find(|c| c["n"].as_str() == Some(tab))).and_then(|c| c["sub"].as_array()).and_then(|ss| ss.iter().find(|s| s["n"].as_str() == Some(n))).map_or(false, |s| s["rb"].as_bool().unwrap_or(false) || s["rb"].as_f64().map_or(false, |x| x > 0.0))
     }
+    /// ¿está puesto este ajuste del Mundo? (la hora elegida —la de ahora, si el tiempo está quieto— o el ciclo)
+    fn mundo_activo(&self, it: &str) -> bool {
+        if it == "mundo:ciclo" { return self.aj.ciclo; }
+        it.strip_prefix("mundo:hora:").and_then(|x| x.parse::<f32>().ok()).map_or(false, |h| !self.aj.ciclo && (self.aj.hora - h).abs() < 0.01)
+    }
     fn mo_nombre(&self, it: &str) -> String { npc::skin_de_item(it).map(|s| npc::skin_nom(s).to_string()).unwrap_or_else(|| self.jg.nombre_item(it).to_string()) }
     /// el menú, con el pincel (después del HUD)
     pub(super) fn mo_dibujar(&mut self, p: &mut Pincel, w: f32, h: f32) {
@@ -120,10 +125,12 @@ impl Juego {
                 for (k, it) in items.iter().enumerate() {
                     let (cx, fy) = (k % g.cols, k / g.cols); let r = [gr[0] + 8.0 * c + cx as f32 * (g.tile[0] + g.gap), gr[1] + 8.0 * c + fy as f32 * (g.tile[1] + g.gap) - scroll, g.tile[0], g.tile[1]];
                     if r[1] + r[3] < gr[1] || r[1] > gr[1] + gr[3] { continue; }
-                    let opc = it.starts_with("opc:"); let on = opc && self.jg.activo(it.trim_start_matches("opc:"));
+                    let mundo = crate::comun::jugabilidad::MUNDO.iter().find(|m| m.0 == it.as_str());
+                    let opc = it.starts_with("opc:") || mundo.is_some();
+                    let on = match mundo { Some(m) => self.mundo_activo(m.0), None => opc && self.jg.activo(it.trim_start_matches("opc:")) };
                     tarjeta(p, r, if on { rgba(0x173a66, 1.0) } else { PL }); if on { p.contorno(r[0], r[1], r[2], r[3], [4.0 * c; 4], 2.0 * c, AMA); }
                     let (iw, ih) = (70.0 * c, 50.0 * c); let (ix, iy) = (r[0] + (r[2] - iw) / 2.0, r[1] + 6.0 * c);
-                    if opc { p.icono(ico_opcion(it), r[0] + (r[2] - ih) / 2.0, iy, ih, 2.0, [1.0; 4]);
+                    if opc { p.icono(mundo.map_or(ico_opcion(it), |m| m.2), r[0] + (r[2] - ih) / 2.0, iy, ih, 2.0, [1.0; 4]);
                         let lc = [r[0] + r[2] - 10.0 * c, r[1] + 10.0 * c]; if on { p.disco(lc[0], lc[1], 7.0 * c, rgba(0x2f8ae8, 0.4)); } p.disco(lc[0], lc[1], 4.0 * c, if on { AMA } else { rgba(0x4a4b50, 1.0) }); }
                     else if atlas_ok { let (u0, v0) = ((k as u32 % ICO_COLS * ICO) as f32 / 1024.0, ((k as u32 / ICO_COLS) * ICO) as f32 / ah); let (u1, v1) = (u0 + ICO as f32 / 1024.0, v0 + ICO as f32 / ah);
                         let l = ih; let x0 = ix + (iw - l) / 2.0; p.quad(TEX_ICONOS, [[x0, iy], [x0 + l, iy], [x0 + l, iy + l], [x0, iy + l]], [[u0, v0], [u1, v0], [u1, v1], [u0, v1]], [[1.0; 4]; 4]); }
@@ -135,7 +142,10 @@ impl Juego {
         // ---- el pie: Congelado, o cómo se usan las Opciones ----
         let pi = g.pie; p.rect(pi[0], pi[1], pi[2], pi[3], BARRA); p.rect(pi[0], pi[1], pi[2], 1.0 * c, LIN);
         let opciones = q.is_empty() && self.cat(pe).get(sub).map_or(false, |s| s.0 == "Opciones");
+        let mundo = q.is_empty() && self.cat(pe).get(sub).map_or(false, |s| s.0 == "Mundo");
         if opciones { p.texto_max(Cara::S4, 12.0 * c, pi[0] + 12.0 * c, p.at.base_centrada(Cara::S4, 12.0 * c, 12.0 * c, pi[1], pi[3]), T2, 0.0, "Tocá una para prenderla o apagarla (sirve en cualquier momento).", pi[2] - 24.0 * c); }
+        else if mundo { let h = self.mj.dia.hora.rem_euclid(24.0); let t = format!("Ahora: {:02}:{:02}{} · tocá una hora para ponerla", h as u32, (h.fract() * 60.0) as u32, if self.aj.ciclo { " (el tiempo corre)" } else { "" });
+            p.texto_max(Cara::S4, 12.0 * c, pi[0] + 12.0 * c, p.at.base_centrada(Cara::S4, 12.0 * c, 12.0 * c, pi[1], pi[3]), T2, 0.0, &t, pi[2] - 24.0 * c); }
         else { let k = g.chk; let s = k[2] / (16.0 * g.u); p.con(crate::pincel::escalar_en(s, s, k[0], k[1]), |p| aero::casilla(p, k[0], k[1], g.u, congelar, false));
             p.texto(Cara::S4, 13.5 * c, k[0] + k[2] + 9.0 * c, p.at.base_centrada(Cara::S4, 13.5 * c, 13.5 * c, pi[1], pi[3]), T1, 0.0, "Congelado"); }
         // ———— la ventana de herramientas ————

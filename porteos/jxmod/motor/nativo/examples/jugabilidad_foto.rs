@@ -108,6 +108,8 @@ fn main() {
         // (el menú de objetos)
         boton(&mut j, Boton::Objetos); paso(&mut j, &mut m, 30); foto(&mut m, "hud_menu");
         // (otra categoría, la pestaña de NPCs, Herramientas, y cerrar con la cruz)
+        // (Props → Mundo: la hora del día y el ciclo)
+        if let Some(k) = j.catalogo.iter().position(|c| c.0 == "Mundo") { if j.menu.is_some() { j.menu.as_mut().unwrap().sub = k; j.aj.hora = 17.5; paso(&mut j, &mut m, 8); foto(&mut m, "hud_menu_mundo"); j.aj.hora = 12.0; } }
         if j.menu.is_some() { j.menu.as_mut().unwrap().sub = 2; paso(&mut j, &mut m, 3); foto(&mut m, "hud_menu_cat"); j.menu.as_mut().unwrap().pestana = 1; j.menu.as_mut().unwrap().sub = 0; paso(&mut j, &mut m, 3); foto(&mut m, "hud_menu_npc");
             j.menu.as_mut().unwrap().pestana = 3; paso(&mut j, &mut m, 3); foto(&mut m, "hud_menu_her"); }
         j.menu = None; paso(&mut j, &mut m, 2);
