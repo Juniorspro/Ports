@@ -653,7 +653,7 @@ fn paso(e: &mut Estado, dt: f64, choques: &[Choque]) {
 
 /// el CMoveData del cuadro y StartCommand, SetupMove, Move y FinishMove (gmaMovimientoLua)
 pub(crate) struct Mv { pub b: u32, pub b0: u32, pub vel: Option<[f64; 3]>, pub org: Option<[f64; 3]>, pub ang: Option<Valor>, pub ang_m: Option<Valor>, pub max: Option<f64>, pub fwd: Option<f64>, pub side: Option<f64>, pub up: Option<f64> }
-fn mt_mov(e: &mut Estado) -> TablaRef {
+pub(crate) fn mt_mov(e: &mut Estado) -> TablaRef {
     if let Some(m) = g(|g| g.mt.mov.clone()) { return m; }
     let m = Tabla::nueva_ref();
     m.borrow_mut().set_str("__index", Valor::Tabla(m.clone()));

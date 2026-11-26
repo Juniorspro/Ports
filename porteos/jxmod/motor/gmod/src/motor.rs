@@ -271,6 +271,8 @@ pub(crate) fn spawn(e: &mut Estado, ent: &Valor) {
     if nb { crate::modelos::nb_despues(e, ent); if !ce(ent, |x| x.vivo).unwrap_or(false) { return; } }
     let separado = g(|g| g.clases.get(&clase).map(|c| match (&c.c, &c.s) { (Some(cc), Some(ss)) => !Rc::ptr_eq(cc, ss), (Some(_), None) => true, _ => false }).unwrap_or(false));
     if !solo_c && separado { metodo(e, ent, "Initialize", Lado::C, &[]); }
+    // (la hora de creación: GetCreationTime)
+    if let Some(t) = tabla_de(&ent) { t.borrow_mut().set_str("__jx_creado", Valor::Num(h(|h| h.tiempo()))); }
     if !solo_c { hook(e, "OnEntityCreated", S, &[ent.clone()]); }
     hook(e, "OnEntityCreated", C, &[ent.clone()]);
 }

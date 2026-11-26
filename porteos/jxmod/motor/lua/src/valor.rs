@@ -390,6 +390,8 @@ impl Mapa {
     }
     /// la primera entrada viva desde la posición `i`
     #[inline]
+    /// cuántas entradas hay (vivas y muertas: la posición de la próxima que se agregue)
+    pub(crate) fn largo(&self) -> usize { self.ent.len() }
     pub(crate) fn desde(&self, mut i: usize) -> Option<(usize, &Valor, &Valor)> {
         while i < self.ent.len() {
             let (k, v) = &self.ent[i];
@@ -413,6 +415,9 @@ pub struct Tabla {
     pub(crate) id: Cell<u32>,
     /// el filtro de asignación (ver `set_filtro`)
     pub(crate) filtro: Option<FiltroAsignacion>,
+    /// hasta dónde llega el recorrido que empezó con next(t, nil): (arreglo + 1, hash + 1; 0 = sin tope). Lo que se agrega mientras se recorre
+    /// no se visita (como LuaJIT en la práctica; si no, `for k, v in pairs(t) do t[v] = ... end` crece para siempre)
+    pub(crate) trav: Cell<(u32, u32)>,
 }
 
 /// un filtro para poner una función con nombre en una tabla: recibe la clave, la función y lo que había; si devuelve
@@ -441,7 +446,7 @@ fn indice_arr(n: f64, len: usize) -> Option<usize> {
 impl Tabla {
     pub fn nueva() -> Tabla { Tabla::default() }
     pub fn con_capacidad(narr: usize, nhash: usize) -> Tabla {
-        Tabla { arr: Vec::with_capacity(narr), mapa: Mapa::con_capacidad(nhash), meta: None, id: Cell::new(0), filtro: None }
+        Tabla { arr: Vec::with_capacity(narr), mapa: Mapa::con_capacidad(nhash), meta: None, id: Cell::new(0), filtro: None, trav: Cell::new((0, 0)) }
     }
     /// la tabla nueva ya envuelta para usarla como valor
     pub fn nueva_ref() -> TablaRef { Rc::new(RefCell::new(Tabla::nueva())) }
@@ -557,7 +562,7 @@ impl Tabla {
         let mut i_arr = 0usize;
         let mut i_hash = 0usize;
         match k {
-            Valor::Nil => {}
+            Valor::Nil => { self.trav.set((self.arr.len() as u32 + 1, self.mapa.largo() as u32 + 1)); }
             Valor::Num(n) if indice_arr(*n, self.arr.len()).is_some() => i_arr = *n as usize,
             _ => match self.mapa.entrada(k) {
                 Some(e) => { i_arr = usize::MAX; i_hash = e + 1; }
@@ -571,13 +576,15 @@ impl Tabla {
                 }
             },
         }
+        let (la, lh) = self.trav.get(); let (la, lh) = (if la == 0 { u32::MAX } else { la - 1 }, if lh == 0 { u32::MAX } else { lh - 1 });
         if i_arr != usize::MAX {
-            while i_arr < self.arr.len() {
+            let tope = self.arr.len().min(la as usize);
+            while i_arr < tope {
                 if !self.arr[i_arr].es_nil() { return Some((Valor::Num((i_arr + 1) as f64), self.arr[i_arr].clone())); }
                 i_arr += 1;
             }
         }
-        self.mapa.desde(i_hash).map(|(_, k, v)| (k.clone(), v.clone()))
+        self.mapa.desde(i_hash).filter(|(j, _, _)| (*j as u64) < lh as u64).map(|(_, k, v)| (k.clone(), v.clone()))
     }
     /// recorrer todo (arreglo y hash) sin metamétodos
     pub fn pares(&self) -> Vec<(Valor, Valor)> {

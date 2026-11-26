@@ -1262,3 +1262,744 @@ end
 
 -- ---------- herramientas (lua/weapons/gmod_tool/stools): se guardan para la Tool Gun ----------
 TOOL = nil
+
+-- ---------- la API de la wiki que faltaba (lo que usan los addons populares de la Workshop: api/sonda.lua) ----------
+for _, n in ipairs({ "cvars", "concommand", "weapons", "scripted_ents", "list", "team", "player_manager", "util", "net", "utf8", "debug", "jit", "math", "string", "table", "gui", "vgui", "language" }) do _G[n] = _G[n] or {} end
+do
+  local function nada() end
+  -- (las del menú principal de GMod —servidores, fondos, presets de addons, la pantalla de carga—: en una partida no
+  -- hacen nada; están para que un addon que las toque no se corte)
+  for _, k in ipairs({ "AddBackgroundImage", "CancelLoading", "ChangeBackground", "ClearBackgroundImages", "ClearLuaErrorGroup", "ClearProblem",
+    "CreateNewAddonPreset", "DeleteAddonPreset", "DoStopServers", "FireAddonConflicts", "FireProblem", "FireProblemFromEngine", "GameDetails",
+    "JoinServer", "LanguageChanged", "LoadAddonPresets", "LoadLastMap", "LoadNewsList", "OpenFolder", "OpenProblemsPanel", "RecordDemoFrame",
+    "RefreshAddonConflicts", "RequestConnectToServer", "RequestPermission", "RunGameUICommand", "SaveAddonPresets", "SaveHideNews", "SaveLastMap",
+    "ToggleFavourite", "UpdateAddonDisabledState", "UpdateAddonMapList", "UpdateGames", "UpdateLanguages", "UpdateLoadPanel", "UpdateMapList",
+    "UpdateServerSettings", "UpdateSubscribedAddons", "AddPropsOfParent", "DTVar_ReceiveProxyGL", "OnModelLoaded", "TextEntryLoseFocus",
+    "ChangeTooltip", "EndTooltip", "RemoveTooltip", "CreateContextMenu", "DrawBackground", "VisualizeLayout", "VGUIRect", "PrecacheScene",
+    "PrecacheSentenceFile", "PrecacheSentenceGroup", "SetPhysConstraintSystem", "SavePresets", "MenuGetAddonData", "GetDemoFileDetails",
+    "GetSaveFileDetails", "GetServers", "ListAddonPresets", "GetAPIManifest" }) do
+    if _G[k] == nil then _G[k] = nada end
+  end
+  for k, v in pairs({ CanAddServerToFavorites = false, IsInLoading = false, IsServerBlacklisted = false, IsConCommandBlocked = false, NumDownloadables = 0,
+    SentenceDuration = 0, GetDefaultLoadingHTML = "", GetAddonStatus = false, GetTimeoutInfo = false }) do
+    if _G[k] == nil then _G[k] = function() return v end end
+  end
+  for _, k in ipairs({ "GetDownloadables", "GetMapList", "GetPlayerList", "LoadPresets", "BuildNetworkedVarsTable" }) do if _G[k] == nil then _G[k] = function() return {} end end end
+  BRANCH = BRANCH or "unknown"
+  JS_Language = JS_Language or nada; JS_Utility = JS_Utility or nada; JS_Workshop = JS_Workshop or nada
+  function TranslateDownloadableName(s) return s end
+  function GetLoadPanel() return nil end
+  function GetLoadStatus() return "" end
+  function GetOverlayPanel() return vgui.GetWorldPanel and vgui.GetWorldPanel() or nil end
+  function FindTooltip() return nil end
+  function RequestOpenURL(u) if gui and gui.OpenURL then gui.OpenURL(u) end end
+  GMOD_OpenURLNoOverlay = RequestOpenURL
+
+  -- (globales que usan los addons)
+  function Player(id) for _, p in ipairs(player.GetAll()) do if p:UserID() == id then return p end end return NULL end
+  function MsgAll(...) local t = { ... } for i = 1, #t do t[i] = tostring(t[i]) end print(table.concat(t)) end
+  function ServerLog(s) print(s) end
+  function SQLStr(s, sin) s = string.gsub(tostring(s), "'", "''"); s = string.gsub(s, "%z", ""); if sin then return s end return "'" .. s .. "'" end
+  function DropEntityIfHeld(e) if IsValid(e) and e.ForcePlayerDrop then e:ForcePlayerDrop() end end
+  function AddonMaterial(n) return Material(n) end
+  function DynamicMaterial(n, sh) return CreateMaterial and CreateMaterial(n, sh or "UnlitGeneric", {}) or Material(n) end
+  function MainEyePos() return EyePos() end
+  function MainEyeAngles() return EyeAngles() end
+  function gcinfo() return collectgarbage("count") end
+  function newproxy(conmeta) local u = {} if conmeta then setmetatable(u, {}) end return u end
+  function Localize(k, def) local v = language and language.GetPhrase and language.GetPhrase(k) if v == nil or v == k then return def or k end return v end
+  function GetGlobalVar(k, d) if GetGlobal2Var then return GetGlobal2Var(k, d) end return d end
+  function CreateSprite(m) local p = vgui.Create("DImage") if p and p.SetMaterial then p:SetMaterial(m) end return p end
+  function PositionSpawnIcon(mdl, pos) return { origin = (pos or vector_origin) + Vector(-100, -100, 60), angles = Angle(25, 45, 0), fov = 20 } end
+  -- (los menús Derma abiertos: CloseDermaMenus los cierra a todos)
+  local menus = {}
+  function RegisterDermaMenuForClose(m) menus[#menus + 1] = m end
+  function CloseDermaMenus() for _, m in ipairs(menus) do if IsValid(m) then if m.Hide then m:Hide() elseif m.Remove then m:Remove() end end end menus = {} end
+  -- (Derma_Anim: una animación de un panel con su función, de 0 a 1 en el tiempo pedido)
+  function Derma_Anim(nombre, panel, f)
+    local a = { Name = nombre, Panel = panel, Func = f, Running = false }
+    function a:Start(largo, datos) self.StartTime = SysTime(); self.EndTime = SysTime() + (largo or 1); self.Length = largo or 1; self.Data = datos; self.Running = true end
+    function a:Stop() self.Running = false end
+    function a:Active() return self.Running end
+    function a:Run()
+      if not self.Running then return end
+      local t = (SysTime() - self.StartTime) / self.Length; local fin = t >= 1
+      if fin then t = 1; self.Running = false end
+      if self.Func then self.Func(self.Panel, self, t, self.Data) end
+      self.Finished = fin
+    end
+    return a
+  end
+  -- (las cajas de choque de un modelo —PhysCollide—: sirven para trazar contra una caja)
+  local PC = {}; PC.__index = PC
+  function PC:IsValid() return not self.borrado end
+  function PC:Destroy() self.borrado = true end
+  function PC:TraceBox(org, ang, ini, fin, mn, mx)
+    local lo, hi = self.mn, self.mx
+    local d = fin - ini; local t0, t1 = 0, 1
+    for _, ax in ipairs({ "x", "y", "z" }) do
+      local o = ini[ax] - org[ax]
+      if math.abs(d[ax]) < 1e-9 then if o < lo[ax] or o > hi[ax] then return false end
+      else local a, b = (lo[ax] - o) / d[ax], (hi[ax] - o) / d[ax]; if a > b then a, b = b, a end t0 = math.max(t0, a); t1 = math.min(t1, b); if t0 > t1 then return false end end
+    end
+    return ini + d * t0, Vector(0, 0, 1), t0
+  end
+  function CreatePhysCollideBox(mn, mx) return setmetatable({ mn = mn, mx = mx }, PC) end
+  function CreatePhysCollidesFromModel(mdl)
+    local e = ents.Create and ents.Create("prop_physics")
+    local mn, mx = Vector(-8, -8, -8), Vector(8, 8, 8)
+    if IsValid(e) then e:SetModel(mdl); local a, b = e:GetModelBounds(); if a then mn, mx = a, b end e:Remove() end
+    return { setmetatable({ mn = mn, mx = mx }, PC) }
+  end
+  RegisterMetaTable("PhysCollide", PC)
+
+  -- (los colores: HSL, HWB, hexadecimal y los métodos de Color de la wiki)
+  local function hsl_de(r, g, b)
+    r, g, b = r / 255, g / 255, b / 255
+    local mx, mn = math.max(r, g, b), math.min(r, g, b); local l = (mx + mn) / 2
+    if mx == mn then return 0, 0, l end
+    local d = mx - mn; local s = l > 0.5 and d / (2 - mx - mn) or d / (mx + mn)
+    local h = mx == r and (g - b) / d + (g < b and 6 or 0) or (mx == g and (b - r) / d + 2 or (r - g) / d + 4)
+    return h * 60, s, l
+  end
+  function ColorToHSL(c) return hsl_de(c.r, c.g, c.b) end
+  function HSLToColor(h, s, l)
+    h = (h % 360) / 360
+    local function f(p, q, t) if t < 0 then t = t + 1 end if t > 1 then t = t - 1 end if t < 1 / 6 then return p + (q - p) * 6 * t end if t < 1 / 2 then return q end if t < 2 / 3 then return p + (q - p) * (2 / 3 - t) * 6 end return p end
+    if s == 0 then local v = math.Round(l * 255) return Color(v, v, v) end
+    local q = l < 0.5 and l * (1 + s) or l + s - l * s; local p = 2 * l - q
+    return Color(math.Round(f(p, q, h + 1 / 3) * 255), math.Round(f(p, q, h) * 255), math.Round(f(p, q, h - 1 / 3) * 255))
+  end
+  function HWBToColor(h, w, b)
+    if w + b >= 1 then local g = math.Round(w / (w + b) * 255) return Color(g, g, g) end
+    local c = HSVToColor(h, 1, 1)
+    local k = 1 - w - b
+    return Color(math.Round(c.r * k + w * 255), math.Round(c.g * k + w * 255), math.Round(c.b * k + w * 255))
+  end
+  function HexToColor(s)
+    s = string.gsub(tostring(s), "#", "")
+    if #s == 3 or #s == 4 then s = string.gsub(s, "(%x)", "%1%1") end
+    local r, g, b, a = tonumber(s:sub(1, 2), 16), tonumber(s:sub(3, 4), 16), tonumber(s:sub(5, 6), 16), tonumber(s:sub(7, 8), 16)
+    return Color(r or 255, g or 255, b or 255, a or 255)
+  end
+  function NamedColor(n) local sk = derma and derma.GetDefaultSkin and derma.GetDefaultSkin() local c = sk and sk.Colours and sk.Colours[n] return c or Color(255, 255, 255) end
+  local COL = getmetatable(Color(0, 0, 0)) or FindMetaTable("Color")
+  if COL then
+    function COL:SetUnpacked(r, g, b, a) self.r, self.g, self.b, self.a = r or 255, g or 255, b or 255, a or 255 end
+    function COL:Lerp(o, t) return Color(Lerp(t, self.r, o.r), Lerp(t, self.g, o.g), Lerp(t, self.b, o.b), Lerp(t, self.a, o.a)) end
+    function COL:ToHex(alfa) local s = string.format("#%02x%02x%02x", self.r, self.g, self.b) if alfa then s = s .. string.format("%02x", self.a) end return s end
+    function COL:ToHSL() return ColorToHSL(self) end
+    function COL:ToHSV() return ColorToHSV(self) end
+    function COL:ToHWB() local h, s, v = ColorToHSV(self) return h, (1 - s) * v, 1 - v end
+    local function poner(c, n) c.r, c.g, c.b = n.r, n.g, n.b end
+    function COL:GetHue() return (ColorToHSV(self)) end
+    function COL:GetSaturation() local _, s = ColorToHSV(self) return s end
+    function COL:GetBrightness() local _, _, v = ColorToHSV(self) return v end
+    function COL:GetLightness() local _, _, l = ColorToHSL(self) return l end
+    function COL:GetWhiteness() local _, w = self:ToHWB() return w end
+    function COL:GetBlackness() local _, _, b = self:ToHWB() return b end
+    function COL:SetHue(x) local _, s, v = ColorToHSV(self) poner(self, HSVToColor(x, s, v)) end
+    function COL:SetSaturation(x) local h, _, v = ColorToHSV(self) poner(self, HSVToColor(h, math.Clamp(x, 0, 1), v)) end
+    function COL:SetBrightness(x) local h, s = ColorToHSV(self) poner(self, HSVToColor(h, s, math.Clamp(x, 0, 1))) end
+    function COL:SetLightness(x) local h, s = ColorToHSL(self) poner(self, HSLToColor(h, s, math.Clamp(x, 0, 1))) end
+    function COL:SetWhiteness(x) local h, _, b = self:ToHWB() poner(self, HWBToColor(h, math.Clamp(x, 0, 1), b)) end
+    function COL:SetBlackness(x) local h, w = self:ToHWB() poner(self, HWBToColor(h, w, math.Clamp(x, 0, 1))) end
+    function COL:AddHue(x) self:SetHue(self:GetHue() + x) end
+    function COL:AddSaturation(x) self:SetSaturation(self:GetSaturation() + x) end
+    function COL:AddBrightness(x) self:SetBrightness(self:GetBrightness() + x) end
+    function COL:AddLightness(x) self:SetLightness(self:GetLightness() + x) end
+    function COL:AddWhiteness(x) self:SetWhiteness(self:GetWhiteness() + x) end
+    function COL:AddBlackness(x) self:SetBlackness(self:GetBlackness() + x) end
+  end
+
+  -- (DEFINE_BASECLASS fuera de su forma de siempre —el preprocesador cubre DEFINE_BASECLASS(x) y DEFINE_BASECLASS "x"—)
+  function DEFINE_BASECLASS(n) BaseClass = baseclass.Get(n) return BaseClass end
+  -- (module como función —la llamada de siempre la resuelve el compilador y el archivo queda con la tabla de entorno—)
+  function module(n, ...)
+    local t = _G; for p in string.gmatch(n, "[^%.]+") do t[p] = t[p] or {}; t = t[p] end
+    t._NAME = n; t._M = t; package.loaded[n] = t
+    for _, f in ipairs({ ... }) do if type(f) == "function" then f(t) end end
+    return t
+  end
+  -- (math)
+  math.tau = math.tau or math.pi * 2
+  function math.Factorial(n) local r = 1 for i = 2, n do r = r * i end return r end
+  function math.Sign(x) if x > 0 then return 1 elseif x < 0 then return -1 end return 0 end
+  function math.QuadraticBezier(t, a, b, c) local u = 1 - t return a * (u * u) + b * (2 * u * t) + c * (t * t) end
+  function math.CubicBezier(t, a, b, c, d) local u = 1 - t return a * (u * u * u) + b * (3 * u * u * t) + c * (3 * u * t * t) + d * (t * t * t) end
+  function math.calcBSplineN(i, k, t, tk)
+    if k == 1 then if tk[i] <= t and t < tk[i + 1] then return 1 end return 0 end
+    local a, b = 0, 0
+    local d1 = tk[i + k - 1] - tk[i]; if d1 ~= 0 then a = (t - tk[i]) / d1 * math.calcBSplineN(i, k - 1, t, tk) end
+    local d2 = tk[i + k] - tk[i + 1]; if d2 ~= 0 then b = (tk[i + k] - t) / d2 * math.calcBSplineN(i + 1, k - 1, t, tk) end
+    return a + b
+  end
+  -- (las curvas de math.ease: las de easings.net)
+  local E = {}; local pi = math.pi; local c1, c2, c3, c4, c5 = 1.70158, 1.70158 * 1.525, 2.70158, 2 * math.pi / 3, 2 * math.pi / 4.5
+  local function rebote(x) local n, d = 7.5625, 2.75 if x < 1 / d then return n * x * x elseif x < 2 / d then x = x - 1.5 / d return n * x * x + 0.75 elseif x < 2.5 / d then x = x - 2.25 / d return n * x * x + 0.9375 end x = x - 2.625 / d return n * x * x + 0.984375 end
+  E.InSine = function(x) return 1 - math.cos(x * pi / 2) end; E.OutSine = function(x) return math.sin(x * pi / 2) end; E.InOutSine = function(x) return -(math.cos(pi * x) - 1) / 2 end
+  E.InQuad = function(x) return x * x end; E.OutQuad = function(x) return 1 - (1 - x) ^ 2 end; E.InOutQuad = function(x) return x < 0.5 and 2 * x * x or 1 - (-2 * x + 2) ^ 2 / 2 end
+  E.InCubic = function(x) return x ^ 3 end; E.OutCubic = function(x) return 1 - (1 - x) ^ 3 end; E.InOutCubic = function(x) return x < 0.5 and 4 * x ^ 3 or 1 - (-2 * x + 2) ^ 3 / 2 end
+  E.InQuart = function(x) return x ^ 4 end; E.OutQuart = function(x) return 1 - (1 - x) ^ 4 end; E.InOutQuart = function(x) return x < 0.5 and 8 * x ^ 4 or 1 - (-2 * x + 2) ^ 4 / 2 end
+  E.InQuint = function(x) return x ^ 5 end; E.OutQuint = function(x) return 1 - (1 - x) ^ 5 end; E.InOutQuint = function(x) return x < 0.5 and 16 * x ^ 5 or 1 - (-2 * x + 2) ^ 5 / 2 end
+  E.InExpo = function(x) return x == 0 and 0 or 2 ^ (10 * x - 10) end; E.OutExpo = function(x) return x == 1 and 1 or 1 - 2 ^ (-10 * x) end
+  E.InOutExpo = function(x) if x == 0 or x == 1 then return x end return x < 0.5 and 2 ^ (20 * x - 10) / 2 or (2 - 2 ^ (-20 * x + 10)) / 2 end
+  E.InCirc = function(x) return 1 - math.sqrt(1 - x * x) end; E.OutCirc = function(x) return math.sqrt(1 - (x - 1) ^ 2) end
+  E.InOutCirc = function(x) return x < 0.5 and (1 - math.sqrt(1 - (2 * x) ^ 2)) / 2 or (math.sqrt(1 - (-2 * x + 2) ^ 2) + 1) / 2 end
+  E.InBack = function(x) return c3 * x ^ 3 - c1 * x * x end; E.OutBack = function(x) return 1 + c3 * (x - 1) ^ 3 + c1 * (x - 1) ^ 2 end
+  E.InOutBack = function(x) return x < 0.5 and ((2 * x) ^ 2 * ((c2 + 1) * 2 * x - c2)) / 2 or ((2 * x - 2) ^ 2 * ((c2 + 1) * (x * 2 - 2) + c2) + 2) / 2 end
+  E.InElastic = function(x) if x == 0 or x == 1 then return x end return -2 ^ (10 * x - 10) * math.sin((x * 10 - 10.75) * c4) end
+  E.OutElastic = function(x) if x == 0 or x == 1 then return x end return 2 ^ (-10 * x) * math.sin((x * 10 - 0.75) * c4) + 1 end
+  E.InOutElastic = function(x) if x == 0 or x == 1 then return x end return x < 0.5 and -(2 ^ (20 * x - 10) * math.sin((20 * x - 11.125) * c5)) / 2 or (2 ^ (-20 * x + 10) * math.sin((20 * x - 11.125) * c5)) / 2 + 1 end
+  E.OutBounce = rebote; E.InBounce = function(x) return 1 - rebote(1 - x) end
+  E.InOutBounce = function(x) return x < 0.5 and (1 - rebote(1 - 2 * x)) / 2 or (1 + rebote(2 * x - 1)) / 2 end
+  math.ease = E
+
+  -- (table, string, utf8, debug, jit)
+  function table.foreach(t, f) for k, v in pairs(t) do local r = f(k, v) if r ~= nil then return r end end end
+  function table.foreachi(t, f) for i = 1, #t do local r = f(i, t[i]) if r ~= nil then return r end end end
+  function table.move(a, f, e, t, b) b = b or a if e >= f then if t > f or t > e or a ~= b then for i = 0, e - f do b[t + i] = a[f + i] end else for i = e - f, 0, -1 do b[t + i] = a[f + i] end end end return b end
+  function table.CollapseKeyValue(t) local r = {} for _, v in pairs(t) do r[v.Key] = v.Value end return r end
+  string.gfind = string.gfind or string.gmatch
+  function string.NiceName(s) s = string.gsub(tostring(s), "_", " ") return (string.gsub(s, "(%a)([%w']*)", function(a, b) return string.upper(a) .. b end)) end
+  utf8.charpattern = utf8.charpattern or "[%z\1-\127\194-\244][\128-\191]*"
+  function debug.Trace() print(debug.traceback("Trace:", 2)) end
+  debug.getfenv = debug.getfenv or getfenv; debug.setfenv = debug.setfenv or setfenv
+  debug.gethook = debug.gethook or nada; debug.setlocal = debug.setlocal or nada; debug.setupvalue = debug.setupvalue or nada
+  debug.upvalueid = debug.upvalueid or function(f, i) return tostring(f) .. ":" .. tostring(i) end
+  debug.upvaluejoin = debug.upvaluejoin or nada; debug.debug = debug.debug or nada
+  jit.attach = jit.attach or nada; jit.status = jit.status or function() return true end; jit.version_num = jit.version_num or 20100
+
+  -- (dragndrop: arrastrar paneles; en el celular no se arrastra entre paneles)
+  dragndrop = dragndrop or {}
+  for _, k in ipairs({ "Clear", "Drop", "HandleDroppedInGame", "HoverThink", "StartDragging", "StopDragging", "Think", "UpdateReceiver", "CallReceiverFunction" }) do dragndrop[k] = dragndrop[k] or nada end
+  dragndrop.IsDragging = dragndrop.IsDragging or function() return false end
+  dragndrop.GetDroppable = dragndrop.GetDroppable or function() return nil end
+
+  -- (gmsave, saverestore, hammer, menu, usermessage, concommand, cvars, weapons, scripted_ents, list, team, player_manager)
+  gmsave = gmsave or {}
+  for _, k in ipairs({ "LoadMap", "PlayerLoad", "PlayerSave", "SaveMap" }) do gmsave[k] = gmsave[k] or nada end
+  gmsave.ShouldSaveEntity = gmsave.ShouldSaveEntity or function(e, t) return true end
+  saverestore = saverestore or {}
+  saverestore.LoadGlobal = saverestore.LoadGlobal or nada; saverestore.SaveGlobal = saverestore.SaveGlobal or nada
+  saverestore.WritableKeysInTable = saverestore.WritableKeysInTable or function(t) local r = {} for k, v in pairs(t) do local tp = type(v) if tp ~= "function" and tp ~= "userdata" and tp ~= "thread" then r[#r + 1] = k end end return r end
+  hammer = hammer or {}; hammer.SendCommand = hammer.SendCommand or nada
+  menu = menu or {}; menu.RecordFrame = menu.RecordFrame or nada
+  usermessage = usermessage or {}; usermessage.IncomingMessage = usermessage.IncomingMessage or nada
+  concommand.AutoComplete = concommand.AutoComplete or function() return nil end
+  cvars.OnConVarChanged = cvars.OnConVarChanged or nada
+  weapons.OnLoaded = weapons.OnLoaded or nada
+  scripted_ents.OnLoaded = scripted_ents.OnLoaded or nada
+  function scripted_ents.GetMember(c, k) local t = scripted_ents.GetStored and scripted_ents.GetStored(c) t = t and (t.t or t) if t then return t[k] end end
+  function list.GetEntry(l, k) local t = list.GetForEdit and list.GetForEdit(l) or list.Get(l) return t and t[k] end
+  function list.RemoveEntry(l, k) local t = list.GetForEdit and list.GetForEdit(l) if t then t[k] = nil end end
+  local equipos = {}
+  function team.SetColor(i, c) equipos[i] = c local t = team.GetAllTeams and team.GetAllTeams() if t and t[i] then t[i].Color = c end end
+  function team.TotalDeaths(i) local n = 0 for _, p in ipairs(team.GetPlayers and team.GetPlayers(i) or {}) do n = n + p:Deaths() end return n end
+  function team.GetSpawnPoints(i) return {} end
+  function team.GetSpawnPoint(i) return nil end
+  function player_manager.GetAllPlayerModels() return list.Get("PlayerOptionsModel") end
+  function player_manager.RemoveValidModel(n) local t = list.GetForEdit and list.GetForEdit("PlayerOptionsModel") if t then t[n] = nil end end
+
+  -- (net: la tabla de los que reciben; net.ReadHeader/ReadVars/WriteVars como en GMod)
+  function net.ReadHeader() return net.ReadUInt(16) end
+  net.ReadVars = net.ReadVars or { [TYPE_NIL] = function() return nil end, [TYPE_STRING] = net.ReadString, [TYPE_NUMBER] = net.ReadDouble, [TYPE_TABLE] = net.ReadTable,
+    [TYPE_BOOL] = net.ReadBool, [TYPE_ENTITY] = net.ReadEntity, [TYPE_VECTOR] = net.ReadVector, [TYPE_ANGLE] = net.ReadAngle, [TYPE_MATRIX] = net.ReadMatrix, [TYPE_COLOR] = net.ReadColor }
+  net.WriteVars = net.WriteVars or { [TYPE_NIL] = function() end, [TYPE_STRING] = function(t, v) net.WriteUInt(t, 8) net.WriteString(v) end, [TYPE_NUMBER] = function(t, v) net.WriteUInt(t, 8) net.WriteDouble(v) end,
+    [TYPE_TABLE] = function(t, v) net.WriteUInt(t, 8) net.WriteTable(v) end, [TYPE_BOOL] = function(t, v) net.WriteUInt(t, 8) net.WriteBool(v) end, [TYPE_ENTITY] = function(t, v) net.WriteUInt(t, 8) net.WriteEntity(v) end,
+    [TYPE_VECTOR] = function(t, v) net.WriteUInt(t, 8) net.WriteVector(v) end, [TYPE_ANGLE] = function(t, v) net.WriteUInt(t, 8) net.WriteAngle(v) end }
+
+  -- (util.worldpicker: elegir un punto del mundo con el próximo clic)
+  util.worldpicker = util.worldpicker or {}
+  do local wp = util.worldpicker; local activo, cb
+    function wp.Start(f) activo, cb = true, f end
+    function wp.Active() return activo == true end
+    function wp.Finish(tr) activo = false; if cb then local f = cb; cb = nil; f(tr) end end
+  end
+
+  -- (GWEN: las partes del skin de GMod; sin su textura se dibujan con un color parejo —#166 los dibuja con el skin—)
+  GWEN = GWEN or {}
+  local function caja(c) return function(x, y, w, h, col) surface.SetDrawColor(col or c) surface.DrawRect(x, y, w, h) end end
+  GWEN.CreateTextureBorder = GWEN.CreateTextureBorder or function() return caja(Color(200, 200, 200)) end
+  GWEN.CreateTextureNormal = GWEN.CreateTextureNormal or function() return caja(Color(200, 200, 200)) end
+  GWEN.CreateTextureCentered = GWEN.CreateTextureCentered or function() return caja(Color(200, 200, 200)) end
+  GWEN.TextureColor = GWEN.TextureColor or function() return Color(255, 255, 255) end
+
+  -- (markup: texto con <font=...> y <color=r,g,b,a>, partido en renglones de un ancho)
+  markup = markup or {}
+  local MO = {}; MO.__index = MO
+  function MO:GetWidth() return self.w end
+  function MO:GetHeight() return self.h end
+  function MO:GetMaxWidth() return self.maxw or self.w end
+  function MO:Size() return self.w, self.h end
+  function MO:Draw(x, y, ax, ay, alfa)
+    ax, ay = ax or TEXT_ALIGN_LEFT, ay or TEXT_ALIGN_TOP
+    if ax == TEXT_ALIGN_CENTER then x = x - self.w / 2 elseif ax == TEXT_ALIGN_RIGHT then x = x - self.w end
+    if ay == TEXT_ALIGN_CENTER then y = y - self.h / 2 elseif ay == TEXT_ALIGN_BOTTOM then y = y - self.h end
+    for _, b in ipairs(self.bloques) do
+      local c = b.color; if alfa then c = Color(c.r, c.g, c.b, alfa) end
+      surface.SetFont(b.font) surface.SetTextColor(c) surface.SetTextPos(x + b.x, y + b.y) surface.DrawText(b.texto)
+    end
+  end
+  RegisterMetaTable("MarkupObject", MO)
+  function markup.Escape(s) return (string.gsub(string.gsub(string.gsub(tostring(s), "&", "&amp;"), "<", "&lt;"), ">", "&gt;")) end
+  function markup.Color(c) return string.format("%d,%d,%d,%d", c.r, c.g, c.b, c.a or 255) end
+  function markup.Parse(txt, maxw)
+    local o = setmetatable({ bloques = {}, w = 0, h = 0, maxw = maxw }, MO)
+    local fuentes, colores = { "DermaDefault" }, { Color(255, 255, 255) }
+    local x, y, alto = 0, 0, 0
+    local function partir(s)
+      local f, c = fuentes[#fuentes], colores[#colores]
+      surface.SetFont(f)
+      s = string.gsub(string.gsub(string.gsub(s, "&lt;", "<"), "&gt;", ">"), "&amp;", "&")
+      for pedazo, salto in string.gmatch(s .. "\n", "([^\n]*)(\n?)") do
+        if pedazo ~= "" then
+          for pal in string.gmatch(pedazo, "%s*%S+") do
+            local w, h = surface.GetTextSize(pal); alto = math.max(alto, h)
+            if maxw and x > 0 and x + w > maxw then x = 0; y = y + alto; pal = string.gsub(pal, "^%s+", ""); w = surface.GetTextSize(pal) end
+            o.bloques[#o.bloques + 1] = { texto = pal, font = f, color = c, x = x, y = y }
+            x = x + w; o.w = math.max(o.w, x)
+          end
+        end
+        if salto ~= "" and pedazo ~= nil then local _, h = surface.GetTextSize("W"); alto = math.max(alto, h); x = 0; y = y + alto; alto = 0 end
+      end
+    end
+    local i = 1; txt = tostring(txt)
+    while i <= #txt do
+      local a, b, cierre, tag, val = string.find(txt, "<(/?)(%a+)=?([^>]*)>", i)
+      if not a then partir(string.sub(txt, i)) break end
+      if a > i then partir(string.sub(txt, i, a - 1)) end
+      tag = string.lower(tag)
+      if cierre == "/" then
+        if (tag == "font" or tag == "face") and #fuentes > 1 then table.remove(fuentes) elseif (tag == "color" or tag == "colour") and #colores > 1 then table.remove(colores) end
+      elseif tag == "font" or tag == "face" then fuentes[#fuentes + 1] = val
+      elseif tag == "color" or tag == "colour" then
+        local r, g, bb, al = string.match(val, "(%d+)%s*,%s*(%d+)%s*,%s*(%d+)%s*,?%s*(%d*)")
+        colores[#colores + 1] = r and Color(tonumber(r), tonumber(g), tonumber(bb), tonumber(al) or 255) or (_G[val] or Color(255, 255, 255))
+      end
+      i = b + 1
+    end
+    local _, h = surface.GetTextSize("W"); o.h = y + math.max(alto, h)
+    return o
+  end
+
+  -- (las herramientas de la Tool Gun: lo que le faltaba al objeto de herramienta)
+  local T = __ToolObj
+  function T:Create() local o = setmetatable({}, { __index = self }); o.Mode = nil; o.SWEP = nil; o.Owner = nil; o.ClientConVar = {}; o.ServerConVar = {}; o.Objects = {}; o.Stage = 0; o.Message = "start"; o.LastMessage = 0; o.AllowedCVar = 0 return o end
+  function T:GetHelpText() return "#tool." .. tostring(self.Mode) .. "." .. tostring(self:GetStage()) end
+  function T:UpdateData() self:SetStage(self:NumObjects()) end
+  function T:RebuildControlPanel(...) local cp = controlpanel and controlpanel.Get and controlpanel.Get(self.Mode) if cp and self.BuildCPanel then cp:ClearControls() self.BuildCPanel(cp, ...) end end
+
+  -- (el halo de GMod se dibuja en PostDrawEffects con el nombre RenderHalos: Wiremod lo busca para engancharse)
+  if hook.GetTable().PostDrawEffects == nil or hook.GetTable().PostDrawEffects.RenderHalos == nil then hook.Add("PostDrawEffects", "RenderHalos", function() if halo and halo.Render then halo.Render() end end) end
+end
+
+-- ---------- Entity, Player, PhysObj, Vehicle y Weapon: lo que faltaba de la wiki ----------
+do
+  local E, P, PH, V, W = FindMetaTable("Entity"), FindMetaTable("Player"), FindMetaTable("PhysObj"), FindMetaTable("Vehicle"), FindMetaTable("Weapon")
+  local function nada() end
+  local function def(t, k, f) if t and rawget(t, k) == nil then rawset(t, k, f) end end
+  local function forzar(t, k, f) if t then rawset(t, k, f) end end
+  -- (lo guardado de cada entidad: en su tabla, con prefijo para no pisar al addon)
+  local function dato(k, d) return function(s) local v = s["__jx_" .. k] if v == nil then return d end return v end end
+  local function poner(k) return function(s, v) s["__jx_" .. k] = v end end
+
+  -- CallOnRemove / DeleteOnRemove: antes no hacían nada; ahora corren al borrarse la entidad (EntityRemoved)
+  forzar(E, "CallOnRemove", function(s, id, f, ...) local t = s.__jx_alborrar or {} t[id] = { f, { ... } } s.__jx_alborrar = t end)
+  forzar(E, "RemoveCallOnRemove", function(s, id) if s.__jx_alborrar then s.__jx_alborrar[id] = nil end end)
+  forzar(E, "DeleteOnRemove", function(s, o) local t = s.__jx_borrarcon or {} t[o] = true s.__jx_borrarcon = t end)
+  forzar(E, "DontDeleteOnRemove", function(s, o) if s.__jx_borrarcon then s.__jx_borrarcon[o] = nil end end)
+  hook.Add("EntityRemoved", "__jx_alborrar", function(e)
+    local t = e.__jx_alborrar
+    if t then e.__jx_alborrar = nil for _, c in pairs(t) do local ok, err = pcall(c[1], e, unpack(c[2])) if not ok then ErrorNoHalt(tostring(err) .. "\n") end end end
+    local b = e.__jx_borrarcon
+    if b then e.__jx_borrarcon = nil for o in pairs(b) do if IsValid(o) then o:Remove() end end end
+  end)
+
+  -- Fire / Input: las entradas de Source (Kill, Ignite, SetHealth, Break, Use, Color, Skin, SetParent, EnableMotion...)
+  local function fisica(s) return s.GetPhysicsObject and s:GetPhysicsObject() end
+  local ENTRADAS = {
+    kill = function(s) s:Remove() end, killhierarchy = function(s) s:Remove() end,
+    ignite = function(s, p) if s.Ignite then s:Ignite(tonumber(p) or 10) end end, ignitelifetime = function(s, p) if s.Ignite then s:Ignite(tonumber(p) or 10) end end,
+    extinguish = function(s) if s.Extinguish then s:Extinguish() end end,
+    sethealth = function(s, p) s:SetHealth(tonumber(p) or 0) if s:Health() <= 0 and s.TakeDamage then s:TakeDamage(1) end end,
+    addhealth = function(s, p) s:SetHealth(s:Health() + (tonumber(p) or 0)) end,
+    removehealth = function(s, p) if s.TakeDamage then s:TakeDamage(tonumber(p) or 0) else s:SetHealth(s:Health() - (tonumber(p) or 0)) end end,
+    ["break"] = function(s) if s.TakeDamage then s:TakeDamage(math.max(s:Health(), 1) * 10 + 1000) end end,
+    use = function(s, p, a, c) if s.Use then s:Use(IsValid(a) and a or s, IsValid(c) and c or s) end end,
+    enablemotion = function(s) local f = fisica(s) if IsValid(f) then f:EnableMotion(true) f:Wake() end end,
+    disablemotion = function(s) local f = fisica(s) if IsValid(f) then f:EnableMotion(false) end end,
+    wake = function(s) local f = fisica(s) if IsValid(f) then f:Wake() end end, sleep = function(s) local f = fisica(s) if IsValid(f) then f:Sleep() end end,
+    setparent = function(s, p) local o = ents.FindByName and ents.FindByName(p or "")[1] if IsValid(o) then s:SetParent(o) end end,
+    clearparent = function(s) s:SetParent(nil) end,
+    color = function(s, p) local r, g, b = string.match(p or "", "(%d+)%s+(%d+)%s+(%d+)") if r then local c = s:GetColor() s:SetColor(Color(tonumber(r), tonumber(g), tonumber(b), c.a)) end end,
+    alpha = function(s, p) local c = s:GetColor() s:SetRenderMode(RENDERMODE_TRANSCOLOR) s:SetColor(Color(c.r, c.g, c.b, tonumber(p) or 255)) end,
+    skin = function(s, p) s:SetSkin(tonumber(p) or 0) end, setbodygroup = function(s, p) s:SetBodygroup(0, tonumber(p) or 0) end,
+    setanimation = function(s, p) local q = s:LookupSequence(p or "") if q and q >= 0 then s:ResetSequence(q) end end,
+    setdefaultanimation = function(s, p) s.__jx_animdef = p end, setplaybackrate = function(s, p) s:SetPlaybackRate(tonumber(p) or 1) end,
+    enable = function(s) s.__jx_apagado = false end, disable = function(s) s.__jx_apagado = true end,
+    turnon = function(s) s.__jx_apagado = false if s.SetOn then s:SetOn(true) end end, turnoff = function(s) s.__jx_apagado = true if s.SetOn then s:SetOn(false) end end,
+    toggle = function(s) s.__jx_apagado = not s.__jx_apagado if s.SetOn then s:SetOn(not s.__jx_apagado) end end,
+    addoutput = function(s, p) local k, v = string.match(p or "", "^(%S+)%s+(.*)$") if k and s.SetKeyValue then s:SetKeyValue(k, v) end end,
+    setmass = function(s, p) local f = fisica(s) if IsValid(f) then f:SetMass(tonumber(p) or 1) end end,
+    becomeragdoll = function(s) if s.BecomeRagdoll then s:BecomeRagdoll(DamageInfo()) end end,
+    dissolve = function(s) s:Dissolve() end,
+  }
+  local function entrada(s, nombre, act, llama, p)
+    if not IsValid(s) then return false end
+    if hook.Run("AcceptInput", s, nombre, act, llama, p) == true then return true end
+    if s.AcceptInput and s:AcceptInput(nombre, act, llama, p) == true then return true end
+    local f = ENTRADAS[string.lower(tostring(nombre))]
+    if f then f(s, p, act, llama) return true end
+    return false
+  end
+  forzar(E, "Input", function(s, nombre, act, llama, p) return entrada(s, nombre, act, llama, p) end)
+  forzar(E, "Fire", function(s, nombre, p, demora, act, llama)
+    demora = tonumber(demora) or 0
+    if demora > 0 then timer.Simple(demora, function() entrada(s, nombre, act, llama, p) end) else entrada(s, nombre, act, llama, p) end
+  end)
+
+  -- (las capas y los gestos: se guardan —la animación de capas la hace el juego con la secuencia principal—)
+  local con_capas = setmetatable({}, { __mode = "k" })
+  local function capas(s) local t = s.__jx_capas if not t then t = {} s.__jx_capas = t end con_capas[s] = true return t end
+  local function nueva_capa(s, seq, act, autokill) local t = capas(s) local i = #t for k = 0, 15 do if not t[k] then i = k break end end
+    t[i] = { seq = seq or -1, act = act, cycle = 0, weight = 1, rate = 1, dur = (seq and seq >= 0 and s.SequenceDuration and s:SequenceDuration(seq)) or 1, loop = false, prio = 0, autokill = autokill ~= false, t0 = CurTime() } return i end
+  def(E, "AddGesture", function(s, act, autokill) local seq = s:SelectWeightedSequence(act) return nueva_capa(s, seq, act, autokill) end)
+  def(E, "AddGestureSequence", function(s, seq, autokill) return nueva_capa(s, seq, nil, autokill) end)
+  def(E, "AddLayeredSequence", function(s, seq, prio) local i = nueva_capa(s, seq, nil, true) capas(s)[i].prio = prio or 0 return i end)
+  def(E, "RestartGesture", function(s, act, addifmissing, autokill) for i, c in pairs(capas(s)) do if c.act == act then c.cycle = 0 c.t0 = CurTime() return end end if addifmissing ~= false then s:AddGesture(act, autokill) end end)
+  def(E, "RemoveGesture", function(s, act) for i, c in pairs(capas(s)) do if c.act == act then capas(s)[i] = nil end end end)
+  def(E, "RemoveAllGestures", function(s) s.__jx_capas = {} end)
+  def(E, "RemoveLayer", function(s, i) capas(s)[i] = nil end)
+  def(E, "IsPlayingGesture", function(s, act) for _, c in pairs(capas(s)) do if c.act == act then return true end end return false end)
+  def(E, "FindGestureLayer", function(s, act) for i, c in pairs(capas(s)) do if c.act == act then return i end end return -1 end)
+  def(E, "FindGestureSequenceLayer", function(s, seq) for i, c in pairs(capas(s)) do if c.seq == seq then return i end end return -1 end)
+  def(E, "IsValidLayer", function(s, i) return capas(s)[i] ~= nil end)
+  for _, k in ipairs({ "Cycle", "Duration", "PlaybackRate", "Sequence", "Weight" }) do
+    local campo = ({ Cycle = "cycle", Duration = "dur", PlaybackRate = "rate", Sequence = "seq", Weight = "weight" })[k]
+    def(E, "GetLayer" .. k, function(s, i) local c = capas(s)[i] return c and c[campo] or 0 end)
+    def(E, "SetLayer" .. k, function(s, i, v) local c = capas(s)[i] if c then c[campo] = v end end)
+  end
+  for _, k in ipairs({ "Autokill", "BlendIn", "BlendOut", "Looping", "Priority" }) do def(E, "SetLayer" .. k, function(s, i, v) local c = capas(s)[i] if c then c[string.lower(k)] = v end end) end
+  hook.Add("Think", "__jx_capas", function()
+    for e in pairs(con_capas) do
+      local t = IsValid(e) and e.__jx_capas
+      if not t or next(t) == nil then con_capas[e] = nil end
+      if t then for i, c in pairs(t) do
+        c.cycle = c.cycle + FrameTime() * (c.rate or 1) / math.max(c.dur or 1, 0.01)
+        if c.cycle >= 1 then if c.looping then c.cycle = c.cycle % 1 elseif c.autokill then t[i] = nil else c.cycle = 1 end end
+      end end
+    end
+  end)
+
+  -- (lo que se guarda y se devuelve tal cual: banderas, controladores, flags, la sombra, etc.)
+  for k, d in pairs({ SolidFlags = 0, EFlagsJX = 0, CustomCollisionCheck = false, Persistent = false, UnFreezable = false, RenderFX = 0, LightingOriginEntity = NULL,
+    ParentPhysNum = 0, ManipulateBoneJiggleJX = 0, NetworkAnglesJX = false, ShouldServerRagdollJX = false, AnimTime = 0, Predictable = false }) do
+    def(E, "Get" .. k, dato(k, d)) def(E, "Set" .. k, poner(k))
+  end
+  def(E, "AddSolidFlags", function(s, f) s.__jx_SolidFlags = bit.bor(s:GetSolidFlags(), f) end)
+  def(E, "RemoveSolidFlags", function(s, f) s.__jx_SolidFlags = bit.band(s:GetSolidFlags(), bit.bnot(f)) end)
+  def(E, "GetEFlags", function(s) return s.__jx_eflags or 0 end)
+  def(E, "SetSpawnFlags", function(s, f) s.__jx_spawnflags = f end)
+  def(E, "AddSpawnFlags", function(s, f) s.__jx_spawnflags = bit.bor(s.__jx_spawnflags or (s.GetSpawnFlags and s:GetSpawnFlags()) or 0, f) end)
+  def(E, "RemoveSpawnFlags", function(s, f) s.__jx_spawnflags = bit.band(s.__jx_spawnflags or (s.GetSpawnFlags and s:GetSpawnFlags()) or 0, bit.bnot(f)) end)
+  def(E, "GetManipulateBoneJiggle", function(s, b) return (s.__jx_jiggle or {})[b] or 0 end)
+  def(E, "ManipulateBoneJiggle", function(s, b, v) s.__jx_jiggle = s.__jx_jiggle or {} s.__jx_jiggle[b] = v end)
+  def(E, "GetBoneController", function(s, i) return (s.__jx_ctrl or {})[i] or 0 end)
+  def(E, "SetBoneController", function(s, i, v) s.__jx_ctrl = s.__jx_ctrl or {} s.__jx_ctrl[i] = v end)
+  def(E, "SetBoneMatrix", function(s, b, m) s.__jx_huesom = s.__jx_huesom or {} s.__jx_huesom[b] = m end)
+  def(E, "SetBonePosition", function(s, b, p, a) s.__jx_huesop = s.__jx_huesop or {} s.__jx_huesop[b] = { p, a } end)
+  def(E, "SetEyeTarget", poner("ojo")) def(E, "SetNextClientThink", poner("pensar"))
+  def(E, "SetRenderClipPlane", function(s, n, d) s.__jx_corte = { n, d } end) def(E, "SetRenderClipPlaneEnabled", poner("corte_si"))
+  def(E, "SetModelName", poner("nombremodelo")) def(E, "SetLegacyTransform", nada) def(E, "SetupPhonemeMappings", nada)
+  def(E, "SetWeaponModel", nada) def(E, "SetRagdollAng", nada) def(E, "SetRagdollPos", nada) def(E, "SetRagdollBuildFunction", nada)
+  def(E, "SetNetworkVarsFromMapInput", nada) def(E, "SetPhysConstraintObjects", nada) def(E, "SetColor4Part", function(s, r, g, b, a) s:SetColor(Color(r, g, b, a)) end)
+  def(E, "GetColor4Part", function(s) local c = s:GetColor() return c.r, c.g, c.b, c.a end)
+  for _, k in ipairs({ "CallDTVarProxies", "ClearAllOutputs", "CreateBoneFollowers", "DestroyBoneFollowers", "UpdateBoneFollowers", "EnableConstraints", "InitializeAsClientEntity",
+    "PrecacheGibs", "RagdollSolve", "RagdollStopControlling", "RagdollUpdatePhysics", "RemoveInternalConstraint", "UpdateShadow", "UseTriggerBounds", "MakePhysicsObjectAShadow",
+    "Blocked", "GibBreakClient", "GibBreakServer", "CopyBoneMatrix", "ForcePlayerDrop", "Respawn" }) do def(E, k, nada) end
+  def(E, "Alive", function(s) return s:Health() > 0 end)
+  def(E, "CreatedByMap", function(s) return s.MapCreationID and s:MapCreationID() ~= -1 or false end)
+  def(E, "GetCreationTime", function(s) return s.__jx_creado or 0 end)
+  def(E, "BecomeRagdollOnClient", function() return NULL end)
+  def(E, "GetRagdollOwner", function() return NULL end)
+  def(E, "GetPhysicsAttacker", function() return NULL end)
+  def(E, "GetBaseVelocity", function() return Vector(0, 0, 0) end)
+  def(E, "GetGroundSpeedVelocity", function(s) return s:GetVelocity() end)
+  def(E, "GetLocalAngularVelocity", function(s) local f = fisica(s) if IsValid(f) then local v = f:GetAngleVelocity() return Angle(v.y, v.z, v.x) end return Angle(0, 0, 0) end)
+  def(E, "SetAbsVelocity", function(s, v) if s.SetVelocity then s:SetVelocity(v - s:GetVelocity()) end end)
+  def(E, "GetAnimTimeInterval", function() return 0 end)
+  def(E, "GetBloodColor", function(s) if s.__jx_sangre then return s.__jx_sangre end if s:IsPlayer() or s:IsNPC() then return BLOOD_COLOR_RED or 0 end return DONT_BLEED or -1 end)
+  def(E, "SetBloodColor", poner("sangre"))
+  def(E, "GetBoneContents", function() return CONTENTS_SOLID or 1 end) def(E, "GetModelContents", function() return CONTENTS_SOLID or 1 end)
+  def(E, "GetBoneSurfaceProp", function() return "default" end)
+  def(E, "BoneHasFlag", function() return false end)
+  def(E, "BoneLength", function(s, b) local pa = s:GetBoneParent(b) if not pa or pa < 0 then return 0 end local a, c = s:GetBonePosition(b), s:GetBonePosition(pa) return (a and c) and a:Distance(c) or 0 end)
+  def(E, "GetChildBones", function(s, b) local r = {} for i = 0, s:GetBoneCount() - 1 do if s:GetBoneParent(i) == b then r[#r + 1] = i end end return r end)
+  def(E, "TranslateBoneToPhysBone", function(s, b) local n = s:GetPhysicsObjectCount() return n > 1 and math.min(b, n - 1) or 0 end)
+  def(E, "TranslatePhysBoneToBone", function(s, b) return b or 0 end)
+  def(E, "GetModelPhysBoneCount", function(s) return s:GetPhysicsObjectCount() end)
+  def(E, "GetBrushPlaneCount", function() return 0 end) def(E, "GetBrushSurfaces", function() return {} end) def(E, "GetSubModels", function() return {} end)
+  def(E, "GetConstrainedEntities", function(s) return s end)
+  def(E, "GetConstrainedPhysObjects", function(s) return fisica(s) end)
+  def(E, "IsConstrained", function(s) return constraint and constraint.HasConstraints and constraint.HasConstraints(s) or false end)
+  def(E, "IsConstraint", function(s) return string.sub(s:GetClass(), 1, 5) == "phys_" end)
+  def(E, "GetEditingData", function(s) return s.__jx_editar or {} end)
+  def(E, "GetFlexBounds", function() return 0, 1 end) def(E, "GetFlexIDByName", function() return nil end) def(E, "GetFlexType", function() return "" end)
+  def(E, "HasFlexManipulatior", function() return false end)
+  def(E, "GetHitBoxCount", function() return 0 end) def(E, "GetHitboxSetCount", function() return 1 end) def(E, "GetHitboxSet", function() return 0, "default" end)
+  def(E, "GetHitBoxGroupCount", function() return 1 end) def(E, "GetHitBoxHitGroup", function() return 0 end) def(E, "GetHitBoxBone", function(s, i) return i end)
+  def(E, "GetHitBoxBounds", function(s) return s:OBBMins(), s:OBBMaxs() end)
+  def(E, "GetMaterialType", function(s) return MAT_CONCRETE or 67 end)
+  def(E, "GetModelRadius", function(s) return s:BoundingRadius() end)
+  def(E, "GetModelRenderBounds", function(s) return s:GetModelBounds() end)
+  def(E, "GetMomentaryRotButtonPos", function() return 0 end)
+  def(E, "GetNetworkAngles", function(s) return s:GetAngles() end) def(E, "SetNetworkAngles", function(s, a) s:SetAngles(a) end)
+  def(E, "SetNetworkOrigin", function(s, p) s:SetPos(p) end)
+  def(E, "GetParentAttachment", function(s) return s.__jx_adj or 0 end)
+  def(E, "SetAttachment", function(s, o, a) s:SetParent(o, a) s.__jx_adj = a end)
+  def(E, "SetMoveParent", function(s, o) s:SetParent(o) end)
+  def(E, "FollowBone", function(s, o, b) s:SetParent(o) s.__jx_hueso = b end)
+  local function matriz(pos, ang) local m = Matrix() m:SetAngles(ang) m:SetTranslation(pos) return m end
+  def(E, "GetWorldTransformMatrix", function(s) return matriz(s:GetPos(), s:GetAngles()) end)
+  def(E, "GetParentWorldTransformMatrix", function(s) local p = s:GetParent() if IsValid(p) then return matriz(p:GetPos(), p:GetAngles()) end return Matrix() end)
+  def(E, "GetRenderGroup", function(s) return s.RenderGroup or RENDERGROUP_OPAQUE or 7 end)
+  def(E, "GetRotatedAABB", function(s, mn, mx)
+    local a = s:GetAngles(); local lo, hi = Vector(math.huge, math.huge, math.huge), Vector(-math.huge, -math.huge, -math.huge)
+    for _, x in ipairs({ mn.x, mx.x }) do for _, y in ipairs({ mn.y, mx.y }) do for _, z in ipairs({ mn.z, mx.z }) do
+      local v = Vector(x, y, z) v:Rotate(a)
+      lo.x, lo.y, lo.z = math.min(lo.x, v.x), math.min(lo.y, v.y), math.min(lo.z, v.z); hi.x, hi.y, hi.z = math.max(hi.x, v.x), math.max(hi.y, v.y), math.max(hi.z, v.z)
+    end end end
+    return lo, hi
+  end)
+  def(E, "GetSaveTable", function(s) return { health = s:Health(), m_iHealth = s:Health(), max_health = s:GetMaxHealth(), m_iMaxHealth = s:GetMaxHealth(), classname = s:GetClass(),
+    m_iClassname = s:GetClass(), model = s:GetModel(), m_ModelName = s:GetModel(), m_nSkin = s:GetSkin(), m_iName = s:GetName(), targetname = s:GetName(), m_bLocked = false, m_eDoorState = 0,
+    m_flCycle = s:GetCycle(), m_vecVelocity = s:GetVelocity(), m_vecAbsOrigin = s:GetPos(), m_angAbsRotation = s:GetAngles(), m_hOwnerEntity = s:GetOwner(), m_hParent = s:GetParent() } end)
+  def(E, "GetInternalVariable", function(s, k) return s:GetSaveTable()[k] end)
+  def(E, "GetSequenceMoveYaw", function() return 0 end)
+  def(E, "GetSequenceVelocity", function(s, q) return Vector(s.GetSequenceGroundSpeed and s:GetSequenceGroundSpeed(q) or 0, 0, 0) end)
+  def(E, "IsSequenceFinished", function(s) return s:GetCycle() >= 1 end)
+  def(E, "FindTransitionSequence", function(s, a, b) return b end)
+  def(E, "GetTouchTrace", function(s) return { Entity = NULL, HitPos = s:GetPos(), HitNormal = Vector(0, 0, 1), Hit = false, Fraction = 1 } end)
+  def(E, "GetTransmitWithParent", function() return false end)
+  def(E, "GetWorkshopID", function() return nil end)
+  def(E, "IsLagCompensated", function() return false end)
+  def(E, "IsMarkedForDeletion", function(s) return not IsValid(s) end)
+  def(E, "IsWidget", function() return false end)
+  def(E, "IsScripted", function(s) local c = s:GetClass() return (scripted_ents.GetStored and scripted_ents.GetStored(c) ~= nil) or (weapons.GetStored and weapons.GetStored(c) ~= nil) or false end)
+  def(E, "IsPointInBounds", function(s, p) local l = s:WorldToLocal(p) local a, b = s:OBBMins(), s:OBBMaxs() return l.x >= a.x and l.x <= b.x and l.y >= a.y and l.y <= b.y and l.z >= a.z and l.z <= b.z end)
+  def(E, "IsLineOfSightClear", function(s, x)
+    local dst = isvector(x) and x or (IsValid(x) and x:WorldSpaceCenter())
+    if not dst then return false end
+    local org = (s.EyePos and s:EyePos()) or s:WorldSpaceCenter()
+    local tr = util.TraceLine({ start = org, endpos = dst, filter = { s, not isvector(x) and x or nil }, mask = MASK_BLOCKLOS or MASK_SOLID })
+    return not tr.Hit
+  end)
+  def(E, "VisibleVec", function(s, p) return s:IsLineOfSightClear(p) end)
+  def(E, "TestPVS", function() return true end)
+  def(E, "BeingLookedAtByLocalPlayer", function(s) local p = LocalPlayer() if not IsValid(p) then return false end local tr = p:GetEyeTrace() return tr.Entity == s and tr.HitPos:Distance(p:EyePos()) < 256 end)
+  def(E, "BodyTarget", function(s) return s:WorldSpaceCenter() end)
+  def(E, "HeadTarget", function(s) return s.EyePos and s:EyePos() or s:WorldSpaceCenter() end)
+  def(E, "PointAtEntity", function(s, o) if IsValid(o) then s:SetAngles((o:GetPos() - s:GetPos()):Angle()) end end)
+  def(E, "AlignAngles", function(s, de, a)
+    local m1, m2, m3 = Matrix(), Matrix(), Matrix() m1:SetAngles(a) m2:SetAngles(de) m3:SetAngles(s:GetAngles())
+    return (m1 * m2:GetInverseTR() * m3):GetAngles()
+  end)
+  def(E, "ObjectCaps", function() return 0 end)
+  def(E, "PassesDamageFilter", function() return true end) def(E, "PassesFilter", function() return true end)
+  def(E, "PlayScene", function() return 0 end)
+  def(E, "SnatchModelInstance", function() return false end)
+  def(E, "ViewModelIndex", function() return 0 end)
+  def(E, "Weapon_SetActivity", nada) def(E, "Weapon_TranslateActivity", function(s, a) return a end)
+  def(E, "EmitStepSound", function(s, vol) s:EmitSound("Default.StepLeft", 75, 100, vol or 1) end)
+  def(E, "SetEntity", function(s, k, v) s:SetNWEntity(k, v) end)
+  def(E, "SetNetworkedNumber", function(s, k, v) s:SetNWFloat(k, v) end)
+  def(E, "Dissolve", function(s, tipo, fuerza, org)
+    if s.__jx_disuelto then return end s.__jx_disuelto = true
+    s:SetRenderMode(RENDERMODE_TRANSCOLOR) s:EmitSound("ambient/energy/zap" .. math.random(1, 3) .. ".wav")
+    local f = fisica(s) if IsValid(f) then f:EnableGravity(false) f:AddVelocity(Vector(0, 0, 40)) end
+    local t0 = CurTime()
+    local id = "__jx_disolver" .. s:EntIndex()
+    timer.Create(id, 0.05, 0, function() if not IsValid(s) then timer.Remove(id) return end local k = (CurTime() - t0) / 1.5 local c = s:GetColor()
+      if k >= 1 then timer.Remove(id) s:Remove() return end s:SetColor(Color(c.r, c.g, c.b, 255 * (1 - k))) end)
+  end)
+  def(E, "StartLoopingSound", function(s, snd) local p = CreateSound(s, snd) p:Play() s.__jx_bucles = s.__jx_bucles or {} local i = #s.__jx_bucles + 1 s.__jx_bucles[i] = p return i end)
+  def(E, "StopLoopingSound", function(s, i) local p = s.__jx_bucles and s.__jx_bucles[i] if p then p:Stop() s.__jx_bucles[i] = nil end end)
+  def(E, "CreateParticleEffect", function(s, nombre, adj) ParticleEffectAttach(nombre, PATTACH_ABSORIGIN_FOLLOW or 1, s, tonumber(adj) or 0) return CreateParticleSystem and CreateParticleSystem(s, nombre, PATTACH_ABSORIGIN_FOLLOW or 1, 0) end)
+  for _, k in ipairs({ "StopAndDestroyParticles", "StopParticleEmission", "StopParticlesNamed", "StopParticlesWithNameAndAttachment" }) do def(E, k, function(s) if s.StopParticles then s:StopParticles() end end) end
+  def(E, "PhysicsInitStatic", function(s, solid) local ok = s:PhysicsInit(solid or SOLID_VPHYSICS) local f = fisica(s) if IsValid(f) then f:EnableMotion(false) end return ok end)
+  local function caja_de(pts) local lo, hi = Vector(math.huge, math.huge, math.huge), Vector(-math.huge, -math.huge, -math.huge)
+    for _, p in ipairs(pts) do p = p.pos or p lo.x, lo.y, lo.z = math.min(lo.x, p.x), math.min(lo.y, p.y), math.min(lo.z, p.z) hi.x, hi.y, hi.z = math.max(hi.x, p.x), math.max(hi.y, p.y), math.max(hi.z, p.z) end
+    return lo, hi end
+  def(E, "PhysicsInitConvex", function(s, pts) if not pts or #pts == 0 then return false end local a, b = caja_de(pts) return s:PhysicsInitBox(a, b) end)
+  def(E, "PhysicsFromMesh", function(s, pts) return s:PhysicsInitConvex(pts) end)
+  def(E, "PhysicsInitMultiConvex", function(s, lista) local todo = {} for _, l in ipairs(lista or {}) do for _, p in ipairs(l) do todo[#todo + 1] = p end end return s:PhysicsInitConvex(todo) end)
+  def(E, "RestoreNetworkVars", function(s, t) for k, v in pairs(t or {}) do local f = s["Set" .. k] if f then f(s, v) end end end)
+  def(E, "GetNetworkVars", function(s) local r = {} for k, v in pairs(s.__jx_nv or {}) do local f = s["Get" .. k] if f then r[k] = f(s) end end return r end)
+
+  -- (las variables de red: los nombres viejos —Networked2— y los proxies, que se llaman al cambiar el valor)
+  for _, tp in ipairs({ "Angle", "Bool", "Entity", "Float", "Int", "String", "Vector", "Var" }) do
+    def(E, "GetNetworked2" .. tp, E["GetNW2" .. tp]) def(E, "SetNetworked2" .. tp, E["SetNW2" .. tp])
+    for _, pre in ipairs({ "NW", "NW2" }) do
+      local orig = E["Set" .. pre .. tp]
+      if orig then rawset(E, "Set" .. pre .. tp, function(s, k, v, ...)
+        local px = s.__jx_proxy and s.__jx_proxy[pre] and s.__jx_proxy[pre][k]
+        local tb = s.__jx_nwt or {} s.__jx_nwt = tb
+        local old = tb[k]; tb[k] = v
+        if px and old ~= v then pcall(px, s, k, old, v) end
+        return orig(s, k, v, ...)
+      end) end
+    end
+  end
+  local function proxy(pre) return function(s, k, f) s.__jx_proxy = s.__jx_proxy or {} s.__jx_proxy[pre] = s.__jx_proxy[pre] or {} s.__jx_proxy[pre][k] = f end end
+  local function proxy_de(pre) return function(s, k) return s.__jx_proxy and s.__jx_proxy[pre] and s.__jx_proxy[pre][k] end end
+  def(E, "SetNWVarProxy", proxy("NW")) def(E, "SetNetworkedVarProxy", proxy("NW")) def(E, "SetNW2VarProxy", proxy("NW2")) def(E, "SetNetworked2VarProxy", proxy("NW2"))
+  def(E, "GetNWVarProxy", proxy_de("NW")) def(E, "GetNetworkedVarProxy", proxy_de("NW")) def(E, "GetNW2VarProxy", proxy_de("NW2")) def(E, "GetNetworked2VarProxy", proxy_de("NW2"))
+  def(E, "GetNWVarTable", function(s) local r = {} for k, v in pairs(s.__jx_nwt or {}) do r[k] = v end return r end)
+  def(E, "GetNW2VarTable", function(s) local r = {} for k, v in pairs(s.__jx_nwt or {}) do r[k] = { value = v, type = TypeID(v) } end return r end)
+  def(E, "GetNetworkedVarTable", E.GetNWVarTable) def(E, "GetNetworked2VarTable", E.GetNW2VarTable)
+
+  -- ---- Player ----
+  if P then
+    for k, d in pairs({ AvoidPlayers = true, CanWalk = true, CanZoom = true, ClassID = 0, DuckSpeed = 0.3, UnDuckSpeed = 0.2, FlashlightColor = Vector(1, 1, 1), LadderClimbSpeed = 200,
+      MaxArmor = 100, NoCollideWithTeammates = false, SlowWalkSpeed = 100, SuitPower = 100, VoiceVolumeScale = 1, AllowFullRotation = false, HoveredWidget = NULL, PressedWidget = NULL,
+      DrivingEntity = NULL, DrivingMode = 0 }) do
+      def(P, "Get" .. k, dato("p_" .. k, d)) forzar(P, "Set" .. k, poner("p_" .. k))
+    end
+    def(P, "IsDrivingEntity", function(s, e) local d = s:GetDrivingEntity() if e then return d == e end return IsValid(d) end)
+    def(P, "SetDrivingEntity", function(s, e, modo) s.__jx_p_DrivingEntity = e or NULL s.__jx_p_DrivingMode = modo or 0 end)
+    def(P, "GetEntityInUse", function() return NULL end) def(P, "GetUseEntity", function() return NULL end)
+    def(P, "GetFriendStatus", function() return "none" end)
+    def(P, "GetPlayerInfo", function(s) return { friendid = 0, friendname = "", guid = s:SteamID(), name = s:Nick(), customfiles = {}, userid = s:UserID(), ishltv = false, isbot = false, filesdownloaded = 0 } end)
+    def(P, "GetTimeoutSeconds", function() return 0 end) def(P, "IsTimingOut", function() return false end) def(P, "PacketLoss", function() return 0 end)
+    def(P, "GetPreferredCarryAngles", function() return nil end)
+    def(P, "GetPreviousWeapon", function(s) return s.__jx_armaant or NULL end)
+    def(P, "GetTool", function(s, modo)
+      local w = s:GetWeapon("gmod_tool") or s:GetActiveWeapon()
+      modo = modo or (GetConVarString and GetConVarString("gmod_toolmode")) or ""
+      if IsValid(w) and w.GetToolObject then return w:GetToolObject(modo) end
+      s.__jx_tools = s.__jx_tools or {}
+      if not s.__jx_tools[modo] and __RB_Tools and __RB_Tools[modo] then s.__jx_tools[modo] = __RB_ToolNuevo(__RB_Tools[modo], modo) end
+      return s.__jx_tools[modo]
+    end)
+    def(P, "GetAmmo", function(s) local r = {} for i = 1, 32 do local n = game.GetAmmoName and game.GetAmmoName(i) if not n then break end local c = s:GetAmmoCount(n) if c > 0 then r[i] = c end end return r end)
+    def(P, "RemoveAllAmmo", function(s) for i = 1, 32 do local n = game.GetAmmoName and game.GetAmmoName(i) if not n then break end s:SetAmmo(0, n) end end)
+    def(P, "RemoveAllItems", function(s) s:StripWeapons() s:RemoveAllAmmo() end)
+    def(P, "DropNamedWeapon", function(s, c) local w = s:GetWeapon(c) if IsValid(w) then s:DropWeapon(w) end end)
+    def(P, "DropWeapon", function(s, w, dst, vel)
+      w = w or s:GetActiveWeapon() if not IsValid(w) then return end
+      local c = w:GetClass() s:StripWeapon(c)
+      local e = ents.Create(c) if not IsValid(e) then return end
+      e:SetPos(s:EyePos() + s:GetAimVector() * 30) e:SetAngles(s:EyeAngles()) e:Spawn()
+      local f = e:GetPhysicsObject() if IsValid(f) then f:SetVelocity(vel or s:GetAimVector() * 200) end
+    end)
+    def(P, "PickupWeapon", function(s, w, solo_mun) if not IsValid(w) then return false end if not solo_mun then s:Give(w:GetClass()) end w:Remove() return true end)
+    def(P, "ShouldDropWeapon", poner("p_soltar")) def(P, "SwitchToDefaultWeapon", function(s) local l = s:GetWeapons() if l[1] then s:SelectWeapon(l[1]:GetClass()) end end)
+    def(P, "EquipSuit", function(s) s.__jx_p_traje = true end) def(P, "RemoveSuit", function(s) s.__jx_p_traje = false end)
+    def(P, "IsSuitEquipped", function(s) return s.__jx_p_traje ~= false end)
+    def(P, "AddFrozenPhysicsObject", function(s, e, f) s.__jx_congelados = s.__jx_congelados or {} s.__jx_congelados[#s.__jx_congelados + 1] = { e, f } end)
+    local function descongelar(s) local n = 0 for _, x in ipairs(s.__jx_congelados or {}) do if IsValid(x[2]) then x[2]:EnableMotion(true) x[2]:Wake() n = n + 1 end end s.__jx_congelados = {} return n end
+    def(P, "UnfreezePhysicsObjects", descongelar) def(P, "PhysgunUnfreeze", descongelar)
+    for _, k in ipairs({ "AddPlayerOption", "AllowImmediateDecalPainting", "AnimRestartMainSequence", "AnimSetGestureSequence", "DebugInfo", "DetonateTripmines",
+      "ExitLadder", "SendHint", "SuppressHint", "ShowProfile", "SimulateGravGunDrop", "SimulateGravGunPickup", "SprayDecal", "StopZooming", "SetSuppressPickupNotices",
+      "SetCurrentViewOffset", "SetLastHitGroup", "SetActivity" }) do def(P, k, nada) end
+    def(P, "AddVCDSequenceToGestureSlot", function(s, slot, seq, ciclo, autokill) local i = s:AddGestureSequence(seq, autokill) s:SetLayerCycle(i, ciclo or 0) end)
+    def(P, "DisableWorldClicking", poner("p_sinclic")) def(P, "IsWorldClickingDisabled", dato("p_sinclic", false)) def(P, "IsWorldClicking", function() return false end)
+    for _, k in ipairs({ "DoAnimationEvent", "DoAttackEvent", "DoCustomAnimEvent", "DoReloadEvent", "DoSecondaryAttack" }) do
+      def(P, k, function(s, ev, data) hook.Run("DoAnimationEvent", s, ev or (k == "DoAttackEvent" and PLAYERANIMEVENT_ATTACK_PRIMARY) or (k == "DoReloadEvent" and PLAYERANIMEVENT_RELOAD) or 0, data or 0) end)
+    end
+    def(P, "Kick", function(s, motivo) print((s:Nick() or "?") .. " fue expulsado: " .. tostring(motivo or "")) end)
+    def(P, "Ban", function(s, min, kick) if kick then s:Kick("Ban") end end)
+    def(P, "CreateRagdoll", function(s) local r = ents.Create("prop_ragdoll") if not IsValid(r) then return end r:SetModel(s:GetModel()) r:SetPos(s:GetPos()) r:SetAngles(Angle(0, s:EyeAngles().y, 0)) r:Spawn() s.__jx_rag = r end)
+    def(P, "GetRagdollEntity", function(s) return s.__jx_rag or NULL end)
+    def(P, "IsVoiceAudible", function() return false end) def(P, "IsWalking", function(s) return s:KeyDown(IN_WALK) end)
+    for _, k in ipairs({ "SprintEnable", "SprintDisable", "StartSprinting", "StopSprinting", "StartWalking", "StopWalking" }) do def(P, k, function(s) s["__jx_p_" .. k] = CurTime() end) end
+    def(P, "LocalEyeAngles", function(s) return s:EyeAngles() end)
+    def(P, "MotionSensorPos", function() return Vector(0, 0, 0) end)
+    def(P, "OwnerSteamID64", function(s) return s:SteamID64() end)
+    def(P, "RunConsoleCommand", function(s, ...) RunConsoleCommand(...) end)
+    def(P, "PlayStepSound", function(s, vol) s:EmitSound("Default.StepLeft", 75, 100, vol or 1) end)
+    def(P, "ResetHull", function(s) if s.SetHull then s:SetHull(Vector(-16, -16, 0), Vector(16, 16, 72)) end if s.SetHullDuck then s:SetHullDuck(Vector(-16, -16, 0), Vector(16, 16, 36)) end end)
+    def(P, "Say", function(s, txt, eq) local r = hook.Run("PlayerSay", s, txt, eq or false) if r ~= "" then local t = r or txt if chat and chat.AddText then chat.AddText(team.GetColor and team.GetColor(s:Team()) or Color(255, 255, 255), s:Nick(), Color(255, 255, 255), ": " .. t) end end end)
+    def(P, "SetHands", poner("p_manos"))
+    def(P, "SetMuted", poner("p_muteado")) def(P, "IsMuted", dato("p_muteado", false))
+    def(P, "SetObserverMode", poner("p_obs")) forzar(P, "GetObserverMode", function(s) return s.__jx_p_obs or 0 end)
+    def(P, "SpectateEntity", poner("p_obsent")) forzar(P, "GetObserverTarget", function(s) return s.__jx_p_obsent or NULL end)
+    local sg = P.GetUserGroup
+    def(P, "SetUserGroup", poner("p_grupo"))
+    forzar(P, "GetUserGroup", function(s) return s.__jx_p_grupo or (sg and sg(s)) or "superadmin" end)
+    def(P, "TraceHullAttack", function(s, a, b, mn, mx, dmg, tipo, fuerza, todos)
+      local tr = util.TraceHull({ start = a, endpos = b, mins = mn, maxs = mx, filter = s })
+      if IsValid(tr.Entity) then local d = DamageInfo() d:SetDamage(dmg or 0) d:SetDamageType(tipo or DMG_CLUB) d:SetAttacker(s) d:SetInflictor(s) d:SetDamageForce((b - a):GetNormalized() * (fuerza or 0)) tr.Entity:TakeDamageInfo(d) end
+      return tr.Entity
+    end)
+    def(P, "TranslateWeaponActivity", function(s, a) return a end)
+    def(P, "UniqueIDTable", function(s, k) s.__jx_uid = s.__jx_uid or {} s.__jx_uid[k] = s.__jx_uid[k] or {} return s.__jx_uid[k] end)
+  end
+
+  -- ---- PhysObj ----
+  if PH then
+    -- (un PhysObj es un userdata: lo suyo se guarda en la tabla de su entidad)
+    local function pd(s) local e = s.GetEntity and s:GetEntity() if not IsValid(e) then return {} end local t = e.__jx_fis if not t then t = {} e.__jx_fis = t end return t end
+    def(PH, "AddGameFlag", function(s, f) pd(s).gf = bit.bor(pd(s).gf or 0, f) end) def(PH, "ClearGameFlag", function(s, f) pd(s).gf = bit.band(pd(s).gf or 0, bit.bnot(f)) end)
+    def(PH, "HasGameFlag", function(s, f) return bit.band(pd(s).gf or 0, f) ~= 0 end)
+    def(PH, "GetContents", function(s) return pd(s).cont or CONTENTS_SOLID or 1 end) def(PH, "SetContents", function(s, c) pd(s).cont = c end)
+    def(PH, "GetBuoyancyRatio", function(s) return pd(s).flota or 0 end)
+    if not rawget(PH, "SetBuoyancyRatio") then rawset(PH, "SetBuoyancyRatio", function(s, r) pd(s).flota = r end) end
+    def(PH, "GetDamping", function(s) return pd(s).amortl or 0, pd(s).amorta or 0 end)
+    def(PH, "GetRotDamping", function(s) return pd(s).amorta or 0 end) def(PH, "GetSpeedDamping", function(s) return pd(s).amortl or 0 end)
+    def(PH, "GetEnergy", function(s) local v = s:GetVelocity():Length() return 0.5 * s:GetMass() * v * v end)
+    def(PH, "GetStress", function() return 0, 0 end) def(PH, "GetFrictionSnapshot", function() return {} end)
+    def(PH, "GetIndex", function() return 0 end)
+    def(PH, "GetInvMass", function(s) local m = s:GetMass() return m > 0 and 1 / m or 0 end)
+    def(PH, "GetInvInertia", function(s) local i = s:GetInertia() return Vector(i.x > 0 and 1 / i.x or 0, i.y > 0 and 1 / i.y or 0, i.z > 0 and 1 / i.z or 0) end)
+    def(PH, "GetMesh", function() return {} end) def(PH, "GetMeshConvexes", function() return {} end)
+    def(PH, "GetAABB", function(s) local e = s:GetEntity() if IsValid(e) then return e:OBBMins(), e:OBBMaxs() end return Vector(-1, -1, -1), Vector(1, 1, 1) end)
+    def(PH, "GetSurfaceArea", function(s) local a, b = s:GetAABB() local d = b - a return 2 * (d.x * d.y + d.y * d.z + d.x * d.z) end)
+    def(PH, "GetPositionMatrix", function(s) return matriz(s:GetPos(), s:GetAngles()) end)
+    def(PH, "GetShadowPos", function(s) return s:GetPos() end) def(PH, "GetShadowAngles", function(s) return s:GetAngles() end)
+    def(PH, "LocalToWorldVector", function(s, v) return s:LocalToWorld(v) - s:GetPos() end)
+    def(PH, "WorldToLocalVector", function(s, v) return s:WorldToLocal(s:GetPos() + v) end)
+    def(PH, "GetVelocityAtPoint", function(s, p) local w = s:LocalToWorldVector(s:GetAngleVelocity() * (math.pi / 180)) return s:GetVelocity() + w:Cross(p - s:LocalToWorld(s:GetMassCenter())) end)
+    def(PH, "CalculateForceOffset", function(s, imp, p) local r = p - s:LocalToWorld(s:GetMassCenter()) return imp, s:WorldToLocalVector(r:Cross(imp)) end)
+    def(PH, "CalculateVelocityOffset", function(s, imp, p) local m = s:GetMass() local lin, ang = s:CalculateForceOffset(imp, p) local i = s:GetInvInertia() return lin / math.max(m, 0.001), Vector(ang.x * i.x, ang.y * i.y, ang.z * i.z) * (180 / math.pi) end)
+    def(PH, "IsCollisionEnabled", function(s) return pd(s).sinchoque ~= true end)
+    def(PH, "IsDragEnabled", function() return true end) def(PH, "IsPenetrating", function() return false end)
+    def(PH, "SetAngleDragCoefficient", nada)
+    def(PH, "RotateAroundAxis", function(s, eje, gr) local a = s:GetAngles() a:RotateAroundAxis(eje, gr) s:SetAngles(a) return a end)
+    def(PH, "SetAngleVelocity", function(s, v) s:AddAngleVelocity(v - s:GetAngleVelocity()) end)
+    def(PH, "SetAngleVelocityInstantaneous", function(s, v) s:AddAngleVelocity(v - s:GetAngleVelocity()) end)
+    def(PH, "AlignAngles", function(s, de, a) local m1, m2, m3 = Matrix(), Matrix(), Matrix() m1:SetAngles(a) m2:SetAngles(de) m3:SetAngles(s:GetAngles()) return (m1 * m2:GetInverseTR() * m3):GetAngles() end)
+  end
+
+  -- ---- Vehicle ----
+  if V then
+    for k, d in pairs({ CameraDistance = 0, Throttle = 0, Steering = 0, SteeringDegrees = 0, Boost = 0, MaxThrottle = 1, MaxReverseThrottle = -1, HasBrakePedalJX = true }) do def(V, "Get" .. k, dato("v_" .. k, d)) def(V, "Set" .. k, poner("v_" .. k)) end
+    def(V, "HasBrakePedal", function(s) return s.__jx_v_HasBrakePedalJX ~= false end) def(V, "SetHasBrakePedal", poner("v_HasBrakePedalJX"))
+    def(V, "IsEngineEnabled", function(s) return s.__jx_v_motor ~= false end) def(V, "EnableEngine", function(s, b) s.__jx_v_motor = b end)
+    def(V, "IsEngineStarted", function(s) return s.__jx_v_arranco ~= false end) def(V, "StartEngine", function(s, b) s.__jx_v_arranco = b end)
+    def(V, "SetHandbrake", poner("v_freno")) def(V, "ReleaseHandbrake", function(s) s.__jx_v_freno = false end)
+    def(V, "GetHLSpeed", function(s) return s:GetVelocity():Length() end) def(V, "GetSpeed", function(s) return s:GetVelocity():Length() * 0.0568 end)
+    def(V, "GetMaxSpeed", function() return 1000 end) def(V, "GetRPM", function(s) return math.min(s:GetVelocity():Length() * 6, 6000) end)
+    def(V, "HasBoost", function() return true end) def(V, "IsBoosting", function(s) return (s.__jx_v_Boost or 0) > 0 end) def(V, "BoostTimeLeft", function() return 0 end)
+    def(V, "GetAmmo", function() return -1, -1, -1 end)
+    def(V, "GetWheelCount", function() return 4 end) def(V, "GetWheel", function() return NULL end)
+    def(V, "GetWheelContactPoint", function(s, i) return s:GetPos(), 0, false end)
+    def(V, "GetWheelBaseHeight", function() return 0 end) def(V, "GetWheelTotalHeight", function() return 0 end)
+    def(V, "SetWheelFriction", nada) def(V, "SetSpringLength", nada) def(V, "SetVehicleEntryAnim", nada) def(V, "SetVehicleClass", poner("v_clase"))
+    def(V, "GetVehicleParams", function(s) return s.__jx_v_params or { engine = {}, steering = {}, axles = {}, wheelsPerAxle = 2 } end) def(V, "SetVehicleParams", poner("v_params"))
+    def(V, "GetOperatingParams", function(s) return { RPM = s:GetRPM(), gear = 1, isTorqueBoosting = false, speed = s:GetHLSpeed(), steeringAngle = s:GetSteering(), wheelsInContact = 4, wheelsNotInContact = 0 } end)
+    def(V, "GetVehicleViewPosition", function(s, rol) return s:GetPos() + s:GetUp() * 64, s:GetAngles(), 90 end)
+    def(V, "GetPassengerSeatPoint", function(s, rol) return s:GetPos() + s:GetUp() * 24, s:GetAngles() end)
+    def(V, "CheckExitPoint", function(s, yaw, d) local a = s:GetAngles() a:RotateAroundAxis(a:Up(), yaw or 90) return s:GetPos() + a:Forward() * (d or 64) end)
+    def(V, "IsValidVehicle", function(s) return IsValid(s) end) def(V, "IsVehicleBodyInWater", function(s) return s:WaterLevel() > 0 end)
+  end
+
+  -- ---- Weapon ----
+  if W then
+    def(W, "AllowsAutoSwitchFrom", function(s) return s.AutoSwitchFrom ~= false end) def(W, "AllowsAutoSwitchTo", function(s) return s.AutoSwitchTo ~= false end)
+    def(W, "GetDeploySpeed", function(s) return s.__jx_deploy or 1 end) def(W, "SetDeploySpeed", function(s, v) s.__jx_deploy = v end)
+    def(W, "GetSlot", function(s) return s.Slot or 0 end) def(W, "GetSlotPos", function(s) return s.SlotPos or 0 end) def(W, "GetWeight", function(s) return s.Weight or 5 end)
+    def(W, "SetActivity", poner("w_act"))
+  end
+end

@@ -100,6 +100,18 @@ pub(crate) fn define_baseclass(src: &[u8]) -> std::borrow::Cow<'_, [u8]> {
         if src[i..].starts_with(M) {
             let mut j = i + M.len();
             while j < src.len() && (src[j] == b' ' || src[j] == b'\t' || src[j] == b'\r' || src[j] == b'\n' || src[j] == 0x0b || src[j] == 0x0c) { j += 1; }
+            // (DEFINE_BASECLASS "x": la llamada con una cadena sin paréntesis)
+            if j < src.len() && (src[j] == b'"' || src[j] == b'\'') {
+                let q = src[j]; let mut k = j + 1;
+                while k < src.len() && src[k] != q && src[k] != b'\n' { if src[k] == b'\\' { k += 1; } k += 1; }
+                if k < src.len() && src[k] == q {
+                    out.extend_from_slice(b"local BaseClass = baseclass.Get(");
+                    out.extend_from_slice(&src[j..=k]);
+                    out.push(b')');
+                    i = k + 1;
+                    continue;
+                }
+            }
             if j < src.len() && src[j] == b'(' {
                 // [^()\n]*(?:\([^()\n]*\)[^()\n]*)*\)
                 let ini = j + 1;
@@ -131,6 +143,7 @@ pub(crate) fn define_baseclass(src: &[u8]) -> std::borrow::Cow<'_, [u8]> {
 /// gmaCorrer: correr un .lua (con DEFINE_BASECLASS); devuelve lo primero que devuelve
 pub(crate) fn correr(e: &mut Estado, ruta: &str, b0: &[u8]) -> Valor {
     let b1 = b0.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(b0);
+    if std::env::var_os("JXM_TRAZA_ARCH").is_some() { eprintln!("lua: {}", ruta); }
     let src = define_baseclass(b1);
     let dir = match ruta.rfind('/') { Some(i) => ruta[..=i].to_string(), None => String::new() };
     let d0 = g(|g| std::mem::replace(&mut g.dir, dir));
@@ -401,9 +414,10 @@ pub(crate) fn instalar(e: &mut Estado) {
     if let Valor::Tabla(dbg) = gl.borrow().get_str("debug") {
         def(&dbg, "getregistry", |_, _, o| { let t = Tabla::nueva_ref(); for (k, v) in g(|g| g.metas.v.clone()) { t.borrow_mut().set_str(&k, Valor::Tabla(v)); } ok1(o, Valor::Tabla(t)) });
     }
-    def(&gl, "FindMetaTable", |_, a, o| {
+    def(&gl, "FindMetaTable", |e, a, o| {
         let nm = js_str(&ar(a, 0));
         if nm == "ConVar" { return ok1(o, Valor::Tabla(mt_cvar())); }
+        if nm == "CMoveData" { return ok1(o, Valor::Tabla(crate::cargar::mt_mov(e))); }
         let ok = nm.len() >= 2 && nm.as_bytes()[0].is_ascii_uppercase() && nm.bytes().skip(1).all(|c| c.is_ascii_alphabetic() || c == b'_');
         if !g(|g| g.metas.has(&nm)) && ok { let t = Tabla::nueva_ref(); t.borrow_mut().set_filtro(Some(crate::valores::filtro_lados())); t.borrow_mut().set_str("MetaName", cad(&nm)); t.borrow_mut().set_str("__index", Valor::Tabla(t.clone())); g(|g| g.metas.set(nm.clone(), t)); }
         ok1(o, g(|g| g.metas.get(&nm).cloned()).map(Valor::Tabla).unwrap_or(Valor::Nil))
@@ -583,7 +597,7 @@ pub(crate) fn instalar(e: &mut Estado) {
     def(&engine, "TickInterval", |_, _, o| n(o, 1.0 / 60.0));
     for k in ["GetGames", "GetGamemodes"] { def(&engine, k, |_, _, o| ok1(o, tnueva())); }
     def(&engine, "GetAddons", |_, _, o| {
-        let v: Vec<Valor> = g(|g| g.addons.iter().map(|a| { let a = a.borrow(); (a.nombre.clone(), a.id.clone()) }).collect::<Vec<_>>()).into_iter().map(|(nm, id)| tabla_kv(vec![("title", cad(&nm)), ("wsid", cad(&id)), ("mounted", Valor::Bool(true)), ("downloaded", Valor::Bool(true))])).collect();
+        let v: Vec<Valor> = g(|g| g.addons.iter().map(|a| { let a = a.borrow(); (a.nombre.clone(), a.id.clone()) }).collect::<Vec<_>>()).into_iter().map(|(nm, id)| tabla_kv(vec![("title", cad(&nm)), ("wsid", cad(&id)), ("file", cad(&format!("addons/{}.gma", id))), ("mounted", Valor::Bool(true)), ("downloaded", Valor::Bool(true)), ("models", Valor::Num(0.0)), ("tags", cad("")), ("timeadded", Valor::Num(0.0)), ("updated", Valor::Num(0.0)), ("size", Valor::Num(0.0))])).collect();
         ok1(o, tab_de(v))
     });
     for k in ["IsPlayingDemo", "IsRecordingDemo"] { def(&engine, k, |_, _, o| b(o, false)); }
@@ -813,7 +827,9 @@ pub(crate) fn instalar(e: &mut Estado) {
     let enviar = |lado: Lado| g(|g| if let Some(mut m) = g.saliente.take() { m.lado = lado; g.net_cola.push(m); });
     for k in ["Send", "Broadcast", "SendOmit", "SendPVS", "SendPAS"] { def(&net, k, move |_, _, _| { enviar(Lado::C); Ok(()) }); }
     def(&net, "SendToServer", move |_, _, _| { enviar(Lado::S); Ok(()) });
-    def(&net, "Receive", |_, a, _| { let nm = js_str(&ar(a, 0)).to_lowercase(); let f = ar(a, 1); let c = ctx(); g(|g| if c == Lado::C { g.net_c.insert(nm, f); } else { g.net_s.insert(nm, f); }); Ok(()) });
+    let receptores = Tabla::nueva_ref(); net.borrow_mut().set_str("Receivers", Valor::Tabla(receptores.clone()));
+    // (net.Receivers: la tabla de los que reciben, como en GMod —los addons la miran y la envuelven—)
+    def(&net, "Receive", move |_, a, _| { let nm = js_str(&ar(a, 0)).to_lowercase(); let f = ar(a, 1); let _ = receptores.borrow_mut().set(cad(&nm), f.clone()); let c = ctx(); g(|g| if c == Lado::C { g.net_c.insert(nm, f); } else { g.net_s.insert(nm, f); }); Ok(()) });
     def(&net, "Incoming", nada);
     def(&net, "BytesWritten", |_, _, o| n(o, g(|g| g.saliente.as_ref().map(|m| m.v.len() * 4).unwrap_or(0)) as f64));
     def(&net, "BytesLeft", |_, _, o| n(o, g(|g| g.lectura.as_ref().map(|(v, i)| (v.len() as f64 - *i as f64) * 4.0).unwrap_or(0.0))));
