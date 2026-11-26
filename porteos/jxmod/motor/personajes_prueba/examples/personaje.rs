@@ -205,7 +205,7 @@ unsafe fn foto(m: &mut Motor, fb: glow::Framebuffer, mapa: &jxjuego::mapa::Mapa,
         _ => { let ojos = [raiz[0], raiz[1] + 1.67 * tam, raiz[2]]; ([ojos[0] - fw[0] * 3.1, ojos[1], ojos[2] - fw[2] * 3.1], [ojos[0] + fw[0], ojos[1], ojos[2] + fw[2]]) }
     };
     let vp = m4::mul(&persp(0.75, W as f32 / H as f32, 0.05, mapa.lejos), &m4::mirar(ojo, mira, [0.0, 1.0, 0.0]));
-    m.poner_cuadro(Cuadro { vp, pos: ojo, luz: mapa.luz, agua_y: mapa.agua_y, tiempo: 1.0, luces: mapa.luces_cerca(ojo, 6), esp: vec![], items: items.to_vec(), efectos: vec![] });
+    m.poner_cuadro(Cuadro { vp, pos: ojo, luz: mapa.luz, agua_y: mapa.agua_y, suelo_y: None, tiempo: 1.0, luces: mapa.luces_cerca(ojo, 6), esp: vec![], items: items.to_vec(), efectos: vec![] });
     m.dibujar(Some(fb), W, H);
     let gl = &m.gl; let mut px = vec![0u8; (W * H * 4) as usize];
     gl.bind_framebuffer(glow::FRAMEBUFFER, Some(fb)); gl.read_pixels(0, 0, W, H, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelPackData::Slice(Some(&mut px)));

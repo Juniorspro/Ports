@@ -26,9 +26,9 @@ const MAX_HUESOS2: usize = 56;
 
 #[derive(Clone, Debug)]
 /// lo que se puede elegir: la fracción de la pantalla, el retoque, la sombra del sol (lado del mapa, cada cuántos cuadros se
-/// rehace y su radio alrededor de la cámara) y el reflejo del agua (a 1/`reflejo_div` del lado)
-pub struct Opciones2 { pub escala: f32, pub retoque: bool, pub sombras: bool, pub sombra_px: i32, pub sombra_cada: u32, pub sombra_radio: f32, pub reflejo: bool, pub reflejo_div: i32 }
-impl Default for Opciones2 { fn default() -> Self { Opciones2 { escala: 1.0, retoque: true, sombras: true, sombra_px: 1024, sombra_cada: 2, sombra_radio: 28.0, reflejo: true, reflejo_div: 3 } } }
+/// rehace y su radio alrededor de la cámara) y el reflejo del agua y del piso (a 1/`reflejo_div` del lado)
+pub struct Opciones2 { pub escala: f32, pub retoque: bool, pub sombras: bool, pub sombra_px: i32, pub sombra_cada: u32, pub sombra_radio: f32, pub reflejo: bool, pub reflejo_div: i32, pub reflejo_piso: bool }
+impl Default for Opciones2 { fn default() -> Self { Opciones2 { escala: 1.0, retoque: true, sombras: true, sombra_px: 1024, sombra_cada: 2, sombra_radio: 60.0, reflejo: true, reflejo_div: 3, reflejo_piso: true } } }
 
 struct Malla2 { vb: glow::Buffer, ib: glow::Buffer, lm: Option<glow::Buffer>, i32: bool, mn: [f32; 3], sc: [f32; 3], lm_id: i64, bytes: usize, piel: Option<Box<PielCpu>> }
 /// lo que hace falta para deformar una malla con huesos en la CPU: posición y normal sueltas, huesos y pesos por vértice
@@ -42,13 +42,14 @@ impl Prog2 { fn u(&self, n: &str) -> Option<&glow::UniformLocation> { self.u.get
 
 const VS_LUZ: &str = r#"
 attribute vec3 aP; attribute vec4 aN; attribute vec2 aU; attribute vec2 aL;
-uniform mat4 uVP, uM, uSVP; uniform vec3 uMn, uSc; uniform vec4 uSt, uSomP;
-varying vec3 vW; varying vec3 vN; varying vec2 vU; varying vec2 vL; varying float vMz; varying vec4 vS;
+uniform mat4 uVP, uM, uSVP, uSVP2; uniform vec3 uMn, uSc; uniform vec4 uSt, uSomP, uSomP2;
+varying vec3 vW; varying vec3 vN; varying vec2 vU; varying vec2 vL; varying float vMz; varying vec4 vS, vS2;
 void main() {
   vec4 w = uM * vec4(uMn + aP * uSc, 1.0);
   vW = w.xyz; vN = (uM * vec4(aN.xyz, 0.0)).xyz; vU = aU * uSt.xy + uSt.zw; vL = aL; vMz = aN.w;
   // (la sombra: el punto corrido un poco hacia afuera por su normal —sin el «acné» de la sombra sobre sí misma—)
-  vS = uSVP * vec4(w.xyz + vN * inversesqrt(max(dot(vN, vN), 1e-8)) * uSomP.w, 1.0);
+  vec3 nn = vN * inversesqrt(max(dot(vN, vN), 1e-8));
+  vS = uSVP * vec4(w.xyz + nn * uSomP.w, 1.0); vS2 = uSVP2 * vec4(w.xyz + nn * uSomP2.y, 1.0);
   gl_Position = uVP * w;
 }"#;
 const FS_LUZ: &str = r#"
@@ -62,44 +63,73 @@ uniform vec4 uC, uTi, uTi2, uTi3; uniform vec3 uSol, uSolC, uAmbS, uAmbG, uNieC,
 uniform vec4 uLP[4], uLC[4]; uniform float uLN;
 // (las banderas del material ya separadas: terreno, dos texturas, recorte, sin luz · luz horneada, hojas)
 uniform vec4 uBan; uniform vec2 uBan2;
-varying vec3 vW; varying vec3 vN; varying vec2 vU; varying vec2 vL; varying float vMz; varying vec4 vS;
+varying vec3 vW; varying vec3 vN; varying vec2 vU; varying vec2 vL; varying float vMz; varying vec4 vS, vS2;
 // (la sombra del sol: la profundidad del mapa del sol viene en los cuatro canales de una textura común —ES 2 no tiene
 // texturas de profundidad seguro—; cuatro muestras y el borde del mapa que se desvanece)
-uniform sampler2D uSom; uniform vec4 uSomP;
+// Dos cascadas una al lado de la otra en el mismo mapa (como OpenGL 3): la de cerca (fina, delante de la cámara) y la de lejos
+// (todo el radio); en el borde de la de cerca se mezclan, sin costura, y la de lejos se desvanece en su borde
+uniform sampler2D uSom; uniform vec4 uSomP, uSomP2;
 float desem(vec4 c) { return dot(c, vec4(1.0, 1.0 / 255.0, 1.0 / 65025.0, 1.0 / 16581375.0)); }
+// (las cuatro comparaciones de los texeles de alrededor, mezcladas según dónde cae el punto entre ellos: el borde suave,
+// como la comparación lineal de OpenGL 3, con las mismas cuatro lecturas; k: qué mitad del mapa)
+float pcf(vec3 q, float k, float sesgo) {
+  float z = q.z - sesgo, d = uSomP.x; vec2 t = q.xy / d - 0.5; vec2 f = fract(t); vec2 b = (floor(t) + 0.5) * d;
+  b.x = (b.x + k) * 0.5; float dx = d * 0.5;
+  float s00 = step(z, desem(texture2D(uSom, b))), s10 = step(z, desem(texture2D(uSom, b + vec2(dx, 0.0))));
+  float s01 = step(z, desem(texture2D(uSom, b + vec2(0.0, d)))), s11 = step(z, desem(texture2D(uSom, b + vec2(dx, d))));
+  return mix(mix(s00, s10, f.x), mix(s01, s11, f.x), f.y);
+}
+float sombraLejos() {
+  vec3 q = vS2.xyz / vS2.w * 0.5 + 0.5; vec2 e = abs(q.xy - 0.5) * 2.0; float borde = smoothstep(0.85, 0.98, max(e.x, e.y));
+  if (borde >= 1.0 || q.z >= 1.0) return 1.0;
+  return mix(pcf(q, 1.0, uSomP2.x), 1.0, borde);
+}
 float sombra() {
   if (uSomP.z < 0.5) return 1.0;
-  vec3 q = vS.xyz / vS.w * 0.5 + 0.5; vec2 e = abs(q.xy - 0.5) * 2.0; float borde = smoothstep(0.82, 1.0, max(e.x, e.y));
-  if (borde >= 1.0 || q.z >= 1.0) return 1.0;
-  // (las cuatro comparaciones de los texeles de alrededor, mezcladas según dónde cae el punto entre ellos: el borde suave,
-  // como la comparación lineal de OpenGL 3, con las mismas cuatro lecturas)
-  float z = q.z - uSomP.y; vec2 t = q.xy / uSomP.x - 0.5; vec2 f = fract(t); vec2 b = (floor(t) + 0.5) * uSomP.x; float d = uSomP.x;
-  float s00 = step(z, desem(texture2D(uSom, b))), s10 = step(z, desem(texture2D(uSom, b + vec2(d, 0.0))));
-  float s01 = step(z, desem(texture2D(uSom, b + vec2(0.0, d)))), s11 = step(z, desem(texture2D(uSom, b + vec2(d, d))));
-  return mix(mix(mix(s00, s10, f.x), mix(s01, s11, f.x), f.y), 1.0, borde);
+  vec3 q = vS.xyz / vS.w * 0.5 + 0.5; vec2 e = abs(q.xy - 0.5) * 2.0; float g = max(e.x, e.y);
+  if (g < 0.97 && q.z < 1.0) { float s0 = pcf(q, 0.0, uSomP.y), k = smoothstep(0.8, 0.97, g); return k > 0.0 ? mix(s0, sombraLejos(), k) : s0; }
+  return sombraLejos();
 }
 #ifdef CLIP
 // (el reflejo del agua: lo de abajo del agua no se refleja)
 uniform vec4 uClip;
 #endif
+// (el reflejo del piso —como los pisos brillantes de Half-Life 2—: lo de arriba del piso dibujado espejado en otra textura
+// (uR); uRP: 1/ancho y 1/alto de la pantalla, si está y la altura del piso. Sólo en lo plano que está a esa altura, más
+// fuerte cuanto más liso es el material y cuanto más de costado se mira —el Fresnel—, y borroso si el material es áspero)
+uniform sampler2D uR; uniform vec4 uRP;
+// (el cielo, para su reflejo en todo —como OpenGL 3—)
+uniform vec3 uTop, uMid, uBot; uniform vec2 uExp; uniform float uCieloK;
+const float PI = 3.14159265;
+float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
 // (x^2,2 y x^(1/2,2) con tres raíces en vez de pow: el mismo color —menos de 0,2 de un nivel de 8 bits— y mucho menos trabajo)
 vec3 dec(vec3 x) { x = max(x, 0.0); vec3 a = sqrt(x), b = sqrt(a), c = sqrt(b); return x * x * (0.73929934 * b + 0.34228227 * c - 0.0593772 * a - 0.0226474); }
 vec3 enc(vec3 x) { x = max(x, 0.0); vec3 a = sqrt(x), b = sqrt(a), c = sqrt(b); return 0.93020244 * a + 0.14337668 * b - 0.02588437 * c - 0.04836126 * x; }
+vec3 cieloCol(vec3 d) { bool ar = d.y > 0.0; vec3 c = mix(uMid, ar ? uTop : uBot, pow(abs(d.y), ar ? uExp.x : uExp.y)); return dec(c) * uCieloK; }
+// (el BRDF de OpenGL 3: GGX con la rugosidad y el metal de cada material)
+vec3 brdf(vec3 n, vec3 v, vec3 l, vec3 dif, vec3 f0, float a) {
+  float nl = dot(n, l); if (nl <= 0.0) return vec3(0.0);
+  vec3 h = normalize(l + v); float nh = max(dot(n, h), 0.0), nv = max(dot(n, v), 1e-3), lh = max(dot(l, h), 0.0);
+  float a2 = a * a, d = nh * nh * (a2 - 1.0) + 1.0, D = a2 / (PI * d * d);
+  float k = a * 0.5, V = 0.25 / ((nl * (1.0 - k) + k) * (nv * (1.0 - k) + k));
+  float m1 = max(1.0 - lh, 0.0), m2 = m1 * m1; vec3 F = f0 + (1.0 - f0) * (m2 * m2 * m1);
+  return (dif * (1.0 - F) + min(D * V, 40.0) * F * PI) * nl;
+}
 
 // (el retoque final de WebGL en Alto —más color, contraste en S y viñeta—, acá mismo: sin otra pasada)
 uniform vec3 uRet;
 vec3 retoque(vec3 c) {
   if (uRet.z < 0.5) return c;
   c = dec(c); float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-  c = clamp(mix(vec3(l), c, 1.10), 0.0, 1.0); c = c * c * (3.0 - 2.0 * c) * 0.10 + c * 0.90; c = enc(c);
-  vec2 q = gl_FragCoord.xy * uRet.xy - 0.5; return c * (1.0 - dot(q, q) * 0.22);
+  c = clamp(mix(vec3(l), c, 1.18), 0.0, 1.0); c = c * c * (3.0 - 2.0 * c) * 0.18 + c * 0.82; c = enc(c);
+  vec2 q = gl_FragCoord.xy * uRet.xy - 0.5; return c * (1.0 - dot(q, q) * 0.32);
 }
 void main() {
 #ifdef CLIP
   if (dot(vec4(vW, 1.0), uClip) < 0.0) discard;
 #endif
-  vec4 t;
+  vec4 t; float rk = 0.0;
   if (uBan.x > 0.5) { vec4 kc = texture2D(uT, vU); t = vec4(texture2D(uT1, vU * uS1.xy).rgb * kc.r + texture2D(uT2, vU * uS1.zw).rgb * kc.g + texture2D(uT3, vU * uS3).rgb * kc.b, 1.0); }
   else if (uBan.y > 0.5) t = mix(texture2D(uT, vU), texture2D(uT1, vU), clamp(vMz, 0.0, 1.0));
   else t = texture2D(uT, vU);
@@ -120,18 +150,26 @@ void main() {
   vec3 col;
   if (uBan.w > 0.5) col = dec(t.rgb) * 1.4;
   else {
-    vec3 alb = dec(t.rgb); vec3 n = normalize(vN); if (!gl_FrontFacing) n = -n;
-    if (uBan2.y > 0.5) n = normalize(mix(n, vec3(0.0, 1.0, 0.0), 0.55));
-    vec3 v = normalize(uCam - vW); float rough = uMat.x, metal = uMat.y;
-    vec3 dif = alb * (1.0 - metal);
-    if (uBan2.x > 0.5) col = dif * dec(texture2D(uLM, vL).rgb) * 4.0 * (0.65 + 0.35 * sombra());
-    else {
-      float nl = max(dot(n, uSol), 0.0); vec3 h = normalize(uSol + v);
-      float sp = pow(max(dot(n, h), 0.0), mix(256.0, 8.0, rough)) * (1.0 - rough) * 0.6;
-      // (a la sombra, sin sol y el cielo un poco más bajo: lo de adentro y abajo de las cosas se ve hundido)
+    vec3 alb = dec(t.rgb); vec3 ng = normalize(vN); if (!gl_FrontFacing) ng = -ng;
+    bool fol = uBan2.y > 0.5, lm = uBan2.x > 0.5;
+    vec3 n = fol ? normalize(mix(ng, vec3(0.0, 1.0, 0.0), 0.55)) : ng;
+    vec3 v = normalize(uCam - vW); float rough = uMat.x, metal = uMat.y, a = max(rough * rough, 0.004), sh = 1.0;
+    vec3 dif = alb * (1.0 - metal), f0 = mix(vec3(uMat.z), alb, metal), lmL = vec3(0.0);
+    if (lm) {
+      // (la luz horneada del mapa ya trae sus sombras: la del sol sólo oscurece lo que en ella estaba al sol —lo que se
+      // mueve, los props—; adentro y a la sombra horneada no se oscurece dos veces)
+      lmL = dec(texture2D(uLM, vL).rgb) * 4.0; sh = sombra();
+      col = dif * lmL * (1.0 - 0.55 * (1.0 - sh) * smoothstep(0.5, 1.4, dot(lmL, vec3(0.2126, 0.7152, 0.0722))));
+    } else {
       // (con el sol casi de costado la sombra de una placa sobre sí misma —el «acné»— se ve como pelos: ahí se desvanece)
-      float sh = nl > 0.0 ? mix(1.0, sombra(), smoothstep(0.08, 0.5, nl)) : 1.0;
-      col = (dif + vec3(sp) * mix(vec3(uMat.z), alb, metal) * 4.0) * uSolC * nl * sh + dif * mix(uAmbG, uAmbS, n.y * 0.5 + 0.5) * (0.8 + 0.2 * sh);
+      float nl = dot(n, uSol);
+      sh = nl > 0.0 ? mix(1.0, sombra(), smoothstep(0.05, 0.35, nl)) : 0.0;
+      col = brdf(n, v, uSol, dif, f0, a) * uSolC * sh;
+      if (fol) { float tr = max(dot(-v, uSol), 0.0); tr *= tr; col += dif * uSolC * (tr * tr) * 0.6 * sh; }
+    }
+    if (uRP.z > 0.5 && n.y > 0.94 && abs(vW.y - uRP.w) < 0.08) {
+      float fr = 1.0 - max(dot(n, v), 0.0); fr *= fr;
+      rk = smoothstep(0.82, 0.3, rough) * mix(0.3, 1.0, fr * fr) * uRP.z;
     }
     for (int i = 0; i < 4; i++) {
       if (float(i) >= uLN) break;
@@ -140,14 +178,27 @@ void main() {
       float d = sqrt(d2), q = d2 / (r * r), cae = clamp(1.0 - q * q, 0.0, 1.0); float at = cae * cae / (d2 + 1.0);
       col += dif * uLC[i].rgb * max(dot(n, L / d), 0.0) * at;
     }
-    col += uEm * 1.6;
+    // la luz del cielo como OpenGL 3: difusa (hemisferio) y el reflejo del cielo, más borroso cuanto más áspero, con Fresnel
+    vec3 rf = reflect(-v, n), amb, env; float nv = max(dot(n, v), 1e-3);
+    if (lm) { amb = vec3(0.0); env = lmL * 0.5; } else { amb = mix(uAmbG, uAmbS, n.y * 0.5 + 0.5); env = mix(cieloCol(rf), amb, clamp(rough * 1.15, 0.0, 1.0)); }
+    float hor = clamp(1.0 + 1.3 * dot(rf, ng), 0.0, 1.0); env *= hor * hor;
+    float q1 = 1.0 - nv, q2 = q1 * q1; vec3 Fr = f0 + (max(vec3(1.0 - rough), f0) - f0) * (q2 * q2 * q1);
+    col += dif * amb + env * Fr * mix(1.0, sh * 0.6 + 0.4, metal) + uEm * 1.6;
   }
   col += emAc;
   float dist = max(distance(vW, uCam), 1e-3);
   float f = clamp((dist - uNie.x) / max(uNie.y - uNie.x, 0.001), 0.0, 1.0) * uNie.z;
   vec3 vd = (vW - uCam) / dist; float sd = max(dot(vd, uSol), 0.0), sd2 = sd * sd; vec3 nc = uNieC + uNieS * (sd2 * sd2 * sd2);
+  // (y la bruma de lo lejos y bajo, como OpenGL 3)
+  f = 1.0 - (1.0 - f) * exp(-max(0.0, dist - 20.0) * 0.0006 * exp(-max(vW.y - uCam.y + 5.0, 0.0) * 0.02));
   col = mix(col, nc, f);
-  gl_FragColor = vec4(retoque(enc(aces(col * uExpo))), t.a);
+  vec3 fin = enc(aces(col * uExpo));
+  if (rk > 0.0) {
+    vec2 q = gl_FragCoord.xy * uRP.xy, o = uRP.xy * (1.5 + 9.0 * uMat.x);
+    vec3 r = (texture2D(uR, q + vec2(o.x, o.y)).rgb + texture2D(uR, q - vec2(o.x, o.y)).rgb + texture2D(uR, q + vec2(o.x, -o.y)).rgb + texture2D(uR, q - vec2(o.x, -o.y)).rgb) * 0.25;
+    fin = mix(fin, r, rk * (1.0 - f));
+  }
+  gl_FragColor = vec4(retoque(fin) + (ign(gl_FragCoord.xy) - 0.5) / 255.0, t.a);
 #ifdef VER_SOMBRA
   gl_FragColor = vec4(vec3(sombra()), 1.0);
 #endif
@@ -196,8 +247,8 @@ uniform vec3 uRet;
 vec3 retoque(vec3 c) {
   if (uRet.z < 0.5) return c;
   c = dec(c); float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-  c = clamp(mix(vec3(l), c, 1.10), 0.0, 1.0); c = c * c * (3.0 - 2.0 * c) * 0.10 + c * 0.90; c = enc(c);
-  vec2 q = gl_FragCoord.xy * uRet.xy - 0.5; return c * (1.0 - dot(q, q) * 0.22);
+  c = clamp(mix(vec3(l), c, 1.18), 0.0, 1.0); c = c * c * (3.0 - 2.0 * c) * 0.18 + c * 0.82; c = enc(c);
+  vec2 q = gl_FragCoord.xy * uRet.xy - 0.5; return c * (1.0 - dot(q, q) * 0.32);
 }
 void main() {
   vec4 a = uIVP * vec4(vP, -1.0, 1.0), b = uIVP * vec4(vP, 1.0, 1.0); vec3 d = normalize(b.xyz / b.w - a.xyz / a.w);
@@ -269,8 +320,8 @@ uniform vec3 uRet;
 vec3 retoque(vec3 c) {
   if (uRet.z < 0.5) return c;
   c = dec(c); float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-  c = clamp(mix(vec3(l), c, 1.10), 0.0, 1.0); c = c * c * (3.0 - 2.0 * c) * 0.10 + c * 0.90; c = enc(c);
-  vec2 q = gl_FragCoord.xy * uRet.xy - 0.5; return c * (1.0 - dot(q, q) * 0.22);
+  c = clamp(mix(vec3(l), c, 1.18), 0.0, 1.0); c = c * c * (3.0 - 2.0 * c) * 0.18 + c * 0.82; c = enc(c);
+  vec2 q = gl_FragCoord.xy * uRet.xy - 0.5; return c * (1.0 - dot(q, q) * 0.32);
 }
 void main() {
   vec4 t = texture2D(uT, vU); vec4 o = vec4(vC.rgb * t.rgb, vC.a * t.a * clamp(vF.x / vF.y, 0.0, 1.0));
@@ -291,17 +342,19 @@ uniform vec3 uRet;
 vec3 retoque(vec3 c) {
   if (uRet.z < 0.5) return c;
   c = dec(c); float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-  c = clamp(mix(vec3(l), c, 1.10), 0.0, 1.0); c = c * c * (3.0 - 2.0 * c) * 0.10 + c * 0.90; c = enc(c);
-  vec2 q = gl_FragCoord.xy * uRet.xy - 0.5; return c * (1.0 - dot(q, q) * 0.22);
+  c = clamp(mix(vec3(l), c, 1.18), 0.0, 1.0); c = c * c * (3.0 - 2.0 * c) * 0.18 + c * 0.82; c = enc(c);
+  vec2 q = gl_FragCoord.xy * uRet.xy - 0.5; return c * (1.0 - dot(q, q) * 0.32);
 }
 void main() { gl_FragColor = vec4(retoque(vC.rgb), vC.a); }"#;
 /// los floats de cada vértice de una partícula armada (x, y, z, u, v, r, g, b, a y lo del humo contra el piso)
 pub const PART_V2: usize = 11;
 /// a lo sumo cuántas partículas por cuadro (los índices son de 16 bits: 4 vértices cada una)
 const PART_MAX2: usize = 16383;
+/// lo más áspero que todavía refleja el piso (el sombreador lo apaga del todo en 0,82)
+const BRILLO_PISO: f32 = 0.72;
 
 const U_LUZ: [&str; 38] = ["uBan", "uBan2", "uTi", "uTi2", "uTi3", "uVP", "uM", "uMn", "uSc", "uSt", "uT", "uT1", "uT2", "uT3", "uLM", "uS1", "uS3", "uC", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNieS", "uCam", "uEm", "uMat", "uNie", "uExpo", "uModo", "uLP", "uLC", "uLN", "uIVP", "uTop", "uMid", "uBot", "uExp"];
-const U_OTROS: [&str; 20] = ["uTiene", "uCieloK", "uInv", "uRet", "uTinte", "uDia", "uCubo", "uN", "uF", "uH", "uS", "uTiempo", "uSolC", "uSuma", "uSVP", "uSom", "uSomP", "uClip", "uR", "uRP"];
+const U_OTROS: [&str; 22] = ["uTiene", "uCieloK", "uInv", "uRet", "uTinte", "uDia", "uCubo", "uN", "uF", "uH", "uS", "uTiempo", "uSolC", "uSuma", "uSVP", "uSom", "uSomP", "uClip", "uR", "uRP", "uSVP2", "uSomP2"];
 
 unsafe fn programa(gl: &glow::Context, vs: &str, fs: &str, atrs: &[&str]) -> Result<Prog2, String> {
     let p = gl.create_program()?;
@@ -321,6 +374,21 @@ unsafe fn programa(gl: &glow::Context, vs: &str, fs: &str, atrs: &[&str]) -> Res
         if let Some(l) = gl.get_uniform_location(p, &q) { u.insert(*n, l); }
     }
     Ok(Prog2 { p, u })
+}
+
+/// una cascada de la sombra (como gpu::cascada): ortográfica desde el sol, de radio `r`; la de cerca, delante de la cámara
+/// (hacia uno de 16 rumbos: girando un poco no se mueve y la guardada sigue sirviendo), centrada en múltiplos del texel (no
+/// tiembla al caminar). El margen de profundidad y el corrimiento por la normal, más grandes que en OpenGL 3: la profundidad
+/// va en 8 bits por canal y sin desplazamiento de polígonos
+fn cascada2(c: &Cuadro, s: [f32; 3], r: f32, px: i32, cerca: bool) -> (M4, [f32; 2]) {
+    let mut c0 = c.pos;
+    if cerca { let f = mat::norm([c.vp[3], c.vp[7], c.vp[11]]); let hz = (f[0] * f[0] + f[2] * f[2]).sqrt();
+        if hz > 0.3 { let paso = std::f32::consts::TAU / 16.0; let a = (f[2].atan2(f[0]) / paso).round() * paso; c0[0] += a.cos() * r * 0.6; c0[2] += a.sin() * r * 0.6; } }
+    let paso = 2.0 * r / px as f32; let cen = [(c0[0] / paso).round() * paso, (c0[1] / paso).round() * paso, (c0[2] / paso).round() * paso];
+    let alto = r + 80.0; let rango = alto + r;
+    let ojo = [cen[0] + s[0] * alto, cen[1] + s[1] * alto, cen[2] + s[2] * alto];
+    let arriba = if s[1].abs() > 0.95 { [0.0, 0.0, 1.0] } else { [0.0, 1.0, 0.0] };
+    (mat::mul(&mat::orto(-r, r, -r, r, 0.5, rango), &mat::mirar(ojo, cen, arriba)), [0.3 / rango, 3.0 * paso])
 }
 
 /// medio float (IEEE 754 de 16 bits) a float
@@ -380,11 +448,14 @@ pub struct Motor {
     poses: Vec<Pose2>, poses_n: usize, pose_p: Vec<[f32; 3]>, pose_v: Vec<u8>,
     /// la sombra del sol: el destino (cuadro, textura con la profundidad en RGBA, profundidad, lado), su matriz, cuántos
     /// cuadros van, si está lista y el corrimiento por la normal; los programas (y el de lo recortado)
-    som: Option<(glow::Framebuffer, glow::Texture, glow::Renderbuffer, i32)>, som_vp: M4, som_n: u64, som_on: bool, som_off: [f32; 2], som_huella: u64, refl_n: u64,
+    som: Option<(glow::Framebuffer, glow::Texture, glow::Renderbuffer, i32)>, som_vp: [M4; 2], som_n: u64, som_on: bool, som_off: [[f32; 2]; 2], som_huella: [u64; 2], refl_n: u64,
     p_som: Prog2, p_som_c: Prog2,
     /// el reflejo del agua: su destino (cuadro, textura, profundidad, ancho, alto), si se dibujó en este cuadro y los programas
     /// de la luz con el plano que corta lo de abajo del agua
     refl: Option<(glow::Framebuffer, glow::Texture, glow::Renderbuffer, i32, i32)>, refl_on: bool, refl_activo: bool, p_luz_r: Prog2, p_luz_rc: Prog2,
+    /// el reflejo del piso (cuando no hay agua): la altura del piso si se dibujó, 1/ancho y 1/alto de la pantalla; y con qué
+    /// cámara y plano se dibujó el último reflejo (si no cambiaron, se usa el de antes un cuadro sí y otro no)
+    refl_piso: Option<f32>, refl_px: [f32; 2], refl_ult: (M4, f32),
 }
 
 impl Motor {
@@ -422,7 +493,7 @@ impl Motor {
             let ib = gl.create_buffer()?; gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ib)); let ibb: Vec<u8> = caras.iter().flat_map(|x| x.to_le_bytes()).collect(); gl.buffer_data_u8_slice(glow::ELEMENT_ARRAY_BUFFER, &ibb, glow::STATIC_DRAW);
             Some((HashMap::new(), pc, vb, ib))
         } else { None };
-        Ok(Motor { som: None, som_vp: mat::id(), som_n: 0, som_on: false, som_off: [0.0; 2], som_huella: 0, refl_n: 0, p_som, p_som_c, refl: None, refl_on: false, refl_activo: false, p_luz_r, p_luz_rc, oclu, n_cuadro: 0, fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), gl, op, cubo: None, p_luz, p_luz_c, p_cielo, p_ui, p_copia, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), marcas_vb, marcas_n: 0, poses: vec![], poses_n: 0, pose_p: vec![], pose_v: vec![], marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
+        Ok(Motor { som: None, som_vp: [mat::id(); 2], som_n: 0, som_on: false, som_off: [[0.0; 2]; 2], som_huella: [0; 2], refl_n: 0, p_som, p_som_c, refl: None, refl_on: false, refl_activo: false, p_luz_r, p_luz_rc, refl_piso: None, refl_px: [0.0; 2], refl_ult: (mat::id(), f32::NAN), oclu, n_cuadro: 0, fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), gl, op, cubo: None, p_luz, p_luz_c, p_cielo, p_ui, p_copia, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), marcas_vb, marcas_n: 0, poses: vec![], poses_n: 0, pose_p: vec![], pose_v: vec![], marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
             c: None, items: vec![], opacos: vec![], transp: vec![], uint32, npot, escena_rt: None, dibujos: 0, memoria: 0, mapa: String::new() })
     }
 
@@ -709,14 +780,28 @@ impl Motor {
         gl.uniform_3_f32(p.u("uNieC"), l.nie.c[0], l.nie.c[1], l.nie.c[2]); gl.uniform_3_f32(p.u("uNie"), l.nie.a, l.nie.b, if l.nie.m > 0.0 { l.nie.m } else { 1.0 });
         gl.uniform_3_f32(p.u("uNieS"), l.nie.s[0], l.nie.s[1], l.nie.s[2]);
         gl.uniform_3_f32(p.u("uCam"), c.pos[0], c.pos[1], c.pos[2]); gl.uniform_1_f32(p.u("uExpo"), l.expo);
+        // (el cielo, para su reflejo en las superficies —como gpu.rs—)
+        let (top, mid, bot, ex, k) = self.cielo.as_ref().map(|c| (c.top, c.mid, c.bot, c.exp, c.k)).unwrap_or(([0.28, 0.64, 1.0], [0.92, 0.92, 0.92], [0.53, 0.58, 0.68], [0.5, 0.5], 1.0));
+        gl.uniform_3_f32(p.u("uTop"), top[0], top[1], top[2]); gl.uniform_3_f32(p.u("uMid"), mid[0], mid[1], mid[2]); gl.uniform_3_f32(p.u("uBot"), bot[0], bot[1], bot[2]);
+        gl.uniform_2_f32(p.u("uExp"), ex[0], ex[1]); gl.uniform_1_f32(p.u("uCieloK"), k);
         let n = c.luces.len().min(MAX_LUCES2); let (mut lp, mut lc) = ([0f32; 16], [0f32; 16]);
         for (i, q) in c.luces.iter().take(n).enumerate() { lp[i * 4..i * 4 + 4].copy_from_slice(&q[0..4]); lc[i * 4..i * 4 + 4].copy_from_slice(&q[4..8]); }
         gl.uniform_4_f32_slice(p.u("uLP"), &lp); gl.uniform_4_f32_slice(p.u("uLC"), &lc); gl.uniform_1_f32(p.u("uLN"), n as f32);
         for (k, nm) in ["uT", "uT1", "uT2", "uT3", "uLM"].iter().enumerate() { gl.uniform_1_i32(p.u(nm), k as i32); }
         // (la sombra, en la unidad 6: la 5 es la del cielo de cubo)
-        gl.uniform_matrix_4_f32_slice(p.u("uSVP"), false, &self.som_vp); gl.uniform_1_i32(p.u("uSom"), 6);
+        gl.uniform_matrix_4_f32_slice(p.u("uSVP"), false, &self.som_vp[0]); gl.uniform_matrix_4_f32_slice(p.u("uSVP2"), false, &self.som_vp[1]); gl.uniform_1_i32(p.u("uSom"), 6);
         let px = self.som.as_ref().map_or(1, |s| s.3);
-        gl.uniform_4_f32(p.u("uSomP"), 1.0 / px as f32, self.som_off[0], if self.som_on { 1.0 } else { 0.0 }, self.som_off[1]);
+        gl.uniform_4_f32(p.u("uSomP"), 1.0 / px as f32, self.som_off[0][0], if self.som_on { 1.0 } else { 0.0 }, self.som_off[0][1]);
+        gl.uniform_4_f32(p.u("uSomP2"), self.som_off[1][0], self.som_off[1][1], 0.0, 0.0);
+        // (el reflejo del piso, en la unidad 7: no mientras se dibuja el reflejo mismo)
+        gl.uniform_1_i32(p.u("uR"), 7);
+        match (self.refl_piso, self.refl.as_ref()) {
+            (Some(y), Some(r)) if self.refl_on && !self.refl_activo => {
+                gl.active_texture(glow::TEXTURE7); gl.bind_texture(glow::TEXTURE_2D, Some(r.1)); gl.active_texture(glow::TEXTURE0);
+                gl.uniform_4_f32(p.u("uRP"), self.refl_px[0], self.refl_px[1], 1.0, y);
+            }
+            _ => gl.uniform_4_f32(p.u("uRP"), 0.0, 0.0, 0.0, 0.0),
+        }
     }
     /// lo opaco de cerca a lejos —lo de atrás se descarta antes de pintarlo— y lo recortado al final (va con su programa)
     fn de_cerca(&self, l: &[usize]) -> Vec<usize> {
@@ -788,52 +873,61 @@ impl Motor {
     }
     /// la sombra del sol (como la cascada de lejos de gpu.rs, una sola): un mapa ortográfico de `sombra_radio` alrededor de la
     /// cámara, con la profundidad en RGBA; se rehace cada `sombra_cada` cuadros
+    /// la sombra del sol en dos cascadas (como OpenGL 3), una al lado de la otra en el mismo mapa (2 lados × 1): la de cerca
+    /// (un poco más de un quinto del radio, delante de la cámara: ~2,5 cm por texel) y la de lejos (todo el radio). La de
+    /// cerca se rehace cada `sombra_cada` cuadros y la de lejos la mitad de seguido (en los cuadros del medio); las dos, sólo
+    /// si algo cambió (la huella de la matriz y de lo que hay adentro)
     unsafe fn sombras_pasada(&mut self) {
         let s = self.sol();
         if !self.op.sombras || s[1] < 0.05 { self.som_on = false; return; }
-        let px = self.op.sombra_px.clamp(256, 2048);
+        let px = self.op.sombra_px.clamp(256, 1024);
         if self.som.as_ref().map_or(true, |x| x.3 != px) {
             let gl = &self.gl;
             if let Some((f, t, r, _)) = self.som.take() { gl.delete_framebuffer(f); gl.delete_texture(t); gl.delete_renderbuffer(r); }
             let (Ok(t), Ok(r), Ok(f)) = (gl.create_texture(), gl.create_renderbuffer(), gl.create_framebuffer()) else { self.op.sombras = false; return };
             gl.bind_texture(glow::TEXTURE_2D, Some(t));
-            gl.tex_image_2d(glow::TEXTURE_2D, 0, glow::RGBA as i32, px, px, 0, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelUnpackData::Slice(None));
+            gl.tex_image_2d(glow::TEXTURE_2D, 0, glow::RGBA as i32, px * 2, px, 0, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelUnpackData::Slice(None));
             for (k, v) in [(glow::TEXTURE_MIN_FILTER, glow::NEAREST), (glow::TEXTURE_MAG_FILTER, glow::NEAREST), (glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE), (glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE)] { gl.tex_parameter_i32(glow::TEXTURE_2D, k, v as i32); }
-            gl.bind_renderbuffer(glow::RENDERBUFFER, Some(r)); gl.renderbuffer_storage(glow::RENDERBUFFER, glow::DEPTH_COMPONENT16, px, px);
+            gl.bind_renderbuffer(glow::RENDERBUFFER, Some(r)); gl.renderbuffer_storage(glow::RENDERBUFFER, glow::DEPTH_COMPONENT16, px * 2, px);
             gl.bind_framebuffer(glow::FRAMEBUFFER, Some(f));
             gl.framebuffer_texture_2d(glow::FRAMEBUFFER, glow::COLOR_ATTACHMENT0, glow::TEXTURE_2D, Some(t), 0);
             gl.framebuffer_renderbuffer(glow::FRAMEBUFFER, glow::DEPTH_ATTACHMENT, glow::RENDERBUFFER, Some(r));
             // (si la placa no puede, sin sombra)
             let st = gl.check_framebuffer_status(glow::FRAMEBUFFER);
             if st != glow::FRAMEBUFFER_COMPLETE { eprintln!("gl2: el destino de la sombra no anda ({st:#x})"); gl.delete_framebuffer(f); gl.delete_texture(t); gl.delete_renderbuffer(r); self.op.sombras = false; self.som_on = false; return; }
-            self.som = Some((f, t, r, px)); self.som_on = false;
+            self.som = Some((f, t, r, px)); self.som_on = false; self.som_huella = [0; 2];
         }
         self.som_n += 1;
-        if self.som_on && self.som_n % self.op.sombra_cada.max(1) as u64 != 0 { return; }
-        let c = self.c.as_ref().unwrap(); let r = self.op.sombra_radio.max(8.0);
-        let paso = 2.0 * r / px as f32; let cen = [(c.pos[0] / paso).round() * paso, (c.pos[1] / paso).round() * paso, (c.pos[2] / paso).round() * paso];
-        let alto = r + 80.0; let rango = alto + r;
-        let ojo = [cen[0] + s[0] * alto, cen[1] + s[1] * alto, cen[2] + s[2] * alto];
-        let arriba = if s[1].abs() > 0.95 { [0.0, 0.0, 1.0] } else { [0.0, 1.0, 0.0] };
-        let svp = mat::mul(&mat::orto(-r, r, -r, r, 0.5, rango), &mat::mirar(ojo, cen, arriba));
-        self.som_vp = svp; self.som_off = [0.3 / rango, 3.0 * paso];
-        let pl = mat::planos(&svp);
-        let lista: Vec<usize> = self.opacos.iter().copied().filter(|&i| { let it = &self.items[i]; it.fl & FL_CIELO == 0 && mat::esfera_dentro(&pl, &it.esf) && self.mats.get(&it.mat).map_or(false, |m| m.unlit == 0) }).collect();
-        // (si no cambió nada —la misma matriz y lo mismo adentro, en el mismo lugar y pose— la sombra guardada sirve)
-        let mut hu: u64 = 0xcbf29ce484222325; let mut mete = |x: u64| { hu ^= x; hu = hu.wrapping_mul(0x100000001b3); };
-        for v in &svp { mete(v.to_bits() as u64); }
-        for &i in &lista { let it = &self.items[i]; mete(it.m as u64); mete(it.s0 as u64); mete(it.mat as u64); for v in &it.mm { mete(v.to_bits() as u64); } for v in &it.h { mete(v.to_bits() as u64); } }
-        if self.som_on && hu == self.som_huella { return; }
-        self.som_huella = hu;
-        let (f, ..) = *self.som.as_ref().unwrap();
-        let gl = &self.gl;
-        gl.bind_framebuffer(glow::FRAMEBUFFER, Some(f)); gl.viewport(0, 0, px, px);
-        gl.clear_color(1.0, 1.0, 1.0, 1.0); gl.clear_depth_f32(1.0); gl.depth_mask(true); gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
-        gl.enable(glow::DEPTH_TEST); gl.depth_func(glow::LEQUAL); gl.disable(glow::BLEND); gl.disable(glow::CULL_FACE);
-        for p in [&self.p_som, &self.p_som_c] { gl.use_program(Some(p.p)); gl.uniform_matrix_4_f32_slice(p.u("uVP"), false, &svp); gl.uniform_1_i32(p.u("uT"), 0); }
-        let lista_n = lista.len();
-        for i in lista { self.dibujar_sombra(i); }
-        if std::env::var_os("JXM_GL2_VER_SOMBRA").is_some() && self.som_n < 4 { eprintln!("gl2: sombra con {} cosas, px {px}", lista_n); }
+        let cada = self.op.sombra_cada.max(1) as u64; let n = self.som_n;
+        let toca = [!self.som_on || n % cada == 0, !self.som_on || n % (2 * cada) == cada / 2];
+        let mut hechas = 0;
+        for k in 0..2 {
+            if !toca[k] { continue; }
+            let c = self.c.as_ref().unwrap(); let r = if k == 0 { (self.op.sombra_radio * 0.22).max(6.0) } else { self.op.sombra_radio.max(8.0) };
+            let (svp, off) = cascada2(c, s, r, px, k == 0);
+            self.som_vp[k] = svp; self.som_off[k] = off;
+            let pl = mat::planos(&svp);
+            let lista: Vec<usize> = self.opacos.iter().copied().filter(|&i| { let it = &self.items[i]; it.fl & FL_CIELO == 0 && mat::esfera_dentro(&pl, &it.esf) && self.mats.get(&it.mat).map_or(false, |m| m.unlit == 0) }).collect();
+            // (si no cambió nada —la misma matriz y lo mismo adentro, en el mismo lugar y pose— la mitad guardada sirve)
+            let mut hu: u64 = 0xcbf29ce484222325; let mut mete = |x: u64| { hu ^= x; hu = hu.wrapping_mul(0x100000001b3); };
+            for v in &svp { mete(v.to_bits() as u64); }
+            for &i in &lista { let it = &self.items[i]; mete(it.m as u64); mete(it.s0 as u64); mete(it.mat as u64); for v in &it.mm { mete(v.to_bits() as u64); } for v in &it.h { mete(v.to_bits() as u64); } }
+            let hu = hu.max(1);
+            if self.som_on && hu == self.som_huella[k] { continue; }
+            self.som_huella[k] = hu;
+            let (f, ..) = *self.som.as_ref().unwrap();
+            let gl = &self.gl; let x0 = k as i32 * px;
+            gl.bind_framebuffer(glow::FRAMEBUFFER, Some(f)); gl.viewport(x0, 0, px, px);
+            // (se borra y se dibuja sólo esa mitad)
+            gl.enable(glow::SCISSOR_TEST); gl.scissor(x0, 0, px, px);
+            gl.clear_color(1.0, 1.0, 1.0, 1.0); gl.clear_depth_f32(1.0); gl.depth_mask(true); gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
+            gl.enable(glow::DEPTH_TEST); gl.depth_func(glow::LEQUAL); gl.disable(glow::BLEND); gl.disable(glow::CULL_FACE);
+            for p in [&self.p_som, &self.p_som_c] { gl.use_program(Some(p.p)); gl.uniform_matrix_4_f32_slice(p.u("uVP"), false, &svp); gl.uniform_1_i32(p.u("uT"), 0); }
+            hechas += lista.len();
+            for i in lista { self.dibujar_sombra(i); }
+            self.gl.disable(glow::SCISSOR_TEST);
+        }
+        if std::env::var_os("JXM_GL2_VER_SOMBRA").is_some() && self.som_n < 6 { eprintln!("gl2: sombra con {hechas} cosas, px {px}×2"); }
         self.som_on = true;
         let gl = &self.gl; gl.active_texture(glow::TEXTURE6); gl.bind_texture(glow::TEXTURE_2D, self.som.as_ref().map(|x| x.1)); gl.active_texture(glow::TEXTURE0);
     }
@@ -858,9 +952,20 @@ impl Motor {
     /// transparente ni lo de abajo del agua; devuelve si se dibujó
     unsafe fn reflejo_pasada(&mut self, rw: i32, rh: i32) -> bool {
         if std::env::var_os("JXM_GL2_VER_REFLEJO").is_some() && self.n_cuadro < 3 { eprintln!("gl2: {} aguas, reflejo {}", self.aguas.len(), self.op.reflejo); }
-        if !self.op.reflejo || self.aguas.is_empty() { return false; }
-        let c = self.c.as_ref().unwrap(); let Some(ay) = c.agua_y.or(self.agua.as_ref().map(|a| a.y)) else { return false };
-        if c.pos[1] < ay + 0.05 { return false; }
+        self.refl_piso = None;
+        if !self.op.reflejo { return false; }
+        // (el plano: el agua si la hay y la cámara está arriba; si no, el piso de abajo de la cámara —si no está muy lejos—)
+        let c = self.c.as_ref().unwrap();
+        let agua = if self.aguas.is_empty() { None } else { c.agua_y.or(self.agua.as_ref().map(|a| a.y)).filter(|&ay| c.pos[1] >= ay + 0.05) };
+        let piso = if agua.is_some() || !self.op.reflejo_piso { None } else { c.suelo_y.filter(|&y| (0.2..25.0).contains(&(c.pos[1] - y))) };
+        // (y sólo si cerca y a la vista hay algo liso que cruza esa altura —las baldosas, el metal, lo que en Source tiene
+        // $envmap o $phong—: en un piso áspero no se vería y no se gasta)
+        let piso = piso.filter(|&y| { let pl = mat::planos(&c.vp); let cp = c.pos;
+            self.opacos.iter().any(|&i| { let it = &self.items[i]; let e = it.esf;
+                e[3] > 0.0 && (e[1] - y).abs() < e[3] && self.mats.get(&it.mat).map_or(false, |m| m.pbr[0] < BRILLO_PISO)
+                    && ((e[0] - cp[0]).powi(2) + (e[2] - cp[2]).powi(2)).sqrt() - e[3] < 50.0 && mat::esfera_dentro(&pl, &e) }) });
+        let Some(ay) = agua.or(piso) else { return false };
+        self.refl_px = [1.0 / rw as f32, 1.0 / rh as f32];
         let div = self.op.reflejo_div.max(2); let (w, h) = ((rw / div).max(16), (rh / div).max(16));
         if self.refl.as_ref().map_or(true, |r| r.3 != w || r.4 != h) {
             let gl = &self.gl;
@@ -876,19 +981,29 @@ impl Motor {
             if gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE { gl.delete_framebuffer(f); gl.delete_texture(t); gl.delete_renderbuffer(r); self.op.reflejo = false; return false; }
             self.refl = Some((f, t, r, w, h));
         }
-        self.refl_n += 1; if self.refl_on && self.refl_n % 2 == 0 { return true; }
+        // (si la cámara y el plano no cambiaron, un cuadro sí y otro no se usa el de antes; moviéndose, siempre nuevo: si no,
+        // el reflejo del piso se arrastra detrás de la cámara)
+        self.refl_n += 1;
+        let quieta = self.refl_ult.1 == ay && self.refl_ult.0.iter().zip(c.vp.iter()).all(|(a, b)| (a - b).abs() < 1e-4);
+        if self.refl_on && quieta && self.refl_n % 2 == 0 { self.refl_piso = piso; return true; }
+        self.refl_ult = (c.vp, ay); self.refl_piso = piso;
+        // (el piso mismo no se refleja: el plano que corta va un poco más arriba)
+        let corte = if piso.is_some() { ay + 0.03 } else { ay };
         let vp = mat::mul(&c.vp, &mat::espejo_y(ay)); let cp = c.pos;
         let (f, ..) = *self.refl.as_ref().unwrap();
         { let gl = &self.gl; gl.bind_framebuffer(glow::FRAMEBUFFER, Some(f)); gl.viewport(0, 0, w, h);
           gl.clear_color(0.0, 0.0, 0.0, 1.0); gl.clear_depth_f32(1.0); gl.depth_mask(true); gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
           gl.enable(glow::DEPTH_TEST); gl.depth_func(glow::LEQUAL); gl.disable(glow::BLEND);
-          for p in [&self.p_cielo, &self.p_luz_r, &self.p_luz_rc] { gl.use_program(Some(p.p)); gl.uniform_3_f32(p.u("uRet"), 1.0 / w as f32, 1.0 / h as f32, if self.op.retoque { 1.0 } else { 0.0 }); } }
+          // (lo del piso sin el retoque: se lo pone el piso al mezclarlo; y la unidad 7 sin el reflejo, que es donde se dibuja)
+          let ret = self.op.retoque && piso.is_none();
+          gl.active_texture(glow::TEXTURE7); gl.bind_texture(glow::TEXTURE_2D, Some(self.blanca)); gl.active_texture(glow::TEXTURE0);
+          for p in [&self.p_cielo, &self.p_luz_r, &self.p_luz_rc] { gl.use_program(Some(p.p)); gl.uniform_3_f32(p.u("uRet"), 1.0 / w as f32, 1.0 / h as f32, if ret { 1.0 } else { 0.0 }); } }
         self.cielo_dibujar(&vp);
-        for p in [&self.p_luz_r, &self.p_luz_rc] { self.luces_en(p, &vp); self.gl.uniform_4_f32(p.u("uClip"), 0.0, 1.0, 0.0, -ay); }
-        let pl = mat::planos(&vp);
-        let lista: Vec<usize> = self.opacos.iter().copied().filter(|&i| { let e = self.items[i].esf; self.items[i].fl & FL_CIELO == 0 && e[1] + e[3] > ay && mat::esfera_dentro(&pl, &e)
-            && ((e[0] - cp[0]).powi(2) + (e[2] - cp[2]).powi(2)).sqrt() - e[3] < 160.0 }).collect();
         self.refl_activo = true;
+        for p in [&self.p_luz_r, &self.p_luz_rc] { self.luces_en(p, &vp); self.gl.uniform_4_f32(p.u("uClip"), 0.0, 1.0, 0.0, -corte); }
+        let pl = mat::planos(&vp); let lejos = if piso.is_some() { 110.0 } else { 160.0 };
+        let lista: Vec<usize> = self.opacos.iter().copied().filter(|&i| { let e = self.items[i].esf; self.items[i].fl & FL_CIELO == 0 && e[1] + e[3] > corte && mat::esfera_dentro(&pl, &e)
+            && ((e[0] - cp[0]).powi(2) + (e[2] - cp[2]).powi(2)).sqrt() - e[3] < lejos }).collect();
         for i in self.de_cerca(&lista) { self.dibujar_item(i); }
         self.refl_activo = false;
         true

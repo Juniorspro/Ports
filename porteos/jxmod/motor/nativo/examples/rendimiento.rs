@@ -2,7 +2,7 @@
 //! celular barato (1600 × 720), mirando a los cuatro lados; cada cuadro se mide entero (el juego, el armado del dibujo y la
 //! placa terminando: glFinish / la espera de Vulkan). Con llvmpipe (la placa de Mesa que dibuja en la CPU) hace de celular
 //! muy flojo. Uso: rendimiento [ANCHO ALTO]   (JXM_MOTOR=vk|gl2; JXM_MAPA; JXM_CALIDAD 0..4; JXM_SIN=sombras,ao,reflejo,retoque;
-//! JXM_RES=50..100; JXM_FOTO=archivo.png guarda la vista de adelante)
+//! JXM_RES=50..100; JXM_FOTO=archivo.png guarda la vista de adelante; JXM_OJOS=x,y,z[,giro,incl])
 use glow::HasContext;
 use jxjuego::paquete::Paquete;
 use jxmod::comun::{Juego, Placa};
@@ -69,15 +69,19 @@ fn main() {
     // (JXM_AGUA=1: mirando el agua del mapa desde su orilla, un poco arriba)
     if std::env::var_os("JXM_AGUA").is_some() { if let Some(a) = j.mapa.as_ref().and_then(|m| m.esc.c.agua.clone()) { if let Some(pr) = a.prof.as_ref() {
         ojos = [pr.x0 + pr.w * 0.5, a.y + 2.6, pr.z0 + pr.h * 0.5]; println!("agua: y {:.2} · de {:.1},{:.1} a {:.1},{:.1}", a.y, pr.x0, pr.z0, pr.x0 + pr.w, pr.z0 + pr.h); } } }
+    // (JXM_OJOS=x,y,z[,giro,inclinación en grados]: desde ahí —la foto, con ese giro—)
+    let mut giro0 = 0.0f32; let mut incl: Option<f32> = None;
+    if let Ok(t) = std::env::var("JXM_OJOS") { let v: Vec<f32> = t.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+        if v.len() >= 3 { ojos = [v[0], v[1], v[2]]; } if v.len() >= 4 { giro0 = v[3]; } if v.len() >= 5 { incl = Some(v[4].to_radians()); } }
     cpu.set(0.0); if let Motor3d::Gl(g, _) = &mut m { if let Some(f) = g.fases.as_mut() { f.1.clear(); } g.fases_b.clear(); } medir_ab.set(true); let mut total = 0.0; let mut n = 0; let mut peor = 0f64; let mut por_vista = vec![];
     for (k, yaw) in [0.0f32, 90.0, 180.0, 270.0].iter().enumerate() {
-        j.poner_ojos(ojos, yaw.to_radians(), if std::env::var_os("JXM_AGUA").is_some() { -0.35 } else { -0.05 });
+        j.poner_ojos(ojos, (yaw + giro0).to_radians(), incl.unwrap_or(if std::env::var_os("JXM_AGUA").is_some() { -0.35 } else { -0.05 }));
         for _ in 0..8 { paso(&mut j, &mut m); }
         let mut s = 0.0; for _ in 0..20 { let ms = paso(&mut j, &mut m); s += ms; peor = peor.max(ms); }
         total += s; n += 20; por_vista.push(s / 20.0);
         // (JXM_SEGUIDO: además, 20 cuadros seguidos sin esperar a la placa en cada uno —como el juego, que no espera—: el ritmo real)
         if seguido { let t = Instant::now(); for _ in 0..20 { unsafe { j.cuadro(&mut m, w, h, &placa).expect("cuadro"); } j.medir(16.0); } unsafe { m.esperar(); } seg.push(t.elapsed().as_secs_f64() * 1000.0 / 20.0); }
-        if k == 0 { if let Ok(f) = std::env::var("JXM_FOTO") { guardar(&mut m, w, h, &f); } }
+        if k == std::env::var("JXM_FOTO_VISTA").ok().and_then(|x| x.parse().ok()).unwrap_or(0) { if let Ok(f) = std::env::var("JXM_FOTO") { guardar(&mut m, w, h, &f); } }
     }
     let prom = total / n as f64; println!("de eso, armar el cuadro (CPU, hasta mandarlo): {:.1} ms", cpu.get() / (n as f64 + 32.0));
     println!("{} · {}x{} · calidad {} res {}% sombras {} ao {} reflejo {} retoque {} · {}", placa, w, h, cal, j.aj.res, j.aj.sombras, j.aj.ao, j.aj.reflejo, j.aj.retoque, std::env::var("JXM_MAPA").unwrap_or("el de siempre".into()));

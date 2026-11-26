@@ -1134,7 +1134,9 @@ impl Juego {
             let mut efectos = self.ef.bloques(&vpm, cam); self.jg_efectos(&mut efectos, &vpm, cam);
             let mut luces = self.ef.luces(); luces.extend(mp.luces_cerca(ojos, 6));
             self.herramientas_items(&mut items, &mut luces); luces.truncate(8); self.jg_luces(&mut luces); self.pjs_luces(&mut luces, ojos);
-            let c = Cuadro { vp: m4::mul(&p, &vista), pos: cam, luz, agua_y: mp.agua_y, tiempo: self.t0.elapsed().as_secs_f32(),
+            // (el piso de abajo de la cámara, para su reflejo en OpenGL 2: sólo si es casi plano)
+            let suelo_y = jxjuego::persona::rayo_mundo(&mp.mundo, jugabilidad::v64(cam), [0.0, -1.0, 0.0], 30.0).filter(|h| h.1[1] > 0.9).map(|h| cam[1] - h.0 as f32);
+            let c = Cuadro { vp: m4::mul(&p, &vista), pos: cam, luz, agua_y: mp.agua_y, suelo_y, tiempo: self.t0.elapsed().as_secs_f32(),
                 luces, esp: self.jg_esp(cam, mira), items, efectos };
             marca(&mut self.perf, &mut self.perf_t, 3);
             m.poner_cuadro(c);

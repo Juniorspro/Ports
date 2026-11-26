@@ -257,7 +257,7 @@ impl Juego {
         let s = [-0.35f32, 0.75, -0.55]; let n = (s[0] * s[0] + s[1] * s[1] + s[2] * s[2]).sqrt();
         let luz = jxmotor::escena::Luz { sol: [s[0] / n, s[1] / n, s[2] / n], sol_c: [1.5, 1.42, 1.3], amb_s: [0.36, 0.38, 0.44], amb_g: [0.16, 0.15, 0.13],
             nie: jxmotor::escena::Niebla { c: [0.012, 0.014, 0.017], a: 500.0, b: 900.0, m: 0.0, s: [0.0; 3] }, expo: 1.0 };
-        m.poner_cuadro(jxmotor::escena::Cuadro { vp: m4::mul(&p, &vista), pos: cam, luz, agua_y: None, tiempo: self.ini.reloj, luces: vec![], esp: vec![], items, efectos: vec![] });
+        m.poner_cuadro(jxmotor::escena::Cuadro { vp: m4::mul(&p, &vista), pos: cam, luz, agua_y: None, suelo_y: None, tiempo: self.ini.reloj, luces: vec![], esp: vec![], items, efectos: vec![] });
         true
     }
     /// (los íconos que se pintaron recién en este cuadro: a la placa antes de dibujar)

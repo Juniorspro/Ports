@@ -138,7 +138,7 @@ fn main() {
     let cuadro_de = |m: &Momento, con: bool, solo: bool| {
         let mut luces = if con && !solo { m.luces.clone() } else { vec![] }; if !solo { luces.extend(mapa.luces_cerca(m.ojo, 6)); } luces.truncate(8);
         // (sin efectos: las marcas vacías, que el motor no deje las de antes)
-        Cuadro { vp: m.vp, pos: m.ojo, luz: mapa.luz, agua_y: mapa.agua_y, tiempo: 1.0, luces, esp: vec![], items: if solo { vec![] } else { items.clone() }, efectos: if con { m.efectos.clone() } else { vec![(EF_MARCAS, vec![])] } }
+        Cuadro { vp: m.vp, pos: m.ojo, luz: mapa.luz, agua_y: mapa.agua_y, suelo_y: None, tiempo: 1.0, luces, esp: vec![], items: if solo { vec![] } else { items.clone() }, efectos: if con { m.efectos.clone() } else { vec![(EF_MARCAS, vec![])] } }
     };
     let cuadro = |m: &Momento, con: bool| cuadro_de(m, con, false);
 
@@ -326,7 +326,7 @@ fn agua(sal: &str) {
         let mut m = unsafe { abrir(mn, w, h) }; unsafe { m.cargar(&mapa.esc); m.cargar(&efectos::atlas()); }
         let mut v = vec![];
         for (f, b, l) in &cuadros {
-            let c = Cuadro { vp, pos: ojo, luz: mapa.luz, agua_y: mapa.agua_y, tiempo: 1.0, luces: l.clone(), esp: vec![], items: mapa.items.clone(), efectos: b.clone() };
+            let c = Cuadro { vp, pos: ojo, luz: mapa.luz, agua_y: mapa.agua_y, suelo_y: None, tiempo: 1.0, luces: l.clone(), esp: vec![], items: mapa.items.clone(), efectos: b.clone() };
             let _ = unsafe { m.foto(c.clone(), w, h) }; let px = unsafe { m.foto(c, w, h) };
             guardar(&format!("{sal}/agua_{mn}_{f}.png"), w as u32, h as u32, &px); v.push(px);
         }

@@ -72,7 +72,7 @@ impl Escena {
     /// el cuadro guardado en la escena (el banco de pruebas: una foto del juego)
     pub fn cuadro(&self) -> Option<Cuadro> {
         let cam = self.c.cam.as_ref()?;
-        Some(Cuadro { vp: cam.vp, pos: cam.pos, luz: self.c.luz.unwrap_or_default(), agua_y: self.c.agua.as_ref().map(|a| a.y), tiempo: 0.0, luces: vec![], esp: vec![], efectos: vec![],
+        Some(Cuadro { vp: cam.vp, pos: cam.pos, luz: self.c.luz.unwrap_or_default(), agua_y: self.c.agua.as_ref().map(|a| a.y), suelo_y: None, tiempo: 0.0, luces: vec![], esp: vec![], efectos: vec![],
             items: self.c.items.iter().map(|it| ItemDin { m: it.m, s0: it.s0, sn: it.sn, mat: it.mat, mm: it.mm, esf: [0.0, 0.0, 0.0, -1.0], fl: 0, h: Vec::new() }).collect() })
     }
 }
@@ -88,7 +88,8 @@ pub const FL_CIELO: u32 = 2;
 /// luces del cuadro: posición y radio, color, dirección y coseno del cono (-2: sin cono)
 pub type LuzP = [f32; 12];
 #[derive(Clone, Debug)]
-pub struct Cuadro { pub vp: [f32; 16], pub pos: [f32; 3], pub luz: Luz, pub agua_y: Option<f32>, pub tiempo: f32, pub luces: Vec<LuzP>, pub esp: Vec<LuzP>, pub items: Vec<ItemDin>, pub efectos: Vec<(u32, Vec<f32>)> }
+/// (suelo_y: la altura del piso que hay debajo de la cámara —el reflejo del piso de OpenGL 2—)
+pub struct Cuadro { pub vp: [f32; 16], pub pos: [f32; 3], pub luz: Luz, pub agua_y: Option<f32>, pub suelo_y: Option<f32>, pub tiempo: f32, pub luces: Vec<LuzP>, pub esp: Vec<LuzP>, pub items: Vec<ItemDin>, pub efectos: Vec<(u32, Vec<f32>)> }
 /// los bloques de efectos que van después de las cosas: tipo, cuántos floats y los floats
 pub const EF_PART_ALFA: u32 = 1; pub const EF_PART_SUMA: u32 = 2; pub const EF_MARCAS: u32 = 3;
 
@@ -155,7 +156,7 @@ impl Cuadro {
         // (los efectos: partículas —con la derecha y el arriba de la cámara para los carteles— y las marcas de frenada)
         let mut efectos = vec![];
         while let Ok(c) = tomar(2) { let (t, m) = (c[0] as u32, c[1] as usize); let d = tomar(m)?.to_vec(); efectos.push((t, d)); }
-        Ok(Cuadro { vp, pos, luz, agua_y: if ay.is_nan() { None } else { Some(ay) }, tiempo, luces, esp, items, efectos })
+        Ok(Cuadro { vp, pos, luz, agua_y: if ay.is_nan() { None } else { Some(ay) }, suelo_y: None, tiempo, luces, esp, items, efectos })
     }
 }
 

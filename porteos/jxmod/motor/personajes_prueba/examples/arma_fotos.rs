@@ -68,7 +68,7 @@ fn main() {
     let foto = |m: &mut Motor, items: &[ItemDin], ojo: [f32; 3], mira: [f32; 3], fov: f32| -> Vec<u8> {
         let vp = m4::mul(&persp(fov, W as f32 / H as f32, 0.02, mapa.lejos), &m4::mirar(ojo, mira, [0.0, 1.0, 0.0]));
         unsafe {
-            m.poner_cuadro(Cuadro { vp, pos: ojo, luz: mapa.luz, agua_y: mapa.agua_y, tiempo: 1.0, luces: mapa.luces_cerca(ojo, 6), esp: vec![], items: items.to_vec(), efectos: vec![] });
+            m.poner_cuadro(Cuadro { vp, pos: ojo, luz: mapa.luz, agua_y: mapa.agua_y, suelo_y: None, tiempo: 1.0, luces: mapa.luces_cerca(ojo, 6), esp: vec![], items: items.to_vec(), efectos: vec![] });
             m.dibujar(Some(fb), W, H);
             let gl = &m.gl; let mut px = vec![0u8; (W * H * 4) as usize];
             gl.bind_framebuffer(glow::FRAMEBUFFER, Some(fb)); gl.read_pixels(0, 0, W, H, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelPackData::Slice(Some(&mut px)));

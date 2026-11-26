@@ -124,7 +124,7 @@ fn main() {
 }
 
 unsafe fn foto(m: &mut Motor, fb: glow::Framebuffer, mapa: &jxjuego::mapa::Mapa, items: &[ItemDin], ojo: [f32; 3], vp: M4) -> Vec<u8> {
-    m.poner_cuadro(Cuadro { vp, pos: ojo, luz: mapa.luz, agua_y: mapa.agua_y, tiempo: 1.0, luces: mapa.luces_cerca(ojo, 6), esp: vec![], items: items.to_vec(), efectos: vec![] });
+    m.poner_cuadro(Cuadro { vp, pos: ojo, luz: mapa.luz, agua_y: mapa.agua_y, suelo_y: None, tiempo: 1.0, luces: mapa.luces_cerca(ojo, 6), esp: vec![], items: items.to_vec(), efectos: vec![] });
     m.dibujar(Some(fb), W, H);
     let gl = &m.gl; let mut px = vec![0u8; (W * H * 4) as usize];
     gl.bind_framebuffer(glow::FRAMEBUFFER, Some(fb)); gl.read_pixels(0, 0, W, H, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelPackData::Slice(Some(&mut px)));
