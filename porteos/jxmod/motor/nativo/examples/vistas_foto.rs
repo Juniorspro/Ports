@@ -89,7 +89,7 @@ fn main() {
         let sol = { let s = mp.luz.sol; let l = (s[0] * s[0] + s[1] * s[1] + s[2] * s[2]).sqrt().max(1e-6); [s[0] / l, s[1] / l, s[2] / l] };
         let mut mejor: Option<([f32; 3], f32)> = None;
         for gx in -15..=15 { for gz in -15..=15 { let p = [p0[0] + gx as f32 * 2.0, p0[1] + 0.9, p0[2] + gz as f32 * 2.0];
-            let (c, r, vale, _) = jxmod::comun::luz_global::sonda(&mp.mundo, p, sol);
+            let so = jxmod::comun::luz_global::sonda(&mp.mundo, p, sol); let (c, r, vale) = (so.s[2], so.b.iter().sum::<f32>() / 6.0, so.vale);
             if vale && c < 0.25 { let k = c - r * 0.5; if mejor.map_or(true, |m| k < m.1) { mejor = Some((p, k)); } } } }
         if let Some((p, _)) = mejor {
             println!("  interior en {:?}", p);
@@ -98,6 +98,7 @@ fn main() {
             for (k, dy) in [0.0f32, 1.57, 3.14, 4.71].iter().enumerate() { j.poner_ojos(p, y0 + dy, -0.1); paso(&mut j, &mut m, np); foto(&mut m, &format!("i_{k}")); }
         } else { println!("  (no se encontró un interior)"); }
     } }
+    if std::env::var_os("JXM_GI_FUGAS").is_some() { if let Some(mp) = j.mapa.as_ref() { gi_fugas(&mp.mundo, mp.luz.sol, p0); return; } }
     if let Ok(t) = std::env::var("JXM_VISTAS") {
         for (k, v) in t.split(';').enumerate() { let v: Vec<f32> = v.split(',').filter_map(|x| x.trim().parse().ok()).collect(); if v.len() < 5 { continue; }
             j.poner_ojos([v[0], v[1], v[2]], v[3].to_radians(), v[4].to_radians()); paso(&mut j, &mut m, np); foto(&mut m, &format!("x_{k}")); }
@@ -125,4 +126,109 @@ fn main() {
     let mut ms = vec![]; j.poner_ojos([p0[0], p0[1] + 0.7, p0[2]], y0, -0.05);
     for _ in 0..40 { let t = Instant::now(); paso(&mut j, &mut m, 1); ms.push(t.elapsed().as_secs_f32() * 1000.0); }
     ms.sort_by(|a, b| a.partial_cmp(b).unwrap()); println!("cuadro: mediana {:.1} ms · {}", ms[20], m.resumen());
+}
+
+/// el esquema de antes (para comparar): 14 rayos, un solo valor de los costados, sin rellenar
+mod viejo {
+    pub fn sonda(m: &jxjuego::mundo::Mundo, p: [f32; 3], sol: [f32; 3]) -> (f32, f32, bool, f32) {
+        let rayo = |o: [f32; 3], d: [f32; 3], max: f64| jxjuego::persona::rayo_mundo(m, [o[0] as f64, o[1] as f64, o[2] as f64], [d[0] as f64, d[1] as f64, d[2] as f64], max);
+        let (mut cielo, mut peso_cielo, mut rebote, mut pegados) = (0.0f32, 0.0f32, 0.0f32, 0);
+        let (mut lado, mut peso_lado) = (0.0f32, 0.0f32);
+        let d3 = 1.0 / 3f32.sqrt();
+        let dirs = [[1.0, 0.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0], [d3, d3, d3], [-d3, d3, d3], [d3, d3, -d3], [-d3, d3, -d3], [d3, -d3, d3], [-d3, -d3, d3], [d3, -d3, -d3], [-d3, -d3, -d3]];
+        for d in dirs.iter() {
+            let h = rayo(p, *d, 30.0);
+            if d[1] > 0.05 { peso_cielo += d[1]; if h.is_none() { cielo += d[1]; } }
+            if d[1].abs() < 0.05 || (d[1] > 0.05 && d[1] < 0.7) { let k = if d[1].abs() < 0.05 { 1.0 } else { 0.7 }; peso_lado += k; if h.is_none() { lado += k; } }
+            if let Some((t, nh)) = h {
+                if t < 0.3 { pegados += 1; continue; }
+                let nh = [nh[0] as f32, nh[1] as f32, nh[2] as f32]; let cs = nh[0] * sol[0] + nh[1] * sol[1] + nh[2] * sol[2];
+                if cs > 0.0 && sol[1] > 0.0 { let q = [p[0] + d[0] * t as f32 + nh[0] * 0.05, p[1] + d[1] * t as f32 + nh[1] * 0.05, p[2] + d[2] * t as f32 + nh[2] * 0.05]; if rayo(q, sol, 60.0).is_none() { rebote += cs * 0.5; } }
+            }
+        }
+        (if peso_cielo > 0.0 { cielo / peso_cielo } else { 1.0 }, (rebote / 14.0 * 2.2).min(1.0), pegados * 3 < 14, if peso_lado > 0.0 { lado / peso_lado } else { 1.0 })
+    }
+    /// la grilla: por sonda (cielo·v, rebote·v, v, lado·v)
+    pub fn calcular(m: &jxjuego::mundo::Mundo, origen: [f32; 3], sol: [f32; 3]) -> Vec<[f32; 4]> {
+        let [nx, ny, nz] = jxmod::comun::luz_global::N; let paso = jxmod::comun::luz_global::PASO; let mut v = vec![[0.0; 4]; nx * ny * nz];
+        for z in 0..nz { for y in 0..ny { for x in 0..nx { let p = [origen[0] + (x as f32 + 0.5) * paso, origen[1] + (y as f32 + 0.5) * paso, origen[2] + (z as f32 + 0.5) * paso];
+            let (c, r, vale, l) = sonda(m, p, sol); let k = if vale { 1.0 } else { 0.0 }; v[(z * ny + y) * nx + x] = [c * k, r * k, k, l * k]; } } }
+        v
+    }
+    /// lo que leía la placa: el cielo que usaba la cara con normal n (mezcla de arriba y de los costados)
+    pub fn muestra(v: &[[f32; 4]], origen: [f32; 3], p: [f32; 3], n: [f32; 3]) -> f32 {
+        let nn = jxmod::comun::luz_global::N; let paso = jxmod::comun::luz_global::PASO;
+        let mut g = [0.0f32; 3]; for k in 0..3 { g[k] = (p[k] - origen[k]) / paso - 0.5; if g[k] < -0.5 || g[k] > nn[k] as f32 - 0.5 { return 1.0; } g[k] = g[k].clamp(0.0, nn[k] as f32 - 1.0); }
+        let a = [g[0].floor() as usize, g[1].floor() as usize, g[2].floor() as usize]; let f = [g[0] - a[0] as f32, g[1] - a[1] as f32, g[2] - a[2] as f32];
+        let mut s = [0.0f32; 4];
+        for dz in 0..2 { for dy in 0..2 { for dx in 0..2 { let (x, y, z) = ((a[0] + dx).min(nn[0] - 1), (a[1] + dy).min(nn[1] - 1), (a[2] + dz).min(nn[2] - 1));
+            let w = (if dx == 1 { f[0] } else { 1.0 - f[0] }) * (if dy == 1 { f[1] } else { 1.0 - f[1] }) * (if dz == 1 { f[2] } else { 1.0 - f[2] });
+            let q = v[(z * nn[1] + y) * nn[0] + x]; for c in 0..4 { s[c] += w * q[c]; } } } }
+        if s[2] < 0.03 { return 1.0; }
+        let (c, l) = (s[0] / s[2], s[3] / s[2]); c + (l - c) * (1.0 - n[1].abs()) * 0.8
+    }
+}
+
+/// cuánta luz de afuera se cuela adentro: en las paredes y pisos de los lugares techados cerca de la aparición, lo que lee la
+/// placa (la grilla mezclada) contra una sonda puesta justo ahí (lo que de verdad ve esa cara), con el esquema de antes y el nuevo
+fn gi_fugas(m: &jxjuego::mundo::Mundo, sol: [f32; 3], p0: [f32; 3]) {
+    use jxmod::comun::luz_global as lg;
+    let sol = { let l = (sol[0] * sol[0] + sol[1] * sol[1] + sol[2] * sol[2]).sqrt().max(1e-6); [sol[0] / l, sol[1] / l, sol[2] / l] };
+    let rayo = |o: [f32; 3], d: [f32; 3], max: f64| jxjuego::persona::rayo_mundo(m, [o[0] as f64, o[1] as f64, o[2] as f64], [d[0] as f64, d[1] as f64, d[2] as f64], max)
+        .map(|(t, n)| (t as f32, [n[0] as f32, n[1] as f32, n[2] as f32]));
+    // (los centros: la aparición o, con JXM_GI_MAPA, todo el mapa cada 48 m en tres alturas)
+    let mut centros = vec![p0];
+    if std::env::var_os("JXM_GI_MAPA").is_some() { centros.clear();
+        let (lo, hi) = (m.lo, m.hi); let mut x = lo[0] + 24.0; while x < hi[0] { let mut z = lo[2] + 24.0; while z < hi[2] { for dy in [-8.0f32, 0.0, 8.0] { centros.push([x, p0[1] + dy, z]); } z += 48.0; } x += 48.0; } }
+    // (por tipo: puntos, error antes/ahora, fuga antes/ahora, malas antes/ahora)
+    let mut tot = [[0.0f32; 7]; 3]; let (mut t_n, mut t_v) = (0.0f32, 0.0f32);
+    for c in centros.iter() {
+        let origen = lg::origen_para(*c);
+        let (mut caras, mut pisos, mut altas): (Vec<([f32; 3], [f32; 3])>, Vec<([f32; 3], [f32; 3])>, Vec<([f32; 3], [f32; 3])>) = (vec![], vec![], vec![]);
+        for gx in -16..=16 { for gz in -16..=16 { for dy in [1.0f32, 5.0, 9.0] {
+            let a = [c[0] + gx as f32 * 1.5, c[1] + dy - 4.0, c[2] + gz as f32 * 1.5];
+            let Some((tu, _)) = rayo(a, [0.0, 1.0, 0.0], 8.0) else { continue };
+            let Some((tp, np)) = rayo(a, [0.0, -1.0, 0.0], 3.0) else { continue }; if np[1] < 0.9 { continue; }
+            if !lg::sonda(m, a, sol).vale { continue; }
+            pisos.push(([a[0], a[1] - tp + 0.02, a[2]], [0.0, 1.0, 0.0]));
+            for d in [[1.0f32, 0.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0]] {
+                if let Some((t, n)) = rayo(a, d, 6.0) { if t > 0.4 && n[1].abs() < 0.2 { caras.push(([a[0] + d[0] * (t - 0.02), a[1], a[2] + d[2] * (t - 0.02)], n)); } }
+                // (las paredes justo debajo del techo)
+                let b = [a[0], a[1] + tu - 0.3, a[2]];
+                if tu > 0.6 { if let Some((t, n)) = rayo(b, d, 6.0) { if t > 0.4 && n[1].abs() < 0.2 { altas.push(([b[0] + d[0] * (t - 0.02), b[1], b[2] + d[2] * (t - 0.02)], n)); } } }
+            }
+        } } }
+        if caras.is_empty() && pisos.is_empty() && altas.is_empty() { continue; }
+        let t = Instant::now(); let g = lg::calcular(m, origen, sol); t_n += t.elapsed().as_secs_f32();
+        let t = Instant::now(); let gv = viejo::calcular(m, origen, sol); t_v += t.elapsed().as_secs_f32();
+        if let Ok(v) = std::env::var("JXM_GI_PUNTO") { let v: Vec<f32> = v.split(',').filter_map(|x| x.parse().ok()).collect();
+            let (p, nn) = ([v[0], v[1], v[2]], [v[3], v[4], v[5]]);
+            if !(0..3).all(|k| p[k] > origen[k] + 1.0 && p[k] < origen[k] + lg::N[k] as f32 * lg::PASO - 1.0) { continue; }
+            let q = [p[0] + nn[0] * 0.6, p[1] + nn[1] * 0.6, p[2] + nn[2] * 0.6];
+            println!("punto {:?} → placa {:?}", p, lg::muestra(&g, q, nn));
+            let gg: Vec<f32> = (0..3).map(|k| ((q[k] - origen[k]) / lg::PASO - 0.5).floor()).collect();
+            for dz in 0..2 { for dy in 0..2 { for dx in 0..2 { let cc = [gg[0] + dx as f32, gg[1] + dy as f32, gg[2] + dz as f32];
+                let pp = [origen[0] + (cc[0] + 0.5) * lg::PASO, origen[1] + (cc[1] + 0.5) * lg::PASO, origen[2] + (cc[2] + 0.5) * lg::PASO];
+                let so = lg::sonda(m, pp, sol); let en = lg::muestra(&g, pp, nn);
+                println!("  sonda {:?} vale {} pegada {:?} bajo {:.2} s {:?} → en la grilla {:.2}", pp, so.vale, so.pegada, so.bajo, so.s.map(|x| (x * 100.0).round() / 100.0), en.0);
+            } } }
+            return;
+        }
+        let dentro = |p: [f32; 3]| (0..3).all(|k| p[k] > origen[k] + 1.0 && p[k] < origen[k] + lg::N[k] as f32 * lg::PASO - 1.0);
+        for (ti, lista) in [&caras, &pisos, &altas].iter().enumerate() {
+            for &(p, nn) in lista.iter() { if !dentro(p) { continue; }
+                let q = [p[0] + nn[0] * 0.3, p[1] + nn[1] * 0.3, p[2] + nn[2] * 0.3]; let so = lg::sonda_con(m, q, sol, 400); if !so.vale { continue; }
+                let w = [nn[0] * nn[0], nn[1] * nn[1], nn[2] * nn[2]]; let sel = |k: usize, a: usize, b: usize| w[k] * if nn[k] > 0.0 { so.s[a] } else { so.s[b] };
+                let real = sel(0, 0, 1) + sel(1, 2, 3) + sel(2, 4, 5);
+                let s = [p[0] + nn[0] * 0.6, p[1] + nn[1] * 0.6, p[2] + nn[2] * 0.6];
+                let nuevo = lg::muestra(&g, s, nn).0; let vie = viejo::muestra(&gv, origen, s, nn);
+                let t = &mut tot[ti]; t[0] += 1.0; t[1] += (vie - real).abs(); t[2] += (nuevo - real).abs(); t[3] += (vie - real).max(0.0); t[4] += (nuevo - real).max(0.0);
+                if vie - real > 0.25 { t[5] += 1.0; } if nuevo - real > 0.25 { t[6] += 1.0; if std::env::var_os("JXM_GI_MALAS").is_some() { println!("  mala: {:?} n {:?} real {:.2} placa {:.2} antes {:.2}", p, nn, real, nuevo, vie); } }
+            }
+        }
+    }
+    println!("grillas: {} · nueva {:.2} s · vieja {:.2} s (cada una)", centros.len(), t_n / centros.len() as f32, t_v / centros.len() as f32);
+    for (ti, nombre) in ["paredes", "pisos", "paredes bajo el techo"].iter().enumerate() { let t = tot[ti]; let n = t[0].max(1.0);
+        println!("{nombre}: {} puntos adentro · error medio: antes {:.3} → ahora {:.3} · fuga media: antes {:.3} → ahora {:.3} · con fuga > 0,25: antes {:.1} % → ahora {:.1} %",
+            t[0], t[1] / n, t[2] / n, t[3] / n, t[4] / n, t[5] * 100.0 / n, t[6] * 100.0 / n); }
 }

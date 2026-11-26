@@ -129,14 +129,24 @@ vec3 nublado(vec3 l) { float y = dot(l, vec3(0.2126, 0.7152, 0.0722)); return mi
 uniform vec4 uCaus, uCausB;
 // (Definitivo: la luz global de las sondas, como gpu.rs)
 uniform sampler2D uGI; uniform vec4 uGIo, uGIn;
-vec3 luzGlobal(vec3 p) {
+vec4 giT(float f, float y, vec3 g) { float an = uGIn.x * uGIn.y; return texture2D(uGI, vec2((f * an + y * uGIn.x + g.x + 0.5) / (3.0 * an), (g.z + 0.5) / uGIn.z)); }
+// (para una cara con normal n: el cielo que ve —1 afuera— y el rebote que le llega, de los seis rumbos de cada sonda; cada
+// rumbo pesa el cuadrado de su parte de la normal, como el cubo de ambiente de Source)
+vec2 luzGlobal(vec3 p, vec3 n) {
   vec3 g = (p - uGIo.xyz) * uGIo.w - 0.5;
-  if (g.x < -0.5 || g.y < -0.5 || g.z < -0.5 || g.x > uGIn.x - 0.5 || g.y > uGIn.y - 0.5 || g.z > uGIn.z - 0.5) return vec3(1.0, 0.0, 1.0);
+  if (g.x < -0.5 || g.y < -0.5 || g.z < -0.5 || g.x > uGIn.x - 0.5 || g.y > uGIn.y - 0.5 || g.z > uGIn.z - 0.5) return vec2(1.0, 0.0);
   g = clamp(g, vec3(0.0), uGIn.xyz - 1.0);
-  float y0 = floor(g.y), y1 = min(y0 + 1.0, uGIn.y - 1.0), an = uGIn.x * uGIn.y;
-  vec4 s = mix(texture2D(uGI, vec2((y0 * uGIn.x + g.x + 0.5) / an, (g.z + 0.5) / uGIn.z)), texture2D(uGI, vec2((y1 * uGIn.x + g.x + 0.5) / an, (g.z + 0.5) / uGIn.z)), g.y - y0);
-  if (s.b < 0.03) return vec3(1.0, 0.0, 1.0);
-  return vec3(s.r / s.b, s.g / s.b, s.a / s.b);
+  float y0 = floor(g.y), y1 = min(y0 + 1.0, uGIn.y - 1.0), fy = g.y - y0;
+  vec4 c1 = giT(2.0, y1, g);
+  // (una losa entre las dos alturas de sondas —las de arriba tienen su piso a menos de un paso—: cada punto usa sólo las de
+  // su lado, así lo de arriba del techo, al sol, no ilumina las paredes de abajo)
+  float hs = y1 - c1.a; fy = mix(fy, smoothstep(hs - 0.07, hs + 0.07, g.y), 1.0 - smoothstep(0.85, 0.95, c1.a));
+  vec4 a = mix(giT(0.0, y0, g), giT(0.0, y1, g), fy), b = mix(giT(1.0, y0, g), giT(1.0, y1, g), fy), c = mix(giT(2.0, y0, g), c1, fy);
+  vec3 w = n * n;
+  // (el cielo de abajo: el promedio del de los costados —lo que llega del piso de alrededor—)
+  float s = w.x * (n.x > 0.0 ? a.r : a.g) + w.z * (n.z > 0.0 ? a.b : a.a) + w.y * (n.y > 0.0 ? c.r : dot(a, vec4(0.25)));
+  float r = w.x * (n.x > 0.0 ? b.r : b.g) + w.z * (n.z > 0.0 ? b.b : b.a) + w.y * (n.y > 0.0 ? c.g : c.b);
+  return vec2(s, r);
 }
 float causticas(vec2 p, float t) {
   vec2 i = p; float c = 1.0;
@@ -233,12 +243,11 @@ void main() {
     if (lm) { amb = vec3(0.0); env = lmL * 0.5; } else { amb = mix(uAmbG, uAmbS, n.y * 0.5 + 0.5); env = mix(cieloCol(rf), amb, clamp(rough * 1.15, 0.0, 1.0)); }
     float hor = clamp(1.0 + 1.3 * dot(rf, ng), 0.0, 1.0); env *= hor * hor;
     // (Definitivo: la luz global —adentro la luz del cielo se apaga; la del sol que entra rebota—)
-    if (uGIn.w > 0.5 && !lm) { vec3 gi = luzGlobal(vW + ng * 0.6);
-      // (el cielo que le llega: los pisos y techos, el de arriba; las paredes, el de los costados —puertas, ventanas—)
-      float cv = mix(gi.x, gi.z, clamp(1.0 - abs(ng.y), 0.0, 1.0) * 0.8);
-      amb *= mix(0.16, 1.0, cv); env *= mix(0.2, 1.0, cv);
-      // (el rebote del sol, del color del sol, un poco más donde el cielo no llega —adentro es la luz principal—)
-      col += dif * uSolC * (gi.y * mix(0.85, 0.55, cv)); }
+    if (uGIn.w > 0.5 && !lm) { vec2 gi = luzGlobal(vW + ng * 0.6, ng);
+      // (el cielo que ve esa cara: adentro, poco —por la puerta, la pared de enfrente—; el rebote del sol y del cielo en lo que
+      // está iluminado, del color del sol, un poco más donde el cielo no llega —adentro es la luz principal—)
+      amb *= mix(0.16, 1.0, gi.x); env *= mix(0.2, 1.0, gi.x);
+      col += dif * uSolC * (gi.y * mix(1.7, 1.0, gi.x)); }
     float q1 = 1.0 - nv, q2 = q1 * q1; vec3 Fr = f0 + (max(vec3(1.0 - rough), f0) - f0) * (q2 * q2 * q1);
     col += dif * amb * 0.82 + env * Fr * mix(1.0, sh * 0.6 + 0.4, metal) + uEm * 1.6;
   }
@@ -1136,7 +1145,7 @@ impl Motor {
         let Some(c) = self.c.as_ref() else { return };
         let (Some(h), Some(d)) = (c.efectos.iter().find(|e| e.0 == crate::escena::EF_GI), c.efectos.iter().find(|e| e.0 == crate::escena::EF_GI_DATOS)) else { return };
         if h.1.len() < 8 || h.1[7] == self.gi_ver { return; }
-        let (w, hh) = ((h.1[4] * h.1[5]) as i32, h.1[6] as i32); if (w * hh * 4) as usize != d.1.len() { return; }
+        let (w, hh) = ((h.1[4] * h.1[5] * 3.0) as i32, h.1[6] as i32); if (w * hh * 4) as usize != d.1.len() { return; }
         let px: Vec<u8> = d.1.iter().map(|&x| x as u8).collect();
         let gl = &self.gl;
         let t = match self.gi_tex { Some(t) => t, None => { let Ok(t) = gl.create_texture() else { return }; self.gi_tex = Some(t); t } };

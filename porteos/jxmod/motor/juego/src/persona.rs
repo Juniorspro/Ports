@@ -190,6 +190,15 @@ pub fn rayo_mundo(m: &Mundo, o: V, d: V, max: f64) -> Option<(f64, V)> {
     }
     mejor
 }
+/// el rayo sólo contra los triángulos del mapa: la distancia, la normal hacia el rayo y si tocó la cara de atrás (el que
+/// arranca adentro de algo cerrado —una pared, el piso— la ve de atrás; la luz global lo usa para no contar esas sondas)
+pub fn rayo_tris(m: &Mundo, o: V, d: V, max: f64, ts: &mut Vec<u32>, cs: &mut Vec<u32>) -> Option<(f64, V, bool)> {
+    let fin = add(o, esc(d, max)); ts.clear(); cs.clear();
+    m.cerca(o[0].min(fin[0]) as f32, o[2].min(fin[2]) as f32, o[0].max(fin[0]) as f32, o[2].max(fin[2]) as f32, ts, cs);
+    let mut mejor: Option<(f64, V, bool)> = None; let mut best = max;
+    for &t in ts.iter() { if let Some(tt) = rayo_tri(m, o, d, t, best) { best = tt; let n = normal(m, t); let atras = dot(n, d) > 0.0; mejor = Some((tt, if atras { esc(n, -1.0) } else { n }, atras)); } }
+    mejor
+}
 /// el rayo contra todo (raycast): el mapa y los cuerpos de la física menos los de `ignorar`; d de largo 1
 pub fn rayo(m: &Mundo, fis: &mut Fisica, o: V, d: V, max: f64, ignorar: &[u32]) -> Option<Toque> {
     let g = rayo_mundo(m, o, d, max);
