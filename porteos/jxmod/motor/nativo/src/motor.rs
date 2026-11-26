@@ -16,15 +16,16 @@ impl Motor3d {
     pub unsafe fn vaciar(&mut self) { match self { Motor3d::Gl(m, _) => m.vaciar(), Motor3d::Vk(m) => m.vaciar(), Motor3d::Gl2(m, _) => m.vaciar() } }
     pub fn poner_cuadro(&mut self, c: Cuadro) { match self { Motor3d::Gl(m, _) => m.poner_cuadro(c), Motor3d::Vk(m) => m.poner_cuadro(c), Motor3d::Gl2(m, _) => m.poner_cuadro(c) } }
     /// JX Turbo: el cuadro intermedio —el último dibujado, corrido a la cámara `vp`— y la interfaz encima; false si este motor
-    /// no lo tiene o todavía no hay cuadro guardado (OpenGL 3 por ahora)
+    /// no lo tiene o todavía no hay cuadro guardado (OpenGL 3 y 2)
     pub unsafe fn intermedio(&mut self, w: i32, h: i32, vp: &[f32; 16], ui: &[(i64, Vec<f32>)]) -> bool {
         match self {
             Motor3d::Gl(m, salida) => { if !m.intermedio(*salida, w, h, vp) { return false; } if !sin_ui() { for (t, v) in ui { m.ui(*salida, w, h, *t, v); } } true }
+            Motor3d::Gl2(m, salida) => { if !m.intermedio(*salida, w, h, vp) { return false; } if !sin_ui() { for (t, v) in ui { m.ui(*salida, w, h, *t, v); } } true }
             _ => false,
         }
     }
     /// JX Turbo: si este motor puede armar ya un cuadro intermedio
-    pub fn turbo_listo(&self, w: i32, h: i32) -> bool { match self { Motor3d::Gl(m, _) => m.turbo_listo(w, h), _ => false } }
+    pub fn turbo_listo(&self, w: i32, h: i32) -> bool { match self { Motor3d::Gl(m, _) => m.turbo_listo(w, h), Motor3d::Gl2(m, _) => m.turbo_listo(w, h), _ => false } }
     /// la cámara (vista y proyección) del último cuadro
     pub fn vp_actual(&self) -> Option<[f32; 16]> { match self { Motor3d::Gl(m, _) => m.c.as_ref().map(|c| c.vp), Motor3d::Gl2(m, _) => m.c.as_ref().map(|c| c.vp), Motor3d::Vk(m) => m.c.as_ref().map(|c| c.vp) } }
     /// los dibujos (llamadas a la placa) del último cuadro
@@ -46,7 +47,7 @@ impl Motor3d {
         match self {
             Motor3d::Gl(m, _) => m.op = op.clone(),
             Motor3d::Vk(m) => m.op = op.clone(),
-            Motor3d::Gl2(m, _) => { m.op.escala = op.escala; m.op.retoque = op.retoque; m.op.sombras = op.sombras; m.op.sombra_px = op.sombra_px.min(1024); m.op.sombra_cada = op.sombra_cada.max(2); m.op.sombra_radio = (op.sombra_radio * 1.35).clamp(30.0, 60.0); m.op.reflejo = op.reflejo && op.sombras; m.op.reflejo_div = op.reflejo_div.max(3); m.op.reflejo_piso = std::env::var_os("JXM_GL2_SIN_PISO").is_none(); m.op.rayos = op.rayos && std::env::var_os("JXM_SIN_RAYOS").is_none(); m.op.hongo = op.hongo; m.op.aaa = op.aaa; m.op.adapta = op.adapta && op.rayos; }
+            Motor3d::Gl2(m, _) => { m.op.escala = op.escala; m.op.retoque = op.retoque; m.op.sombras = op.sombras; m.op.sombra_px = op.sombra_px.min(1024); m.op.sombra_cada = op.sombra_cada.max(2); m.op.sombra_radio = (op.sombra_radio * 1.35).clamp(30.0, 60.0); m.op.reflejo = op.reflejo && op.sombras; m.op.reflejo_div = op.reflejo_div.max(3); m.op.reflejo_piso = std::env::var_os("JXM_GL2_SIN_PISO").is_none(); m.op.rayos = op.rayos && std::env::var_os("JXM_SIN_RAYOS").is_none(); m.op.hongo = op.hongo; m.op.aaa = op.aaa; m.op.adapta = op.adapta && op.rayos; m.op.turbo = op.turbo; }
         }
     }
     /// el cuadro entero: la escena (si hay mapa) y el HUD (`ui`: tandas de vértices, cada una con su textura —las letras, los

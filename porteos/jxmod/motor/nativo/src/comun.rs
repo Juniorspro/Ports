@@ -239,7 +239,7 @@ pub struct Juego {
     /// JX Turbo (cuadros intermedios): cuántos van desde el último real, el tiempo que se saltó (lo recupera el real), la cámara
     /// del intermedio que toca, la del último real (posición y mirada, para no correr un cuadro viejo después de un salto) y lo que
     /// tarda cada clase de cuadro (ms, promediado)
-    pub turbo_n: u8, turbo_dt: f32, turbo_vp: Option<M4>, turbo_cam: [f32; 6], pub ms_real: f32, pub ms_inter: f32, pub fue_inter: bool, pub n_inter: u32,
+    pub turbo_n: u8, turbo_dt: f32, turbo_vp: Option<M4>, turbo_cam: [f32; 6], pub ms_real: f32, pub ms_inter: f32, pub fue_inter: bool, pub n_inter: u32, pub turbo_on: bool,
     recargar: bool,
     /// (para las pruebas: el tiempo fijo de cada cuadro, en vez del reloj)
     pub dt_fijo: Option<f32>,
@@ -359,7 +359,7 @@ impl Juego {
         let en_red = red_juego::EnRed::nueva(datos.as_deref());
         let gmod = gmod_juego::EnGmod::nueva(datos.as_deref());
         let mut j = Juego { paq, mapa: None, mapas: vec!["RB_Flatgrass".into(), "RB_Construct".into()], mapa_i: 0, letras, letras_px, jug: Jugador::nuevo(), acum: 0.0,
-            dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0, perf: [0.0; 5], drs: 1.0, drs_t: 0.0, turbo_n: 0, turbo_dt: 0.0, turbo_vp: None, turbo_cam: [0.0; 6], ms_real: 0.0, ms_inter: 0.0, fue_inter: false, n_inter: 0, perf_t: Instant::now(),
+            dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0, perf: [0.0; 5], drs: 1.0, drs_t: 0.0, turbo_n: 0, turbo_dt: 0.0, turbo_vp: None, turbo_cam: [0.0; 6], ms_real: 0.0, ms_inter: 0.0, fue_inter: false, n_inter: 0, turbo_on: false, perf_t: Instant::now(),
             recargar: true, dt_fijo: None, gfxa: Default::default(), gfx_medir: false, refresco: 60.0, memes: Default::default(), lan: Default::default(), bajas: None, bajada: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
             nombres: HashMap::new(), catalogo: vec![], cat_npc: vec![], cat_veh: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
@@ -981,7 +981,8 @@ impl Juego {
         // (un emote se corta al moverse o saltar, como en la web)
         if self.emote.is_some() && (ent.x.abs() + ent.y.abs() > 0.15 || ent.saltar) { self.hacer_emote(None); }
         // (lo de Ajustes, cada cuadro: la calidad al motor y el volumen al mezclador)
-        { let mut op = self.aj.opciones(); op.escala *= self.drs; m.opciones(&op); } self.sonido.volumen = self.aj.volumen();
+        // (JX Turbo prendido en el motor sólo cuando hace falta —los reales no llegan al refresco—: si no, ni guarda la imagen)
+        { let mut op = self.aj.opciones(); op.escala *= self.drs; op.turbo = self.aj.turbo && self.turbo_on; m.opciones(&op); } self.sonido.volumen = self.aj.volumen();
         if self.ajustes.is_some() { self.acum = 0.0; }
         else if let Some(mp) = &self.mapa {
             self.acum = (self.acum + dt).min(PASO * 12.0);
@@ -1558,6 +1559,10 @@ impl Juego {
         { let x = if self.fue_inter { &mut self.ms_inter } else { &mut self.ms_real }; *x = if *x == 0.0 { ms } else { *x * 0.9 + ms * 0.1 }; }
         // (con JX Turbo, la resolución dinámica mira los cuadros reales: con un intermedio entre cada dos, el real tiene el doble)
         let turbo = self.aj.turbo && self.n_inter > 0; if self.fue_inter { return self.fps_paso(); }
+        // (se prende si los reales tardan más que el cuadro de la pantalla y se apaga si sobran —con margen, para que no titile—)
+        if !self.aj.turbo { self.turbo_on = false; } else if self.mapa.is_some() && !self.recargar {
+            let t = 1000.0 / self.refresco.max(30.0); if self.ms_real > t * 1.15 { self.turbo_on = true; } else if self.ms_real < t * 0.9 { self.turbo_on = false; }
+        }
         let ms = if turbo { self.ms_real } else { self.ms };
         // (la resolución dinámica: cada cuarto de segundo, si el cuadro tarda más que el de la pantalla —60, 90 o 120 por segundo;
         // como mucho 90—, menos píxeles —lo que cuesta va con el cuadrado de la escala—; si sobra, de a poco hasta la elegida.
@@ -1578,7 +1583,7 @@ impl Juego {
     /// 3, y sin pasar de un real cada 1/24 s con la pantalla llena (lo que se mueve solo —NPC, efectos— sigue fluido: a 60 Hz, 1;
     /// a 90, 2; a 120, 3)
     fn turbo_max(&self) -> u8 {
-        if !self.aj.turbo { return 0; }
+        if !self.aj.turbo || !self.turbo_on { return 0; }
         let r = self.refresco.max(30.0); let tope = ((r / 24.0).floor() - 1.0).clamp(1.0, 3.0);
         if self.ms_real == 0.0 { return 1; }
         let t = 1000.0 / r; if self.ms_real <= t * 1.15 { return 0; }

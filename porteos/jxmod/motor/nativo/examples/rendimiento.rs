@@ -55,8 +55,9 @@ fn main() {
     let sin = std::env::var("JXM_SIN").unwrap_or_default();
     for k in sin.split(',') { match k { "sombras" => j.aj.sombras = false, "ao" => j.aj.ao = false, "reflejo" => j.aj.reflejo = false, "retoque" => j.aj.retoque = false, _ => {} } }
     if std::env::var("JXM_DIN").as_deref() == Ok("0") { j.aj.dinamica = false; }
-    // (JXM_TURBO=1: JX Turbo, los cuadros intermedios; JXM_REFRESCO: el refresco de la pantalla que se simula —60 de fábrica—)
-    if std::env::var_os("JXM_TURBO").is_some() { j.aj.turbo = true; }
+    // (JXM_REFRESCO: el refresco de la pantalla que se simula —60 de fábrica—)
+    // (JX Turbo viene prendido de fábrica: JXM_TURBO=0 lo apaga)
+    if let Ok(t) = std::env::var("JXM_TURBO") { j.aj.turbo = t != "0"; }
     if let Some(r) = std::env::var("JXM_REFRESCO").ok().and_then(|v| v.parse().ok()) { j.refresco = r; }
     if let Ok(mp) = std::env::var("JXM_MAPA") { assert!(j.poner_mapa(&mp), "no existe el mapa {mp}"); }
     let cpu = std::cell::Cell::new(0.0f64);
