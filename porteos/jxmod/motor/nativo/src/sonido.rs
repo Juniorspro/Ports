@@ -8,6 +8,12 @@ use std::sync::{Arc, Mutex};
 
 /// un sonido decodificado: muestras de 16 bits intercaladas
 pub struct Pcm { pub rate: u32, pub ch: u16, pub datos: Vec<i16> }
+/// a mono y, si pasa de 32 kHz, a la mitad de las muestras (promediando de a dos): un tema de 3 minutos queda en ~8 MB
+pub fn achicar(p: Pcm) -> Pcm {
+    let ch = p.ch.max(1) as usize; let n = p.datos.len() / ch; let mezcla = |i: usize| -> i32 { (0..ch).map(|c| p.datos[i * ch + c] as i32).sum::<i32>() / ch as i32 };
+    if p.rate > 32000 { let datos = (0..n / 2).map(|i| ((mezcla(2 * i) + mezcla(2 * i + 1)) / 2) as i16).collect(); Pcm { rate: p.rate / 2, ch: 1, datos } }
+    else { Pcm { rate: p.rate, ch: 1, datos: (0..n).map(|i| mezcla(i) as i16).collect() } }
+}
 struct Voz { pcm: Arc<Pcm>, pos: f64, paso: f64, vi: f32, vd: f32, /** los que se repiten (el ambiente): su número */ lazo: u64, /** desde dónde vuelve (en muestras) */ ini: f64 }
 pub struct Mezcla { voces: Vec<Voz>, pub rate: u32 }
 impl Mezcla {
@@ -151,6 +157,29 @@ impl Sonido {
         if let Ok(mut m) = self.mezcla.lock() { m.voces.push(Voz { pcm: p, pos: 0.0, paso, vi, vd, lazo: id, ini }); }
         self.bucles.insert(clave.to_string(), (id, true));
     }
+    /// una voz larga que maneja el que la pone (la música del menú, musica_juego.rs): desde `desde_s` segundos, al volumen
+    /// `vol` (sin el general); devuelve su número para cambiarle el volumen, saber por dónde va o sacarla
+    pub fn voz_larga(&mut self, pcm: Arc<Pcm>, desde_s: f32, vol: f32) -> u64 {
+        let id = self.prox; self.prox += 1;
+        if let Ok(mut m) = self.mezcla.lock() { let paso = pcm.rate as f64 / m.rate as f64; let pos = (desde_s.max(0.0) as f64 * pcm.rate as f64).min((pcm.datos.len() / pcm.ch.max(1) as usize) as f64 - 2.0).max(0.0);
+            m.voces.push(Voz { pcm, pos, paso, vi: vol, vd: vol, lazo: id, ini: 0.0 }); }
+        id
+    }
+    pub fn voz_vol(&self, id: u64, vol: f32) { if let Ok(mut m) = self.mezcla.lock() { if let Some(v) = m.voces.iter_mut().find(|v| v.lazo == id) { v.vi = vol; v.vd = vol; } } }
+    /// por dónde va (segundos) o None si ya no está
+    pub fn voz_pos(&self, id: u64) -> Option<f32> { self.mezcla.lock().ok()?.voces.iter().find(|v| v.lazo == id).map(|v| (v.pos / v.pcm.rate as f64) as f32) }
+    pub fn voz_quitar(&self, id: u64) { if let Ok(mut m) = self.mezcla.lock() { m.voces.retain(|v| v.lazo != id); } }
+    /// un pedazo de un archivo comprimido (Opus, MP3…) a PCM con el decodificador del sistema; mono y a la mitad de las
+    /// muestras si es largo (la música: menos memoria). En la compu no hay
+    pub fn decodificar_trozo(ruta: &std::path::Path, off: u64, len: u64) -> Option<Pcm> {
+        #[cfg(target_os = "android")] {
+            use std::os::fd::AsRawFd;
+            let f = std::fs::File::open(ruta).ok()?; let p = unsafe { android::decodificar(f.as_raw_fd(), off as i64, len as i64) }?;
+            return Some(achicar(p));
+        }
+        #[allow(unreachable_code)] { let _ = (ruta, off, len); None }
+    }
+
     /// al terminar el cuadro: se cortan los bucles que no se pidieron
     pub fn fin_bucles(&mut self) {
         let fuera: Vec<(String, u64)> = self.bucles.iter().filter(|(_, b)| !b.1).map(|(k, b)| (k.clone(), b.0)).collect();

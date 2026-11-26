@@ -11,6 +11,7 @@ los temas son de Kevin MacLeod, con licencia **Creative Commons Atribución 4.0*
 «*Título* Kevin MacLeod (incompetech.com). Licensed under Creative Commons: By Attribution 4.0 License». El crédito también
 está en la pestaña Música. Mientras el paquete no está guardado, Casual suena por YouTube (los videos de su canal oficial o de
 «Kevin MacLeod Archive»).
+En JXMod nativo suenan los mismos (el mismo paquete `a_musica`, `motor/nativo/src/musica_juego.rs`) y el crédito va en la placa del menú con lo que suena: «*Título* · Kevin MacLeod (CC BY 4.0)».
 
 | Tema | Autor / origen | Dónde | Licencia |
 |---|---|---|---|

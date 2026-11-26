@@ -107,6 +107,9 @@ impl Juego {
         let rx = cx + 4.0 * u + rw / 2.0;
         p.texto_c(Cara::S4, tn, rx, y_tb + tb * 0.45, BLANCO, 0.0, &ver);
         p.texto_c(Cara::S4, 10.5 * u, rx, y_tb + tb * 0.83, blanco(0.78), 0.0, &ini.armado);
+        // (lo que suena: la música del menú, con el crédito de su autor —CC BY 4.0—)
+        if let Some(t) = &self.musica.sonando { let s = format!("{t} · Kevin MacLeod (CC BY 4.0)"); let yb = y_tb - 8.0 * u;
+            p.icono("musica", 12.0 * u, yb - 10.5 * u, 12.0 * u, 2.0, blanco(0.9)); jxjuego::idiomas::crudo(|| p.texto_sombra(Cara::S4, 11.0 * u, 28.0 * u, yb, blanco(0.9), &s, 1.0 * u)); }
         // (los botones)
         let bt: [(Pieza, &'static str, &str); 4] = [(Pieza::Contenido, "ico_gmod", "Contenido de GMod"), (Pieza::Avisos, "campana", "Avisos"), (Pieza::Bugs, "bicho", "Bugs y sugerencias"), (Pieza::Idioma, "mundo", "Idioma")];
         let datos: Vec<(&'static str, &str, bool)> = bt.iter().map(|b| (b.1, b.2, apr(b.0))).collect();
