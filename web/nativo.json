@@ -1,9 +1,9 @@
 {
- "codigo": 26112608,
- "version": "0.29",
+ "codigo": 26112617,
+ "version": "0.31",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 74459398,
- "sha256": "0cd9687ec9540554d868e02fd0a6d9cdd0d1fd885725a1d379c75728181130cb",
- "notas_es": "JXMod Nativo 0.29 — La vista que se acostumbra: al entrar a la sombra todo se va aclarando y al salir al sol encandila y se acomoda. Más contraste y color en todas las calidades, sombras que se notan y los rayos del sol más suaves (sin el velo blanco). Definitivo ya no se ve blanco y tiene reflejos en el piso como con trazado de rayos, y en OpenGL 2 también la oclusión ambiental. El agua como la de Half-Life 2: desde abajo se ve la superficie con la luz de afuera, las cáusticas del sol en el fondo, más clara y con ondas cuando te movés o cae algo. Nuevo en el menú de objetos: Props → Mundo, para elegir la hora del día (amanecer, mañana, mediodía, tarde, atardecer, noche, ±1 hora) y el ciclo de día y noche.",
- "notas_en": "JXMod Native 0.29 — Eye adaptation: stepping into the shade everything slowly brightens, stepping into the sun dazzles you and then settles. More contrast and color at every quality, visible shadows and softer sun rays (no white veil). Definitive no longer looks washed out and has ray-traced-style floor reflections, plus ambient occlusion on OpenGL 2. Half-Life 2 style water: from below you see the surface with the light from outside, sun caustics on the bottom, clearer water and ripples when you move or something falls in. New in the spawn menu: Props → World, to pick the time of day (dawn, morning, noon, afternoon, sunset, night, ±1 hour) and the day-night cycle."
+ "tam": 74627334,
+ "sha256": "342f585f2bee87cd2699c215bad0f1cb4096515a8eb5a65063ce606d098f7650",
+ "notas_es": "JXMod Nativo 0.31 — Reflejos en el piso en los tres motores (ahora también en Vulkan), que ya no se apagan al girar cuando se ve agua lejos, y ondulados por el relieve como un piso mojado. Adentro de las casas las paredes ya no se iluminan de más: el techo vuelve a hacer sombra en OpenGL 2 y la luz global de Definitivo no pasa a través de paredes ni techos. Más fluido sin cambiar la imagen: el motor hace hasta la mitad de llamadas a la placa por cuadro y las cuentas de luz y color van en media precisión, más rápidas en el celular.",
+ "notas_en": "JXMod Native 0.31 — Floor reflections in all three engines (now on Vulkan too), no longer switching off when turning toward distant water, and rippled by the material bumps like a wet floor. Indoor walls no longer get extra light: roofs cast shadows again on OpenGL 2 and Definitive global illumination no longer leaks through walls or ceilings. Smoother with the same image: the engine makes up to half as many GPU calls per frame and lighting and color math run in half precision, faster on phones."
 }
