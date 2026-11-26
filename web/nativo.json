@@ -1,9 +1,9 @@
 {
- "codigo": 26112617,
- "version": "0.31",
+ "codigo": 26112619,
+ "version": "0.32",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 74627334,
- "sha256": "342f585f2bee87cd2699c215bad0f1cb4096515a8eb5a65063ce606d098f7650",
- "notas_es": "JXMod Nativo 0.31 — Reflejos en el piso en los tres motores (ahora también en Vulkan), que ya no se apagan al girar cuando se ve agua lejos, y ondulados por el relieve como un piso mojado. Adentro de las casas las paredes ya no se iluminan de más: el techo vuelve a hacer sombra en OpenGL 2 y la luz global de Definitivo no pasa a través de paredes ni techos. Más fluido sin cambiar la imagen: el motor hace hasta la mitad de llamadas a la placa por cuadro y las cuentas de luz y color van en media precisión, más rápidas en el celular.",
- "notas_en": "JXMod Native 0.31 — Floor reflections in all three engines (now on Vulkan too), no longer switching off when turning toward distant water, and rippled by the material bumps like a wet floor. Indoor walls no longer get extra light: roofs cast shadows again on OpenGL 2 and Definitive global illumination no longer leaks through walls or ceilings. Smoother with the same image: the engine makes up to half as many GPU calls per frame and lighting and color math run in half precision, faster on phones."
+ "tam": 74635526,
+ "sha256": "bf8d863b9b25cf14c10dc89f10fb6d39320260abbf90162ba49447c0f6102d7e",
+ "notas_es": "JXMod Nativo 0.32 — JX Turbo: hasta casi el triple de cuadros por segundo sin bajar los gráficos. Entre cada cuadro dibujado, el juego arma cuadros intermedios corriendo la última imagen a donde mirás ahora (como los visores de realidad virtual): girar la cámara se siente mucho más fluido. Se prende solo cuando el celular no llega a los cuadros de la pantalla (60, 90 o 120 Hz) y el arma no se deforma. En OpenGL 3 y OpenGL 2; se apaga en Ajustes > Gráficos > JX Turbo.",
+ "notas_en": "JXMod Native 0.32 — JX Turbo: up to almost three times the frames per second without lowering graphics. Between rendered frames the game builds in-between frames by shifting the last image to where you are looking now (like VR headsets): turning the camera feels much smoother. It only turns on when the phone can't reach the screen's refresh rate (60, 90 or 120 Hz) and the weapon doesn't warp. On OpenGL 3 and OpenGL 2; switch it off in Settings > Graphics > JX Turbo."
 }
