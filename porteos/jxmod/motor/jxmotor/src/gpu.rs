@@ -242,6 +242,9 @@ void main() {
 #endif
       vec2 su = gl_FragCoord.xy * uAOk.xy, tx = 0.75 / vec2(textureSize(uAO, 0));
       aoK = mix(1.0, 0.25 * (texture(uAO, su - tx).r + texture(uAO, su + tx).r + texture(uAO, su + vec2(tx.x, -tx.y)).r + texture(uAO, su + vec2(-tx.x, tx.y)).r), uAOk.z); }
+#ifdef VER_AO
+    o = vec4(vec3(aoK), 1.0); return;
+#endif
     if (lm) { lmL = dec(texture(uLM, vL).rgb) * 4.0; if (uNubes.x > 0.5) lmL = nublado(lmL); col = dif * lmL * aoK; }   // (la luz horneada del mapa, en vez del sol y el cielo)
 #ifdef DBG_SIN_SOMBRA
     else { sh = 1.0; col = brdf(n, v, uSol, dif, f0, a) * uSolC * sh; }
@@ -460,6 +463,7 @@ void main() {
   if (dot(n, uCam - w) < 0.0) n = -n;
   vec3 t = normalize(abs(n.y) < 0.9 ? cross(n, vec3(0.0, 1.0, 0.0)) : cross(n, vec3(1.0, 0.0, 0.0))), b = cross(n, t);
   float a0 = ign(gl_FragCoord.xy) * 6.2831853, r = uRadio * clamp(distance(w, uCam) * 0.1, 0.3, 1.0), occ = 0.0;
+  float dc = distance(w, uCam), sesgo = 0.02 + 0.0004 * dc * dc;
   // (el ángulo de cada muestra gira el ángulo de oro desde el anterior: se rota el par coseno-seno en vez de calcularlos)
   vec2 cs = vec2(cos(a0), sin(a0)); const vec2 G = vec2(-0.7373688, 0.6754903);
   for (int i = 0; i < 8; i++) {
@@ -472,9 +476,10 @@ void main() {
     vec2 su = q.xy / q.w * 0.5 + 0.5;
     if (su.x < 0.0 || su.y < 0.0 || su.x > 1.0 || su.y > 1.0) continue;
     vec3 d = uCam + rayo(su) * hondo(texture(uProf, su).r);
-    if (distance(d, uCam) < distance(s, uCam) - 0.02) occ += smoothstep(0.0, 1.0, r / max(distance(d, w), 1e-3));
+    if (distance(d, uCam) < distance(s, uCam) - sesgo) occ += smoothstep(0.0, 1.0, r / max(distance(d, w), 1e-3));
   }
-  float ao = 1.0 - occ / 8.0;
+  // (lejos se apaga: ahí un píxel abarca mucho y la normal de las derivadas sale rayada —las fachadas, el horizonte—)
+  float ao = 1.0 - occ / 8.0 * (1.0 - smoothstep(22.0, 38.0, dc)) * smoothstep(0.08, 0.3, abs(dot(n, normalize(uCam - w))));
   o = vec4(ao, ao, ao, 1.0);
 }"#;
 const FS_AO_PONER: &str = r#"#version 300 es
