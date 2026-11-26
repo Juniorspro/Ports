@@ -29,14 +29,17 @@ pub struct Opciones {
     pub rayos: bool,
     /// el hongo de las nucleares con volumen (hongo.rs): la calidad del juego (0: con carteles)
     pub hongo: u8,
+    /// Definitivo (arriba de Ultra): el cielo con nubes y el disco del sol, el resplandor, el color de película y la luz en
+    /// el aire a media resolución con más pasos
+    pub aaa: bool,
 }
 impl Default for Opciones {
-    fn default() -> Self { Opciones { escala: 1.0, sombras: true, sombra_px: 2048, sombra_cada: 1, sombra_radio: 45.0, reflejo: true, reflejo_div: 2, reflejo_cada: 1, ao: true, ao_fuerza: 0.6, retoque: true, prepaso: true, rayos: false, hongo: 3 } }
+    fn default() -> Self { Opciones { escala: 1.0, sombras: true, sombra_px: 2048, sombra_cada: 1, sombra_radio: 45.0, reflejo: true, reflejo_div: 2, reflejo_cada: 1, ao: true, ao_fuerza: 0.6, retoque: true, prepaso: true, rayos: false, hongo: 3, aaa: false } }
 }
 impl Opciones {
     /// lo que se elige para un celular de 1 GB con una placa floja: dos tercios de la resolución, sombra de 1024 cada 2
     /// cuadros y reflejo a un cuarto cada 2
-    pub fn celular_flojo() -> Self { Opciones { escala: 0.67, sombras: true, sombra_px: 1024, sombra_cada: 2, sombra_radio: 35.0, reflejo: true, reflejo_div: 4, reflejo_cada: 2, ao: false, ao_fuerza: 0.6, retoque: true, prepaso: true, rayos: false, hongo: 3 } }
+    pub fn celular_flojo() -> Self { Opciones { escala: 0.67, sombras: true, sombra_px: 1024, sombra_cada: 2, sombra_radio: 35.0, reflejo: true, reflejo_div: 4, reflejo_cada: 2, ao: false, ao_fuerza: 0.6, retoque: true, prepaso: true, rayos: false, hongo: 3, aaa: false } }
 }
 
 struct MallaGL { vao: glow::VertexArray, bufs: Vec<glow::Buffer>, i32: bool, mn: [f32; 3], sc: [f32; 3], lm: i64, piel: bool, bytes: usize }
@@ -45,9 +48,9 @@ struct Destino { fb: glow::Framebuffer, color: glow::Texture, prof: Option<glow:
 
 // los uniformes, por número (buscarlos por nombre en cada dibujo cuesta)
 #[derive(Clone, Copy)]
-enum U { Mat, NieS, Sesgo, VP, M, SVP, Mn, Sc, St, C, Em, Modo, S1, S3, Sol, SolC, AmbS, AmbG, NieC, Nie, Cam, Expo, Sombra, Clip, B, LP, LC, LD, LN, LE, F, H, S, Bq, D, RefInv, Tiempo, Top, Mid, Bot, Exp, Tinte, Dia, CieloK, TieneCubo, Radio, Inv, Fuerza, Retoque, Der, Arr, RefrOn, RefrK, IVP, SVP2, Sesgo2, Ti, Ti2, Ti3, AOk, NC, Ray0, RayX, RayY, Zl, RayP, RayK, Vol }
-const NU: usize = U::Vol as usize + 1;
-const NOMBRES: [&str; NU] = ["uMat", "uNieS", "uSesgo", "uVP", "uM", "uSVP", "uMn", "uSc", "uSt", "uC", "uEm", "uModo", "uS1", "uS3", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNie", "uCam", "uExpo", "uSombra", "uClip", "uB", "uLP", "uLC", "uLD", "uLN", "uLE", "uF", "uH", "uS", "uBq", "uD", "uRefInv", "uTiempo", "uTop", "uMid", "uBot", "uExp", "uTinte", "uDia", "uCieloK", "uTieneCubo", "uRadio", "uInv", "uFuerza", "uRetoque", "uDer", "uArr", "uRefrOn", "uRefrK", "uIVP", "uSVP2", "uSesgo2", "uTi", "uTi2", "uTi3", "uAOk", "uNC", "uRay0", "uRayX", "uRayY", "uZl", "uRayP", "uRayK", "uVol"];
+enum U { Mat, NieS, Sesgo, VP, M, SVP, Mn, Sc, St, C, Em, Modo, S1, S3, Sol, SolC, AmbS, AmbG, NieC, Nie, Cam, Expo, Sombra, Clip, B, LP, LC, LD, LN, LE, F, H, S, Bq, D, RefInv, Tiempo, Top, Mid, Bot, Exp, Tinte, Dia, CieloK, TieneCubo, Radio, Inv, Fuerza, Retoque, Der, Arr, RefrOn, RefrK, IVP, SVP2, Sesgo2, Ti, Ti2, Ti3, AOk, NC, Ray0, RayX, RayY, Zl, RayP, RayK, Vol, Nubes, BloomK }
+const NU: usize = U::BloomK as usize + 1;
+const NOMBRES: [&str; NU] = ["uMat", "uNieS", "uSesgo", "uVP", "uM", "uSVP", "uMn", "uSc", "uSt", "uC", "uEm", "uModo", "uS1", "uS3", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNie", "uCam", "uExpo", "uSombra", "uClip", "uB", "uLP", "uLC", "uLD", "uLN", "uLE", "uF", "uH", "uS", "uBq", "uD", "uRefInv", "uTiempo", "uTop", "uMid", "uBot", "uExp", "uTinte", "uDia", "uCieloK", "uTieneCubo", "uRadio", "uInv", "uFuerza", "uRetoque", "uDer", "uArr", "uRefrOn", "uRefrK", "uIVP", "uSVP2", "uSesgo2", "uTi", "uTi2", "uTi3", "uAOk", "uNC", "uRay0", "uRayX", "uRayY", "uZl", "uRayP", "uRayK", "uVol", "uNubes", "uBloomK"];
 struct Prog { p: glow::Program, u: Vec<Option<glow::UniformLocation>>, piel: bool, corte: bool }
 impl Prog {
     fn u(&self, k: U) -> Option<&glow::UniformLocation> { self.u[k as usize].as_ref() }
@@ -332,7 +335,7 @@ const VS_CIELO: &str = r#"#version 300 es
 out vec2 vP; void main() { vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2)) * 2.0 - 1.0; vP = p; gl_Position = vec4(p, 1.0, 1.0); }"#;
 const FS_CIELO: &str = r#"#version 300 es
 precision highp float; uniform mat4 uIVP; uniform vec3 uSol, uNieC; uniform float uExpo; in vec2 vP; out vec4 o;
-uniform samplerCube uCubo; uniform vec3 uTop, uMid, uBot, uTinte; uniform vec2 uExp; uniform float uDia, uCieloK; uniform int uTieneCubo;
+uniform samplerCube uCubo; uniform vec3 uTop, uMid, uBot, uTinte, uSolC; uniform vec2 uExp; uniform float uDia, uCieloK; uniform int uTieneCubo; uniform vec4 uNubes;
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
 // (x^2,2 y x^(1/2,2) con tres raíces en vez de pow —logaritmo y exponencial—: el mismo color, menos de 0,2 de un nivel de
 // 8 bits de diferencia; la raíz es una sola instrucción)
@@ -344,18 +347,23 @@ vec3 dec(vec3 x) { x = max(x, 0.0); vec3 a = sqrt(x), b = sqrt(a), c = sqrt(b); 
 vec3 enc(vec3 x) { x = max(x, 0.0); vec3 a = sqrt(x), b = sqrt(a), c = sqrt(b); return 0.93020244 * a + 0.14337668 * b - 0.02588437 * c - 0.04836126 * x; }
 #endif
 
+@@NUBES@@
 void main() {
   vec4 a = uIVP * vec4(vP, -1.0, 1.0), b = uIVP * vec4(vP, 1.0, 1.0); vec3 d = normalize(b.xyz / b.w - a.xyz / a.w);
   if (uTieneCubo > 0) {
     // (el cielo del mapa, como en WebGL: el degradé y la caja —una imagen ya terminada, sin tono— con su tinte)
     bool ar = d.y > 0.0; vec3 g = mix(uMid, ar ? uTop : uBot, pow(abs(d.y), ar ? uExp.x : uExp.y));
     vec3 c = uTieneCubo > 1 ? mix(g, texture(uCubo, d).rgb * uTinte, uDia) : g;
+    // (Definitivo: las nubes encima y el disco del sol)
+    vec4 n = uNubes.x > 0.5 ? nubes(d, uSol, uNubes.y, uSolC, uTop) : vec4(0.0); c = mix(c, n.rgb, n.a);
     c = dec(c) * uCieloK;
+    if (uNubes.x > 0.5) c += sol_disco(d, uSol, uSolC) * (1.0 - n.a);
     o = vec4(enc(min(c, vec3(1.0))), 1.0); return;
   }
   vec3 cen = vec3(0.16, 0.36, 0.78), hor = vec3(0.62, 0.74, 0.88);
   vec3 c = mix(hor, cen, pow(clamp(d.y, 0.0, 1.0), 0.45)); if (d.y < 0.0) c = mix(hor, uNieC, clamp(-d.y * 4.0, 0.0, 1.0));
-  c += vec3(1.0, 0.92, 0.75) * pow(max(dot(d, uSol), 0.0), 600.0) * 6.0;
+  vec4 n = uNubes.x > 0.5 ? nubes(d, uSol, uNubes.y, uSolC, cen) : vec4(0.0); c = mix(c, n.rgb, n.a);
+  c += vec3(1.0, 0.92, 0.75) * pow(max(dot(d, uSol), 0.0), 600.0) * 6.0 * (1.0 - n.a);
   o = vec4(enc(aces(c * uExpo * 1.1)), 1.0);
 }"#;
 
@@ -403,7 +411,7 @@ void main() {
 }"#;
 
 const FS_FINAL: &str = r#"#version 300 es
-precision highp float; uniform highp sampler2D uEsc; uniform sampler2D uRay; uniform float uRetoque, uFuerza, uRayK; uniform vec2 uInv; in vec2 vP; out vec4 o;
+precision highp float; uniform highp sampler2D uEsc; uniform sampler2D uRay, uBlo; uniform float uRetoque, uFuerza, uRayK, uBloomK; uniform vec2 uInv; in vec2 vP; out vec4 o;
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 void main() {
   // (texture y no texelFetch aunque la escena sea del tamaño de la pantalla: en llvmpipe texelFetch es más lento)
@@ -413,17 +421,42 @@ void main() {
   if (uFuerza > 0.0) { vec3 b = 0.5 * (texture(uEsc, uv + uInv * 0.5).rgb + texture(uEsc, uv - uInv * 0.5).rgb); c = clamp(c + (c - b) * uFuerza, 0.0, 1.0); }
   // (los rayos del sol, sumados a la luz —como en post.js, antes del tono—)
   if (uRayK > 0.0) { vec3 r = texture(uRay, uv).rgb; r = r * r * (8.0 * uRayK); c = sqrt(c * c + 1.0 - exp(-r)); }
+  // (Definitivo: el resplandor de lo brillante)
+  if (uBloomK > 0.0) { vec3 b = texture(uBlo, uv).rgb; c = sqrt(c * c + b * uBloomK); }
   if (uRetoque > 0.5) {
     // (como FS_FINAL de post.js: un toque más de color y de contraste —curva en S suave— y un poco de viñeta)
     c = c * c;
     float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
     c = clamp(mix(vec3(l), c, 1.18), 0.0, 1.0);
     c = c * c * (3.0 - 2.0 * c) * 0.18 + c * 0.82;
+    // (Definitivo: el color de película —lo oscuro un poco frío, lo claro cálido— y un poco más de contraste)
+    if (uBloomK > 0.0) { float l2 = dot(c, vec3(0.2126, 0.7152, 0.0722)); c = mix(vec3(l2), c, 0.9); c *= mix(vec3(0.93, 1.0, 1.06), vec3(1.04, 1.0, 0.96), smoothstep(0.1, 0.8, l2)); c = clamp(c * c * (3.0 - 2.0 * c) * 0.2 + c * 0.8, 0.0, 1.0); }
     c = sqrt(c);
     vec2 q = uv - 0.5; c *= 1.0 - dot(q, q) * 0.32;
     c += (ign(gl_FragCoord.xy) - 0.5) / 255.0;
   }
   o = vec4(c, 1.0);
+}"#;
+// el resplandor de Definitivo (como post.js): lo brillante de la escena a media resolución, bajado en cadena (un cuarto, un
+// octavo, un dieciseisavo) y vuelto a subir sumando: el halo ancho y suave alrededor del sol, el cielo y lo que brilla
+const FS_BRILLO: &str = r#"#version 300 es
+precision mediump float; uniform highp sampler2D uEsc; uniform vec2 uInv; in vec2 vP; out vec4 o;
+void main() {
+  vec2 uv = vP * 0.5 + 0.5;
+  vec3 c = texture(uEsc, uv + uInv * vec2(-1.0, -1.0)).rgb + texture(uEsc, uv + uInv * vec2(1.0, -1.0)).rgb + texture(uEsc, uv + uInv * vec2(-1.0, 1.0)).rgb + texture(uEsc, uv + uInv * vec2(1.0, 1.0)).rgb;
+  c *= 0.25; c = c * c; float l = max(c.r, max(c.g, c.b)), k = max(0.0, l - 0.72) / max(l, 1e-4);
+  o = vec4(c * k, 1.0);
+}"#;
+const FS_BAJA: &str = r#"#version 300 es
+precision mediump float; uniform sampler2D uBlo; uniform vec2 uInv; in vec2 vP; out vec4 o;
+void main() { vec2 uv = vP * 0.5 + 0.5; vec3 c = texture(uBlo, uv).rgb * 4.0 + texture(uBlo, uv + uInv * vec2(-1.0, -1.0)).rgb + texture(uBlo, uv + uInv * vec2(1.0, -1.0)).rgb + texture(uBlo, uv + uInv * vec2(-1.0, 1.0)).rgb + texture(uBlo, uv + uInv * vec2(1.0, 1.0)).rgb; o = vec4(c / 8.0, 1.0); }"#;
+const FS_SUBE: &str = r#"#version 300 es
+precision mediump float; uniform sampler2D uBlo; uniform vec2 uInv; in vec2 vP; out vec4 o;
+void main() {
+  vec2 uv = vP * 0.5 + 0.5;
+  vec3 c = texture(uBlo, uv + uInv * vec2(-1.0, 0.0)).rgb + texture(uBlo, uv + uInv * vec2(1.0, 0.0)).rgb + texture(uBlo, uv + uInv * vec2(0.0, -1.0)).rgb + texture(uBlo, uv + uInv * vec2(0.0, 1.0)).rgb;
+  c = c * 2.0 + texture(uBlo, uv + uInv * vec2(-1.0, -1.0)).rgb + texture(uBlo, uv + uInv * vec2(1.0, -1.0)).rgb + texture(uBlo, uv + uInv * vec2(-1.0, 1.0)).rgb + texture(uBlo, uv + uInv * vec2(1.0, 1.0)).rgb;
+  o = vec4(c / 12.0, 1.0);
 }"#;
 // los rayos del sol (Ultra), como los de WebGL 2 (post.js): 1) la máscara, a un cuarto del lado: dónde se ve el cielo (la
 // profundidad en el fondo) cerca del sol, con su brillo —la escena acá ya está en la pantalla: se vuelve a la luz y se le
@@ -443,6 +476,9 @@ void main() {
 // cuenta más si el mismo rayo cruza sombra (los haces), poco si va todo al sol (la bruma). Más fuerte
 // mirando para el sol (Henyey-Greenstein). Se le suman los rayos de la pantalla (uVol.z: su fuerza) y sale como v/8 con raíz
 const FS_VOL: &str = r#"#version 300 es
+#ifndef PASOS
+#define PASOS 20
+#endif
 precision highp float; precision highp sampler2DShadow;
 uniform highp sampler2D uProf; uniform sampler2DShadow uSM; uniform sampler2D uRay;
 uniform mat4 uSVP2; uniform vec3 uCam, uRay0, uRayX, uRayY, uSol, uSolC; uniform vec2 uZl, uSesgo2; uniform vec4 uVol; in vec2 vP; out vec4 o;
@@ -452,7 +488,7 @@ float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00
 void main() {
   vec2 uv = vP * 0.5 + 0.5; float z = texture(uProf, uv).r; vec3 r = rayo(uv); float lr = length(r);
   float tf = uVol.x / lr, te = z >= 0.99999 ? tf : min(hondo(z), tf);
-  const int N = 20; float dt = te / float(N), t = dt * ign(gl_FragCoord.xy), lit = 0.0;
+  const int N = PASOS; float dt = te / float(N), t = dt * ign(gl_FragCoord.xy), lit = 0.0;
   for (int i = 0; i < N; i++) {
     vec3 q = (uSVP2 * vec4(uCam + r * t, 1.0)).xyz;
     lit += (q.x <= 0.0 || q.y <= 0.0 || q.x >= 1.0 || q.y >= 1.0 || q.z >= 1.0) ? 1.0 : texture(uSM, vec3((q.x + 1.0) * 0.5, q.y, q.z - uSesgo2.x));
@@ -544,7 +580,7 @@ unsafe fn programa(gl: &glow::Context, vs: &str, fs: &str, defs: &str) -> Result
     for s in ss { gl.detach_shader(p, s); gl.delete_shader(s); }
     let u = NOMBRES.iter().map(|n| gl.get_uniform_location(p, n)).collect();
     gl.use_program(Some(p));
-    for (n, unidad) in [("uT", 0), ("uLM", 1), ("uSM", 2), ("uN", 0), ("uRef", 3), ("uP", 4), ("uT1", 5), ("uT2", 6), ("uT3", 7), ("uCubo", 8), ("uProf", 9), ("uAO", 10), ("uEsc", 11), ("uRefr", 12), ("uRefrP", 13), ("uNA", 14), ("uRay", 15)] { if let Some(l) = gl.get_uniform_location(p, n) { gl.uniform_1_i32(Some(&l), unidad); } }
+    for (n, unidad) in [("uT", 0), ("uLM", 1), ("uSM", 2), ("uN", 0), ("uRef", 3), ("uP", 4), ("uT1", 5), ("uT2", 6), ("uT3", 7), ("uCubo", 8), ("uProf", 9), ("uAO", 10), ("uEsc", 11), ("uRefr", 12), ("uRefrP", 13), ("uNA", 14), ("uRay", 15), ("uBlo", 10)] { if let Some(l) = gl.get_uniform_location(p, n) { gl.uniform_1_i32(Some(&l), unidad); } }
     Ok(Prog { p, u, piel: defs.contains("PIEL"), corte: defs.contains("CORTE") })
 }
 unsafe fn textura(gl: &glow::Context, w: u32, h: u32, px: &[u8], repetir: bool, mips: bool) -> glow::Texture {
@@ -601,6 +637,30 @@ pub(crate) fn planos_rect(vp: &M4, r0: [f32; 2], r1: [f32; 2]) -> [[f32; 4]; 6] 
 /// la luz en el aire: cuánto ilumina (por metro) el aire al sol —la bruma— y cuánto más el de los haces (el aire al sol de
 /// un rayo de la vista que también cruza sombra: entre fierros, hojas, ventanas)
 pub(crate) const VOL_DENSIDAD: f32 = 0.004; pub(crate) const VOL_HACES: f32 = 0.08;
+/// las nubes y el disco del sol de Definitivo (para los dos cielos, el de OpenGL 3 y el de 2: sin texturas ni nada de ES 3):
+/// una capa de nubes en un plano alto —el ruido de valor en 5 octavas, que se mueve con el viento—, con relieve (más claras del
+/// lado del sol), el borde plateado mirando al sol, más finas en el horizonte y del color de la luz del mapa (anaranjadas al
+/// atardecer, oscuras de noche)
+pub(crate) const NUBES_GLSL: &str = r#"
+float h21(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+float vr2(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y); }
+float fbmN(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { s += a * vr2(p); p = p * 2.02 + vec2(3.1, 1.7); a *= 0.5; } return s; }
+vec4 nubes(vec3 d, vec3 sol, float t, vec3 solC, vec3 zen) {
+  if (d.y < 0.015) return vec4(0.0);
+  vec2 uv = d.xz / (d.y + 0.12) * 1.6 + vec2(t * 0.012, t * 0.005);
+  float n = fbmN(uv), cob = smoothstep(0.56, 0.82, n);
+  if (cob <= 0.0) return vec4(0.0);
+  vec2 hs = sol.xz + vec2(1e-4); float n2 = fbmN(uv + normalize(hs) * 0.12);
+  float luz = clamp(0.6 + (n - n2) * 4.0, 0.15, 1.3), sd = max(dot(d, sol), 0.0);
+  float k = clamp(dot(solC, vec3(0.2126, 0.7152, 0.0722)), 0.0, 1.0); vec3 sc = solC / max(max(solC.r, max(solC.g, solC.b)), 1e-3);
+  // (la panza gris azulada, arriba blancas del lado del sol; más oscuras donde son más espesas)
+  vec3 col = mix(zen * 0.45 + vec3(0.3, 0.32, 0.36), sc * 0.96, clamp(luz * 0.8 - (cob - 0.5) * 0.35, 0.0, 1.0)) * mix(0.3, 1.0, k);
+  col += sc * pow(sd, 12.0) * 0.5 * (1.0 - cob) * k;
+  return vec4(min(col, vec3(1.0)), cob * smoothstep(0.015, 0.2, d.y) * 0.95);
+}
+vec3 sol_disco(vec3 d, vec3 sol, vec3 solC) { float sd = max(dot(d, sol), 0.0); return solC * (smoothstep(0.99965, 0.9999, sd) * 6.0 + pow(sd, 400.0) * 0.5); }
+"#;
 pub(crate) fn sol_en_pantalla(c: &crate::escena::Cuadro, s: [f32; 3]) -> Option<[f32; 3]> {
     if s[1] < -0.05 { return None; }
     let l = &c.luz; let k = l.sol_c[0] * 0.2126 + l.sol_c[1] * 0.7152 + l.sol_c[2] * 0.0722; if k < 0.05 { return None; }
@@ -665,7 +725,9 @@ pub struct Motor {
     reflejo: Option<Destino>,
     escena_rt: Option<Destino>,
     /// los rayos del sol: el programa y su destino (un cuarto del lado)
-    p_rayos: Prog, p_rayos2: Prog, p_vol: Prog, rayos_rt: Option<(Destino, Destino)>,
+    p_rayos: Prog, p_rayos2: Prog, p_vol: Prog, p_vol_aaa: Prog, rayos_rt: Option<(Destino, Destino)>,
+    /// el resplandor de Definitivo: los programas y la cadena de destinos (½, ¼, ⅛, 1/16)
+    p_brillo: Prog, p_baja: Prog, p_sube: Prog, brillo_rt: Vec<Destino>,
     /// el hongo de las nucleares con volumen
     pub hongos: crate::hongo::Hongos,
     svp: M4,
@@ -739,11 +801,12 @@ impl Motor {
             gl.bind_vertex_array(None); (vao, vb, ib)
         };
         let p_agua = programa(&gl, VS_LUZ, FS_AGUA, "")?;
-        let p_cielo = programa(&gl, VS_CIELO, FS_CIELO, "")?;
+        let p_cielo = programa(&gl, VS_CIELO, &FS_CIELO.replace("@@NUBES@@", NUBES_GLSL), "")?;
         let p_ao = programa(&gl, VS_CIELO, FS_AO, "")?;
         let p_ao_poner = programa(&gl, VS_CIELO, FS_AO_PONER, "")?;
         let p_final = programa(&gl, VS_CIELO, FS_FINAL, "")?;
-        let p_rayos = programa(&gl, VS_CIELO, FS_RAYMASK, "")?; let p_rayos2 = programa(&gl, VS_CIELO, FS_RAYOS, "")?; let p_vol = programa(&gl, VS_CIELO, FS_VOL, "")?;
+        let p_rayos = programa(&gl, VS_CIELO, FS_RAYMASK, "")?; let p_rayos2 = programa(&gl, VS_CIELO, FS_RAYOS, "")?; let p_vol = programa(&gl, VS_CIELO, FS_VOL, "")?; let p_vol_aaa = programa(&gl, VS_CIELO, FS_VOL, "#define PASOS 32\n")?;
+        let p_brillo = programa(&gl, VS_CIELO, FS_BRILLO, "")?; let p_baja = programa(&gl, VS_CIELO, FS_BAJA, "")?; let p_sube = programa(&gl, VS_CIELO, FS_SUBE, "")?;
         let p_part = programa(&gl, VS_PART, FS_PART, "")?;
         let p_lin = programa(&gl, VS_LIN, FS_LIN, "")?;
         let p_ui = programa(&gl, VS_UI, FS_UI, "")?;
@@ -757,7 +820,7 @@ impl Motor {
         let mv = vbo(&[(0, 3, 0), (1, 4, 12)], 28)?; let marcas = (mv.0, mv.1, 0);
         let ui = vbo(&[(0, 2, 0), (1, 2, 8), (2, 4, 16)], 32)?;
         let blanca = textura(&gl, 1, 1, &[255, 255, 255, 255], true, false);
-        Ok(Motor { p_rayos, p_rayos2, p_vol, rayos_rt: None, hongos: crate::hongo::Hongos::nuevo(true), gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
+        Ok(Motor { p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], rayos_rt: None, hongos: crate::hongo::Hongos::nuevo(true), gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
             p_luz, p_luz_piel, p_luz_c, p_luz_piel_c, p_luz_inst_c, p_pre, p_pre_piel, p_pre_inst, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_lin, p_ui, ui, p_luz_inst, p_sombra_inst, inst_buf, part, marcas, ao_rt: None, refr_rt: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], svp2: mat::id(), sesgo2: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
             opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new(), ranuras: Vec::new(), instancias: std::env::var("JXM_SIN_INST").is_err(),
             ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), fases_b: vec![], luz_b, perfil: std::env::var_os("JXM_PERFIL").map(|_| std::cell::RefCell::new(vec![])) })
@@ -1039,6 +1102,8 @@ impl Motor {
             }
             None => gl.uniform_1_i32(p.u(U::TieneCubo), 0),
         }
+        let t = self.c.as_ref().map_or(0.0, |c| c.tiempo.max(0.0));
+        gl.uniform_4_f32(p.u(U::Nubes), if self.op.aaa { 1.0 } else { 0.0 }, t, 0.0, 0.0); gl.uniform_3_f32(p.u(U::SolC), l.sol_c[0], l.sol_c[1], l.sol_c[2]);
         if prueba("sin_cielo") { return; }
         gl.depth_mask(false); gl.bind_vertex_array(None); gl.draw_arrays(glow::TRIANGLES, 0, 3); gl.depth_mask(true);
     }
@@ -1182,7 +1247,7 @@ impl Motor {
         let vol = self.op.sombras && self.sombra.is_some() && s[1] > 0.03 && luz_sol > 0.05;
         if rp.is_none() && !vol { return None; }
         let (esc, prof) = { let d = self.escena_rt.as_ref()?; (d.color, d.prof_t?) };
-        let (rw, rh) = ((ew / 4).max(8), (eh / 4).max(8));
+        let div = if self.op.aaa { 2 } else { 4 }; let (rw, rh) = ((ew / div).max(8), (eh / div).max(8));
         if self.rayos_rt.as_ref().map(|d| d.0.w != rw || d.0.h != rh).unwrap_or(true) { if let Some((a, b)) = self.rayos_rt.take() { borrar_destino(&self.gl, a); borrar_destino(&self.gl, b); } self.rayos_rt = Some((destino(&self.gl, rw, rh), destino(&self.gl, rw, rh))); }
         let (m_fb, m_t, r_fb, r_t) = { let d = self.rayos_rt.as_ref()?; (d.0.fb, d.0.color, d.1.fb, d.1.color) };
         let vp = c.vp; let (sc, sv2, ses2) = (l.sol_c, a_01(&self.svp2), self.sesgo2); let som_t = self.sombra.as_ref().map(|x| x.1);
@@ -1204,7 +1269,7 @@ impl Motor {
         let salida = if vol {
             // 3) la luz en el aire, con los rayos de la pantalla sumados (ya con su fuerza)
             gl.bind_framebuffer(glow::FRAMEBUFFER, Some(m_fb));
-            let p = &self.p_vol; gl.use_program(Some(p.p));
+            let p = if self.op.aaa { &self.p_vol_aaa } else { &self.p_vol }; gl.use_program(Some(p.p));
             let (ojo, r0, rx, ry, zl) = rayos(&vp);
             gl.uniform_3_f32(p.u(U::Cam), ojo[0], ojo[1], ojo[2]); gl.uniform_3_f32(p.u(U::Ray0), r0[0], r0[1], r0[2]); gl.uniform_3_f32(p.u(U::RayX), rx[0], rx[1], rx[2]); gl.uniform_3_f32(p.u(U::RayY), ry[0], ry[1], ry[2]); gl.uniform_2_f32(p.u(U::Zl), zl[0], zl[1]);
             gl.uniform_matrix_4_f32_slice(p.u(U::SVP2), false, &sv2); gl.uniform_2_f32(p.u(U::Sesgo2), ses2[0], ses2[1]);
@@ -1219,6 +1284,30 @@ impl Motor {
         gl.enable(glow::DEPTH_TEST); gl.depth_mask(true);
         self.dibujos += 3; self.marca("rayos");
         Some(salida)
+    }
+    /// el resplandor (Definitivo): lo brillante a media resolución, bajado en cadena y subido sumando; devuelve la textura
+    unsafe fn pasada_brillo(&mut self, ew: i32, eh: i32) -> Option<glow::Texture> {
+        let esc = self.escena_rt.as_ref()?.color;
+        let tam: Vec<(i32, i32)> = (1..=4).map(|k| ((ew >> k).max(4), (eh >> k).max(4))).collect();
+        if self.brillo_rt.len() != 4 || self.brillo_rt.iter().zip(&tam).any(|(d, t)| d.w != t.0 || d.h != t.1) {
+            for d in self.brillo_rt.drain(..) { borrar_destino(&self.gl, d); }
+            for &(w, h) in &tam { self.brillo_rt.push(destino(&self.gl, w, h)); }
+        }
+        let gl = &self.gl; let b = &self.brillo_rt;
+        gl.disable(glow::DEPTH_TEST); gl.depth_mask(false); gl.disable(glow::BLEND); gl.bind_vertex_array(None);
+        // (lo brillante)
+        gl.bind_framebuffer(glow::FRAMEBUFFER, Some(b[0].fb)); gl.viewport(0, 0, b[0].w, b[0].h);
+        let p = &self.p_brillo; gl.use_program(Some(p.p)); gl.uniform_2_f32(p.u(U::Inv), 0.5 / ew as f32, 0.5 / eh as f32);
+        gl.active_texture(glow::TEXTURE11); gl.bind_texture(glow::TEXTURE_2D, Some(esc)); gl.draw_arrays(glow::TRIANGLES, 0, 3);
+        // (bajando)
+        let p = &self.p_baja; gl.use_program(Some(p.p)); gl.active_texture(glow::TEXTURE10);
+        for i in 1..4 { gl.bind_framebuffer(glow::FRAMEBUFFER, Some(b[i].fb)); gl.viewport(0, 0, b[i].w, b[i].h); gl.bind_texture(glow::TEXTURE_2D, Some(b[i - 1].color)); gl.uniform_2_f32(p.u(U::Inv), 1.0 / b[i - 1].w as f32, 1.0 / b[i - 1].h as f32); gl.draw_arrays(glow::TRIANGLES, 0, 3); }
+        // (subiendo y sumando)
+        let p = &self.p_sube; gl.use_program(Some(p.p)); gl.enable(glow::BLEND); gl.blend_func(glow::ONE, glow::ONE);
+        for i in (1..4).rev() { gl.bind_framebuffer(glow::FRAMEBUFFER, Some(b[i - 1].fb)); gl.viewport(0, 0, b[i - 1].w, b[i - 1].h); gl.bind_texture(glow::TEXTURE_2D, Some(b[i].color)); gl.uniform_2_f32(p.u(U::Inv), 0.5 / b[i].w as f32, 0.5 / b[i].h as f32); gl.draw_arrays(glow::TRIANGLES, 0, 3); }
+        gl.disable(glow::BLEND); gl.active_texture(glow::TEXTURE0); gl.enable(glow::DEPTH_TEST); gl.depth_mask(true);
+        let t = b[0].color; self.dibujos += 7; self.marca("resplandor");
+        Some(t)
     }
     /// el reflejo del agua: la escena espejada en el plano del agua, a una fracción de la resolución
     unsafe fn pasada_reflejo(&mut self, w: i32, h: i32, ay: f32) {
@@ -1456,6 +1545,7 @@ impl Motor {
         // (los hongos de las nucleares, con la profundidad de la escena)
         if self.op.hongo > 0 { if let Some(c) = self.c.as_ref() { let n = self.hongos.dibujar(&self.gl, c, self.op.hongo, Some(fb), ew, eh); if n > 0 { self.marca("hongos"); } } }
         let rayos = if self.op.rayos { self.pasada_rayos(ew, eh) } else { None };
+        let brillo = if self.op.aaa { self.pasada_brillo(ew, eh) } else { None };
         let gl = &self.gl;
         gl.depth_mask(true); gl.disable(glow::BLEND);
         // (la profundidad de la escena ya no se usa: la placa no la guarda en la memoria —en los celulares, por mosaicos, se ahorra
@@ -1472,7 +1562,8 @@ impl Motor {
         let nit = if self.op.escala < 0.97 { ((1.0 - self.op.escala) * 1.4).min(0.6) } else { 0.0 };
         gl.uniform_1_f32(p.u(U::Fuerza), nit); gl.uniform_2_f32(p.u(U::Inv), 1.0 / ew as f32, 1.0 / eh as f32);
         gl.active_texture(glow::TEXTURE11); gl.bind_texture(glow::TEXTURE_2D, Some(col));
-        gl.uniform_1_f32(p.u(U::RayK), rayos.map_or(0.0, |r| r.1));
+        gl.uniform_1_f32(p.u(U::RayK), rayos.map_or(0.0, |r| r.1)); gl.uniform_1_f32(p.u(U::BloomK), if brillo.is_some() { 0.45 } else { 0.0 });
+        gl.active_texture(glow::TEXTURE10); gl.bind_texture(glow::TEXTURE_2D, Some(brillo.unwrap_or(self.blanca)));
         gl.active_texture(glow::TEXTURE15); gl.bind_texture(glow::TEXTURE_2D, Some(rayos.map_or(self.blanca, |r| r.0))); gl.active_texture(glow::TEXTURE11);
         gl.bind_vertex_array(None); gl.draw_arrays(glow::TRIANGLES, 0, 3);
         gl.bind_texture(glow::TEXTURE_2D, None); gl.active_texture(glow::TEXTURE0);

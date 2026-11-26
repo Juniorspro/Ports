@@ -22,7 +22,7 @@ impl Juego {
         let ahora = segundos();
         let acc = if self.gfxa.midiendo() { self.gfxa.cuadro(ahora) } else {
             let clave = self.gfx_clave(placa_txt, w, h);
-            let inicio = match &self.aj.medido { Some((q, g)) if *g == clave => *q, _ => if self.aj.calidad < ajustes::PERSONAL { self.aj.calidad } else { 2 } };
+            let inicio = match &self.aj.medido { Some((q, g)) if *g == clave => *q, _ => if self.aj.calidad < ajustes::PERSONAL { self.aj.calidad.min(4) } else { 2 } };
             Some(self.gfxa.empezar(inicio, gfxauto::umbral(self.refresco), ahora))
         };
         match acc {

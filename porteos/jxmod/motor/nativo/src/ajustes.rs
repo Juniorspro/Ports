@@ -4,9 +4,11 @@
 use jxmotor::gpu::Opciones;
 
 /// las calidades, como PERF_ORDEN de la web
-pub const CALIDADES: [&str; 5] = ["Patata", "Bajo", "Medio", "Alto", "Ultra"];
+/// (Definitivo, arriba de Ultra, es propio de la nativa: el cielo con nubes, el resplandor, el color de película y la luz en
+/// el aire más fina)
+pub const CALIDADES: [&str; 6] = ["Patata", "Bajo", "Medio", "Alto", "Ultra", "Definitivo"];
 /// la calidad «Personal»: se tocó algo a mano
-pub const PERSONAL: usize = 5;
+pub const PERSONAL: usize = 6;
 pub const RES: [u32; 5] = [50, 67, 75, 85, 100];
 pub const SENS: [u32; 6] = [4, 8, 12, 16, 20, 26];
 /// el campo de visión (grados de alto de la imagen, como CAM.fov: 70 el de siempre; la web va de 50 a 110)
@@ -95,7 +97,9 @@ impl Ajustes {
             let Some((k, v)) = l.split_once('=') else { continue };
             let (k, v) = (k.trim(), v.trim()); let n = v.parse::<u32>().ok(); let b = v == "1";
             match k {
-                "calidad" => if let Some(n) = n { a.calidad = (n as usize).min(PERSONAL) },
+                // (calidad: la de antes de Definitivo, con Personal en 5; calidad2: la de ahora, que va después y manda)
+                "calidad" => if let Some(n) = n { a.calidad = if n >= 5 { PERSONAL } else { n as usize } },
+                "calidad2" => if let Some(n) = n { a.calidad = (n as usize).min(PERSONAL) },
                 "res" => if let Some(n) = n { a.res = n.clamp(25, 100) },
                 "sombras" => a.sombras = b, "ao" => a.ao = b, "reflejo" => a.reflejo = b, "retoque" => a.retoque = b,
                 "sens" => if let Some(n) = n { a.sens = n.clamp(1, 40) },
@@ -113,22 +117,24 @@ impl Ajustes {
     pub fn texto(&self) -> String {
         let b = |x: bool| if x { 1 } else { 0 };
         let mut t = format!("calidad={}\nres={}\nsombras={}\nao={}\nreflejo={}\nretoque={}\nsens={}\nfov={}\nfps={}\nvol={}\nambiente={}\nauto={}\n",
-            self.calidad, self.res, b(self.sombras), b(self.ao), b(self.reflejo), b(self.retoque), self.sens, self.fov, b(self.fps), self.vol, b(self.ambiente), b(self.auto));
+            if self.calidad >= 5 { if self.calidad == PERSONAL { 5 } else { 4 } } else { self.calidad }, self.res, b(self.sombras), b(self.ao), b(self.reflejo), b(self.retoque), self.sens, self.fov, b(self.fps), self.vol, b(self.ambiente), b(self.auto));
         if let Some((q, g)) = &self.medido { t += &format!("medido={q}|{}\n", g.replace('\n', " ")); }
         t += &format!("hud={}\npal={}\ntut={}\ncont={}\ndin2={}\nmusica={}\nmenus={}\n", self.hud, self.pal, b(self.tut), b(self.cont), b(self.dinamica), b(self.musica), self.menus); if !self.hud_pos.is_empty() { t += &format!("hudpos={}\n", self.hud_pos.replace('\n', "")); }
         if let Some(i) = &self.idioma { t += &format!("idioma={i}\n"); }
+        // (la calidad con Definitivo: va al final para mandar sobre «calidad»; ésa queda para las versiones de antes —Personal en 5—)
+        t += &format!("calidad2={}\n", self.calidad);
         t
     }
     /// pone una calidad entera (como gfx de la web: cada una con su resolución y sus pasadas)
     pub fn poner_calidad(&mut self, k: usize) {
         let (res, so, ao, re, rt) = match k { 0 => (50, false, false, false, false), 1 => (67, false, false, true, false), 2 => (85, true, false, true, true), 3 => (100, true, false, true, true), _ => (100, true, true, true, true) };
-        self.calidad = k.min(4); self.res = res; self.sombras = so; self.ao = ao; self.reflejo = re; self.retoque = rt;
+        self.calidad = k.min(CALIDADES.len() - 1); self.res = res; self.sombras = so; self.ao = ao; self.reflejo = re; self.retoque = rt;
     }
     /// lo que va al motor: con calidad media o menos, la sombra de 1024 cada 2 cuadros y el reflejo a un cuarto
     pub fn opciones(&self) -> Opciones {
         let flojo = self.calidad <= 2; let muy = self.calidad <= 1;
-        Opciones { escala: self.res as f32 / 100.0, sombras: self.sombras, sombra_px: if flojo { 1024 } else { 2048 }, sombra_cada: if flojo { 2 } else { 1 }, sombra_radio: if flojo { 35.0 } else { 45.0 },
-            reflejo: self.reflejo, reflejo_div: if muy { 4 } else { 2 }, reflejo_cada: if muy { 2 } else { 1 }, ao: self.ao, ao_fuerza: 0.6, retoque: self.retoque, prepaso: true, rayos: self.calidad >= 4, hongo: self.calidad.min(4) as u8 }
+        Opciones { escala: self.res as f32 / 100.0, sombras: self.sombras, sombra_px: if flojo { 1024 } else { 2048 }, sombra_cada: if flojo { 2 } else { 1 }, sombra_radio: if flojo { 35.0 } else if self.calidad == 5 { 60.0 } else { 45.0 },
+            reflejo: self.reflejo, reflejo_div: if muy { 4 } else { 2 }, reflejo_cada: if muy { 2 } else { 1 }, ao: self.ao, ao_fuerza: 0.6, retoque: self.retoque, prepaso: true, rayos: self.calidad >= 4, hongo: self.calidad.min(4) as u8, aaa: self.calidad == 5 }
     }
     /// el volumen para el mezclador (80, el de fábrica, es 1: como quedó medido contra la web)
     pub fn volumen(&self) -> f32 { self.vol as f32 / 80.0 }
@@ -183,7 +189,7 @@ impl Ajustes {
         }
         // (si lo tocado a mano coincide con una calidad entera, vuelve a ser esa)
         if self.calidad == PERSONAL {
-            for q in 0..5 { let mut p = self.clone(); p.poner_calidad(q); let mut yo = self.clone(); yo.calidad = q; if p == yo { self.calidad = q; break; } }
+            for q in 0..CALIDADES.len() { let mut p = self.clone(); p.poner_calidad(q); let mut yo = self.clone(); yo.calidad = q; if p == yo { self.calidad = q; break; } }
         }
     }
 }
