@@ -123,6 +123,10 @@ vec3 nublado(vec3 l) { float y = dot(l, vec3(0.2126, 0.7152, 0.0722)); return mi
 // (lo que está debajo del agua: la luz del sol juntada por las olas —las cáusticas, la red de rayitos que se mueve en el
 // piso—. uCaus: x la altura del agua, y la fuerza, z el tiempo; uCausB: el rectángulo del agua en x y z)
 uniform vec4 uCaus, uCausB;
+// (Definitivo, como con trazado de rayos: el reflejo del piso —lo de arriba espejado en uRef, a media resolución—; uRP: 1/ancho
+// y 1/alto de la escena, si está y la altura del piso; más fuerte cuanto más liso y cuanto más de costado se mira, borroso
+// si es áspero; los pisos ásperos también, como el hormigón pulido)
+uniform sampler2D uRef; uniform vec4 uRP;
 float causticas(vec2 p, float t) {
   vec2 i = p; float c = 1.0;
   for (int k = 0; k < 4; k++) { float tt = t * (1.0 - 3.5 / float(k + 1)); i = p + vec2(cos(tt - i.x) + sin(tt + i.y), sin(tt - i.y) + cos(tt + i.x));
@@ -195,7 +199,7 @@ void main() {
 #ifdef CORTE
   if (vW.y < uClip) discard;   // (el reflejo: sólo lo de arriba del agua)
 #endif
-  vec4 t;
+  vec4 t; float rk = 0.0, rRough = 1.0, fNie = 0.0;
 #ifdef DBG_SIN_RAMAS
   t = texture(uT, vU);
 #else
@@ -252,6 +256,7 @@ void main() {
       float k = causticas(vW.xz * 1.1 + uSol.xz * hondo * 0.6, uCaus.z * 0.9) * exp(-hondo * 0.18) * smoothstep(0.0, 0.35, hondo) * (0.3 + 0.7 * max(n.y, 0.0)) * uCaus.y;
       col += dif * uSolC * k * (lm ? 0.3 : 0.15 + 0.4 * sh);
     }
+    if (uRP.z > 0.5 && n.y > 0.94 && abs(vW.y - uRP.w) < 0.08) { float fr = 1.0 - max(dot(n, v), 0.0); fr *= fr; rk = smoothstep(0.82, 0.3, min(rough, 0.68)) * mix(0.3, 1.0, fr * fr); rRough = rough; }
 #ifndef DBG_SIN_LUCES
     for (int i = 0; i < 12; i++) {
       if (i >= uLN) break;
@@ -286,12 +291,17 @@ void main() {
   // (Definitivo: más bruma de distancia, azulada como el cielo de arriba —el aire de película—)
   f = 1.0 - (1.0 - f) * exp(-max(0.0, dist - 20.0) * (0.0006 + 0.0002 * uNubes.x) * exp(-max(vW.y - uCam.y + 5.0, 0.0) * 0.02));
   if (uNubes.x > 0.5) nc = mix(nc, cieloCol(normalize(vec3(vd.x, 0.15, vd.z))), 0.25);
-  col = mix(col, nc, f);
+  col = mix(col, nc, f); fNie = f;
 #endif
 #ifdef DBG_SIN_GAMMA
   o = vec4(aces(col * uExpo), t.a);
 #else
-  o = vec4(enc(aces(col * uExpo)) + (ign(gl_FragCoord.xy) - 0.5) / 255.0, t.a);
+  vec3 fin = enc(aces(col * uExpo));
+  // (el reflejo del piso: borroso según lo áspero —4 lecturas corridas—, menos donde ya tapa la niebla)
+  if (rk > 0.0) { vec2 q = gl_FragCoord.xy * uRP.xy, d2 = uRP.xy * (1.5 + 9.0 * rRough);
+    vec3 r = 0.25 * (texture(uRef, q + d2).rgb + texture(uRef, q - d2).rgb + texture(uRef, q + vec2(d2.x, -d2.y)).rgb + texture(uRef, q - vec2(d2.x, -d2.y)).rgb);
+    fin = mix(fin, r, rk * (1.0 - fNie)); }
+  o = vec4(fin + (ign(gl_FragCoord.xy) - 0.5) / 255.0, t.a);
 #endif
 }"#;
 const VS_SOMBRA: &str = r#"#version 300 es
@@ -829,6 +839,8 @@ pub struct Motor {
     p_brillo: Prog, p_baja: Prog, p_sube: Prog, brillo_rt: Vec<Destino>,
     /// la vista que se acostumbra: el programa y sus dos texturas de 1×1 (una se lee, la otra se escribe), cuál toca y el tiempo
     p_adapta: Prog, adapta: Option<([(glow::Framebuffer, glow::Texture); 2], usize, f32)>,
+    /// Definitivo: la altura del piso que se reflejó este cuadro (en `reflejo`, cuando no hay agua)
+    refl_piso: Option<f32>, refl_piso_ult: (M4, f32),
     /// el hongo de las nucleares con volumen
     pub hongos: crate::hongo::Hongos,
     svp: M4,
@@ -921,7 +933,7 @@ impl Motor {
         let mv = vbo(&[(0, 3, 0), (1, 4, 12)], 28)?; let marcas = (mv.0, mv.1, 0);
         let ui = vbo(&[(0, 2, 0), (1, 2, 8), (2, 4, 16)], 32)?;
         let blanca = textura(&gl, 1, 1, &[255, 255, 255, 255], true, false);
-        Ok(Motor { p_adapta, adapta: None, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], rayos_rt: None, hongos: crate::hongo::Hongos::nuevo(true), gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
+        Ok(Motor { refl_piso: None, refl_piso_ult: (mat::id(), f32::NAN), p_adapta, adapta: None, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], rayos_rt: None, hongos: crate::hongo::Hongos::nuevo(true), gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
             p_luz, p_luz_piel, p_luz_c, p_luz_piel_c, p_luz_inst_c, p_pre, p_pre_piel, p_pre_inst, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_lin, p_ui, ui, p_luz_inst, p_sombra_inst, inst_buf, part, marcas, ao_rt: None, refr_rt: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], svp2: mat::id(), sesgo2: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
             opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new(), ranuras: Vec::new(), instancias: std::env::var("JXM_SIN_INST").is_err(),
             ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), fases_b: vec![], luz_b, perfil: std::env::var_os("JXM_PERFIL").map(|_| std::cell::RefCell::new(vec![])) })
@@ -1108,6 +1120,11 @@ impl Motor {
         gl.uniform_4_f32(p.u(U::Nubes), if self.op.aaa { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0);
         gl.uniform_1_f32(p.u(U::Sombra), if self.op.sombras && self.sombra.is_some() { 1.0 } else { 0.0 });
         gl.uniform_1_f32(p.u(U::Clip), clip);
+        // (el reflejo del piso: en la pasada de la escena —no en la del reflejo mismo—)
+        match (self.refl_piso.filter(|_| clip < -1e8), self.reflejo.as_ref()) {
+            (Some(y), Some(r)) => { gl.uniform_4_f32(p.u(U::RP), 1.0 / self.esc_wh.0, 1.0 / self.esc_wh.1, 1.0, y); gl.active_texture(glow::TEXTURE3); gl.bind_texture(glow::TEXTURE_2D, Some(r.color)); gl.active_texture(glow::TEXTURE0); }
+            _ => gl.uniform_4_f32(p.u(U::RP), 0.0, 0.0, 0.0, 0.0),
+        }
         // (las cáusticas debajo del agua: con el retoque, si hay agua en el mapa)
         match (self.agua.as_ref().filter(|a| self.op.retoque && (a.prof.is_some() || !self.aguas.is_empty())), c.agua_y.or(self.agua.as_ref().map(|a| a.y))) {
             (Some(a), Some(ay)) => {
@@ -1421,14 +1438,29 @@ impl Motor {
         Some(t)
     }
     /// el reflejo del agua: la escena espejada en el plano del agua, a una fracción de la resolución
-    unsafe fn pasada_reflejo(&mut self, w: i32, h: i32, ay: f32) {
-        let (rw, rh) = ((w / self.op.reflejo_div).max(16), (h / self.op.reflejo_div).max(16));
+    unsafe fn pasada_reflejo(&mut self, w: i32, h: i32, ay: f32) { self.pasada_reflejo_de(w, h, ay, false) }
+    /// el piso liso de abajo de la cámara para su reflejo (Definitivo): el que da el juego (`suelo_y`), no muy lejos, si a la vista
+    /// y cerca hay algo opaco que lo cruza y no es del todo áspero
+    fn piso_liso(&self) -> Option<f32> {
+        let c = self.c.as_ref()?; let y = c.suelo_y.filter(|&y| (0.2..25.0).contains(&(c.pos[1] - y)))?;
+        let pl = mat::planos(&c.vp); let cp = c.pos;
+        self.opacos.iter().any(|&i| { let it = &self.items[i]; let e = it.esf;
+            e[3] > 0.0 && (e[1] - y).abs() < e[3] && self.mats.get(&it.mat).map_or(false, |m| m.pbr[0] < 0.97)
+                && ((e[0] - cp[0]).powi(2) + (e[2] - cp[2]).powi(2)).sqrt() - e[3] < 50.0 && mat::esfera_dentro(&pl, &e) }).then_some(y)
+    }
+    /// el reflejo: del agua (sólo donde está en la pantalla) o, con `piso`, del piso (toda la pantalla; el piso mismo no se
+    /// refleja: el corte va 3 cm más arriba)
+    unsafe fn pasada_reflejo_de(&mut self, w: i32, h: i32, ay: f32, piso: bool) {
+        // (el del piso, borroso, a un tercio alcanza)
+        let div = if piso { self.op.reflejo_div.max(3) } else { self.op.reflejo_div };
+        let (rw, rh) = ((w / div).max(16), (h / div).max(16));
         if self.reflejo.as_ref().map(|d| d.w != rw || d.h != rh).unwrap_or(true) { if let Some(d) = self.reflejo.take() { borrar_destino(&self.gl, d); } self.reflejo = Some(destino(&self.gl, rw, rh)); }
         let vp = mat::mul(&self.c.as_ref().unwrap().vp, &mat::espejo_y(ay));
         // (el reflejo sólo se mira donde está el agua en la pantalla —más lo que la corren las olas—: ese rectángulo y nada más;
         // lo que no puede caer adentro, afuera)
-        let (r0, r1) = self.agua_en_pantalla();
+        let (r0, r1) = if piso { ([-1.0, -1.0], [1.0, 1.0]) } else { self.agua_en_pantalla() };
         let pl = planos_rect(&vp, r0, r1);
+        let ay = if piso { ay + 0.03 } else { ay };
         // (lo que está entero debajo del agua no se refleja)
         let lista: Vec<usize> = self.recortar(&vp, false).into_iter().filter(|&i| { let e = self.items[i].esf; e[1] + e[3] > ay - 0.05 && mat::esfera_dentro(&pl, &e) }).collect();
         { let gl = &self.gl; let d = self.reflejo.as_ref().unwrap(); gl.bind_framebuffer(glow::FRAMEBUFFER, Some(d.fb)); gl.viewport(0, 0, d.w, d.h);
@@ -1563,6 +1595,13 @@ impl Motor {
         let hay_agua = !self.aguas.is_empty() && self.agua.is_some() && self.agua_n.is_some() && !self.sin_agua;
         let cam_arriba = ay.map(|y| self.c.as_ref().unwrap().pos[1] > y + 0.05).unwrap_or(false);
         if hay_agua && self.op.reflejo && cam_arriba && (self.reflejo.is_none() || self.cuadro % self.op.reflejo_cada.max(1) as u64 == 0) { self.pasada_reflejo(w, h, ay.unwrap()); }
+        // (Definitivo sin agua a la vista: el reflejo del piso, como con trazado de rayos)
+        self.refl_piso = None;
+        if self.op.aaa && self.op.reflejo && !(hay_agua && cam_arriba) { if let Some(y) = self.piso_liso() {
+            // (con la cámara quieta, un cuadro sí y otro no se usa el de antes; moviéndose, siempre nuevo)
+            let vpc = self.c.as_ref().unwrap().vp; let quieta = self.refl_piso_ult.1 == y && self.refl_piso_ult.0.iter().zip(vpc.iter()).all(|(a, b)| (a - b).abs() < 1e-4);
+            if !(quieta && self.cuadro % 2 == 1 && self.reflejo.is_some()) { self.pasada_reflejo_de(w, h, y, true); self.refl_piso_ult = (vpc, y); }
+            self.refl_piso = Some(y); } }
         self.marca("reflejo");
         // la escena, a la resolución elegida
         let (ew, eh) = (((w as f32) * self.op.escala).round().max(16.0) as i32, ((h as f32) * self.op.escala).round().max(16.0) as i32);
