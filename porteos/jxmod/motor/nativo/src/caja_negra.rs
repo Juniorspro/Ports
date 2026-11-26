@@ -33,6 +33,8 @@ pub fn registro() -> String {
     let p = PASOS.lock().map(|p| p.clone()).unwrap_or_default();
     p.iter().map(|(s, t)| format!("{s:7.1} s  {t}")).collect::<Vec<_>>().join("\n")
 }
+/// el último paso anotado (para decir dónde se cerró)
+pub fn ultimo() -> Option<String> { PASOS.lock().ok()?.back().map(|p| p.1.clone()) }
 /// lo que dejó la vez anterior (y lo borra)
 pub fn anterior(archivo: &std::path::Path) -> Option<String> { let t = std::fs::read_to_string(archivo).ok(); let _ = std::fs::remove_file(archivo); t.filter(|t| !t.trim().is_empty()) }
 /// el texto que se escribe al trabarse
