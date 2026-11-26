@@ -135,7 +135,7 @@ impl Ajustes {
     pub fn opciones(&self) -> Opciones {
         let flojo = self.calidad <= 2; let muy = self.calidad <= 1;
         Opciones { escala: self.res as f32 / 100.0, sombras: self.sombras, sombra_px: if flojo { 1024 } else { 2048 }, sombra_cada: if self.calidad == 5 { 1 } else { 2 }, sombra_radio: if flojo { 35.0 } else if self.calidad == 5 { 60.0 } else { 45.0 },
-            reflejo: self.reflejo, reflejo_div: if muy { 4 } else if self.calidad == 5 { 2 } else { 3 }, reflejo_cada: if self.calidad == 5 { 1 } else { 2 }, ao: self.ao, ao_fuerza: if self.calidad == 5 { 0.85 } else { 0.6 }, retoque: self.retoque, prepaso: true, rayos: self.calidad >= 4, hongo: self.calidad.min(4) as u8, aaa: self.calidad == 5 }
+            reflejo: self.reflejo, reflejo_div: if muy { 4 } else if self.calidad == 5 { 2 } else { 3 }, reflejo_cada: if self.calidad == 5 { 1 } else { 2 }, ao: self.ao, ao_fuerza: if self.calidad == 5 { 1.0 } else { 0.6 }, retoque: self.retoque, adapta: self.retoque, prepaso: true, rayos: self.calidad >= 4, hongo: self.calidad.min(4) as u8, aaa: self.calidad == 5 }
     }
     /// el volumen para el mezclador (80, el de fábrica, es 1: como quedó medido contra la web)
     pub fn volumen(&self) -> f32 { self.vol as f32 / 80.0 }

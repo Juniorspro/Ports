@@ -181,7 +181,7 @@ fn luz_color(i: VOut, ff: bool) -> vec4<f32> {
     if (lm) { amb = vec3<f32>(0.0); env = lmL * 0.5; } else { amb = mix(G.amb_g.xyz, G.amb_s.xyz, n.y * 0.5 + 0.5); env = mix(cielo_col(rf), amb, clamp(rough * 1.15, 0.0, 1.0)); }
     let hor = clamp(1.0 + 1.3 * dot(rf, ng), 0.0, 1.0); env = env * hor * hor;
     let q1 = 1.0 - nv; let q2 = q1 * q1; let Fr = f0 + (max(vec3<f32>(1.0 - rough), f0) - f0) * (q2 * q2 * q1);
-    col += dif * amb + env * Fr * mix(1.0, sh * 0.6 + 0.4, metal) + O.em.xyz * 1.6;
+    col += dif * amb * 0.82 + env * Fr * mix(1.0, sh * 0.6 + 0.4, metal) + O.em.xyz * 1.6;
   }
   col += emAc;
   // la niebla (hasta cuánto tapa, la luz del sol en ella mirando para el sol y la de lo lejos y bajo)
@@ -361,8 +361,9 @@ struct Post { a: vec4<f32>, b: vec4<f32> };
     // (como FS_FINAL de post.js: un toque más de color y de contraste —curva en S suave— y un poco de viñeta)
     c = dec3(c);
     let l = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
-    c = clamp(mix(vec3<f32>(l), c, 1.18), vec3<f32>(0.0), vec3<f32>(1.0));
-    c = c * c * (3.0 - 2.0 * c) * 0.18 + c * 0.82;
+    c = clamp(mix(vec3<f32>(l), c, 1.15), vec3<f32>(0.0), vec3<f32>(1.0));
+    c = max(c - vec3<f32>(0.006), vec3<f32>(0.0)) * 1.006;
+    c = c * c * (3.0 - 2.0 * c) * 0.26 + c * 0.74;
     c = enc3(c);
     let q = uv - 0.5; c = c * (1.0 - dot(q, q) * 0.32);
     c += (ign(i.pos.xy) - 0.5) / 255.0;
