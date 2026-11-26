@@ -1,9 +1,9 @@
 {
- "codigo": 26112619,
- "version": "0.32",
+ "codigo": 26112620,
+ "version": "0.33",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 74635526,
- "sha256": "bf8d863b9b25cf14c10dc89f10fb6d39320260abbf90162ba49447c0f6102d7e",
- "notas_es": "JXMod Nativo 0.32 — JX Turbo: hasta casi el triple de cuadros por segundo sin bajar los gráficos. Entre cada cuadro dibujado, el juego arma cuadros intermedios corriendo la última imagen a donde mirás ahora (como los visores de realidad virtual): girar la cámara se siente mucho más fluido. Se prende solo cuando el celular no llega a los cuadros de la pantalla (60, 90 o 120 Hz) y el arma no se deforma. En OpenGL 3 y OpenGL 2; se apaga en Ajustes > Gráficos > JX Turbo.",
- "notas_en": "JXMod Native 0.32 — JX Turbo: up to almost three times the frames per second without lowering graphics. Between rendered frames the game builds in-between frames by shifting the last image to where you are looking now (like VR headsets): turning the camera feels much smoother. It only turns on when the phone can't reach the screen's refresh rate (60, 90 or 120 Hz) and the weapon doesn't warp. On OpenGL 3 and OpenGL 2; switch it off in Settings > Graphics > JX Turbo."
+ "tam": 74639622,
+ "sha256": "7c8804efbb521b9afb6ed1f78f6a79fe867f75e35e287209a2068a0111d8a396",
+ "notas_es": "JXMod Nativo 0.33 — Arreglado el tembleque de JX Turbo al girar: ahora va un cuadro intermedio por cada cuadro dibujado (con más, la placa no llegaba a tiempo y la pantalla repetía cuadros) y la resolución dinámica se ajusta para que entren los dos en el refresco de la pantalla. Además lo que tarda la placa se mide sin frenarla (antes había un tirón cada medio segundo) y los cuadros salen a ritmo parejo.",
+ "notas_en": "JXMod Native 0.33 — Fixed JX Turbo stutter when turning: now there is one in-between frame per rendered frame (with more, the GPU couldn't keep up and the screen repeated frames) and dynamic resolution adjusts so both fit in the screen refresh. GPU time is now measured without stalling (there was a hitch every half second) and frames come out at an even pace."
 }

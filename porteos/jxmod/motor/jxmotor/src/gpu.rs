@@ -957,7 +957,7 @@ pub struct Motor {
     /// las luces que ya están puestas en el programa de ahora (para no volver a mandarlas si la cosa siguiente usa las mismas)
     luces_puestas: std::cell::Cell<(u64, u32)>,
     /// JX Turbo: la cámara del último cuadro dibujado, su destino corrido, el programa que lo corre y lo de la pasada final
-    vp_ult: Option<M4>, corte_ult: f32, final_rt: Option<Destino>, p_repro: Prog, p_copia: Prog,
+    vp_ult: Option<M4>, corte_ult: f32, final_rt: Option<Destino>, p_repro: Prog, p_copia: Prog, pub reloj: Option<crate::reloj::Reloj>,
     /// lo puesto en la placa dentro de una tanda de dibujos (dibujar_lista_con): la malla, las texturas, y por programa el
     /// material y la posición —como OpenGL 2: no rehacer lo mismo—; las llamadas hechas y las que se ahorraron
     puesto: std::cell::RefCell<Option<Puesto3>>, pub llamadas: std::cell::Cell<[u32; 2]>,
@@ -1026,10 +1026,11 @@ impl Motor {
         let mv = vbo(&[(0, 3, 0), (1, 4, 12)], 28)?; let marcas = (mv.0, mv.1, 0);
         let ui = vbo(&[(0, 2, 0), (1, 2, 8), (2, 4, 16)], 32)?;
         let blanca = textura(&gl, 1, 1, &[255, 255, 255, 255], true, false);
+        let reloj = crate::reloj::Reloj::nuevo(&gl);
         Ok(Motor { gi_tex: None, gi_ver: -1.0, refl_agua: false, refl_piso: None, refl_piso_ult: (mat::id(), f32::NAN), p_adapta, adapta: None, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], rayos_rt: None, hongos: crate::hongo::Hongos::nuevo(true), gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
             p_luz, p_luz_piel, p_luz_c, p_luz_piel_c, p_luz_inst_c, p_pre, p_pre_piel, p_pre_inst, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_lin, p_ui, ui, p_luz_inst, p_sombra_inst, inst_buf, part, marcas, ao_rt: None, refr_rt: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], svp2: mat::id(), sesgo2: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
             opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new(), ranuras: Vec::new(), instancias: std::env::var("JXM_SIN_INST").is_err(),
-            ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), vp_ult: None, corte_ult: 0.0, final_rt: None, p_repro, p_copia, puesto: std::cell::RefCell::new(None), llamadas: std::cell::Cell::new([0; 2]), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), fases_b: vec![], luz_b, perfil: std::env::var_os("JXM_PERFIL").map(|_| std::cell::RefCell::new(vec![])) })
+            ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), vp_ult: None, corte_ult: 0.0, final_rt: None, p_repro, p_copia, reloj, puesto: std::cell::RefCell::new(None), llamadas: std::cell::Cell::new([0; 2]), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), fases_b: vec![], luz_b, perfil: std::env::var_os("JXM_PERFIL").map(|_| std::cell::RefCell::new(vec![])) })
     }
 
     /// sube a la placa los recursos nuevos (los que ya estaban con el mismo número se reemplazan)

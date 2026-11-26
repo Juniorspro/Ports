@@ -240,6 +240,8 @@ pub struct Juego {
     /// del intermedio que toca, la del último real (posición y mirada, para no correr un cuadro viejo después de un salto) y lo que
     /// tarda cada clase de cuadro (ms, promediado)
     pub turbo_n: u8, turbo_dt: f32, turbo_vp: Option<M4>, turbo_cam: [f32; 6], pub ms_real: f32, pub ms_inter: f32, pub fue_inter: bool, pub n_inter: u32, pub turbo_on: bool,
+    /// lo que tarda la placa en un intermedio (con los medidores) y la CPU en armar cada clase de cuadro (ms, promediado)
+    pub placa_inter: f32, pub cpu_real: f32, pub cpu_inter: f32, reloj_ok: bool,
     recargar: bool,
     /// (para las pruebas: el tiempo fijo de cada cuadro, en vez del reloj)
     pub dt_fijo: Option<f32>,
@@ -359,7 +361,7 @@ impl Juego {
         let en_red = red_juego::EnRed::nueva(datos.as_deref());
         let gmod = gmod_juego::EnGmod::nueva(datos.as_deref());
         let mut j = Juego { paq, mapa: None, mapas: vec!["RB_Flatgrass".into(), "RB_Construct".into()], mapa_i: 0, letras, letras_px, jug: Jugador::nuevo(), acum: 0.0,
-            dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0, perf: [0.0; 5], drs: 1.0, drs_t: 0.0, turbo_n: 0, turbo_dt: 0.0, turbo_vp: None, turbo_cam: [0.0; 6], ms_real: 0.0, ms_inter: 0.0, fue_inter: false, n_inter: 0, turbo_on: false, perf_t: Instant::now(),
+            dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0, perf: [0.0; 5], drs: 1.0, drs_t: 0.0, turbo_n: 0, turbo_dt: 0.0, turbo_vp: None, turbo_cam: [0.0; 6], ms_real: 0.0, ms_inter: 0.0, fue_inter: false, n_inter: 0, turbo_on: false, placa_inter: 0.0, cpu_real: 0.0, cpu_inter: 0.0, reloj_ok: false, perf_t: Instant::now(),
             recargar: true, dt_fijo: None, gfxa: Default::default(), gfx_medir: false, refresco: 60.0, memes: Default::default(), lan: Default::default(), bajas: None, bajada: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
             nombres: HashMap::new(), catalogo: vec![], cat_npc: vec![], cat_veh: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
@@ -946,12 +948,21 @@ impl Juego {
     /// un cuadro: mover, dibujar el mapa y el HUD (y Vulkan lo pone en la pantalla; con OpenGL lo hace la app). Lo que tarda
     /// se mide afuera, con la espera a la pantalla: `medir`
     pub unsafe fn cuadro(&mut self, m: &mut Motor3d, w: i32, h: i32, placa_txt: &str) -> Result<(), String> {
-        // (lo que tarda la placa: en OpenGL, cada 60 cuadros se espera a que termine; Vulkan tiene marcas de tiempo)
-        let medir = !m.es_vulkan() && self.cuenta % 60 == 30 && self.mapa.is_some() && !self.recargar;
+        // (lo que tarda la placa: con los medidores de tiempo de la placa, cada cuadro sin frenarla —reales e intermedios aparte—;
+        // si la placa no los tiene, cada 60 cuadros se espera a que termine; Vulkan tiene sus marcas de tiempo)
+        let en_juego = self.mapa.is_some() && !self.recargar && !self.ini.abierto;
+        let reloj = en_juego && m.tiene_reloj();
+        // (sin medidores: sólo en un cuadro de verdad —con JX Turbo, uno de cada dos a cuatro—)
+        let medir = !m.es_vulkan() && !reloj && self.cuenta % 60 >= 30 && self.cuenta % 60 < 34 && self.turbo_n >= self.turbo_max() && en_juego;
+        self.reloj_ok = reloj;
         if medir { m.esperar(); }
+        if reloj { m.reloj_empezar(); }
         let t = Instant::now();
         let r = self.cuadro_dentro(m, w, h, placa_txt);
-        if medir { m.esperar(); let x = t.elapsed().as_secs_f32() * 1000.0; self.placa_ms = if self.placa_ms == 0.0 { x } else { self.placa_ms * 0.5 + x * 0.5 }; }
+        // (lo que tardó la CPU en armarlo, sin la espera a la pantalla: con el ritmo parejo de JX Turbo cada cuadro dura lo mismo)
+        { let x = t.elapsed().as_secs_f32() * 1000.0; let c = if self.fue_inter { &mut self.cpu_inter } else { &mut self.cpu_real }; *c = if *c == 0.0 { x } else { *c * 0.9 + x * 0.1 }; }
+        if reloj { m.reloj_terminar(self.fue_inter); if let Some((re, it)) = m.reloj() { self.placa_ms = re; self.placa_inter = it; } }
+        if medir { m.esperar(); if !self.fue_inter { let x = t.elapsed().as_secs_f32() * 1000.0; self.placa_ms = if self.placa_ms == 0.0 { x } else { self.placa_ms * 0.5 + x * 0.5 }; } }
         if let Some((tot, det)) = m.tiempos() { self.placa_ms = tot; self.detalle = det; }
         r
     }
@@ -1557,20 +1568,25 @@ impl Juego {
     pub fn medir(&mut self, ms: f32) {
         self.ms = if self.cuenta == 0 { ms } else { self.ms * 0.9 + ms * 0.1 }; self.cuenta += 1; self.n_med += 1;
         { let x = if self.fue_inter { &mut self.ms_inter } else { &mut self.ms_real }; *x = if *x == 0.0 { ms } else { *x * 0.9 + ms * 0.1 }; }
-        // (con JX Turbo, la resolución dinámica mira los cuadros reales: con un intermedio entre cada dos, el real tiene el doble)
-        let turbo = self.aj.turbo && self.n_inter > 0; if self.fue_inter { return self.fps_paso(); }
-        // (se prende si los reales tardan más que el cuadro de la pantalla y se apaga si sobran —con margen, para que no titile—)
-        if !self.aj.turbo { self.turbo_on = false; } else if self.mapa.is_some() && !self.recargar {
-            let t = 1000.0 / self.refresco.max(30.0); if self.ms_real > t * 1.15 { self.turbo_on = true; } else if self.ms_real < t * 0.9 { self.turbo_on = false; }
+        let turbo = self.aj.turbo && self.turbo_on && self.n_inter > 0; if self.fue_inter { return self.fps_paso(); }
+        // (JX Turbo se prende si un cuadro de verdad cuesta más que el de la pantalla y se apaga si sobra —con margen, para que no
+        // titile—. Lo que cuesta: lo de la placa medido sin frenarla —o la CPU, si es más—; no el tiempo entre cuadros, que con el
+        // ritmo parejo es siempre el de la pantalla)
+        let t = 1000.0 / self.refresco.max(30.0); let (cr, ci) = self.costos();
+        if !self.aj.turbo { self.turbo_on = false; } else if self.mapa.is_some() && !self.recargar && cr > 0.0 {
+            if cr > t * 1.1 { self.turbo_on = true; } else if cr < t * 0.85 { self.turbo_on = false; }
         }
-        let ms = if turbo { self.ms_real } else { self.ms };
+        // (con JX Turbo, la resolución dinámica mira el cuadro de verdad: tiene que entrar con su intermedio en dos cuadros de la
+        // pantalla, y la placa terminarlo antes de que la pantalla se quede sin búfer —2 cuadros menos lo de la CPU—; si no, la
+        // pantalla repite cuadros y al girar se ve a los saltos. Con un margen del 8 %)
+        let (ms, obj_turbo) = if turbo { (cr, ((2.0 * t - (if ci > 0.0 { ci } else { t * 0.35 }).max(self.cpu_real)) * 0.92).max(t)) } else { (self.ms, 0.0) };
         // (la resolución dinámica: cada cuarto de segundo, si el cuadro tarda más que el de la pantalla —60, 90 o 120 por segundo;
         // como mucho 90—, menos píxeles —lo que cuesta va con el cuadrado de la escala—; si sobra, de a poco hasta la elegida.
         // En pasos de 5 %, entre 50 % y 100 %)
         if self.aj.dinamica && self.mapa.is_some() && !self.ini.abierto && !self.recargar {
             self.drs_t += ms;
             if self.drs_t >= 250.0 {
-                self.drs_t = 0.0; let obj = 1000.0 / self.refresco.clamp(45.0, 90.0) * if turbo { 2.0 } else { 1.0 };
+                self.drs_t = 0.0; let obj = if turbo { obj_turbo } else { 1000.0 / self.refresco.clamp(45.0, 90.0) };
                 if ms > obj * 1.06 { self.drs = ((self.drs * (obj / ms).sqrt().max(0.85) * 20.0).floor() / 20.0).max(0.5); }
                 else if ms < obj * 0.78 { self.drs = (((self.drs + 0.05) * 20.0).round() / 20.0).min(1.0); }
             }
@@ -1579,15 +1595,25 @@ impl Juego {
     }
     fn fps_paso(&mut self) { let e = self.t_med.elapsed().as_secs_f32(); if e >= 0.5 { self.fps = self.n_med as f32 / e; self.n_med = 0; self.t_med = Instant::now(); } }
     /// JX Turbo: cuántos intermedios van entre dos reales. Ninguno si el real ya llega al refresco de la pantalla; si no, los que
-    /// hacen falta para que el promedio llegue al refresco —(real + n intermedios) / (n + 1) = el cuadro de la pantalla—, entre 1 y
-    /// 3, y sin pasar de un real cada 1/24 s con la pantalla llena (lo que se mueve solo —NPC, efectos— sigue fluido: a 60 Hz, 1;
-    /// a 90, 2; a 120, 3)
+    /// hacen falta para que el promedio llegue al refresco —(real + n intermedios) / (n + 1) = el cuadro de la pantalla—, hasta el
+    /// tope (turbo_tope)
     fn turbo_max(&self) -> u8 {
         if !self.aj.turbo || !self.turbo_on { return 0; }
-        let r = self.refresco.max(30.0); let tope = ((r / 24.0).floor() - 1.0).clamp(1.0, 3.0);
-        if self.ms_real == 0.0 { return 1; }
-        let t = 1000.0 / r; if self.ms_real <= t * 1.15 { return 0; }
-        let falta = if self.ms_inter < t * 0.95 { ((self.ms_real - t) / (t - self.ms_inter)).ceil() } else { tope };
+        let tope = self.turbo_tope(); let t = 1000.0 / self.refresco.max(30.0); let (cr, ci) = self.costos();
+        if cr == 0.0 { return 1; }
+        let falta = if ci < t * 0.95 { ((cr - t) / (t - ci)).ceil() } else { tope };
         falta.clamp(1.0, tope) as u8
+    }
+    /// (como mucho, cuántos intermedios entre dos reales: uno. La placa hace todo en orden y la pantalla tiene 3 búferes: con 2 o
+    /// 3 intermedios seguidos, cuando el real tarda más de un cuadro y medio la cámara de cada intermedio ya no coincide con
+    /// cuándo sale en la pantalla y al girar se ve a los saltos —medido en una simulación del camino CPU, placa y pantalla: con
+    /// uno, el desfase queda en 0-2 ms; con tres, 4-15 ms—. Para más intermedios hay que repartir el cuadro real en pedazos)
+    fn turbo_tope(&self) -> f32 { 1.0 }
+    /// lo que cuesta un cuadro de verdad y uno intermedio (ms): con los medidores, lo más lento entre la placa y la CPU; sin
+    /// ellos, la placa medida cada tanto (o el tiempo entre cuadros)
+    fn costos(&self) -> (f32, f32) {
+        if self.reloj_ok && self.placa_ms > 0.0 { (self.placa_ms.max(self.cpu_real), self.placa_inter.max(self.cpu_inter)) }
+        else if self.placa_ms > 0.0 { (self.placa_ms.max(self.cpu_real), self.ms_inter.min(self.placa_ms)) }
+        else { (self.ms_real, self.ms_inter) }
     }
 }

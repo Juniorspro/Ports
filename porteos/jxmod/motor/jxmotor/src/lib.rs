@@ -6,6 +6,7 @@ pub mod gpu;
 pub mod hongo;
 pub mod mat;
 pub mod proto;
+pub mod reloj;
 pub mod wg;
 pub mod wgsl;
 #[cfg(feature = "vk")]

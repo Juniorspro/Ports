@@ -26,6 +26,14 @@ impl Motor3d {
     }
     /// JX Turbo: si este motor puede armar ya un cuadro intermedio
     pub fn turbo_listo(&self, w: i32, h: i32) -> bool { match self { Motor3d::Gl(m, _) => m.turbo_listo(w, h), Motor3d::Gl2(m, _) => m.turbo_listo(w, h), _ => false } }
+    /// lo que tarda la placa (los medidores de tiempo, sin frenarla): se abre antes del cuadro y se cierra después (`inter`: si
+    /// fue un cuadro intermedio de JX Turbo). Vulkan tiene sus marcas de tiempo
+    pub unsafe fn reloj_empezar(&mut self) { match self { Motor3d::Gl(m, _) => if let Some(r) = m.reloj.as_mut() { r.empezar(&m.gl) }, Motor3d::Gl2(m, _) => if let Some(r) = m.reloj.as_mut() { r.empezar(&m.gl) }, _ => {} } }
+    pub unsafe fn reloj_terminar(&mut self, inter: bool) { match self { Motor3d::Gl(m, _) => if let Some(r) = m.reloj.as_mut() { r.terminar(&m.gl, inter) }, Motor3d::Gl2(m, _) => if let Some(r) = m.reloj.as_mut() { r.terminar(&m.gl, inter) }, _ => {} } }
+    /// (real, intermedio) en ms, si la placa tiene los medidores y ya se midió un cuadro de verdad
+    pub fn reloj(&self) -> Option<(f32, f32)> { let r = match self { Motor3d::Gl(m, _) => m.reloj.as_ref(), Motor3d::Gl2(m, _) => m.reloj.as_ref(), _ => None }?; (r.real_ms > 0.0).then_some((r.real_ms, r.inter_ms)) }
+    /// si la placa tiene los medidores de tiempo
+    pub fn tiene_reloj(&self) -> bool { match self { Motor3d::Gl(m, _) => m.reloj.is_some(), Motor3d::Gl2(m, _) => m.reloj.is_some(), _ => false } }
     /// la cámara (vista y proyección) del último cuadro
     pub fn vp_actual(&self) -> Option<[f32; 16]> { match self { Motor3d::Gl(m, _) => m.c.as_ref().map(|c| c.vp), Motor3d::Gl2(m, _) => m.c.as_ref().map(|c| c.vp), Motor3d::Vk(m) => m.c.as_ref().map(|c| c.vp) } }
     /// los dibujos (llamadas a la placa) del último cuadro

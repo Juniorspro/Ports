@@ -111,7 +111,16 @@ fn android_main(app: AndroidApp) {
     let mut vk_cuadros = 0u32;
     let mut v: Option<Ventana> = None;
     let mut salir = false;
+    let mut t_ritmo = Instant::now();
     while !salir {
+        // (JX Turbo: un cuadro por cada refresco de la pantalla, a ritmo parejo, y el toque leído justo antes. Sin esto los
+        // intermedios —que cuestan poco— salían uno atrás del otro detrás del real, la pantalla los mostraba separados y al
+        // girar la cámara avanzaba a los saltos: el tembleque. Un poco antes del refresco, así nunca se queda sin cuadro)
+        if v.is_some() && j.turbo_on && j.mapa.is_some() {
+            let per = 0.995 / j.refresco.max(30.0); let ya = t_ritmo.elapsed().as_secs_f32();
+            if ya < per { std::thread::sleep(Duration::from_secs_f32(per - ya)); }
+        }
+        t_ritmo = Instant::now();
         let espera = if v.is_some() { Some(Duration::ZERO) } else { None };
         app.poll_events(espera, |ev| {
             if let PollEvent::Main(me) = ev {
