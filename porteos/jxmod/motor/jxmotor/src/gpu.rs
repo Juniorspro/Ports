@@ -8,7 +8,7 @@
 //!  - recorte por lo que ve la cámara (y por lo que ve el sol para la sombra) con la esfera de cada cosa;
 //!  - resolución dinámica: la escena a una fracción del tamaño de la pantalla y estirada al final (lo que más pesa en una
 //!    placa floja son los píxeles), y la sombra y el reflejo rehechos cada tantos cuadros.
-use crate::escena::{Agua, Cielo, Cuadro, Escena, ItemDin, Mat, FL_CIELO, FL_SIN_SOMBRA, EF_MARCAS, EF_ONDAS, EF_PART_ALFA, EF_PART_SUMA};
+use crate::escena::{Agua, Cielo, Cuadro, Escena, ItemDin, Mat, FL_CIELO, FL_SIN_SOMBRA, EF_GI, EF_GI_DATOS, EF_MARCAS, EF_ONDAS, EF_PART_ALFA, EF_PART_SUMA};
 use crate::mat::{self, M4};
 use glow::HasContext;
 use std::collections::HashMap;
@@ -51,9 +51,9 @@ struct Destino { fb: glow::Framebuffer, color: glow::Texture, prof: Option<glow:
 
 // los uniformes, por número (buscarlos por nombre en cada dibujo cuesta)
 #[derive(Clone, Copy)]
-enum U { Mat, NieS, Sesgo, VP, M, SVP, Mn, Sc, St, C, Em, Modo, S1, S3, Sol, SolC, AmbS, AmbG, NieC, Nie, Cam, Expo, Sombra, Clip, B, LP, LC, LD, LN, LE, F, H, S, Bq, D, RefInv, Tiempo, Top, Mid, Bot, Exp, Tinte, Dia, CieloK, TieneCubo, Radio, Inv, Fuerza, Retoque, Der, Arr, RefrOn, RefrK, IVP, SVP2, Sesgo2, Ti, Ti2, Ti3, AOk, NC, Ray0, RayX, RayY, Zl, RayP, RayK, Vol, Nubes, BloomK, RP, Adapta, Caus, CausB, Ond, OndN }
-const NU: usize = U::OndN as usize + 1;
-const NOMBRES: [&str; NU] = ["uMat", "uNieS", "uSesgo", "uVP", "uM", "uSVP", "uMn", "uSc", "uSt", "uC", "uEm", "uModo", "uS1", "uS3", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNie", "uCam", "uExpo", "uSombra", "uClip", "uB", "uLP", "uLC", "uLD", "uLN", "uLE", "uF", "uH", "uS", "uBq", "uD", "uRefInv", "uTiempo", "uTop", "uMid", "uBot", "uExp", "uTinte", "uDia", "uCieloK", "uTieneCubo", "uRadio", "uInv", "uFuerza", "uRetoque", "uDer", "uArr", "uRefrOn", "uRefrK", "uIVP", "uSVP2", "uSesgo2", "uTi", "uTi2", "uTi3", "uAOk", "uNC", "uRay0", "uRayX", "uRayY", "uZl", "uRayP", "uRayK", "uVol", "uNubes", "uBloomK", "uRP", "uAdapta", "uCaus", "uCausB", "uOnd", "uOndN"];
+enum U { Mat, NieS, Sesgo, VP, M, SVP, Mn, Sc, St, C, Em, Modo, S1, S3, Sol, SolC, AmbS, AmbG, NieC, Nie, Cam, Expo, Sombra, Clip, B, LP, LC, LD, LN, LE, F, H, S, Bq, D, RefInv, Tiempo, Top, Mid, Bot, Exp, Tinte, Dia, CieloK, TieneCubo, Radio, Inv, Fuerza, Retoque, Der, Arr, RefrOn, RefrK, IVP, SVP2, Sesgo2, Ti, Ti2, Ti3, AOk, NC, Ray0, RayX, RayY, Zl, RayP, RayK, Vol, Nubes, BloomK, RP, Adapta, Caus, CausB, Ond, OndN, GIo, GIn }
+const NU: usize = U::GIn as usize + 1;
+const NOMBRES: [&str; NU] = ["uMat", "uNieS", "uSesgo", "uVP", "uM", "uSVP", "uMn", "uSc", "uSt", "uC", "uEm", "uModo", "uS1", "uS3", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNie", "uCam", "uExpo", "uSombra", "uClip", "uB", "uLP", "uLC", "uLD", "uLN", "uLE", "uF", "uH", "uS", "uBq", "uD", "uRefInv", "uTiempo", "uTop", "uMid", "uBot", "uExp", "uTinte", "uDia", "uCieloK", "uTieneCubo", "uRadio", "uInv", "uFuerza", "uRetoque", "uDer", "uArr", "uRefrOn", "uRefrK", "uIVP", "uSVP2", "uSesgo2", "uTi", "uTi2", "uTi3", "uAOk", "uNC", "uRay0", "uRayX", "uRayY", "uZl", "uRayP", "uRayK", "uVol", "uNubes", "uBloomK", "uRP", "uAdapta", "uCaus", "uCausB", "uOnd", "uOndN", "uGIo", "uGIn"];
 struct Prog { p: glow::Program, u: Vec<Option<glow::UniformLocation>>, piel: bool, corte: bool }
 impl Prog {
     fn u(&self, k: U) -> Option<&glow::UniformLocation> { self.u[k as usize].as_ref() }
@@ -127,6 +127,19 @@ uniform vec4 uCaus, uCausB;
 // y 1/alto de la escena, si está y la altura del piso; más fuerte cuanto más liso y cuanto más de costado se mira, borroso
 // si es áspero; los pisos ásperos también, como el hormigón pulido)
 uniform sampler2D uRef; uniform vec4 uRP;
+// (Definitivo: la luz global —nativo/luz_global.rs—: en cada punto, cuánto cielo se ve y cuánto sol rebota hacia él, de una
+// grilla de sondas en una textura —cada piso una baldosa de nx de ancho—, guardadas multiplicadas por si valen: al mezclar
+// vecinas, las de adentro de las paredes no oscurecen. uGIo: el origen y 1/paso; uGIn: nx, ny, nz y si está)
+uniform sampler2D uGI; uniform vec4 uGIo, uGIn;
+vec3 luzGlobal(vec3 p) {
+  vec3 g = (p - uGIo.xyz) * uGIo.w - 0.5;
+  if (g.x < -0.5 || g.y < -0.5 || g.z < -0.5 || g.x > uGIn.x - 0.5 || g.y > uGIn.y - 0.5 || g.z > uGIn.z - 0.5) return vec3(1.0, 0.0, 1.0);
+  g = clamp(g, vec3(0.0), uGIn.xyz - 1.0);
+  float y0 = floor(g.y), y1 = min(y0 + 1.0, uGIn.y - 1.0), an = uGIn.x * uGIn.y;
+  vec4 s = mix(texture(uGI, vec2((y0 * uGIn.x + g.x + 0.5) / an, (g.z + 0.5) / uGIn.z)), texture(uGI, vec2((y1 * uGIn.x + g.x + 0.5) / an, (g.z + 0.5) / uGIn.z)), g.y - y0);
+  if (s.b < 0.03) return vec3(1.0, 0.0, 1.0);
+  return vec3(s.r / s.b, s.g / s.b, s.a / s.b);
+}
 float causticas(vec2 p, float t) {
   vec2 i = p; float c = 1.0;
   for (int k = 0; k < 4; k++) { float tt = t * (1.0 - 3.5 / float(k + 1)); i = p + vec2(cos(tt - i.x) + sin(tt + i.y), sin(tt - i.y) + cos(tt + i.x));
@@ -280,6 +293,13 @@ void main() {
     if (lm) { amb = vec3(0.0); env = lmL * 0.5; } else { amb = mix(uAmbG, uAmbS, n.y * 0.5 + 0.5); env = mix(cieloCol(rf), amb, clamp(rough * 1.15, 0.0, 1.0)); }
 #endif
     float hor = clamp(1.0 + 1.3 * dot(rf, ng), 0.0, 1.0); env *= hor * hor;
+    // (Definitivo: la luz global —adentro de una casa la luz del cielo se apaga; la del sol que entra rebota y la ilumina—)
+    if (uGIn.w > 0.5 && !lm) { vec3 gi = luzGlobal(vW + ng * 0.6);
+      // (el cielo que le llega: los pisos y techos, el de arriba; las paredes, el de los costados —puertas, ventanas—)
+      float cv = mix(gi.x, gi.z, clamp(1.0 - abs(ng.y), 0.0, 1.0) * 0.8);
+      amb *= mix(0.16, 1.0, cv); env *= mix(0.2, 1.0, cv);
+      // (el rebote del sol, del color del sol, un poco más donde el cielo no llega —adentro es la luz principal—)
+      col += dif * uSolC * (gi.y * mix(0.85, 0.55, cv)); }
     float q1 = 1.0 - nv, q2 = q1 * q1; vec3 Fr = f0 + (max(vec3(1.0 - rough), f0) - f0) * (q2 * q2 * q1);
     // (la luz de todos lados un poco menos: lo que está a la sombra se nota como sombra —la vista que se acostumbra lo aclara si
     // es todo lo que se mira—)
@@ -692,7 +712,7 @@ unsafe fn programa(gl: &glow::Context, vs: &str, fs: &str, defs: &str) -> Result
     for s in ss { gl.detach_shader(p, s); gl.delete_shader(s); }
     let u = NOMBRES.iter().map(|n| gl.get_uniform_location(p, n)).collect();
     gl.use_program(Some(p));
-    for (n, unidad) in [("uT", 0), ("uLM", 1), ("uSM", 2), ("uN", 0), ("uRef", 3), ("uP", 4), ("uT1", 5), ("uT2", 6), ("uT3", 7), ("uCubo", 8), ("uProf", 9), ("uAO", 10), ("uEsc", 11), ("uRefr", 12), ("uRefrP", 13), ("uNA", 14), ("uRay", 15), ("uBlo", 10), ("uAd", 13)] { if let Some(l) = gl.get_uniform_location(p, n) { gl.uniform_1_i32(Some(&l), unidad); } }
+    for (n, unidad) in [("uT", 0), ("uLM", 1), ("uSM", 2), ("uN", 0), ("uRef", 3), ("uP", 4), ("uT1", 5), ("uT2", 6), ("uT3", 7), ("uCubo", 8), ("uProf", 9), ("uAO", 10), ("uEsc", 11), ("uRefr", 12), ("uRefrP", 13), ("uNA", 14), ("uRay", 15), ("uBlo", 10), ("uAd", 13), ("uGI", 14)] { if let Some(l) = gl.get_uniform_location(p, n) { gl.uniform_1_i32(Some(&l), unidad); } }
     Ok(Prog { p, u, piel: defs.contains("PIEL"), corte: defs.contains("CORTE") })
 }
 unsafe fn textura(gl: &glow::Context, w: u32, h: u32, px: &[u8], repetir: bool, mips: bool) -> glow::Texture {
@@ -846,6 +866,8 @@ pub struct Motor {
     p_adapta: Prog, adapta: Option<([(glow::Framebuffer, glow::Texture); 2], usize, f32)>,
     /// Definitivo: la altura del piso que se reflejó este cuadro (en `reflejo`, cuando no hay agua)
     refl_piso: Option<f32>, refl_piso_ult: (M4, f32),
+    /// la luz global: la textura de las sondas y su versión
+    gi_tex: Option<glow::Texture>, gi_ver: f32,
     /// el hongo de las nucleares con volumen
     pub hongos: crate::hongo::Hongos,
     svp: M4,
@@ -938,7 +960,7 @@ impl Motor {
         let mv = vbo(&[(0, 3, 0), (1, 4, 12)], 28)?; let marcas = (mv.0, mv.1, 0);
         let ui = vbo(&[(0, 2, 0), (1, 2, 8), (2, 4, 16)], 32)?;
         let blanca = textura(&gl, 1, 1, &[255, 255, 255, 255], true, false);
-        Ok(Motor { refl_piso: None, refl_piso_ult: (mat::id(), f32::NAN), p_adapta, adapta: None, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], rayos_rt: None, hongos: crate::hongo::Hongos::nuevo(true), gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
+        Ok(Motor { gi_tex: None, gi_ver: -1.0, refl_piso: None, refl_piso_ult: (mat::id(), f32::NAN), p_adapta, adapta: None, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], rayos_rt: None, hongos: crate::hongo::Hongos::nuevo(true), gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
             p_luz, p_luz_piel, p_luz_c, p_luz_piel_c, p_luz_inst_c, p_pre, p_pre_piel, p_pre_inst, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_lin, p_ui, ui, p_luz_inst, p_sombra_inst, inst_buf, part, marcas, ao_rt: None, refr_rt: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], svp2: mat::id(), sesgo2: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
             opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new(), ranuras: Vec::new(), instancias: std::env::var("JXM_SIN_INST").is_err(),
             ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), fases_b: vec![], luz_b, perfil: std::env::var_os("JXM_PERFIL").map(|_| std::cell::RefCell::new(vec![])) })
@@ -1125,6 +1147,12 @@ impl Motor {
         gl.uniform_4_f32(p.u(U::Nubes), if self.op.aaa { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0);
         gl.uniform_1_f32(p.u(U::Sombra), if self.op.sombras && self.sombra.is_some() { 1.0 } else { 0.0 });
         gl.uniform_1_f32(p.u(U::Clip), clip);
+        // (la luz global de las sondas)
+        match (c.efectos.iter().find(|e| e.0 == EF_GI).filter(|_| self.op.aaa), self.gi_tex) {
+            (Some(e), Some(t)) if e.1.len() >= 8 => { gl.uniform_4_f32(p.u(U::GIo), e.1[0], e.1[1], e.1[2], 1.0 / e.1[3].max(0.01)); gl.uniform_4_f32(p.u(U::GIn), e.1[4], e.1[5], e.1[6], 1.0);
+                gl.active_texture(glow::TEXTURE14); gl.bind_texture(glow::TEXTURE_2D, Some(t)); gl.active_texture(glow::TEXTURE0); }
+            _ => gl.uniform_4_f32(p.u(U::GIn), 1.0, 1.0, 1.0, 0.0),
+        }
         // (el reflejo del piso: en la pasada de la escena —no en la del reflejo mismo—)
         match (self.refl_piso.filter(|_| clip < -1e8), self.reflejo.as_ref()) {
             (Some(y), Some(r)) => { gl.uniform_4_f32(p.u(U::RP), 1.0 / self.esc_wh.0, 1.0 / self.esc_wh.1, 1.0, y); gl.active_texture(glow::TEXTURE3); gl.bind_texture(glow::TEXTURE_2D, Some(r.color)); gl.active_texture(glow::TEXTURE0); }
@@ -1591,7 +1619,22 @@ impl Motor {
         std::mem::swap(&mut self.p_luz, &mut b[0]); std::mem::swap(&mut self.p_luz_piel, &mut b[1]); std::mem::swap(&mut self.p_luz_inst, &mut b[2]);
         std::mem::swap(&mut self.p_luz_c, &mut b[3]); std::mem::swap(&mut self.p_luz_piel_c, &mut b[4]); std::mem::swap(&mut self.p_luz_inst_c, &mut b[5]);
     }
+    /// la luz global: si el cuadro trae sondas nuevas (EF_GI_DATOS), a la textura
+    unsafe fn subir_gi(&mut self) {
+        let Some(c) = self.c.as_ref() else { return };
+        let (Some(h), Some(d)) = (c.efectos.iter().find(|e| e.0 == EF_GI), c.efectos.iter().find(|e| e.0 == EF_GI_DATOS)) else { return };
+        if h.1.len() < 8 || h.1[7] == self.gi_ver { return; }
+        let (w, hh) = ((h.1[4] * h.1[5]) as i32, h.1[6] as i32); if (w * hh * 4) as usize != d.1.len() { return; }
+        let px: Vec<u8> = d.1.iter().map(|&x| x as u8).collect();
+        let gl = &self.gl;
+        let t = match self.gi_tex { Some(t) => t, None => { let Ok(t) = gl.create_texture() else { return }; self.gi_tex = Some(t); t } };
+        gl.bind_texture(glow::TEXTURE_2D, Some(t));
+        gl.tex_image_2d(glow::TEXTURE_2D, 0, glow::RGBA8 as i32, w, hh, 0, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelUnpackData::Slice(Some(&px)));
+        for (k, v) in [(glow::TEXTURE_MIN_FILTER, glow::LINEAR), (glow::TEXTURE_MAG_FILTER, glow::LINEAR), (glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE), (glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE)] { gl.tex_parameter_i32(glow::TEXTURE_2D, k, v as i32); }
+        self.gi_ver = h.1[7];
+    }
     unsafe fn dibujar_escena(&mut self, salida: Option<glow::Framebuffer>, w: i32, h: i32) {
+        self.subir_gi();
         { let gl = &self.gl; gl.enable(glow::DEPTH_TEST); gl.depth_func(glow::LEQUAL); gl.disable(glow::BLEND); gl.disable(glow::CULL_FACE); }
         self.marca("antes");
         if self.op.sombras && (self.sombra.is_none() || self.cuadro % self.op.sombra_cada.max(1) as u64 == 0) { self.pasada_sombra(); }

@@ -96,6 +96,9 @@ pub const EF_PART_ALFA: u32 = 1; pub const EF_PART_SUMA: u32 = 2; pub const EF_M
 pub const EF_HONGO: u32 = 4;
 /// el agua del cuadro: [bajo el agua (0/1), 0, 0, 0] y hasta 8 ondas [x, z, cuándo, fuerza] (las que dejan el jugador y lo que cae)
 pub const EF_ONDAS: u32 = 5;
+/// la luz global de Definitivo (nativo/luz_global.rs): [origen x, y, z, paso, nx, ny, nz, versión] cada cuadro y, cuando
+/// cambia, sus datos (EF_GI_DATOS: RGBA por sonda, de 0 a 255)
+pub const EF_GI: u32 = 6; pub const EF_GI_DATOS: u32 = 7;
 
 pub const CAB_CUADRO: usize = 47;
 pub const POR_ITEM: usize = 26;

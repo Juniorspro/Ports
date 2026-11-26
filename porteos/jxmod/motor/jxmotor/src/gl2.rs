@@ -127,6 +127,17 @@ uniform vec3 uRet;
 vec3 nublado(vec3 l) { float y = dot(l, vec3(0.2126, 0.7152, 0.0722)); return mix(l, y * vec3(0.9, 1.0, 1.12), 0.5); }
 // (las cáusticas debajo del agua, como gpu.rs; uCaus: la altura del agua, la fuerza y el tiempo; uCausB: el rectángulo)
 uniform vec4 uCaus, uCausB;
+// (Definitivo: la luz global de las sondas, como gpu.rs)
+uniform sampler2D uGI; uniform vec4 uGIo, uGIn;
+vec3 luzGlobal(vec3 p) {
+  vec3 g = (p - uGIo.xyz) * uGIo.w - 0.5;
+  if (g.x < -0.5 || g.y < -0.5 || g.z < -0.5 || g.x > uGIn.x - 0.5 || g.y > uGIn.y - 0.5 || g.z > uGIn.z - 0.5) return vec3(1.0, 0.0, 1.0);
+  g = clamp(g, vec3(0.0), uGIn.xyz - 1.0);
+  float y0 = floor(g.y), y1 = min(y0 + 1.0, uGIn.y - 1.0), an = uGIn.x * uGIn.y;
+  vec4 s = mix(texture2D(uGI, vec2((y0 * uGIn.x + g.x + 0.5) / an, (g.z + 0.5) / uGIn.z)), texture2D(uGI, vec2((y1 * uGIn.x + g.x + 0.5) / an, (g.z + 0.5) / uGIn.z)), g.y - y0);
+  if (s.b < 0.03) return vec3(1.0, 0.0, 1.0);
+  return vec3(s.r / s.b, s.g / s.b, s.a / s.b);
+}
 float causticas(vec2 p, float t) {
   vec2 i = p; float c = 1.0;
   for (int k = 0; k < 4; k++) { float tt = t * (1.0 - 3.5 / float(k + 1)); i = p + vec2(cos(tt - i.x) + sin(tt + i.y), sin(tt - i.y) + cos(tt + i.x));
@@ -221,6 +232,13 @@ void main() {
     vec3 rf = reflect(-v, n), amb, env; float nv = max(dot(n, v), 1e-3);
     if (lm) { amb = vec3(0.0); env = lmL * 0.5; } else { amb = mix(uAmbG, uAmbS, n.y * 0.5 + 0.5); env = mix(cieloCol(rf), amb, clamp(rough * 1.15, 0.0, 1.0)); }
     float hor = clamp(1.0 + 1.3 * dot(rf, ng), 0.0, 1.0); env *= hor * hor;
+    // (Definitivo: la luz global —adentro la luz del cielo se apaga; la del sol que entra rebota—)
+    if (uGIn.w > 0.5 && !lm) { vec3 gi = luzGlobal(vW + ng * 0.6);
+      // (el cielo que le llega: los pisos y techos, el de arriba; las paredes, el de los costados —puertas, ventanas—)
+      float cv = mix(gi.x, gi.z, clamp(1.0 - abs(ng.y), 0.0, 1.0) * 0.8);
+      amb *= mix(0.16, 1.0, cv); env *= mix(0.2, 1.0, cv);
+      // (el rebote del sol, del color del sol, un poco más donde el cielo no llega —adentro es la luz principal—)
+      col += dif * uSolC * (gi.y * mix(0.85, 0.55, cv)); }
     float q1 = 1.0 - nv, q2 = q1 * q1; vec3 Fr = f0 + (max(vec3(1.0 - rough), f0) - f0) * (q2 * q2 * q1);
     col += dif * amb * 0.82 + env * Fr * mix(1.0, sh * 0.6 + 0.4, metal) + uEm * 1.6;
   }
@@ -602,7 +620,7 @@ const PART_MAX2: usize = 16383;
 const BRILLO_PISO: f32 = 0.72;
 
 const U_LUZ: [&str; 39] = ["uTam", "uBan", "uBan2", "uTi", "uTi2", "uTi3", "uVP", "uM", "uMn", "uSc", "uSt", "uT", "uT1", "uT2", "uT3", "uLM", "uS1", "uS3", "uC", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNieS", "uCam", "uEm", "uMat", "uNie", "uExpo", "uModo", "uLP", "uLC", "uLN", "uIVP", "uTop", "uMid", "uBot", "uExp"];
-const U_OTROS: [&str; 47] = ["uAOk", "uProf", "uRadio", "uRay0", "uRayX", "uRayY", "uZl", "uFuerza", "uAO", "uOnd", "uOndN", "uCaus", "uCausB", "uEsc", "uAd", "uAdapta", "uNubes", "uBlo", "uBloomK", "uVol", "uAlfaD", "uCieloA", "uRay", "uRayK", "uRayP", "uTiene", "uCieloK", "uInv", "uRet", "uTinte", "uDia", "uCubo", "uN", "uF", "uH", "uS", "uTiempo", "uSolC", "uSuma", "uSVP", "uSom", "uSomP", "uClip", "uR", "uRP", "uSVP2", "uSomP2"];
+const U_OTROS: [&str; 50] = ["uGI", "uGIo", "uGIn", "uAOk", "uProf", "uRadio", "uRay0", "uRayX", "uRayY", "uZl", "uFuerza", "uAO", "uOnd", "uOndN", "uCaus", "uCausB", "uEsc", "uAd", "uAdapta", "uNubes", "uBlo", "uBloomK", "uVol", "uAlfaD", "uCieloA", "uRay", "uRayK", "uRayP", "uTiene", "uCieloK", "uInv", "uRet", "uTinte", "uDia", "uCubo", "uN", "uF", "uH", "uS", "uTiempo", "uSolC", "uSuma", "uSVP", "uSom", "uSomP", "uClip", "uR", "uRP", "uSVP2", "uSomP2"];
 
 unsafe fn programa(gl: &glow::Context, vs: &str, fs: &str, atrs: &[&str]) -> Result<Prog2, String> {
     let p = gl.create_program()?;
@@ -681,6 +699,7 @@ pub struct Motor {
     p_adapta: Prog2, adapta: Option<([(glow::Framebuffer, glow::Texture); 2], usize, f32)>,
     /// la oclusión de Definitivo: sus programas (si la placa tiene texturas de profundidad y derivadas), la profundidad de la
     /// escena en una textura y el destino de la oclusión (a media resolución)
+    gi_tex: Option<glow::Texture>, gi_ver: f32,
     p_ao: Option<(Prog2, Prog2)>, ao_ahora: bool, ao_prof: Option<(glow::Framebuffer, glow::Texture, glow::Renderbuffer)>, prof24: bool, escena_prof: Option<glow::Texture>, ao_rt: Option<(glow::Framebuffer, glow::Texture, i32, i32)>,
     p_luz: Prog2, p_luz_c: Prog2, p_cielo: Prog2, p_ui: Prog2, p_copia: Prog2, p_agua: Prog2, p_part: Prog2, p_lin: Prog2,
     /// los rayos del sol: el programa, su destino (cuadro, textura, ancho, alto) y si van en este cuadro (el sol en la pantalla y su fuerza)
@@ -761,7 +780,7 @@ impl Motor {
             let ib = gl.create_buffer()?; gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ib)); let ibb: Vec<u8> = caras.iter().flat_map(|x| x.to_le_bytes()).collect(); gl.buffer_data_u8_slice(glow::ELEMENT_ARRAY_BUFFER, &ibb, glow::STATIC_DRAW);
             Some((HashMap::new(), pc, vb, ib))
         } else { None };
-        Ok(Motor { p_ao, ao_ahora: false, ao_prof: None, prof24: ext.contains("GL_OES_packed_depth_stencil") && std::env::var_os("JXM_GL2_PROF16").is_none(), escena_prof: None, ao_rt: None, p_adapta, adapta: None, hongos: crate::hongo::Hongos::nuevo(false), alta, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], vol_ahora: false, alfa_d: false, rayos_rt: None, rayos_ahora: None, som: None, som_vp: [mat::id(); 2], som_n: 0, som_on: false, som_off: [[0.0; 2]; 2], som_huella: [0; 2], refl_n: 0, p_som, p_som_c, p_prof_ao, som_ao: false, refl: None, refl_on: false, refl_activo: false, p_luz_r, p_luz_rc, refl_piso: None, refl_px: [0.0; 2], refl_ult: (mat::id(), f32::NAN), oclu, n_cuadro: 0, fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), gl, op, cubo: None, p_luz, p_luz_c, p_cielo, p_ui, p_copia, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), marcas_vb, marcas_n: 0, poses: vec![], poses_n: 0, pose_p: vec![], pose_v: vec![], marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
+        Ok(Motor { gi_tex: None, gi_ver: -1.0, p_ao, ao_ahora: false, ao_prof: None, prof24: ext.contains("GL_OES_packed_depth_stencil") && std::env::var_os("JXM_GL2_PROF16").is_none(), escena_prof: None, ao_rt: None, p_adapta, adapta: None, hongos: crate::hongo::Hongos::nuevo(false), alta, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], vol_ahora: false, alfa_d: false, rayos_rt: None, rayos_ahora: None, som: None, som_vp: [mat::id(); 2], som_n: 0, som_on: false, som_off: [[0.0; 2]; 2], som_huella: [0; 2], refl_n: 0, p_som, p_som_c, p_prof_ao, som_ao: false, refl: None, refl_on: false, refl_activo: false, p_luz_r, p_luz_rc, refl_piso: None, refl_px: [0.0; 2], refl_ult: (mat::id(), f32::NAN), oclu, n_cuadro: 0, fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), gl, op, cubo: None, p_luz, p_luz_c, p_cielo, p_ui, p_copia, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), marcas_vb, marcas_n: 0, poses: vec![], poses_n: 0, pose_p: vec![], pose_v: vec![], marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
             c: None, items: vec![], opacos: vec![], transp: vec![], uint32, npot, escena_rt: None, dibujos: 0, memoria: 0, mapa: String::new() })
     }
 
@@ -888,6 +907,7 @@ impl Motor {
     /// un cuadro: la escena (a la escala pedida) en `salida` de w × h
     pub unsafe fn dibujar(&mut self, salida: Option<glow::Framebuffer>, w: i32, h: i32) {
         self.marca("interfaz_y_cpu");
+        self.subir_gi();
         self.dibujos = 0; self.poses_n = 0;
         let (ew, eh) = (((w as f32) * self.op.escala).round().max(16.0) as i32, ((h as f32) * self.op.escala).round().max(16.0) as i32);
         self.rayos_ahora = if self.op.rayos { self.rayos_sol() } else { None };
@@ -1111,6 +1131,21 @@ impl Motor {
         self.dibujos += 1;
     }
 
+    /// la luz global: si el cuadro trae sondas nuevas, a la textura (como gpu.rs)
+    unsafe fn subir_gi(&mut self) {
+        let Some(c) = self.c.as_ref() else { return };
+        let (Some(h), Some(d)) = (c.efectos.iter().find(|e| e.0 == crate::escena::EF_GI), c.efectos.iter().find(|e| e.0 == crate::escena::EF_GI_DATOS)) else { return };
+        if h.1.len() < 8 || h.1[7] == self.gi_ver { return; }
+        let (w, hh) = ((h.1[4] * h.1[5]) as i32, h.1[6] as i32); if (w * hh * 4) as usize != d.1.len() { return; }
+        let px: Vec<u8> = d.1.iter().map(|&x| x as u8).collect();
+        let gl = &self.gl;
+        let t = match self.gi_tex { Some(t) => t, None => { let Ok(t) = gl.create_texture() else { return }; self.gi_tex = Some(t); t } };
+        gl.bind_texture(glow::TEXTURE_2D, Some(t));
+        gl.tex_image_2d(glow::TEXTURE_2D, 0, glow::RGBA as i32, w, hh, 0, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelUnpackData::Slice(Some(&px)));
+        for (k, v) in [(glow::TEXTURE_MIN_FILTER, glow::LINEAR), (glow::TEXTURE_MAG_FILTER, glow::LINEAR), (glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE), (glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE)] { gl.tex_parameter_i32(glow::TEXTURE_2D, k, v as i32); }
+        self.gi_ver = h.1[7];
+    }
+
     fn sol(&self) -> [f32; 3] { mat::norm(self.c.as_ref().map(|c| c.luz.sol).unwrap_or([0.3, 0.8, 0.2])) }
     /// las marcas (frenadas, quemaduras, agujeros): después de lo opaco, mezcladas, sin escribir la profundidad y despegadas
     /// hacia la cámara (como gpu.rs)
@@ -1176,6 +1211,12 @@ impl Motor {
         gl.uniform_3_f32(p.u("uNieC"), l.nie.c[0], l.nie.c[1], l.nie.c[2]); gl.uniform_3_f32(p.u("uNie"), l.nie.a, l.nie.b, if l.nie.m > 0.0 { l.nie.m } else { 1.0 });
         gl.uniform_3_f32(p.u("uNieS"), l.nie.s[0], l.nie.s[1], l.nie.s[2]);
         gl.uniform_3_f32(p.u("uCam"), c.pos[0], c.pos[1], c.pos[2]); gl.uniform_1_f32(p.u("uExpo"), l.expo);
+        // (la luz global de las sondas —unidad 5: en este programa no se usa el cubo del cielo—)
+        match (c.efectos.iter().find(|e| e.0 == crate::escena::EF_GI).filter(|_| self.op.aaa && self.alta), self.gi_tex) {
+            (Some(e), Some(t)) if e.1.len() >= 8 => { gl.uniform_4_f32(p.u("uGIo"), e.1[0], e.1[1], e.1[2], 1.0 / e.1[3].max(0.01)); gl.uniform_4_f32(p.u("uGIn"), e.1[4], e.1[5], e.1[6], 1.0);
+                gl.uniform_1_i32(p.u("uGI"), 5); gl.active_texture(glow::TEXTURE5); gl.bind_texture(glow::TEXTURE_2D, Some(t)); gl.active_texture(glow::TEXTURE0); }
+            _ => gl.uniform_4_f32(p.u("uGIn"), 1.0, 1.0, 1.0, 0.0),
+        }
         // (las cáusticas debajo del agua: con precisión alta y el retoque, si hay agua a la vista)
         match (self.agua.as_ref().filter(|a| self.alta && self.op.retoque && (a.prof.is_some() || !self.aguas.is_empty())), c.agua_y.or(self.agua.as_ref().map(|a| a.y))) {
             (Some(a), Some(ay)) => {

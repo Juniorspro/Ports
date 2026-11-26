@@ -84,6 +84,20 @@ fn main() {
     println!("  aparición {:?} · giro {:.2} · sol {:?} · luz {:?}", p0, y0, j.mapa.as_ref().map(|mp| mp.luz.sol), j.mapa.as_ref().map(|mp| mp.luz.sol_c));
     for (k, dy) in [0.0f32, 1.57, 3.14, 4.71].iter().enumerate() { j.poner_ojos([p0[0], p0[1] + 0.7, p0[2]], y0 + dy, -0.05); paso(&mut j, &mut m, np); foto(&mut m, &format!("v_{k}")); }
     j.jug.noclip = true;
+    // (JXM_INTERIOR=1: un punto adentro —poco cielo, desde las sondas de la luz global— cerca de la aparición, y fotos desde ahí)
+    if std::env::var_os("JXM_INTERIOR").is_some() { if let Some(mp) = j.mapa.as_ref() {
+        let sol = { let s = mp.luz.sol; let l = (s[0] * s[0] + s[1] * s[1] + s[2] * s[2]).sqrt().max(1e-6); [s[0] / l, s[1] / l, s[2] / l] };
+        let mut mejor: Option<([f32; 3], f32)> = None;
+        for gx in -15..=15 { for gz in -15..=15 { let p = [p0[0] + gx as f32 * 2.0, p0[1] + 0.9, p0[2] + gz as f32 * 2.0];
+            let (c, r, vale, _) = jxmod::comun::luz_global::sonda(&mp.mundo, p, sol);
+            if vale && c < 0.25 { let k = c - r * 0.5; if mejor.map_or(true, |m| k < m.1) { mejor = Some((p, k)); } } } }
+        if let Some((p, _)) = mejor {
+            println!("  interior en {:?}", p);
+            let mut n = 0; while !j.gi_listo() && n < 400 { paso(&mut j, &mut m, 1); n += 1; }
+            println!("  luz global lista: {} ({} cuadros)", j.gi_listo(), n);
+            for (k, dy) in [0.0f32, 1.57, 3.14, 4.71].iter().enumerate() { j.poner_ojos(p, y0 + dy, -0.1); paso(&mut j, &mut m, np); foto(&mut m, &format!("i_{k}")); }
+        } else { println!("  (no se encontró un interior)"); }
+    } }
     if let Ok(t) = std::env::var("JXM_VISTAS") {
         for (k, v) in t.split(';').enumerate() { let v: Vec<f32> = v.split(',').filter_map(|x| x.trim().parse().ok()).collect(); if v.len() < 5 { continue; }
             j.poner_ojos([v[0], v[1], v[2]], v[3].to_radians(), v[4].to_radians()); paso(&mut j, &mut m, np); foto(&mut m, &format!("x_{k}")); }

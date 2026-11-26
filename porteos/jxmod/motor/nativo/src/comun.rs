@@ -27,6 +27,7 @@ use herramientas::{Herramientas, Logica, Valor};
 #[path = "mapas_juego.rs"] pub mod mapas_juego;
 // (lo de jugabilidad: destrucción, nucleares, artefactos, patada, linterna, cámara libre, mods nativos, Cíclope y Pepe)
 #[path = "jugabilidad.rs"] pub mod jugabilidad;
+#[path = "luz_global.rs"] pub mod luz_global;
 // (lo de personajes: gorros, identidad, el panel de Personaje, el accesorio, el arma a gusto, el celular y los emotes nuevos)
 #[path = "personajes.rs"] pub mod personajes;
 // (el inicio con el menú clásico, sus paneles y la pausa: inicio.js, clasico.js, paneles.js, rbmenus.js, ui.js)
@@ -270,6 +271,8 @@ pub struct Juego {
     /// algo con «Usar» (un vehículo a la vista); lo último que se puso (para Deshacer: objeto o NPC) y la matriz de la vista
     /// las ondas del agua (x, z, cuándo, fuerza): las deja el jugador al moverse en el agua y lo que cae (EF_ONDAS); y cuándo la próxima
     ondas: Vec<[f32; 4]>, onda_t: f32,
+    /// la luz global de Definitivo (luz_global.rs)
+    gi: luz_global::LuzGlobal,
     pub npcs: Npcs, npc_skins: Skins, pub vehs: Vehiculos, pub aguas: Aguas, usar_ve: bool, pila: Vec<(bool, u32)>, vp_ult: M4,
     /// los efectos (efectos.rs: partículas, fogonazos, trazas, impactos, explosiones, marcas) y si su atlas está en el motor
     pub ef: Efectos, ef_atlas: bool,
@@ -357,7 +360,7 @@ impl Juego {
             nombres: HashMap::new(), catalogo: vec![], cat_npc: vec![], cat_veh: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
-            npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), ondas: Vec::new(), onda_t: 0.0, aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
+            npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), ondas: Vec::new(), onda_t: 0.0, gi: Default::default(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
             her: Herramientas::default(), en_red, gmod, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), banco: Default::default(), musica: Default::default(), ed: hud_web::Editor::default(), tut: Default::default(), gr: Default::default(), cont: Default::default(), poner_congelado: false, pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
             armas_ico: false, armas_ico_h: 256, hud_ico: false, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
@@ -876,7 +879,7 @@ impl Juego {
         {
             let p = Placa::lista()[k];
             if let Some(d) = &self.datos { let _ = std::fs::write(d.join("motor.txt"), p.clave()); }
-            self.placa = p;
+            self.placa = p; self.gi.reenviar();
             let usar = if p.hecha() { p } else { Placa::Gl3 };
             if usar != self.en_uso { self.cambiar_motor = true; }
             self.aviso = Some((if p.hecha() { format!("Motor: {}", p.nombre()) } else { format!("{} todavía no está: se usa OpenGL 3 (queda elegido)", p.nombre()) }, Instant::now()));
@@ -1152,6 +1155,11 @@ impl Juego {
             self.ef.calidad(self.aj.calidad.min(4)); self.ef.alto_px = hf; self.ef.paso(dt, efx::GRAV);
             self.jg.nuk.vol = m.hongo_listo(); let mut efectos = self.ef.bloques(&vpm, cam); self.jg_efectos(&mut efectos, &vpm, cam);
             { let mut b = vec![if bajo_agua { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0]; for o in &self.ondas { b.extend_from_slice(o); } efectos.push((jxmotor::escena::EF_ONDAS, b)); }
+            // (Definitivo, en los mapas sin luz horneada: la luz global de las sondas —las de Source ya la traen horneada—)
+            if self.aj.calidad == 5 && mp.esc.c.lms.is_empty() && !mp.mundo.t.is_empty() && std::env::var_os("JXM_SIN_GI").is_none() {
+                let s = luz.sol; let l = (s[0] * s[0] + s[1] * s[1] + s[2] * s[2]).sqrt().max(1e-6);
+                efectos.extend(self.gi.paso(&self.mapas[self.mapa_i], &mp.mundo.t, [self.jug.pos[0], self.jug.pos[1], self.jug.pos[2]], [s[0] / l, s[1] / l, s[2] / l]));
+            }
             let mut luces = self.ef.luces(); luces.extend(mp.luces_cerca(ojos, 6));
             self.herramientas_items(&mut items, &mut luces); luces.truncate(8); self.jg_luces(&mut luces); self.pjs_luces(&mut luces, ojos);
             // (el piso de abajo de la cámara, para su reflejo en OpenGL 2: sólo si es casi plano)
@@ -1169,6 +1177,8 @@ impl Juego {
         r
     }
 
+    /// ¿ya llegó la luz global? (las pruebas)
+    pub fn gi_listo(&self) -> bool { self.gi.actual.is_some() }
     /// una onda en el agua (x, z, fuerza), como la que deja algo que cae (las pruebas)
     pub fn onda(&mut self, x: f32, z: f32, fuerza: f32) { let t = self.t0.elapsed().as_secs_f32(); self.ondas.push([x, z, t, fuerza]); }
     fn azar(&mut self) -> f32 { self.azar ^= self.azar << 13; self.azar ^= self.azar >> 17; self.azar ^= self.azar << 5; (self.azar % 10000) as f32 / 10000.0 }
