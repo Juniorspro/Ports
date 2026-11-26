@@ -94,6 +94,8 @@ pub struct Cuadro { pub vp: [f32; 16], pub pos: [f32; 3], pub luz: Luz, pub agua
 pub const EF_PART_ALFA: u32 = 1; pub const EF_PART_SUMA: u32 = 2; pub const EF_MARCAS: u32 = 3;
 /// el hongo con volumen de una nuclear (jxjuego::nucleares::Explosion::nv_bloque, 28 números): hongo.rs
 pub const EF_HONGO: u32 = 4;
+/// el agua del cuadro: [bajo el agua (0/1), 0, 0, 0] y hasta 8 ondas [x, z, cuándo, fuerza] (las que dejan el jugador y lo que cae)
+pub const EF_ONDAS: u32 = 5;
 
 pub const CAB_CUADRO: usize = 47;
 pub const POR_ITEM: usize = 26;

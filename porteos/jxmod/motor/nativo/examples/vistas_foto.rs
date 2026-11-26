@@ -90,12 +90,22 @@ fn main() {
     }
     // (el agua: desde arriba mirándola y desde abajo —la superficie vista de adentro y el piso—)
     if let Some(a) = j.mapa.as_ref().and_then(|m| m.esc.c.agua.clone()) { if let Some(pr) = a.prof.as_ref() {
-        let c = [pr.x0 + pr.w * 0.5, a.y, pr.z0 + pr.h * 0.5];
+        // (el punto más hondo del agua: rayos para abajo en una grilla de 16×16)
+        let mut c = [pr.x0 + pr.w * 0.5, a.y, pr.z0 + pr.h * 0.5]; let mut hondo = 0.0f64;
+        if let Some(mp) = j.mapa.as_ref() { for gx in 0..16 { for gz in 0..16 {
+            let (x, z) = (pr.x0 + pr.w * (gx as f32 + 0.5) / 16.0, pr.z0 + pr.h * (gz as f32 + 0.5) / 16.0);
+            if let Some(hit) = jxjuego::persona::rayo_mundo(&mp.mundo, [x as f64, a.y as f64 - 0.05, z as f64], [0.0, -1.0, 0.0], 30.0) { if hit.0 > hondo && hit.0 < 29.0 { hondo = hit.0; c = [x, a.y, z]; } }
+        } } }
+        println!("  lo más hondo: {:.1} m en ({:.1}, {:.1})", hondo, c[0], c[2]);
         println!("  agua: y {:.2} · {:.0}×{:.0} m desde ({:.1}, {:.1}) · normales {:?}", a.y, pr.w, pr.h, pr.x0, pr.z0, a.normal.as_ref().map(|n| (n.w, n.h, n.n)));
         j.poner_ojos([c[0], c[1] + 2.5, c[2]], y0, -0.45); paso(&mut j, &mut m, np); foto(&mut m, "agua_arriba");
-        j.poner_ojos([c[0], c[1] - 1.2, c[2]], y0, 0.0); paso(&mut j, &mut m, np); foto(&mut m, "agua_adentro");
-        j.poner_ojos([c[0], c[1] - 1.2, c[2]], y0, 0.75); paso(&mut j, &mut m, np); foto(&mut m, "agua_mirando_arriba");
-        j.poner_ojos([c[0], c[1] - 0.6, c[2]], y0, -0.7); paso(&mut j, &mut m, np); foto(&mut m, "agua_piso");
+        // (ondas: tres que caen adelante, una tras otra)
+        let (sy, cy) = y0.sin_cos(); let ad = [c[0] + sy * 4.0, c[2] + cy * 4.0];
+        for k in 0..3 { j.onda(ad[0] + k as f32 * 0.8, ad[1], 1.0); paso(&mut j, &mut m, 6); }
+        paso(&mut j, &mut m, 4); foto(&mut m, "agua_ondas");
+        j.poner_ojos([c[0], c[1] - 1.5, c[2]], y0, 0.0); paso(&mut j, &mut m, np); foto(&mut m, "agua_adentro");
+        j.poner_ojos([c[0], c[1] - 1.5, c[2]], y0, 0.9); paso(&mut j, &mut m, np); foto(&mut m, "agua_mirando_arriba");
+        j.poner_ojos([c[0], c[1] - 0.8, c[2]], y0, -0.6); paso(&mut j, &mut m, np); foto(&mut m, "agua_piso");
     } } else { println!("  (sin agua)"); }
     j.jug.noclip = false;
     let mut ms = vec![]; j.poner_ojos([p0[0], p0[1] + 0.7, p0[2]], y0, -0.05);

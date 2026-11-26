@@ -268,6 +268,8 @@ pub struct Juego {
     /// arrastró para mirar en este cuadro (el arma se atrasa un poco al girar)
     /// los NPC (npc.rs) y sus skins; los vehículos (vehiculo.rs) y el agua que hace flotar (flotar.rs); si se puede usar
     /// algo con «Usar» (un vehículo a la vista); lo último que se puso (para Deshacer: objeto o NPC) y la matriz de la vista
+    /// las ondas del agua (x, z, cuándo, fuerza): las deja el jugador al moverse en el agua y lo que cae (EF_ONDAS); y cuándo la próxima
+    ondas: Vec<[f32; 4]>, onda_t: f32,
     pub npcs: Npcs, npc_skins: Skins, pub vehs: Vehiculos, pub aguas: Aguas, usar_ve: bool, pila: Vec<(bool, u32)>, vp_ult: M4,
     /// los efectos (efectos.rs: partículas, fogonazos, trazas, impactos, explosiones, marcas) y si su atlas está en el motor
     pub ef: Efectos, ef_atlas: bool,
@@ -355,7 +357,7 @@ impl Juego {
             nombres: HashMap::new(), catalogo: vec![], cat_npc: vec![], cat_veh: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
-            npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
+            npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), ondas: Vec::new(), onda_t: 0.0, aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
             her: Herramientas::default(), en_red, gmod, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), banco: Default::default(), musica: Default::default(), ed: hud_web::Editor::default(), tut: Default::default(), gr: Default::default(), cont: Default::default(), poner_congelado: false, pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
             armas_ico: false, armas_ico_h: 256, hud_ico: false, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
@@ -742,7 +744,10 @@ impl Juego {
                 veh::Evento::Marca { de, a, n, ancho, k } => self.ef.marca([de[0] as f32, de[1] as f32, de[2] as f32], [a[0] as f32, a[1] as f32, a[2] as f32], [n[0] as f32, n[1] as f32, n[2] as f32], ancho as f32, k as f32),
             }
         }
-        for sp in std::mem::take(&mut self.aguas.salpicones) { let n = format!("AG_Salpica{}", 1 + (self.azar() * 3.0) as u32); self.sonido.tocar(&n, (0.3 + 0.7 * sp.k) as f32, 1.0, Some([sp.p[0] as f32, sp.p[1] as f32, sp.p[2] as f32])); }
+        let ahora = self.t0.elapsed().as_secs_f32();
+        for sp in std::mem::take(&mut self.aguas.salpicones) { let n = format!("AG_Salpica{}", 1 + (self.azar() * 3.0) as u32); self.sonido.tocar(&n, (0.3 + 0.7 * sp.k) as f32, 1.0, Some([sp.p[0] as f32, sp.p[1] as f32, sp.p[2] as f32]));
+            // (y la onda que deja en el agua)
+            self.ondas.push([sp.p[0] as f32, sp.p[2] as f32, ahora, (0.6 + 0.9 * sp.k) as f32]); }
     }
     /// la Physics Gun y la Gravity Gun con un NPC: agarrar a uno vivo lo vuelve muñeco (y el arma agarra la parte más
     /// cercana); el disparo de la Gravity Gun lo tira (npcTumbar)
@@ -1101,10 +1106,24 @@ impl Juego {
             let vista = m4::mirar(cam, [cam[0] + mira[0], cam[1] + mira[1], cam[2] + mira[2]], [0.0, 1.0, 0.0]);
             // (con los ojos bajo el agua: la niebla de cerca, del color del agua —aguaNiebla—)
             let mut luz = mp.luz; jugabilidad::luz(&self.jg, &mut luz);
-            if self.jug.aguas.iter().any(|v| cam[1] < v[4] && cam[1] > v[1] && cam[0] >= v[0] && cam[0] <= v[3] && cam[2] >= v[2] && cam[2] <= v[5]) {
+            let bajo_agua = self.jug.aguas.iter().any(|v| cam[1] < v[4] && cam[1] > v[1] && cam[0] >= v[0] && cam[0] <= v[3] && cam[2] >= v[2] && cam[2] <= v[5]);
+            if bajo_agua {
+                // (el color del agua del mapa —el de su material, en los de Source— más claro y la niebla más larga: como HL2, se ve lejos)
                 let lin = |c: f32| c.max(0.0).powf(2.2);
-                luz.nie = jxmotor::escena::Niebla { c: [lin(0.12), lin(0.285), lin(0.3)], a: 0.0, b: 16.0, m: 1.0, s: [0.0; 3] };
+                let base = mp.esc.c.agua.as_ref().map(|a| [a.fog[0], a.fog[1], a.fog[2]]).unwrap_or([lin(0.12), lin(0.285), lin(0.3)]);
+                let y = base[0] * 0.2126 + base[1] * 0.7152 + base[2] * 0.0722; let cl = |c: f32| ((c * 0.7 + y * 0.3) * 1.35).min(0.6);
+                luz.nie = jxmotor::escena::Niebla { c: [cl(base[0]), cl(base[1]), cl(base[2])], a: 0.0, b: 30.0, m: 1.0, s: [0.0; 3] };
             }
+            // (las ondas: al moverse en el agua con la cabeza afuera —nadando o metido hasta la cintura—, una cada 0,22 s, más fuerte
+            // cuanto más rápido; duran 3,5 s y quedan las 8 más nuevas)
+            let ahora = self.t0.elapsed().as_secs_f32(); let jp = self.jug.pos;
+            self.ondas.retain(|o| ahora - o[2] < 3.5);
+            let rapidez = (self.jug.vel[0] * self.jug.vel[0] + self.jug.vel[2] * self.jug.vel[2]).sqrt();
+            let en_sup = self.jug.aguas.iter().find(|v| jp[0] >= v[0] && jp[0] <= v[3] && jp[2] >= v[2] && jp[2] <= v[5] && cam[1] > v[4] - 0.15 && cam[1] - 1.75 < v[4]);
+            if en_sup.is_some() && rapidez > 0.4 && ahora >= self.onda_t {
+                self.ondas.push([jp[0], jp[2], ahora, 0.25 + (rapidez / 6.0).min(1.0) * 0.55]); self.onda_t = ahora + 0.22;
+            }
+            if self.ondas.len() > 8 { let sobra = self.ondas.len() - 8; self.ondas.drain(..sobra); }
             let mut items = mp.items.clone();
             // (el cuerpo con el arma en la mano; sentado, en el asiento)
             if ver_cuerpo { if let Some(pj) = &self.pj { let jp = self.jug.pos; let b = pj.base_sentado().or_else(|| personajes::emotes_juego::base_escena(&self.pjs)).unwrap_or_else(|| personaje::base([jp[0], jp[1] - 0.95, jp[2]], self.jug.yaw)); if !self.gmp_items_jugador(&b, &mut items, cam, dt) { pj.items(&b, &mut items); } } }
@@ -1132,6 +1151,7 @@ impl Juego {
             // los efectos: avanzan, y sus bloques (partículas, trazas, marcas) y sus luces —primero: GL2 usa 4—
             self.ef.calidad(self.aj.calidad.min(4)); self.ef.alto_px = hf; self.ef.paso(dt, efx::GRAV);
             self.jg.nuk.vol = m.hongo_listo(); let mut efectos = self.ef.bloques(&vpm, cam); self.jg_efectos(&mut efectos, &vpm, cam);
+            { let mut b = vec![if bajo_agua { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0]; for o in &self.ondas { b.extend_from_slice(o); } efectos.push((jxmotor::escena::EF_ONDAS, b)); }
             let mut luces = self.ef.luces(); luces.extend(mp.luces_cerca(ojos, 6));
             self.herramientas_items(&mut items, &mut luces); luces.truncate(8); self.jg_luces(&mut luces); self.pjs_luces(&mut luces, ojos);
             // (el piso de abajo de la cámara, para su reflejo en OpenGL 2: sólo si es casi plano)
@@ -1149,6 +1169,8 @@ impl Juego {
         r
     }
 
+    /// una onda en el agua (x, z, fuerza), como la que deja algo que cae (las pruebas)
+    pub fn onda(&mut self, x: f32, z: f32, fuerza: f32) { let t = self.t0.elapsed().as_secs_f32(); self.ondas.push([x, z, t, fuerza]); }
     fn azar(&mut self) -> f32 { self.azar ^= self.azar << 13; self.azar ^= self.azar >> 17; self.azar ^= self.azar << 5; (self.azar % 10000) as f32 / 10000.0 }
     /// de qué es el piso: por ahora el del mapa (pasto en gm_flatgrass, hormigón en gm_construct); con el triángulo que
     /// se pisa cuando el mundo lo diga

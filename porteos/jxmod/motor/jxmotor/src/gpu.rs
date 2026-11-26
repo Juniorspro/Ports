@@ -8,7 +8,7 @@
 //!  - recorte por lo que ve la cámara (y por lo que ve el sol para la sombra) con la esfera de cada cosa;
 //!  - resolución dinámica: la escena a una fracción del tamaño de la pantalla y estirada al final (lo que más pesa en una
 //!    placa floja son los píxeles), y la sombra y el reflejo rehechos cada tantos cuadros.
-use crate::escena::{Agua, Cielo, Cuadro, Escena, ItemDin, Mat, FL_CIELO, FL_SIN_SOMBRA, EF_MARCAS, EF_PART_ALFA, EF_PART_SUMA};
+use crate::escena::{Agua, Cielo, Cuadro, Escena, ItemDin, Mat, FL_CIELO, FL_SIN_SOMBRA, EF_MARCAS, EF_ONDAS, EF_PART_ALFA, EF_PART_SUMA};
 use crate::mat::{self, M4};
 use glow::HasContext;
 use std::collections::HashMap;
@@ -51,9 +51,9 @@ struct Destino { fb: glow::Framebuffer, color: glow::Texture, prof: Option<glow:
 
 // los uniformes, por número (buscarlos por nombre en cada dibujo cuesta)
 #[derive(Clone, Copy)]
-enum U { Mat, NieS, Sesgo, VP, M, SVP, Mn, Sc, St, C, Em, Modo, S1, S3, Sol, SolC, AmbS, AmbG, NieC, Nie, Cam, Expo, Sombra, Clip, B, LP, LC, LD, LN, LE, F, H, S, Bq, D, RefInv, Tiempo, Top, Mid, Bot, Exp, Tinte, Dia, CieloK, TieneCubo, Radio, Inv, Fuerza, Retoque, Der, Arr, RefrOn, RefrK, IVP, SVP2, Sesgo2, Ti, Ti2, Ti3, AOk, NC, Ray0, RayX, RayY, Zl, RayP, RayK, Vol, Nubes, BloomK, RP, Adapta }
-const NU: usize = U::Adapta as usize + 1;
-const NOMBRES: [&str; NU] = ["uMat", "uNieS", "uSesgo", "uVP", "uM", "uSVP", "uMn", "uSc", "uSt", "uC", "uEm", "uModo", "uS1", "uS3", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNie", "uCam", "uExpo", "uSombra", "uClip", "uB", "uLP", "uLC", "uLD", "uLN", "uLE", "uF", "uH", "uS", "uBq", "uD", "uRefInv", "uTiempo", "uTop", "uMid", "uBot", "uExp", "uTinte", "uDia", "uCieloK", "uTieneCubo", "uRadio", "uInv", "uFuerza", "uRetoque", "uDer", "uArr", "uRefrOn", "uRefrK", "uIVP", "uSVP2", "uSesgo2", "uTi", "uTi2", "uTi3", "uAOk", "uNC", "uRay0", "uRayX", "uRayY", "uZl", "uRayP", "uRayK", "uVol", "uNubes", "uBloomK", "uRP", "uAdapta"];
+enum U { Mat, NieS, Sesgo, VP, M, SVP, Mn, Sc, St, C, Em, Modo, S1, S3, Sol, SolC, AmbS, AmbG, NieC, Nie, Cam, Expo, Sombra, Clip, B, LP, LC, LD, LN, LE, F, H, S, Bq, D, RefInv, Tiempo, Top, Mid, Bot, Exp, Tinte, Dia, CieloK, TieneCubo, Radio, Inv, Fuerza, Retoque, Der, Arr, RefrOn, RefrK, IVP, SVP2, Sesgo2, Ti, Ti2, Ti3, AOk, NC, Ray0, RayX, RayY, Zl, RayP, RayK, Vol, Nubes, BloomK, RP, Adapta, Caus, CausB, Ond, OndN }
+const NU: usize = U::OndN as usize + 1;
+const NOMBRES: [&str; NU] = ["uMat", "uNieS", "uSesgo", "uVP", "uM", "uSVP", "uMn", "uSc", "uSt", "uC", "uEm", "uModo", "uS1", "uS3", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNie", "uCam", "uExpo", "uSombra", "uClip", "uB", "uLP", "uLC", "uLD", "uLN", "uLE", "uF", "uH", "uS", "uBq", "uD", "uRefInv", "uTiempo", "uTop", "uMid", "uBot", "uExp", "uTinte", "uDia", "uCieloK", "uTieneCubo", "uRadio", "uInv", "uFuerza", "uRetoque", "uDer", "uArr", "uRefrOn", "uRefrK", "uIVP", "uSVP2", "uSesgo2", "uTi", "uTi2", "uTi3", "uAOk", "uNC", "uRay0", "uRayX", "uRayY", "uZl", "uRayP", "uRayK", "uVol", "uNubes", "uBloomK", "uRP", "uAdapta", "uCaus", "uCausB", "uOnd", "uOndN"];
 struct Prog { p: glow::Program, u: Vec<Option<glow::UniformLocation>>, piel: bool, corte: bool }
 impl Prog {
     fn u(&self, k: U) -> Option<&glow::UniformLocation> { self.u[k as usize].as_ref() }
@@ -120,6 +120,15 @@ float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00
 // (Definitivo: la luz horneada del mapa como en un día nublado —el Ravenholm con trazado de rayos—: la mitad de su color
 // pasa a un blanco frío, con el mismo brillo; el sol amarillo de muchos mapas de Source no tiñe todo de naranja)
 vec3 nublado(vec3 l) { float y = dot(l, vec3(0.2126, 0.7152, 0.0722)); return mix(l, y * vec3(0.9, 1.0, 1.12), 0.5); }
+// (lo que está debajo del agua: la luz del sol juntada por las olas —las cáusticas, la red de rayitos que se mueve en el
+// piso—. uCaus: x la altura del agua, y la fuerza, z el tiempo; uCausB: el rectángulo del agua en x y z)
+uniform vec4 uCaus, uCausB;
+float causticas(vec2 p, float t) {
+  vec2 i = p; float c = 1.0;
+  for (int k = 0; k < 4; k++) { float tt = t * (1.0 - 3.5 / float(k + 1)); i = p + vec2(cos(tt - i.x) + sin(tt + i.y), sin(tt - i.y) + cos(tt + i.x));
+    c += 1.0 / length(vec2(p.x / (sin(i.x + tt) / 0.005), p.y / (cos(i.y + tt) / 0.005))); }
+  c = 1.17 - pow(c * 0.25, 1.4); return pow(abs(c), 8.0);
+}
 #ifdef CORTE
 // (lo recortado —rejas, alambrados, hojas—: cerca, el borde parejo por las derivadas; de lejos, cuando los agujeros de la
 // textura son más chicos que un punto de la pantalla, lo que tapa en promedio —el alfa del nivel chico— en un tramado: un
@@ -238,6 +247,11 @@ void main() {
     else { sh = nl > 0.0 ? sombra(max(nl, 0.0)) : 0.0; col = brdf(n, v, uSol, dif, f0, a) * uSolC * sh; }
 #endif
     if (fol) { float tr = max(dot(-v, uSol), 0.0); tr *= tr; col += dif * uSolC * (tr * tr) * 0.6 * sh; }   // (luz que atraviesa las hojas)
+    if (uCaus.y > 0.0 && vW.y < uCaus.x && vW.x > uCausB.x && vW.x < uCausB.z && vW.z > uCausB.y && vW.z < uCausB.w && uSol.y > 0.0) {
+      float hondo = uCaus.x - vW.y;
+      float k = causticas(vW.xz * 1.1 + uSol.xz * hondo * 0.6, uCaus.z * 0.9) * exp(-hondo * 0.18) * smoothstep(0.0, 0.35, hondo) * (0.3 + 0.7 * max(n.y, 0.0)) * uCaus.y;
+      col += dif * uSolC * k * (lm ? 0.3 : 0.15 + 0.4 * sh);
+    }
 #ifndef DBG_SIN_LUCES
     for (int i = 0; i < 12; i++) {
       if (i >= uLN) break;
@@ -310,7 +324,9 @@ precision highp float;
 // corrido por las olas, Fresnel y los destellos del sol en cada ola
 uniform sampler2D uN, uRef, uP, uRefr; uniform highp sampler2D uRefrP; uniform highp sampler2DArray uNA;
 uniform vec4 uF, uH, uS, uBq; uniform vec2 uD, uRefInv; uniform float uTiempo, uExpo, uRefrOn, uRefrK, uNC;
-uniform vec3 uSol, uSolC, uAmbS, uAmbG, uCam;
+uniform vec3 uSol, uSolC, uAmbS, uAmbG, uCam, uNieC, uNie;
+// (las ondas que dejan el jugador y lo que cae: x, z, cuándo y la fuerza)
+uniform vec4 uOnd[8]; uniform float uOndN;
 in vec3 vW; in vec3 vN; in vec2 vU; in vec2 vL; in vec3 vS; in float vMz; out vec4 o;
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
 void main() {
@@ -329,7 +345,29 @@ void main() {
     vec3 n3 = texture(uN, q * 2.7 + vec2(0.13, 0.77) + uTiempo * vec2(uS.y, -uS.x) * 2.3).rgb * 2.0 - 1.0;
     d = ((n1.xy + n2.xy) * uH.y + n3.xy * uH.y * 0.45 * lejos) * lejos;
   }
+  // (las ondas: un anillo que se abre a 1,4 m/s y se apaga en 3 s; la pendiente hacia afuera)
+  float anillos = 0.0;
+  for (int i = 0; i < 8; i++) { if (float(i) >= uOndN) break; vec4 r = uOnd[i]; float e = uTiempo - r.z; if (e < 0.0 || e > 3.5) continue;
+    vec2 dd = vW.xz - r.xy; float dist = length(dd) + 1e-3, x = dist - e * 1.4;
+    float an = sin(x * 16.0) * exp(-x * x * 5.0) * exp(-e * 1.1) * r.w / (1.0 + dist * 0.6);
+    d += dd / dist * (an * 0.9); anillos += abs(an); }
   vec3 n = normalize(vec3(d.x, 1.0, d.y));
+  if (uCam.y < vW.y - 0.005) {
+    // desde abajo (como HL2 mirando para arriba estando en el agua): adentro de la ventana de Snell —el cono de 48,6° alrededor
+    // de la vertical— se ve lo de arriba, corrido por las olas y con el sol; afuera, el agua se refleja a sí misma (reflexión
+    // total): su color, más oscuro. Entre el ojo y la superficie, la niebla del agua
+    // (el borde de la ventana con la superficie alisada —con las olas enteras se deshace en manchas—; las olas, para correr la
+    // imagen)
+    vec3 sube = -v, nl = normalize(vec3(d.x * 0.3, 1.0, d.y * 0.3)); vec3 rr = refract(sube, -nl, 1.333); float c = dot(sube, nl);
+    float ven = smoothstep(0.6, 0.72, c) * step(0.0001, dot(rr, rr));
+    vec2 pan = gl_FragCoord.xy * uRefInv;
+    vec3 arriba = texture(uRefr, clamp(pan + d * 1.2 + n.xz * 0.03, 0.002, 0.998)).rgb + uSolC * pow(max(dot(rr, uSol), 0.0), 220.0) * 1.5;
+    arriba = mix(arriba, arriba * uF.rgb / max(max(uF.r, uF.g), max(uF.b, 1e-3)), 0.2);
+    vec3 cuerpoA = pow(aces(uF.rgb * (mix(uAmbG, uAmbS, 0.8) + uSolC * max(uSol.y, 0.0) * 0.5) * 1.1 * uExpo), vec3(1.0 / 2.2));
+    vec3 col = mix(cuerpoA * 0.75, arriba, ven) + vec3(0.9, 1.0, 1.0) * (ven * (1.0 - ven) * 0.5);
+    float f = clamp((dCam - uNie.x) / max(uNie.y - uNie.x, 0.001), 0.0, 1.0) * uNie.z;
+    o = vec4(mix(col, pow(aces(uNieC * uExpo), vec3(1.0 / 2.2)), f * 0.85), 1.0); return;
+  }
   // (el Fresnel de HL2: (1 − N·V)⁵ con la normal de la ola)
   float nv = 1.0 - clamp(dot(n, v), 0.0, 1.0), nv2 = nv * nv; float fr = uNC > 0.5 ? nv2 * nv2 * nv : 0.02 + 0.98 * pow(1.0 - abs(dot(n, v)), 5.0);
   vec3 cuerpo = pow(aces(uF.rgb * (mix(uAmbG, uAmbS, 0.8) + uSolC * max(uSol.y, 0.0) * 0.5) * 1.6 * uExpo), vec3(1.0 / 2.2));
@@ -341,7 +379,8 @@ void main() {
   // (lo hondo de este punto: cuánto agua cruza la mirada hasta el fondo)
   vec2 pb = (vW.xz - uBq.xy) * uBq.zw;
   float prof = (pb.x >= 0.0 && pb.y >= 0.0 && pb.x <= 1.0 && pb.y <= 1.0) ? texture(uP, pb).r * uD.x : uD.x;
-  float niebla = 1.0 - exp(-prof / max(abs(v.y), 0.08) / uD.y);
+  // (más clara que antes: como el agua de HL2, se ve el fondo)
+  float niebla = 1.0 - exp(-prof / max(abs(v.y), 0.08) / (uD.y * 1.6));
   // (los destellos del sol: con la normal de las olas, más anchos lejos —se ven como un camino de brillos—)
   float rv = max(dot(reflect(-v, n), uSol), 0.0), sp = (pow(rv, mix(900.0, 260.0, 1.0 - lejos)) * 2.2 + pow(rv, 60.0) * 0.08) * step(0.0, uSol.y);
   if (uRefrOn > 0.5) {
@@ -354,6 +393,8 @@ void main() {
   } else {
     o = vec4(mix(cuerpo, refl, fr) + uSolC * sp, mix(max(niebla, uF.a * 0.25), 1.0, fr));
   }
+  // (los anillos de las ondas: sus caras inclinadas agarran más reflejo del cielo —así se ven en el agua de verdad—)
+  if (anillos > 0.0) o.rgb = mix(o.rgb, refl * 1.05 + 0.04, clamp(anillos * 0.7, 0.0, 0.45));
 }"#;
 const VS_CIELO: &str = r#"#version 300 es
 out vec2 vP; void main() { vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2)) * 2.0 - 1.0; vP = p; gl_Position = vec4(p, 1.0, 1.0); }"#;
@@ -461,7 +502,10 @@ float dec16(vec4 t) { return (floor(t.r * 255.0 + 0.5) + floor(t.g * 255.0 + 0.5
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 void main() {
   // (texture y no texelFetch aunque la escena sea del tamaño de la pantalla: en llvmpipe texelFetch es más lento)
-  vec2 uv = vP * 0.5 + 0.5; vec3 c = texture(uEsc, uv).rgb;
+  vec2 uv = vP * 0.5 + 0.5;
+  // (con los ojos bajo el agua, la imagen se ondula apenas, como en HL2)
+  if (uAdapta.y > 0.5) uv += vec2(sin(uv.y * 23.0 + uAdapta.z * 2.1), cos(uv.x * 19.0 + uAdapta.z * 1.7)) * 0.0028;
+  vec3 c = texture(uEsc, uv).rgb;
   // (la escena a menos píxeles —la resolución dinámica—: un poco de nitidez, contra lo de alrededor —dos lecturas a medio
   // píxel en diagonal, cada una el promedio de cuatro—)
   if (uFuerza > 0.0) { vec3 b = 0.5 * (texture(uEsc, uv + uInv * 0.5).rgb + texture(uEsc, uv - uInv * 0.5).rgb); c = clamp(c + (c - b) * uFuerza, 0.0, 1.0); }
@@ -1064,6 +1108,14 @@ impl Motor {
         gl.uniform_4_f32(p.u(U::Nubes), if self.op.aaa { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0);
         gl.uniform_1_f32(p.u(U::Sombra), if self.op.sombras && self.sombra.is_some() { 1.0 } else { 0.0 });
         gl.uniform_1_f32(p.u(U::Clip), clip);
+        // (las cáusticas debajo del agua: con el retoque, si hay agua en el mapa)
+        match (self.agua.as_ref().filter(|a| self.op.retoque && (a.prof.is_some() || !self.aguas.is_empty())), c.agua_y.or(self.agua.as_ref().map(|a| a.y))) {
+            (Some(a), Some(ay)) => {
+                let (x0, z0, x1, z1) = a.prof.as_ref().map(|q| (q.x0, q.z0, q.x0 + q.w, q.z0 + q.h)).unwrap_or((-1e9, -1e9, 1e9, 1e9));
+                gl.uniform_4_f32(p.u(U::Caus), ay, 1.0, c.tiempo, 0.0); gl.uniform_4_f32(p.u(U::CausB), x0, z0, x1, z1);
+            }
+            _ => gl.uniform_4_f32(p.u(U::Caus), 0.0, 0.0, 0.0, 0.0),
+        }
         gl.uniform_2_f32(p.u(U::Sesgo), self.sesgo[0], self.sesgo[1]); gl.uniform_2_f32(p.u(U::Sesgo2), self.sesgo2[0], self.sesgo2[1]);
         // (la oclusión en la luz: en la pasada de la escena, sin el recorte del reflejo y sin lo calado —que no está en la profundidad—)
         let aok = if self.ao_luz && clip < -1e8 && !p.corte { (self.op.ao_fuerza * 1.15).min(1.0) } else { 0.0 };
@@ -1613,6 +1665,11 @@ impl Motor {
             gl.uniform_2_f32(p.u(U::RefInv), 1.0 / ew as f32, 1.0 / eh as f32); gl.uniform_1_f32(p.u(U::Tiempo), if std::env::var_os("JXM_TIEMPO_FIJO").is_some() { 3.0 } else { t });
             gl.active_texture(glow::TEXTURE0); gl.bind_texture(glow::TEXTURE_2D, self.agua_n);
             gl.uniform_1_f32(p.u(U::NC), self.agua_na.map_or(0.0, |x| x.1 as f32));
+            // (las ondas del cuadro: las manda el juego en un bloque EF_ONDAS —primero si los ojos están abajo del agua—)
+            let ondas: Vec<f32> = self.c.as_ref().and_then(|c| c.efectos.iter().find(|e| e.0 == EF_ONDAS)).map(|e| e.1.iter().skip(4).copied().take(32).collect()).unwrap_or_default();
+            if !ondas.is_empty() { gl.uniform_4_f32_slice(p.u(U::Ond), &ondas); }
+            if std::env::var_os("JXM_DBG_ONDAS").is_some() { eprintln!("ondas {:?} t {:.2} loc {:?}", ondas, self.c.as_ref().map_or(0.0, |c| c.tiempo), p.u(U::Ond).is_some()); }
+            gl.uniform_1_f32(p.u(U::OndN), (ondas.len() / 4) as f32);
             if let Some((t, _)) = self.agua_na { gl.active_texture(glow::TEXTURE14); gl.bind_texture(glow::TEXTURE_2D_ARRAY, Some(t)); gl.active_texture(glow::TEXTURE0); }
             if let Some(r) = &self.reflejo { gl.active_texture(glow::TEXTURE3); gl.bind_texture(glow::TEXTURE_2D, Some(r.color)); }
             gl.active_texture(glow::TEXTURE4); gl.bind_texture(glow::TEXTURE_2D, Some(self.agua_p.unwrap_or(self.blanca)));
@@ -1653,7 +1710,8 @@ impl Motor {
         gl.uniform_1_f32(p.u(U::RayK), rayos.map_or(0.0, |r| r.1)); gl.uniform_1_f32(p.u(U::BloomK), if brillo.is_some() { 0.45 } else { 0.0 });
         gl.active_texture(glow::TEXTURE10); gl.bind_texture(glow::TEXTURE_2D, Some(brillo.unwrap_or(self.blanca)));
         gl.active_texture(glow::TEXTURE15); gl.bind_texture(glow::TEXTURE_2D, Some(rayos.map_or(self.blanca, |r| r.0)));
-        gl.active_texture(glow::TEXTURE13); gl.bind_texture(glow::TEXTURE_2D, Some(adapta.unwrap_or(self.blanca))); gl.uniform_4_f32(p.u(U::Adapta), if adapta.is_some() { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0);
+        gl.active_texture(glow::TEXTURE13); gl.bind_texture(glow::TEXTURE_2D, Some(adapta.unwrap_or(self.blanca))); let bajo = self.c.as_ref().and_then(|c| c.efectos.iter().find(|e| e.0 == EF_ONDAS)).map_or(false, |e| e.1.first().copied().unwrap_or(0.0) > 0.5);
+        gl.uniform_4_f32(p.u(U::Adapta), if adapta.is_some() { 1.0 } else { 0.0 }, if bajo { 1.0 } else { 0.0 }, self.c.as_ref().map_or(0.0, |c| c.tiempo), 0.0);
         gl.active_texture(glow::TEXTURE11);
         gl.bind_vertex_array(None); gl.draw_arrays(glow::TRIANGLES, 0, 3);
         gl.bind_texture(glow::TEXTURE_2D, None); gl.active_texture(glow::TEXTURE0);
