@@ -99,7 +99,7 @@ uniform vec4 uClip;
 // fuerte cuanto más liso es el material y cuanto más de costado se mira —el Fresnel—, y borroso si el material es áspero)
 uniform sampler2D uR; uniform vec4 uRP; uniform float uAlfaD;
 // (el cielo, para su reflejo en todo —como OpenGL 3—)
-uniform vec3 uTop, uMid, uBot; uniform vec2 uExp; uniform float uCieloK;
+uniform vec3 uTop, uMid, uBot; uniform vec2 uExp; uniform float uCieloK; uniform vec4 uNubes;
 const float PI = 3.14159265;
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
@@ -190,7 +190,8 @@ void main() {
   float f = clamp((dist - uNie.x) / max(uNie.y - uNie.x, 0.001), 0.0, 1.0) * uNie.z;
   vec3 vd = (vW - uCam) / dist; float sd = max(dot(vd, uSol), 0.0), sd2 = sd * sd; vec3 nc = uNieC + uNieS * (sd2 * sd2 * sd2);
   // (y la bruma de lo lejos y bajo, como OpenGL 3)
-  f = 1.0 - (1.0 - f) * exp(-max(0.0, dist - 20.0) * 0.0006 * exp(-max(vW.y - uCam.y + 5.0, 0.0) * 0.02));
+  f = 1.0 - (1.0 - f) * exp(-max(0.0, dist - 20.0) * (0.0006 + 0.0007 * uNubes.x) * exp(-max(vW.y - uCam.y + 5.0, 0.0) * 0.02));
+  if (uNubes.x > 0.5) nc = mix(nc, cieloCol(normalize(vec3(vd.x, 0.15, vd.z))), 0.35);
   col = mix(col, nc, f);
   vec3 fin = enc(aces(col * uExpo));
   if (rk > 0.0) {
@@ -325,7 +326,7 @@ const FS_BRILLO: &str = r#"
 precision mediump float; uniform sampler2D uT; uniform vec2 uInv; varying vec2 vU;
 void main() {
   vec3 c = texture2D(uT, vU + uInv * vec2(-1.0, -1.0)).rgb + texture2D(uT, vU + uInv * vec2(1.0, -1.0)).rgb + texture2D(uT, vU + uInv * vec2(-1.0, 1.0)).rgb + texture2D(uT, vU + uInv * vec2(1.0, 1.0)).rgb;
-  c *= 0.25; c = c * c; float l = max(c.r, max(c.g, c.b)), k = max(0.0, l - 0.72) / max(l, 1e-4);
+  c *= 0.25; c = c * c; float l = max(c.r, max(c.g, c.b)), k = max(0.0, l - 0.82) / max(l, 1e-4);
   gl_FragColor = vec4(c * k, 1.0);
 }"#;
 const FS_BAJA: &str = r#"
@@ -889,6 +890,7 @@ impl Motor {
         let (top, mid, bot, ex, k) = self.cielo.as_ref().map(|c| (c.top, c.mid, c.bot, c.exp, c.k)).unwrap_or(([0.28, 0.64, 1.0], [0.92, 0.92, 0.92], [0.53, 0.58, 0.68], [0.5, 0.5], 1.0));
         gl.uniform_3_f32(p.u("uTop"), top[0], top[1], top[2]); gl.uniform_3_f32(p.u("uMid"), mid[0], mid[1], mid[2]); gl.uniform_3_f32(p.u("uBot"), bot[0], bot[1], bot[2]);
         gl.uniform_2_f32(p.u("uExp"), ex[0], ex[1]); gl.uniform_1_f32(p.u("uCieloK"), k);
+        gl.uniform_4_f32(p.u("uNubes"), if self.op.aaa { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0);
         let n = c.luces.len().min(MAX_LUCES2); let (mut lp, mut lc) = ([0f32; 16], [0f32; 16]);
         for (i, q) in c.luces.iter().take(n).enumerate() { lp[i * 4..i * 4 + 4].copy_from_slice(&q[0..4]); lc[i * 4..i * 4 + 4].copy_from_slice(&q[4..8]); }
         gl.uniform_4_f32_slice(p.u("uLP"), &lp); gl.uniform_4_f32_slice(p.u("uLC"), &lc); gl.uniform_1_f32(p.u("uLN"), n as f32);

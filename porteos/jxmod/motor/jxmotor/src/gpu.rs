@@ -99,7 +99,7 @@ precision highp float; precision highp sampler2DShadow;
 // el reflejo del cielo, las luces puntuales y especiales, la luz horneada, la niebla con el sol y ACES
 uniform sampler2D uT, uLM, uT1, uT2, uT3; uniform vec4 uS1; uniform vec2 uS3; uniform sampler2DShadow uSM;
 uniform vec4 uC, uTi, uTi2, uTi3; uniform vec3 uSol, uSolC, uAmbS, uAmbG, uNieC, uNieS, uCam, uEm, uMat, uNie; uniform vec2 uSesgo, uSesgo2; uniform float uExpo, uSombra, uClip; uniform int uModo;
-uniform vec3 uTop, uMid, uBot; uniform vec2 uExp; uniform float uCieloK;
+uniform vec3 uTop, uMid, uBot; uniform vec2 uExp; uniform float uCieloK; uniform vec4 uNubes;
 uniform vec4 uLP[12], uLC[12], uLD[12]; uniform int uLN, uLE;
 // la oclusión ambiental (calculada antes, de la pasada de profundidad): x, y el paso de un píxel de la escena; z la fuerza
 uniform sampler2D uAO; uniform vec4 uAOk;
@@ -247,7 +247,9 @@ void main() {
   float dist = max(distance(vW, uCam), 1e-3);
   float f = clamp((dist - uNie.x) / max(uNie.y - uNie.x, 0.001), 0.0, 1.0) * uNie.z;
   vec3 vd = (vW - uCam) / dist; float sd = max(dot(vd, uSol), 0.0), sd2 = sd * sd; vec3 nc = uNieC + uNieS * (sd2 * sd2 * sd2);
-  f = 1.0 - (1.0 - f) * exp(-max(0.0, dist - 20.0) * 0.0006 * exp(-max(vW.y - uCam.y + 5.0, 0.0) * 0.02));
+  // (Definitivo: más bruma de distancia, azulada como el cielo de arriba —el aire de película—)
+  f = 1.0 - (1.0 - f) * exp(-max(0.0, dist - 20.0) * (0.0006 + 0.0007 * uNubes.x) * exp(-max(vW.y - uCam.y + 5.0, 0.0) * 0.02));
+  if (uNubes.x > 0.5) nc = mix(nc, cieloCol(normalize(vec3(vd.x, 0.15, vd.z))), 0.35);
   col = mix(col, nc, f);
 #endif
 #ifdef DBG_SIN_GAMMA
@@ -444,7 +446,7 @@ precision mediump float; uniform highp sampler2D uEsc; uniform vec2 uInv; in vec
 void main() {
   vec2 uv = vP * 0.5 + 0.5;
   vec3 c = texture(uEsc, uv + uInv * vec2(-1.0, -1.0)).rgb + texture(uEsc, uv + uInv * vec2(1.0, -1.0)).rgb + texture(uEsc, uv + uInv * vec2(-1.0, 1.0)).rgb + texture(uEsc, uv + uInv * vec2(1.0, 1.0)).rgb;
-  c *= 0.25; c = c * c; float l = max(c.r, max(c.g, c.b)), k = max(0.0, l - 0.72) / max(l, 1e-4);
+  c *= 0.25; c = c * c; float l = max(c.r, max(c.g, c.b)), k = max(0.0, l - 0.82) / max(l, 1e-4);
   o = vec4(c * k, 1.0);
 }"#;
 const FS_BAJA: &str = r#"#version 300 es
@@ -649,7 +651,7 @@ float fbmN(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { s += 
 vec4 nubes(vec3 d, vec3 sol, float t, vec3 solC, vec3 zen) {
   if (d.y < 0.015) return vec4(0.0);
   vec2 uv = d.xz / (d.y + 0.12) * 1.6 + vec2(t * 0.012, t * 0.005);
-  float n = fbmN(uv), cob = smoothstep(0.56, 0.82, n);
+  float n = fbmN(uv), cob = smoothstep(0.58, 0.8, n);
   if (cob <= 0.0) return vec4(0.0);
   vec2 hs = sol.xz + vec2(1e-4); float n2 = fbmN(uv + normalize(hs) * 0.12);
   float luz = clamp(0.6 + (n - n2) * 4.0, 0.15, 1.3), sd = max(dot(d, sol), 0.0);
@@ -657,7 +659,7 @@ vec4 nubes(vec3 d, vec3 sol, float t, vec3 solC, vec3 zen) {
   // (la panza gris azulada, arriba blancas del lado del sol; más oscuras donde son más espesas)
   vec3 col = mix(zen * 0.45 + vec3(0.3, 0.32, 0.36), sc * 0.96, clamp(luz * 0.8 - (cob - 0.5) * 0.35, 0.0, 1.0)) * mix(0.3, 1.0, k);
   col += sc * pow(sd, 12.0) * 0.5 * (1.0 - cob) * k;
-  return vec4(min(col, vec3(1.0)), cob * smoothstep(0.015, 0.2, d.y) * 0.95);
+  return vec4(min(col, vec3(1.0)), cob * smoothstep(0.015, 0.2, d.y));
 }
 vec3 sol_disco(vec3 d, vec3 sol, vec3 solC) { float sd = max(dot(d, sol), 0.0); return solC * (smoothstep(0.99965, 0.9999, sd) * 6.0 + pow(sd, 400.0) * 0.5); }
 "#;
@@ -1004,6 +1006,7 @@ impl Motor {
         let (top, mid, bot, ex, k) = self.cielo.as_ref().map(|c| (c.top, c.mid, c.bot, c.exp, c.k)).unwrap_or(([0.28, 0.64, 1.0], [0.92, 0.92, 0.92], [0.53, 0.58, 0.68], [0.5, 0.5], 1.0));
         gl.uniform_3_f32(p.u(U::Top), top[0], top[1], top[2]); gl.uniform_3_f32(p.u(U::Mid), mid[0], mid[1], mid[2]); gl.uniform_3_f32(p.u(U::Bot), bot[0], bot[1], bot[2]);
         gl.uniform_2_f32(p.u(U::Exp), ex[0], ex[1]); gl.uniform_1_f32(p.u(U::CieloK), k);
+        gl.uniform_4_f32(p.u(U::Nubes), if self.op.aaa { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0);
         gl.uniform_1_f32(p.u(U::Sombra), if self.op.sombras && self.sombra.is_some() { 1.0 } else { 0.0 });
         gl.uniform_1_f32(p.u(U::Clip), clip);
         gl.uniform_2_f32(p.u(U::Sesgo), self.sesgo[0], self.sesgo[1]); gl.uniform_2_f32(p.u(U::Sesgo2), self.sesgo2[0], self.sesgo2[1]);
