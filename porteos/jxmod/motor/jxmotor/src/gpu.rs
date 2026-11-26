@@ -35,14 +35,17 @@ pub struct Opciones {
     /// Definitivo (arriba de Ultra): el cielo con nubes y el disco del sol, el resplandor, el color de película y la luz en
     /// el aire a media resolución con más pasos
     pub aaa: bool,
+    /// los cuadros intermedios (JX Turbo): guardar lo necesario —la profundidad de la escena— para armar un cuadro corriendo
+    /// el último a la cámara nueva sin volver a dibujar el mundo (`intermedio`)
+    pub turbo: bool,
 }
 impl Default for Opciones {
-    fn default() -> Self { Opciones { escala: 1.0, sombras: true, sombra_px: 2048, sombra_cada: 1, sombra_radio: 45.0, reflejo: true, reflejo_div: 2, reflejo_cada: 1, adapta: true, ao: true, ao_fuerza: 0.6, retoque: true, prepaso: true, rayos: false, hongo: 3, aaa: false } }
+    fn default() -> Self { Opciones { escala: 1.0, sombras: true, sombra_px: 2048, sombra_cada: 1, sombra_radio: 45.0, reflejo: true, reflejo_div: 2, reflejo_cada: 1, adapta: true, ao: true, ao_fuerza: 0.6, retoque: true, prepaso: true, rayos: false, hongo: 3, aaa: false, turbo: false } }
 }
 impl Opciones {
     /// lo que se elige para un celular de 1 GB con una placa floja: dos tercios de la resolución, sombra de 1024 cada 2
     /// cuadros y reflejo a un cuarto cada 2
-    pub fn celular_flojo() -> Self { Opciones { escala: 0.67, sombras: true, sombra_px: 1024, sombra_cada: 2, sombra_radio: 35.0, reflejo: true, reflejo_div: 4, reflejo_cada: 2, adapta: true, ao: false, ao_fuerza: 0.6, retoque: true, prepaso: true, rayos: false, hongo: 3, aaa: false } }
+    pub fn celular_flojo() -> Self { Opciones { escala: 0.67, sombras: true, sombra_px: 1024, sombra_cada: 2, sombra_radio: 35.0, reflejo: true, reflejo_div: 4, reflejo_cada: 2, adapta: true, ao: false, ao_fuerza: 0.6, retoque: true, prepaso: true, rayos: false, hongo: 3, aaa: false, turbo: false } }
 }
 
 struct MallaGL { vao: glow::VertexArray, bufs: Vec<glow::Buffer>, i32: bool, mn: [f32; 3], sc: [f32; 3], lm: i64, piel: bool, bytes: usize }
@@ -51,9 +54,9 @@ struct Destino { fb: glow::Framebuffer, color: glow::Texture, prof: Option<glow:
 
 // los uniformes, por número (buscarlos por nombre en cada dibujo cuesta)
 #[derive(Clone, Copy)]
-enum U { Mat, NieS, Sesgo, VP, M, SVP, Mn, Sc, St, C, Em, Modo, S1, S3, Sol, SolC, AmbS, AmbG, NieC, Nie, Cam, Expo, Sombra, Clip, B, LP, LC, LD, LN, LE, F, H, S, Bq, D, RefInv, Tiempo, Top, Mid, Bot, Exp, Tinte, Dia, CieloK, TieneCubo, Radio, Inv, Fuerza, Retoque, Der, Arr, RefrOn, RefrK, IVP, SVP2, Sesgo2, Ti, Ti2, Ti3, AOk, NC, Ray0, RayX, RayY, Zl, RayP, RayK, Vol, Nubes, BloomK, RP, Adapta, Caus, CausB, Ond, OndN, GIo, GIn }
-const NU: usize = U::GIn as usize + 1;
-const NOMBRES: [&str; NU] = ["uMat", "uNieS", "uSesgo", "uVP", "uM", "uSVP", "uMn", "uSc", "uSt", "uC", "uEm", "uModo", "uS1", "uS3", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNie", "uCam", "uExpo", "uSombra", "uClip", "uB", "uLP", "uLC", "uLD", "uLN", "uLE", "uF", "uH", "uS", "uBq", "uD", "uRefInv", "uTiempo", "uTop", "uMid", "uBot", "uExp", "uTinte", "uDia", "uCieloK", "uTieneCubo", "uRadio", "uInv", "uFuerza", "uRetoque", "uDer", "uArr", "uRefrOn", "uRefrK", "uIVP", "uSVP2", "uSesgo2", "uTi", "uTi2", "uTi3", "uAOk", "uNC", "uRay0", "uRayX", "uRayY", "uZl", "uRayP", "uRayK", "uVol", "uNubes", "uBloomK", "uRP", "uAdapta", "uCaus", "uCausB", "uOnd", "uOndN", "uGIo", "uGIn"];
+enum U { Mat, NieS, Sesgo, VP, M, SVP, Mn, Sc, St, C, Em, Modo, S1, S3, Sol, SolC, AmbS, AmbG, NieC, Nie, Cam, Expo, Sombra, Clip, B, LP, LC, LD, LN, LE, F, H, S, Bq, D, RefInv, Tiempo, Top, Mid, Bot, Exp, Tinte, Dia, CieloK, TieneCubo, Radio, Inv, Fuerza, Retoque, Der, Arr, RefrOn, RefrK, IVP, SVP2, Sesgo2, Ti, Ti2, Ti3, AOk, NC, Ray0, RayX, RayY, Zl, RayP, RayK, Vol, Nubes, BloomK, RP, Adapta, Caus, CausB, Ond, OndN, GIo, GIn, ViejaI, Nueva }
+const NU: usize = U::Nueva as usize + 1;
+const NOMBRES: [&str; NU] = ["uMat", "uNieS", "uSesgo", "uVP", "uM", "uSVP", "uMn", "uSc", "uSt", "uC", "uEm", "uModo", "uS1", "uS3", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNie", "uCam", "uExpo", "uSombra", "uClip", "uB", "uLP", "uLC", "uLD", "uLN", "uLE", "uF", "uH", "uS", "uBq", "uD", "uRefInv", "uTiempo", "uTop", "uMid", "uBot", "uExp", "uTinte", "uDia", "uCieloK", "uTieneCubo", "uRadio", "uInv", "uFuerza", "uRetoque", "uDer", "uArr", "uRefrOn", "uRefrK", "uIVP", "uSVP2", "uSesgo2", "uTi", "uTi2", "uTi3", "uAOk", "uNC", "uRay0", "uRayX", "uRayY", "uZl", "uRayP", "uRayK", "uVol", "uNubes", "uBloomK", "uRP", "uAdapta", "uCaus", "uCausB", "uOnd", "uOndN", "uGIo", "uGIn", "uViejaI", "uNueva"];
 struct Prog { p: glow::Program, u: Vec<Option<glow::UniformLocation>>, piel: bool, corte: bool }
 #[derive(Default)]
 struct Puesto3 { vao: Option<glow::VertexArray>, unidad: Option<u32>, tex: [Option<glow::Texture>; 8], mat: HashMap<glow::Program, (i64, i32)>, pos: HashMap<glow::Program, ([f32; 3], [f32; 3])>, mm: HashMap<glow::Program, [f32; 16]> }
@@ -557,6 +560,21 @@ void main() {
   if (uAdapta.x > 0.0 && abs(paso) < 0.004) paso = clamp(d, -0.004, 0.004);
   o = enc16(antes + paso);
 }"#;
+// JX Turbo, el cuadro intermedio: para cada punto de la imagen nueva, dónde estaba en la anterior. Se adivina (el mismo lugar),
+// se lee la profundidad de ahí, se vuelve al mundo con la cámara vieja y se proyecta con la nueva; lo que falta para caer en
+// el punto se corrige y se repite (al girar la cámara cae justo a la primera; al moverse, lo cercano se acomoda después)
+const FS_REPRO: &str = r#"#version 300 es
+precision highp float; uniform highp sampler2D uEsc, uProf; uniform mat4 uViejaI, uNueva; in vec2 vP; out vec4 o;
+void main() {
+  vec2 uv = vP * 0.5 + 0.5, q = uv;
+  for (int i = 0; i < 3; i++) {
+    float d = texture(uProf, q).r;
+    vec4 w = uViejaI * vec4(q * 2.0 - 1.0, d * 2.0 - 1.0, 1.0); w /= w.w;
+    vec4 n = uNueva * w; if (n.w <= 1e-5) break;
+    q = clamp(q + (uv - (n.xy / n.w * 0.5 + 0.5)), vec2(0.0), vec2(1.0));
+  }
+  o = texture(uEsc, q);
+}"#;
 const FS_FINAL: &str = r#"#version 300 es
 precision highp float; uniform highp sampler2D uEsc; uniform sampler2D uRay, uBlo; uniform highp sampler2D uAd; uniform float uRetoque, uFuerza, uRayK, uBloomK; uniform vec4 uAdapta; uniform vec2 uInv; in vec2 vP; out vec4 o;
 float dec16(vec4 t) { return (floor(t.r * 255.0 + 0.5) + floor(t.g * 255.0 + 0.5) / 256.0) * (4.0 / 255.0); }
@@ -921,6 +939,8 @@ pub struct Motor {
     sombra_huella: [u64; 2], cubo_oclu: (glow::VertexArray, glow::Buffer, glow::Buffer), tapados: Vec<bool>,
     /// las luces que ya están puestas en el programa de ahora (para no volver a mandarlas si la cosa siguiente usa las mismas)
     luces_puestas: std::cell::Cell<(u64, u32)>,
+    /// JX Turbo: la cámara del último cuadro dibujado, su destino corrido, el programa que lo corre y lo de la pasada final
+    vp_ult: Option<M4>, repro_rt: Option<Destino>, p_repro: Prog, final_ult: (Option<(glow::Texture, f32)>, Option<glow::Texture>, Option<glow::Texture>),
     /// lo puesto en la placa dentro de una tanda de dibujos (dibujar_lista_con): la malla, las texturas, y por programa el
     /// material y la posición —como OpenGL 2: no rehacer lo mismo—; las llamadas hechas y las que se ahorraron
     puesto: std::cell::RefCell<Option<Puesto3>>, pub llamadas: std::cell::Cell<[u32; 2]>,
@@ -973,7 +993,7 @@ impl Motor {
         let p_cielo = programa(&gl, VS_CIELO, &FS_CIELO.replace("@@NUBES@@", NUBES_GLSL), "")?;
         let p_ao = programa(&gl, VS_CIELO, FS_AO, "")?;
         let p_ao_poner = programa(&gl, VS_CIELO, FS_AO_PONER, "")?;
-        let p_final = programa(&gl, VS_CIELO, FS_FINAL, "")?; let p_adapta = programa(&gl, VS_CIELO, FS_ADAPTA, "")?;
+        let p_final = programa(&gl, VS_CIELO, FS_FINAL, "")?; let p_repro = programa(&gl, VS_CIELO, FS_REPRO, "")?; let p_adapta = programa(&gl, VS_CIELO, FS_ADAPTA, "")?;
         let p_rayos = programa(&gl, VS_CIELO, FS_RAYMASK, "")?; let p_rayos2 = programa(&gl, VS_CIELO, FS_RAYOS, "")?; let p_vol = programa(&gl, VS_CIELO, FS_VOL, "")?; let p_vol_aaa = programa(&gl, VS_CIELO, FS_VOL, "#define PASOS 24\n")?;
         let p_brillo = programa(&gl, VS_CIELO, FS_BRILLO, "")?; let p_baja = programa(&gl, VS_CIELO, FS_BAJA, "")?; let p_sube = programa(&gl, VS_CIELO, FS_SUBE, "")?;
         let p_part = programa(&gl, VS_PART, FS_PART, "")?;
@@ -992,7 +1012,7 @@ impl Motor {
         Ok(Motor { gi_tex: None, gi_ver: -1.0, refl_agua: false, refl_piso: None, refl_piso_ult: (mat::id(), f32::NAN), p_adapta, adapta: None, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], rayos_rt: None, hongos: crate::hongo::Hongos::nuevo(true), gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
             p_luz, p_luz_piel, p_luz_c, p_luz_piel_c, p_luz_inst_c, p_pre, p_pre_piel, p_pre_inst, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_lin, p_ui, ui, p_luz_inst, p_sombra_inst, inst_buf, part, marcas, ao_rt: None, refr_rt: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], svp2: mat::id(), sesgo2: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
             opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new(), ranuras: Vec::new(), instancias: std::env::var("JXM_SIN_INST").is_err(),
-            ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), puesto: std::cell::RefCell::new(None), llamadas: std::cell::Cell::new([0; 2]), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), fases_b: vec![], luz_b, perfil: std::env::var_os("JXM_PERFIL").map(|_| std::cell::RefCell::new(vec![])) })
+            ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), vp_ult: None, repro_rt: None, p_repro, final_ult: (None, None, None), puesto: std::cell::RefCell::new(None), llamadas: std::cell::Cell::new([0; 2]), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), fases_b: vec![], luz_b, perfil: std::env::var_os("JXM_PERFIL").map(|_| std::cell::RefCell::new(vec![])) })
     }
 
     /// sube a la placa los recursos nuevos (los que ya estaban con el mismo número se reemplazan)
@@ -1709,7 +1729,7 @@ impl Motor {
         self.marca("reflejo");
         // la escena, a la resolución elegida
         let (ew, eh) = (((w as f32) * self.op.escala).round().max(16.0) as i32, ((h as f32) * self.op.escala).round().max(16.0) as i32);
-        let con_ao = self.op.ao; let con_prof = con_ao || self.op.rayos;
+        let con_ao = self.op.ao; let con_prof = con_ao || self.op.rayos || self.op.turbo;
         if self.escena_rt.as_ref().map(|d| d.w != ew || d.h != eh || d.prof_t.is_some() != con_prof).unwrap_or(true) { if let Some(d) = self.escena_rt.take() { borrar_destino(&self.gl, d); } self.escena_rt = Some(destino_con(&self.gl, ew, eh, con_prof)); }
         let fb = self.escena_rt.as_ref().unwrap().fb;
         { let gl = &self.gl; gl.bind_framebuffer(glow::FRAMEBUFFER, Some(fb)); gl.viewport(0, 0, ew, eh); gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT); }
@@ -1838,10 +1858,20 @@ impl Motor {
         gl.depth_mask(true); gl.disable(glow::BLEND);
         // (la profundidad de la escena ya no se usa: la placa no la guarda en la memoria —en los celulares, por mosaicos, se ahorra
         // escribirla entera en cada cuadro—)
-        gl.bind_framebuffer(glow::FRAMEBUFFER, Some(fb)); gl.invalidate_framebuffer(glow::FRAMEBUFFER, &[glow::DEPTH_ATTACHMENT]);
-        // a la pantalla, estirada (la escena a menos píxeles) y con el retoque final; lo de antes en la pantalla no se lee (se pinta
-        // entera) y su profundidad no se usa
+        // (con JX Turbo la profundidad queda: con ella se arma el cuadro intermedio)
+        if !self.op.turbo { gl.bind_framebuffer(glow::FRAMEBUFFER, Some(fb)); gl.invalidate_framebuffer(glow::FRAMEBUFFER, &[glow::DEPTH_ATTACHMENT]); }
         let col = self.escena_rt.as_ref().unwrap().color;
+        if let Some(c) = self.c.as_ref() { self.vp_ult = Some(c.vp); }
+        self.final_ult = (rayos, brillo, adapta);
+        self.pasada_final(salida, w, h, ew, eh, col, rayos, brillo, adapta);
+        self.cuadro += 1;
+        self.marca("final");
+    }
+
+    /// la imagen de la escena (`col`, de ew×eh) a la pantalla, estirada y con el retoque final, los rayos, el resplandor y la
+    /// vista que se acostumbra; lo de antes en la pantalla no se lee (se pinta entera) y su profundidad no se usa
+    unsafe fn pasada_final(&mut self, salida: Option<glow::Framebuffer>, w: i32, h: i32, ew: i32, eh: i32, col: glow::Texture, rayos: Option<(glow::Texture, f32)>, brillo: Option<glow::Texture>, adapta: Option<glow::Texture>) {
+        let gl = &self.gl;
         gl.bind_framebuffer(glow::FRAMEBUFFER, salida); gl.viewport(0, 0, w, h);
         let todo: &[u32] = if salida.is_none() { &[glow::COLOR, glow::DEPTH, glow::STENCIL] } else { &[glow::COLOR_ATTACHMENT0, glow::DEPTH_ATTACHMENT] };
         gl.invalidate_framebuffer(glow::FRAMEBUFFER, todo);
@@ -1860,8 +1890,31 @@ impl Motor {
         gl.bind_texture(glow::TEXTURE_2D, None); gl.active_texture(glow::TEXTURE0);
         gl.invalidate_framebuffer(glow::FRAMEBUFFER, &todo[1..]);
         gl.enable(glow::DEPTH_TEST); gl.depth_mask(true);
-        self.cuadro += 1;
-        self.marca("final");
+    }
+
+    /// JX Turbo: el cuadro intermedio. El último cuadro dibujado, corrido a la cámara de ahora (`vp`) con su profundidad —cada
+    /// punto se vuelve a poner donde cae visto desde acá, como los visores de realidad virtual—, y la pasada final con lo del
+    /// último cuadro. Una pasada de pantalla en vez del mundo entero: el doble de cuadros por el mismo trabajo. false si no
+    /// hay cuadro guardado (falta el turbo, la profundidad o un cuadro de verdad antes)
+    pub unsafe fn intermedio(&mut self, salida: Option<glow::Framebuffer>, w: i32, h: i32, vp: &M4) -> bool {
+        if !self.op.turbo { return false; }
+        let (Some(vieja), Some(esc)) = (self.vp_ult, self.escena_rt.as_ref()) else { return false };
+        let Some(prof) = esc.prof_t else { return false };
+        let (ew, eh, col) = (esc.w, esc.h, esc.color);
+        if self.repro_rt.as_ref().map_or(true, |d| d.w != ew || d.h != eh) { if let Some(d) = self.repro_rt.take() { borrar_destino(&self.gl, d); } self.repro_rt = Some(destino(&self.gl, ew, eh)); }
+        let r = self.repro_rt.as_ref().unwrap(); let (rfb, rcol) = (r.fb, r.color);
+        { let gl = &self.gl;
+          gl.bind_framebuffer(glow::FRAMEBUFFER, Some(rfb)); gl.viewport(0, 0, ew, eh); gl.disable(glow::DEPTH_TEST); gl.depth_mask(false); gl.disable(glow::BLEND);
+          let p = &self.p_repro; gl.use_program(Some(p.p));
+          gl.uniform_matrix_4_f32_slice(p.u(U::ViejaI), false, &mat::inv(&vieja)); gl.uniform_matrix_4_f32_slice(p.u(U::Nueva), false, vp);
+          gl.active_texture(glow::TEXTURE11); gl.bind_texture(glow::TEXTURE_2D, Some(col));
+          gl.active_texture(glow::TEXTURE9); gl.bind_texture(glow::TEXTURE_2D, Some(prof));
+          gl.bind_vertex_array(None); gl.draw_arrays(glow::TRIANGLES, 0, 3);
+          gl.active_texture(glow::TEXTURE0); }
+        let (rayos, brillo, adapta) = self.final_ult;
+        self.pasada_final(salida, w, h, ew, eh, rcol, rayos, brillo, adapta);
+        self.dibujos = 2;
+        true
     }
 
     /// la interfaz encima de la imagen (después de `dibujar`): rectángulos en píxeles con la textura `tex` (el atlas de las

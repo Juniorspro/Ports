@@ -52,6 +52,8 @@ pub struct Ajustes {
     /// la resolución dinámica: si el celular no llega a 45 cuadros por segundo, la escena se dibuja a menos píxeles (y vuelve a
     /// la elegida cuando sobra)
     pub dinamica: bool,
+    /// JX Turbo: los cuadros intermedios (se dibuja uno de verdad y el siguiente se arma corriéndolo a la cámara nueva)
+    pub turbo: bool,
     /// el idioma elegido (su código: «en», «ja»…; si no se eligió, el del celular —o inglés, como la web—)
     pub idioma: Option<String>,
     /// la música del menú (musica_juego.rs: la estación Casual)
@@ -60,7 +62,7 @@ pub struct Ajustes {
     pub menus: u32,
 }
 impl Default for Ajustes {
-    fn default() -> Self { Ajustes { calidad: 4, res: 100, sombras: true, ao: true, reflejo: true, retoque: true, sens: 12, fov: 70, fps: true, vol: 80, ambiente: true, hora: 12.0, ciclo: false, auto: true, medido: None, hud: 80, pal: 100, hud_pos: String::new(), tut: false, cont: false, dinamica: true, idioma: None, musica: true, menus: 80 } }
+    fn default() -> Self { Ajustes { calidad: 4, res: 100, sombras: true, ao: true, reflejo: true, retoque: true, sens: 12, fov: 70, fps: true, vol: 80, ambiente: true, hora: 12.0, ciclo: false, auto: true, medido: None, hud: 80, pal: 100, hud_pos: String::new(), tut: false, cont: false, dinamica: true, turbo: false, idioma: None, musica: true, menus: 80 } }
 }
 
 /// lo que se puede tocar en el menú, un renglón cada uno
@@ -135,7 +137,7 @@ impl Ajustes {
     pub fn opciones(&self) -> Opciones {
         let flojo = self.calidad <= 2; let muy = self.calidad <= 1;
         Opciones { escala: self.res as f32 / 100.0, sombras: self.sombras, sombra_px: if flojo { 1024 } else { 2048 }, sombra_cada: if self.calidad == 5 { 1 } else { 2 }, sombra_radio: if flojo { 35.0 } else if self.calidad == 5 { 60.0 } else { 45.0 },
-            reflejo: self.reflejo, reflejo_div: if muy { 4 } else if self.calidad == 5 { 2 } else { 3 }, reflejo_cada: if self.calidad == 5 { 1 } else { 2 }, ao: self.ao, ao_fuerza: if self.calidad == 5 { 1.0 } else { 0.6 }, retoque: self.retoque, adapta: self.retoque, prepaso: true, rayos: self.calidad >= 4, hongo: self.calidad.min(4) as u8, aaa: self.calidad == 5 }
+            reflejo: self.reflejo, reflejo_div: if muy { 4 } else if self.calidad == 5 { 2 } else { 3 }, reflejo_cada: if self.calidad == 5 { 1 } else { 2 }, ao: self.ao, ao_fuerza: if self.calidad == 5 { 1.0 } else { 0.6 }, retoque: self.retoque, adapta: self.retoque, prepaso: true, rayos: self.calidad >= 4, hongo: self.calidad.min(4) as u8, aaa: self.calidad == 5, turbo: self.turbo }
     }
     /// el volumen para el mezclador (80, el de fábrica, es 1: como quedó medido contra la web)
     pub fn volumen(&self) -> f32 { self.vol as f32 / 80.0 }

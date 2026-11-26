@@ -130,6 +130,28 @@ fn main() {
         }
         return;
     }
+    // (JXM_TURBO_PRUEBA=1: el cuadro intermedio contra el de verdad: para varias vistas y movimientos de 1/120 s, la foto de
+    // verdad en la cámara nueva, la vieja —lo que se vería sin intermedio— y la armada; y cuánto tarda armarla)
+    if std::env::var_os("JXM_TURBO_PRUEBA").is_some() {
+        let mut vistas: Vec<([f32; 3], f32, f32)> = (0..4).map(|k| ([p0[0], p0[1] + 0.7, p0[2]], y0 + k as f32 * 1.5708, -0.05)).collect();
+        vistas.push(([-10.6472, -1.8074449, 27.8816], y0, -0.1)); vistas.push(([-10.6472, -1.8074449, 27.8816], y0 + 4.71, -0.1));
+        let movs: [(f32, f32, f32, &str); 4] = [(1.5, 0.0, 0.0, "giro1.5"), (3.0, 0.0, 0.0, "giro3"), (1.5, 0.05, 0.0, "giro1.5_avanza5cm"), (0.0, 0.0, 0.04, "costado4cm")];
+        let mut t_int = vec![]; let mut t_real = vec![];
+        for (k, v) in vistas.iter().enumerate() { for (dg, av, co, nom) in movs.iter() {
+            let yaw1 = v.1 + dg.to_radians(); let (sy, cy) = (yaw1.sin(), yaw1.cos());
+            let p1 = [v.0[0] + sy * av + cy * co, v.0[1], v.0[2] + cy * av - sy * co];
+            j.poner_ojos(p1, yaw1, v.2); paso(&mut j, &mut m, 10);
+            let t = Instant::now(); paso(&mut j, &mut m, 1); t_real.push(t.elapsed().as_secs_f32() * 1000.0);
+            foto(&mut m, &format!("t{k}_{nom}_real")); let vp1 = m.vp_actual().unwrap();
+            j.poner_ojos(v.0, v.1, v.2); paso(&mut j, &mut m, 10); foto(&mut m, &format!("t{k}_{nom}_vieja"));
+            let t = Instant::now(); let ok = unsafe { m.intermedio(w, h, &vp1, &[]) }; unsafe { m.esperar(); } t_int.push(t.elapsed().as_secs_f32() * 1000.0);
+            if !ok { println!("  (sin intermedio)"); }
+            foto(&mut m, &format!("t{k}_{nom}_inter"));
+        } }
+        t_int.sort_by(|a, b| a.partial_cmp(b).unwrap()); t_real.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        println!("TURBO: cuadro de verdad mediana {:.1} ms · intermedio mediana {:.1} ms", t_real[t_real.len() / 2], t_int[t_int.len() / 2]);
+        return;
+    }
     if std::env::var_os("JXM_GI_FUGAS").is_some() { if let Some(mp) = j.mapa.as_ref() { gi_fugas(&mp.mundo, mp.luz.sol, p0); return; } }
     if let Ok(t) = std::env::var("JXM_VISTAS") {
         for (k, v) in t.split(';').enumerate() { let v: Vec<f32> = v.split(',').filter_map(|x| x.trim().parse().ok()).collect(); if v.len() < 5 { continue; }

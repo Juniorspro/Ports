@@ -15,6 +15,16 @@ impl Motor3d {
     pub unsafe fn cargar(&mut self, e: &Escena) -> Result<(), String> { match self { Motor3d::Gl(m, _) => m.cargar(e), Motor3d::Vk(m) => m.cargar(e), Motor3d::Gl2(m, _) => m.cargar(e) } }
     pub unsafe fn vaciar(&mut self) { match self { Motor3d::Gl(m, _) => m.vaciar(), Motor3d::Vk(m) => m.vaciar(), Motor3d::Gl2(m, _) => m.vaciar() } }
     pub fn poner_cuadro(&mut self, c: Cuadro) { match self { Motor3d::Gl(m, _) => m.poner_cuadro(c), Motor3d::Vk(m) => m.poner_cuadro(c), Motor3d::Gl2(m, _) => m.poner_cuadro(c) } }
+    /// JX Turbo: el cuadro intermedio —el último dibujado, corrido a la cámara `vp`— y la interfaz encima; false si este motor
+    /// no lo tiene o todavía no hay cuadro guardado (OpenGL 3 por ahora)
+    pub unsafe fn intermedio(&mut self, w: i32, h: i32, vp: &[f32; 16], ui: &[(i64, Vec<f32>)]) -> bool {
+        match self {
+            Motor3d::Gl(m, salida) => { if !m.intermedio(*salida, w, h, vp) { return false; } if !sin_ui() { for (t, v) in ui { m.ui(*salida, w, h, *t, v); } } true }
+            _ => false,
+        }
+    }
+    /// la cámara (vista y proyección) del último cuadro
+    pub fn vp_actual(&self) -> Option<[f32; 16]> { match self { Motor3d::Gl(m, _) => m.c.as_ref().map(|c| c.vp), Motor3d::Gl2(m, _) => m.c.as_ref().map(|c| c.vp), Motor3d::Vk(m) => m.c.as_ref().map(|c| c.vp) } }
     /// los dibujos (llamadas a la placa) del último cuadro
     pub fn dibujos(&self) -> u32 { match self { Motor3d::Gl(m, _) => m.dibujos, Motor3d::Vk(m) => m.dibujos, Motor3d::Gl2(m, _) => m.dibujos } }
     /// la altura del piso que se reflejó en el último cuadro (Definitivo)
