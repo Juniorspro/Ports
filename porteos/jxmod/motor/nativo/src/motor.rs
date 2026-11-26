@@ -15,6 +15,8 @@ impl Motor3d {
     pub unsafe fn cargar(&mut self, e: &Escena) -> Result<(), String> { match self { Motor3d::Gl(m, _) => m.cargar(e), Motor3d::Vk(m) => m.cargar(e), Motor3d::Gl2(m, _) => m.cargar(e) } }
     pub unsafe fn vaciar(&mut self) { match self { Motor3d::Gl(m, _) => m.vaciar(), Motor3d::Vk(m) => m.vaciar(), Motor3d::Gl2(m, _) => m.vaciar() } }
     pub fn poner_cuadro(&mut self, c: Cuadro) { match self { Motor3d::Gl(m, _) => m.poner_cuadro(c), Motor3d::Vk(m) => m.poner_cuadro(c), Motor3d::Gl2(m, _) => m.poner_cuadro(c) } }
+    /// los dibujos (llamadas a la placa) del último cuadro
+    pub fn dibujos(&self) -> u32 { match self { Motor3d::Gl(m, _) => m.dibujos, Motor3d::Vk(m) => m.dibujos, Motor3d::Gl2(m, _) => m.dibujos } }
     /// la altura del piso que se reflejó en el último cuadro (Definitivo)
     pub fn piso_refleja(&self) -> Option<f32> { match self { Motor3d::Gl(m, _) => m.piso_refleja(), Motor3d::Vk(m) => m.piso_refleja(), Motor3d::Gl2(m, _) => m.piso_refleja() } }
     pub fn resumen(&self) -> String { match self { Motor3d::Gl(m, _) => m.resumen(), Motor3d::Vk(m) => m.resumen(), Motor3d::Gl2(m, _) => m.resumen() } }
@@ -43,17 +45,17 @@ impl Motor3d {
                 use glow::HasContext;
                 if hay_mapa { m.dibujar(*salida, w, h); }
                 else { m.gl.bind_framebuffer(glow::FRAMEBUFFER, *salida); m.gl.viewport(0, 0, w, h); m.gl.clear_color(0.06, 0.07, 0.09, 1.0); m.gl.clear(glow::COLOR_BUFFER_BIT); }
-                for (t, v) in ui { m.ui(*salida, w, h, *t, v); }
+                if !sin_ui() { for (t, v) in ui { m.ui(*salida, w, h, *t, v); } }
                 m.marca("interfaz");
                 Ok(())
             }
-            Motor3d::Vk(m) => { if !hay_mapa { m.c = None; } let t: Vec<(i64, &[f32])> = ui.iter().map(|(t, v)| (*t, v.as_slice())).collect(); m.dibujar(&t).map(|_| ()) }
+            Motor3d::Vk(m) => { if !hay_mapa { m.c = None; } let t: Vec<(i64, &[f32])> = ui.iter().filter(|_| !sin_ui()).map(|(t, v)| (*t, v.as_slice())).collect(); m.dibujar(&t).map(|_| ()) }
             Motor3d::Gl2(m, salida) => {
                 if !hay_mapa { m.c = None; }
                 use glow::HasContext;
                 if hay_mapa { m.dibujar(*salida, w, h); }
                 else { m.gl.bind_framebuffer(glow::FRAMEBUFFER, *salida); m.gl.viewport(0, 0, w, h); m.gl.clear_color(0.06, 0.07, 0.09, 1.0); m.gl.clear(glow::COLOR_BUFFER_BIT); }
-                for (t, v) in ui { m.ui(*salida, w, h, *t, v); }
+                if !sin_ui() { for (t, v) in ui { m.ui(*salida, w, h, *t, v); } }
                 Ok(())
             }
         }
@@ -65,3 +67,6 @@ impl Motor3d {
     /// el tamaño en que dibuja Vulkan (la pantalla de costado)
     pub fn tam(&self) -> Option<(u32, u32)> { match self { Motor3d::Vk(m) => Some(m.tam()), _ => None } }
 }
+
+/// (JXM_SIN_UI, para medir: el cuadro sin el HUD)
+fn sin_ui() -> bool { static S: std::sync::OnceLock<bool> = std::sync::OnceLock::new(); *S.get_or_init(|| std::env::var_os("JXM_SIN_UI").is_some()) }

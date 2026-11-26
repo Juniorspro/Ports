@@ -55,6 +55,8 @@ enum U { Mat, NieS, Sesgo, VP, M, SVP, Mn, Sc, St, C, Em, Modo, S1, S3, Sol, Sol
 const NU: usize = U::GIn as usize + 1;
 const NOMBRES: [&str; NU] = ["uMat", "uNieS", "uSesgo", "uVP", "uM", "uSVP", "uMn", "uSc", "uSt", "uC", "uEm", "uModo", "uS1", "uS3", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNie", "uCam", "uExpo", "uSombra", "uClip", "uB", "uLP", "uLC", "uLD", "uLN", "uLE", "uF", "uH", "uS", "uBq", "uD", "uRefInv", "uTiempo", "uTop", "uMid", "uBot", "uExp", "uTinte", "uDia", "uCieloK", "uTieneCubo", "uRadio", "uInv", "uFuerza", "uRetoque", "uDer", "uArr", "uRefrOn", "uRefrK", "uIVP", "uSVP2", "uSesgo2", "uTi", "uTi2", "uTi3", "uAOk", "uNC", "uRay0", "uRayX", "uRayY", "uZl", "uRayP", "uRayK", "uVol", "uNubes", "uBloomK", "uRP", "uAdapta", "uCaus", "uCausB", "uOnd", "uOndN", "uGIo", "uGIn"];
 struct Prog { p: glow::Program, u: Vec<Option<glow::UniformLocation>>, piel: bool, corte: bool }
+#[derive(Default)]
+struct Puesto3 { vao: Option<glow::VertexArray>, unidad: Option<u32>, tex: [Option<glow::Texture>; 8], mat: HashMap<glow::Program, (i64, i32)>, pos: HashMap<glow::Program, ([f32; 3], [f32; 3])>, mm: HashMap<glow::Program, [f32; 16]> }
 impl Prog {
     fn u(&self, k: U) -> Option<&glow::UniformLocation> { self.u[k as usize].as_ref() }
 }
@@ -115,11 +117,18 @@ uniform mat4 uSVP, uSVP2;
 in vec3 vS; in vec3 vS2;
 #endif
 const float PI = 3.14159265;
-vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
+// (las cuentas de color, en media precisión —fp16, el doble de rápido en la placa del celular, como el float16 de JX Hand—;
+// con tope: fp16 llega a 65504 y lo muy brillante desbordaba x²; aces(64) ya es blanco)
+precision mediump float;
+vec3 aces(vec3 x) { x = min(x, vec3(64.0)); return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
+precision highp float;
+
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 // (Definitivo: la luz horneada del mapa como en un día nublado —el Ravenholm con trazado de rayos—: la mitad de su color
 // pasa a un blanco frío, con el mismo brillo; el sol amarillo de muchos mapas de Source no tiñe todo de naranja)
+precision mediump float;
 vec3 nublado(vec3 l) { float y = dot(l, vec3(0.2126, 0.7152, 0.0722)); return mix(l, y * vec3(0.9, 1.0, 1.12), 0.5); }
+precision highp float;
 // (lo que está debajo del agua: la luz del sol juntada por las olas —las cáusticas, la red de rayitos que se mueve en el
 // piso—. uCaus: x la altura del agua, y la fuerza, z el tiempo; uCausB: el rectángulo del agua en x y z)
 uniform vec4 uCaus, uCausB;
@@ -174,6 +183,7 @@ float cobertura(float a, vec2 uv) {
 #endif
 // (x^2,2 y x^(1/2,2) con tres raíces en vez de pow —logaritmo y exponencial—: el mismo color, menos de 0,2 de un nivel de
 // 8 bits de diferencia; la raíz es una sola instrucción)
+precision mediump float;
 #ifdef DBG_POW
 vec3 dec(vec3 x) { return pow(max(x, 0.0), vec3(2.2)); }
 vec3 enc(vec3 x) { return pow(max(x, 0.0), vec3(1.0 / 2.2)); }
@@ -181,16 +191,20 @@ vec3 enc(vec3 x) { return pow(max(x, 0.0), vec3(1.0 / 2.2)); }
 vec3 dec(vec3 x) { x = max(x, 0.0); vec3 a = sqrt(x), b = sqrt(a), c = sqrt(b); return x * x * (0.73929934 * b + 0.34228227 * c - 0.0593772 * a - 0.0226474); }
 vec3 enc(vec3 x) { x = max(x, 0.0); vec3 a = sqrt(x), b = sqrt(a), c = sqrt(b); return 0.93020244 * a + 0.14337668 * b - 0.02588437 * c - 0.04836126 * x; }
 #endif
+precision highp float;
 // (una sola potencia: con ?: entre dos expresiones se calculan las dos)
 vec3 cieloCol(vec3 d) { bool ar = d.y > 0.0; vec3 c = mix(uMid, ar ? uTop : uBot, pow(abs(d.y), ar ? uExp.x : uExp.y)); return dec(c) * uCieloK; }
+// (el BRDF en media precisión: a² no baja del normal más chico de fp16 —si la placa lo volviera cero, 0/0 en el brillo—)
+precision mediump float;
 vec3 brdf(vec3 n, vec3 v, vec3 l, vec3 dif, vec3 f0, float a) {
   float nl = dot(n, l); if (nl <= 0.0) return vec3(0.0);
   vec3 h = normalize(l + v); float nh = max(dot(n, h), 0.0), nv = max(dot(n, v), 1e-3), lh = max(dot(l, h), 0.0);
-  float a2 = a * a, d = nh * nh * (a2 - 1.0) + 1.0, D = a2 / (PI * d * d);
+  float a2 = max(a * a, 6.2e-5), d = nh * nh * (a2 - 1.0) + 1.0, D = a2 / (PI * d * d);
   float k = a * 0.5, V = 0.25 / ((nl * (1.0 - k) + k) * (nv * (1.0 - k) + k));
   float m1 = max(1.0 - lh, 0.0), m2 = m1 * m1; vec3 F = f0 + (1.0 - f0) * (m2 * m2 * m1);   // (con la luz pegada a los ojos —la linterna— lh pasa de 1 por redondeo: sin el max, NaN)
   return (dif * (1.0 - F) + min(D * V, 40.0) * F * PI) * nl;
 }
+precision highp float;
 // la sombra en dos cascadas, una al lado de la otra en el mismo mapa: la de cerca (fina) y la de lejos; en el borde de la de
 // cerca se mezclan (sin costura)
 float pcf(vec3 q, float k, float b) {
@@ -907,6 +921,9 @@ pub struct Motor {
     sombra_huella: [u64; 2], cubo_oclu: (glow::VertexArray, glow::Buffer, glow::Buffer), tapados: Vec<bool>,
     /// las luces que ya están puestas en el programa de ahora (para no volver a mandarlas si la cosa siguiente usa las mismas)
     luces_puestas: std::cell::Cell<(u64, u32)>,
+    /// lo puesto en la placa dentro de una tanda de dibujos (dibujar_lista_con): la malla, las texturas, y por programa el
+    /// material y la posición —como OpenGL 2: no rehacer lo mismo—; las llamadas hechas y las que se ahorraron
+    puesto: std::cell::RefCell<Option<Puesto3>>, pub llamadas: std::cell::Cell<[u32; 2]>,
     /// la oclusión va dentro de la pasada de luz (calculada antes, con la profundidad) y el tamaño de la escena
     ao_luz: bool, esc_wh: (f32, f32),
     /// (JXM_FASES: lo que tarda cada pasada, esperando a la placa en cada una —para medir, no para jugar—)
@@ -975,7 +992,7 @@ impl Motor {
         Ok(Motor { gi_tex: None, gi_ver: -1.0, refl_agua: false, refl_piso: None, refl_piso_ult: (mat::id(), f32::NAN), p_adapta, adapta: None, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], rayos_rt: None, hongos: crate::hongo::Hongos::nuevo(true), gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
             p_luz, p_luz_piel, p_luz_c, p_luz_piel_c, p_luz_inst_c, p_pre, p_pre_piel, p_pre_inst, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_lin, p_ui, ui, p_luz_inst, p_sombra_inst, inst_buf, part, marcas, ao_rt: None, refr_rt: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], svp2: mat::id(), sesgo2: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
             opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new(), ranuras: Vec::new(), instancias: std::env::var("JXM_SIN_INST").is_err(),
-            ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), fases_b: vec![], luz_b, perfil: std::env::var_os("JXM_PERFIL").map(|_| std::cell::RefCell::new(vec![])) })
+            ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), puesto: std::cell::RefCell::new(None), llamadas: std::cell::Cell::new([0; 2]), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), fases_b: vec![], luz_b, perfil: std::env::var_os("JXM_PERFIL").map(|_| std::cell::RefCell::new(vec![])) })
     }
 
     /// sube a la placa los recursos nuevos (los que ya estaban con el mismo número se reemplazan)
@@ -1115,26 +1132,41 @@ impl Motor {
     /// una cosa (n = 1) o n copias de ella con sus matrices en el búfer de instancias (ya armado, desde `it`)
     unsafe fn dibujar_n(&self, p: &Prog, it: &ItemDin, conluz: bool, n: i32) {
         let gl = &self.gl; let Some(m) = self.mallas.get(&it.m) else { return };
-        gl.bind_vertex_array(Some(m.vao));
-        if n <= 1 { gl.uniform_matrix_4_f32_slice(p.u(U::M), false, &it.mm); }   // (con n > 1 las matrices ya están en el búfer de instancias)
-        gl.uniform_3_f32(p.u(U::Mn), m.mn[0], m.mn[1], m.mn[2]); gl.uniform_3_f32(p.u(U::Sc), m.sc[0], m.sc[1], m.sc[2]);
+        // (dentro de una tanda: lo que ya está puesto no se vuelve a poner —se cuenta lo hecho y lo ahorrado—)
+        let mut pu = self.puesto.borrow_mut(); let ll = &self.llamadas;
+        let cuenta = |n: u32, si: bool| { let mut v = ll.get(); v[1] += n; if si { v[0] += n; } ll.set(v); si };
+        let hace = |pu: &Option<Puesto3>, n: u32, cambia: &dyn Fn(&Puesto3) -> bool| cuenta(n, pu.as_ref().map_or(true, |x| cambia(x)));
+        if hace(&pu, 1, &|x| x.vao != Some(m.vao)) { gl.bind_vertex_array(Some(m.vao)); if let Some(x) = pu.as_mut() { x.vao = Some(m.vao); } }
+        if n <= 1 && hace(&pu, 1, &|x| x.mm.get(&p.p) != Some(&it.mm)) { gl.uniform_matrix_4_f32_slice(p.u(U::M), false, &it.mm); if let Some(x) = pu.as_mut() { x.mm.insert(p.p, it.mm); } }   // (con n > 1 las matrices ya están en el búfer de instancias)
+        if hace(&pu, 2, &|x| x.pos.get(&p.p) != Some(&(m.mn, m.sc))) { gl.uniform_3_f32(p.u(U::Mn), m.mn[0], m.mn[1], m.mn[2]); gl.uniform_3_f32(p.u(U::Sc), m.sc[0], m.sc[1], m.sc[2]); if let Some(x) = pu.as_mut() { x.pos.insert(p.p, (m.mn, m.sc)); } }
         if p.piel { let n = it.h.len().min(MAX_HUESOS * 12) / 4 * 4; gl.uniform_4_f32_slice(p.u(U::B), &it.h[..n]); }
         if conluz {
             let Some(mt) = self.mats.get(&it.mat) else { return };
             let tx = |i: i64| self.texs.get(&i).map(|t| t.t).unwrap_or(self.blanca);
-            gl.uniform_4_f32(p.u(U::St), mt.st[0], mt.st[1], mt.st[2], mt.st[3]);
-            gl.uniform_4_f32(p.u(U::C), mt.c[0], mt.c[1], mt.c[2], mt.c[3]);
-            gl.uniform_3_f32(p.u(U::Em), mt.em[0], mt.em[1], mt.em[2]); gl.uniform_4_f32_slice(p.u(U::Ti), &mt.ti[0..4]); gl.uniform_4_f32_slice(p.u(U::Ti2), &mt.ti[4..8]); gl.uniform_4_f32_slice(p.u(U::Ti3), &mt.ti[8..12]); gl.uniform_3_f32(p.u(U::Mat), mt.pbr[0], mt.pbr[1], mt.pbr[2]);
-            gl.active_texture(glow::TEXTURE0); gl.bind_texture(glow::TEXTURE_2D, Some(tx(mt.t)));
             let lm = self.lms.get(&m.lm);
-            if let Some(l) = lm { gl.active_texture(glow::TEXTURE1); gl.bind_texture(glow::TEXTURE_2D, Some(l.t)); }
             let mut modo = (lm.is_some() as i32) | if mt.cut != 0 { 2 } else { 0 } | if mt.unlit != 0 { 4 } else { 0 } | if mt.cut != 0 || mt.blend != 0 { 32 } else { 0 } | if mt.fol != 0 { 64 } else { 0 };
-            if let Some(tr) = mt.terr.as_ref().filter(|t| t.len() == 3) {
-                for (k, c) in tr.iter().enumerate() { gl.active_texture(glow::TEXTURE5 + k as u32); gl.bind_texture(glow::TEXTURE_2D, Some(tx(c.0))); }
-                gl.uniform_4_f32(p.u(U::S1), tr[0].1, tr[0].2, tr[1].1, tr[1].2); gl.uniform_2_f32(p.u(U::S3), tr[2].1, tr[2].2); modo |= 16;
-            } else if mt.t2 >= 0 { gl.active_texture(glow::TEXTURE5); gl.bind_texture(glow::TEXTURE_2D, Some(tx(mt.t2))); modo |= 8; }
-            gl.uniform_1_i32(p.u(U::Modo), modo);
+            let terr = mt.terr.as_ref().filter(|t| t.len() == 3);
+            if terr.is_some() { modo |= 16; } else if mt.t2 >= 0 { modo |= 8; }
+            // (las texturas de cada unidad)
+            let poner = |pu: &mut Option<Puesto3>, u: u32, t: glow::Texture| {
+                if cuenta(2, pu.as_ref().map_or(true, |x| x.tex[u.min(7) as usize] != Some(t))) {
+                    if pu.as_ref().map_or(true, |x| x.unidad != Some(u)) { gl.active_texture(glow::TEXTURE0 + u); }
+                    gl.bind_texture(glow::TEXTURE_2D, Some(t)); if let Some(x) = pu.as_mut() { x.unidad = Some(u); x.tex[u.min(7) as usize] = Some(t); } }
+            };
+            poner(&mut pu, 0, tx(mt.t));
+            if let Some(l) = lm { poner(&mut pu, 1, l.t); }
+            if let Some(tr) = terr { for (k, c) in tr.iter().enumerate() { poner(&mut pu, 5 + k as u32, tx(c.0)); } } else if mt.t2 >= 0 { poner(&mut pu, 5, tx(mt.t2)); }
+            // (lo del material, si este programa no lo tiene puesto)
+            if hace(&pu, 8, &|x| x.mat.get(&p.p) != Some(&(it.mat, modo))) {
+                gl.uniform_4_f32(p.u(U::St), mt.st[0], mt.st[1], mt.st[2], mt.st[3]);
+                gl.uniform_4_f32(p.u(U::C), mt.c[0], mt.c[1], mt.c[2], mt.c[3]);
+                gl.uniform_3_f32(p.u(U::Em), mt.em[0], mt.em[1], mt.em[2]); gl.uniform_4_f32_slice(p.u(U::Ti), &mt.ti[0..4]); gl.uniform_4_f32_slice(p.u(U::Ti2), &mt.ti[4..8]); gl.uniform_4_f32_slice(p.u(U::Ti3), &mt.ti[8..12]); gl.uniform_3_f32(p.u(U::Mat), mt.pbr[0], mt.pbr[1], mt.pbr[2]);
+                if let Some(tr) = terr { gl.uniform_4_f32(p.u(U::S1), tr[0].1, tr[0].2, tr[1].1, tr[1].2); gl.uniform_2_f32(p.u(U::S3), tr[2].1, tr[2].2); }
+                gl.uniform_1_i32(p.u(U::Modo), modo);
+                if let Some(x) = pu.as_mut() { x.mat.insert(p.p, (it.mat, modo)); }
+            }
         }
+        drop(pu); cuenta(1, true);
         let (tipo, off) = (if m.i32 { glow::UNSIGNED_INT } else { glow::UNSIGNED_SHORT }, (it.s0 * if m.i32 { 4 } else { 2 }) as i32);
         if n > 1 {
             gl.draw_elements_instanced(glow::TRIANGLES, it.sn as i32, tipo, off, n);
@@ -1309,6 +1341,7 @@ impl Motor {
         }
         if !mats.is_empty() { let gl = &self.gl; gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.inst_buf)); gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, f32_bytes(&mats), glow::STREAM_DRAW); }
         let mut act: Option<u8> = None; let mut base = 0usize; let mut dibujos = 0;
+        *self.puesto.borrow_mut() = Some(Puesto3::default());
         for (k, e) in grupos {
             let it = &self.items[lista[k]]; let n = e - k;
             let piel = !it.h.is_empty() && self.mallas.get(&it.m).map(|m| m.piel).unwrap_or(false);
@@ -1321,12 +1354,15 @@ impl Motor {
                 act = Some(tipo);
                 if de_sombra { self.gl.use_program(Some(p.p)); self.gl.uniform_matrix_4_f32_slice(p.u(U::VP), false, vp); }
                 else { self.luces(p, vp, clip); }
+                // (luces puede dejar puesta otra unidad —la de la sombra—: no se sabe cuál)
+                if let Some(x) = self.puesto.borrow_mut().as_mut() { x.unidad = None; }
             }
             if !de_sombra { let esf: Vec<[f32; 4]> = lista[k..e].iter().map(|&i| self.items[i].esf).collect(); self.luces_de(p, &esf); }
             if n >= 2 {
                 // (el búfer de instancias, corrido a las matrices de este grupo)
                 let gl = &self.gl; let Some(m) = self.mallas.get(&it.m) else { base += n; continue };
                 gl.bind_vertex_array(Some(m.vao)); gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.inst_buf));
+                if let Some(x) = self.puesto.borrow_mut().as_mut() { x.vao = Some(m.vao); }
                 for j in 0..4u32 { gl.enable_vertex_attrib_array(6 + j); gl.vertex_attrib_pointer_f32(6 + j, 4, glow::FLOAT, false, 64, (base * 64 + j as usize * 16) as i32); gl.vertex_attrib_divisor(6 + j, 1); }
                 let t0 = self.perfil.as_ref().map(|_| { self.gl.finish(); std::time::Instant::now() });
                 self.dibujar_n(p, it, !de_sombra, n as i32);
@@ -1339,6 +1375,7 @@ impl Motor {
             }
             dibujos += 1;
         }
+        *self.puesto.borrow_mut() = None;
         dibujos
     }
     /// (JXM_PERFIL: lo que tardó cada dibujo —con la placa esperada antes y después—, sumado por malla y material)
@@ -1621,7 +1658,7 @@ impl Motor {
 
     /// un cuadro entero, en el destino `salida` (None = el de la superficie) de w × h
     pub unsafe fn dibujar(&mut self, salida: Option<glow::Framebuffer>, w: i32, h: i32) {
-        self.dibujos = 0;
+        self.dibujos = 0; self.llamadas.set([0; 2]);
         if self.c.is_none() { let gl = &self.gl; gl.bind_framebuffer(glow::FRAMEBUFFER, salida); gl.viewport(0, 0, w, h); gl.clear_color(0.0, 0.0, 0.0, 1.0); gl.clear(glow::COLOR_BUFFER_BIT); return; }
         let cambiar = ab() && self.luz_b.is_some(); if cambiar { self.cambiar_luz_b(); }
         self.dibujar_escena(salida, w, h);

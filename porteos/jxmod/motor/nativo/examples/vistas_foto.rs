@@ -25,6 +25,8 @@ fn main() {
     j.gmod.carpeta_externa = std::env::var("JXM_ADDONS").ok().map(std::path::PathBuf::from);
     // (JXM_CALIDAD=0..5: la calidad —5, Definitivo—; sin la resolución dinámica: las fotos, nítidas)
     if let Some(q) = std::env::var("JXM_CALIDAD").ok().and_then(|v| v.parse().ok()) { j.aj.poner_calidad(q); j.aj.auto = false; j.aj.dinamica = false; }
+    // (JXM_RES: la resolución de la escena en %, aparte de la calidad —para comparar cómo se ve agrandada—)
+    if let Some(r) = std::env::var("JXM_RES").ok().and_then(|v| v.parse().ok()) { j.aj.res = r; }
     j.gmod.lector_rb = Some(jxmod::comun::gmod_juego::lector_carpetas(vec![Path::new(&www).join("rb"), "/tmp/claude-0/jxp_pub/rb".into()]));
     let _ = std::fs::remove_file(datos.join("gmod_apagados.txt"));
     j.dt_fijo = Some(1.0 / 60.0);
@@ -104,6 +106,30 @@ fn main() {
             } }
         } else { println!("  (no se encontró un interior)"); }
     } }
+    // (JXM_TCL=1: para cada calidad, lo que tarda un cuadro —mediana— y cuántos dibujos tiene, en vistas fijas: adentro y la
+    // aparición para cuatro lados; con eso se estima un TCL 20 SE —tcl20se.py—)
+    if std::env::var_os("JXM_TCL").is_some() {
+        let qs: Vec<usize> = std::env::var("JXM_TCL_Q").ok().map(|v| v.split(',').filter_map(|x| x.parse().ok()).collect()).unwrap_or((0..=5).collect());
+        let mut vistas: Vec<([f32; 3], f32, f32)> = (0..4).map(|k| ([p0[0], p0[1] + 0.7, p0[2]], y0 + k as f32 * 1.5708, -0.05)).collect();
+        vistas.push(([-10.6472, -1.8074449, 27.8816], y0, -0.1)); vistas.push(([-10.6472, -1.8074449, 27.8816], y0 + 4.71, -0.1));
+        for q in qs {
+            j.aj.poner_calidad(q); j.aj.auto = false; j.aj.dinamica = false;
+            let mut ms = vec![]; let mut dib = vec![];
+            let limpiar = |m: &mut Motor3d| match m { Motor3d::Gl(g, _) => { if let Some(f) = g.fases.as_mut() { f.1.clear(); } } Motor3d::Gl2(g, _) => { if let Some(f) = g.fases.as_mut() { f.1.clear(); } } _ => {} };
+            let mut n_med = 0;
+            for v in &vistas { j.poner_ojos(v.0, v.1, v.2); paso(&mut j, &mut m, 12); limpiar(&mut m);
+                for _ in 0..8 { let t = Instant::now(); paso(&mut j, &mut m, 1); ms.push(t.elapsed().as_secs_f32() * 1000.0); dib.push(m.dibujos()); }
+                n_med += 8;
+                let f = match &m { Motor3d::Gl(g, _) => g.fases.as_ref().map(|f| f.1.clone()), Motor3d::Gl2(g, _) => g.fases.as_ref().map(|f| f.1.clone()), _ => None };
+                if let Some(f) = f { if std::env::var_os("JXM_FASES").is_some() { println!("  fases: {}", f.iter().map(|(k, x)| format!("{k} {:.1}", x / 8.0)).collect::<Vec<_>>().join(" · ")); } }
+            }
+            let _ = n_med;
+            ms.sort_by(|a, b| a.partial_cmp(b).unwrap()); let dm = dib.iter().sum::<u32>() as f32 / dib.len() as f32;
+            let ll = match &m { Motor3d::Gl2(g, _) => format!(" llamadas={}/{}", g.llamadas[0], g.llamadas[1]), Motor3d::Gl(g, _) => { let l = g.llamadas.get(); format!(" llamadas={}/{}", l[0], l[1]) } _ => String::new() };
+            println!("TCL q={q} {} res={} ms_mediana={:.2} ms_p90={:.2} dibujos={:.0}{ll}", jxmod::ajustes::CALIDADES[q.min(5)], j.aj.res, ms[ms.len() / 2], ms[ms.len() * 9 / 10], dm);
+        }
+        return;
+    }
     if std::env::var_os("JXM_GI_FUGAS").is_some() { if let Some(mp) = j.mapa.as_ref() { gi_fugas(&mp.mundo, mp.luz.sol, p0); return; } }
     if let Ok(t) = std::env::var("JXM_VISTAS") {
         for (k, v) in t.split(';').enumerate() { let v: Vec<f32> = v.split(',').filter_map(|x| x.trim().parse().ok()).collect(); if v.len() < 5 { continue; }
