@@ -128,7 +128,7 @@ impl Ajustes {
     pub fn opciones(&self) -> Opciones {
         let flojo = self.calidad <= 2; let muy = self.calidad <= 1;
         Opciones { escala: self.res as f32 / 100.0, sombras: self.sombras, sombra_px: if flojo { 1024 } else { 2048 }, sombra_cada: if flojo { 2 } else { 1 }, sombra_radio: if flojo { 35.0 } else { 45.0 },
-            reflejo: self.reflejo, reflejo_div: if muy { 4 } else { 2 }, reflejo_cada: if muy { 2 } else { 1 }, ao: self.ao, ao_fuerza: 0.6, retoque: self.retoque, prepaso: true }
+            reflejo: self.reflejo, reflejo_div: if muy { 4 } else { 2 }, reflejo_cada: if muy { 2 } else { 1 }, ao: self.ao, ao_fuerza: 0.6, retoque: self.retoque, prepaso: true, rayos: self.calidad >= 4 }
     }
     /// el volumen para el mezclador (80, el de fábrica, es 1: como quedó medido contra la web)
     pub fn volumen(&self) -> f32 { self.vol as f32 / 80.0 }

@@ -22,7 +22,7 @@ impl Motor3d {
         match self {
             Motor3d::Gl(m, _) => m.op = op.clone(),
             Motor3d::Vk(m) => m.op = op.clone(),
-            Motor3d::Gl2(m, _) => { m.op.escala = op.escala; m.op.retoque = op.retoque; m.op.sombras = op.sombras; m.op.sombra_px = op.sombra_px.min(1024); m.op.sombra_cada = op.sombra_cada.max(2); m.op.sombra_radio = (op.sombra_radio * 1.35).clamp(30.0, 60.0); m.op.reflejo = op.reflejo && op.sombras; m.op.reflejo_div = op.reflejo_div.max(3); m.op.reflejo_piso = std::env::var_os("JXM_GL2_SIN_PISO").is_none(); }
+            Motor3d::Gl2(m, _) => { m.op.escala = op.escala; m.op.retoque = op.retoque; m.op.sombras = op.sombras; m.op.sombra_px = op.sombra_px.min(1024); m.op.sombra_cada = op.sombra_cada.max(2); m.op.sombra_radio = (op.sombra_radio * 1.35).clamp(30.0, 60.0); m.op.reflejo = op.reflejo && op.sombras; m.op.reflejo_div = op.reflejo_div.max(3); m.op.reflejo_piso = std::env::var_os("JXM_GL2_SIN_PISO").is_none(); m.op.rayos = op.rayos && std::env::var_os("JXM_SIN_RAYOS").is_none(); }
         }
     }
     /// el cuadro entero: la escena (si hay mapa) y el HUD (`ui`: tandas de vértices, cada una con su textura —las letras, los
