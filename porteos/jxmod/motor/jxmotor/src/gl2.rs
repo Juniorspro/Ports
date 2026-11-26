@@ -380,7 +380,7 @@ pub struct Motor {
     poses: Vec<Pose2>, poses_n: usize, pose_p: Vec<[f32; 3]>, pose_v: Vec<u8>,
     /// la sombra del sol: el destino (cuadro, textura con la profundidad en RGBA, profundidad, lado), su matriz, cuántos
     /// cuadros van, si está lista y el corrimiento por la normal; los programas (y el de lo recortado)
-    som: Option<(glow::Framebuffer, glow::Texture, glow::Renderbuffer, i32)>, som_vp: M4, som_n: u64, som_on: bool, som_off: [f32; 2],
+    som: Option<(glow::Framebuffer, glow::Texture, glow::Renderbuffer, i32)>, som_vp: M4, som_n: u64, som_on: bool, som_off: [f32; 2], som_huella: u64, refl_n: u64,
     p_som: Prog2, p_som_c: Prog2,
     /// el reflejo del agua: su destino (cuadro, textura, profundidad, ancho, alto), si se dibujó en este cuadro y los programas
     /// de la luz con el plano que corta lo de abajo del agua
@@ -422,7 +422,7 @@ impl Motor {
             let ib = gl.create_buffer()?; gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ib)); let ibb: Vec<u8> = caras.iter().flat_map(|x| x.to_le_bytes()).collect(); gl.buffer_data_u8_slice(glow::ELEMENT_ARRAY_BUFFER, &ibb, glow::STATIC_DRAW);
             Some((HashMap::new(), pc, vb, ib))
         } else { None };
-        Ok(Motor { som: None, som_vp: mat::id(), som_n: 0, som_on: false, som_off: [0.0; 2], p_som, p_som_c, refl: None, refl_on: false, refl_activo: false, p_luz_r, p_luz_rc, oclu, n_cuadro: 0, fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), gl, op, cubo: None, p_luz, p_luz_c, p_cielo, p_ui, p_copia, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), marcas_vb, marcas_n: 0, poses: vec![], poses_n: 0, pose_p: vec![], pose_v: vec![], marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
+        Ok(Motor { som: None, som_vp: mat::id(), som_n: 0, som_on: false, som_off: [0.0; 2], som_huella: 0, refl_n: 0, p_som, p_som_c, refl: None, refl_on: false, refl_activo: false, p_luz_r, p_luz_rc, oclu, n_cuadro: 0, fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), gl, op, cubo: None, p_luz, p_luz_c, p_cielo, p_ui, p_copia, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), marcas_vb, marcas_n: 0, poses: vec![], poses_n: 0, pose_p: vec![], pose_v: vec![], marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
             c: None, items: vec![], opacos: vec![], transp: vec![], uint32, npot, escena_rt: None, dibujos: 0, memoria: 0, mapa: String::new() })
     }
 
@@ -819,6 +819,12 @@ impl Motor {
         self.som_vp = svp; self.som_off = [0.3 / rango, 3.0 * paso];
         let pl = mat::planos(&svp);
         let lista: Vec<usize> = self.opacos.iter().copied().filter(|&i| { let it = &self.items[i]; it.fl & FL_CIELO == 0 && mat::esfera_dentro(&pl, &it.esf) && self.mats.get(&it.mat).map_or(false, |m| m.unlit == 0) }).collect();
+        // (si no cambió nada —la misma matriz y lo mismo adentro, en el mismo lugar y pose— la sombra guardada sirve)
+        let mut hu: u64 = 0xcbf29ce484222325; let mut mete = |x: u64| { hu ^= x; hu = hu.wrapping_mul(0x100000001b3); };
+        for v in &svp { mete(v.to_bits() as u64); }
+        for &i in &lista { let it = &self.items[i]; mete(it.m as u64); mete(it.s0 as u64); mete(it.mat as u64); for v in &it.mm { mete(v.to_bits() as u64); } for v in &it.h { mete(v.to_bits() as u64); } }
+        if self.som_on && hu == self.som_huella { return; }
+        self.som_huella = hu;
         let (f, ..) = *self.som.as_ref().unwrap();
         let gl = &self.gl;
         gl.bind_framebuffer(glow::FRAMEBUFFER, Some(f)); gl.viewport(0, 0, px, px);
@@ -870,6 +876,7 @@ impl Motor {
             if gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE { gl.delete_framebuffer(f); gl.delete_texture(t); gl.delete_renderbuffer(r); self.op.reflejo = false; return false; }
             self.refl = Some((f, t, r, w, h));
         }
+        self.refl_n += 1; if self.refl_on && self.refl_n % 2 == 0 { return true; }
         let vp = mat::mul(&c.vp, &mat::espejo_y(ay)); let cp = c.pos;
         let (f, ..) = *self.refl.as_ref().unwrap();
         { let gl = &self.gl; gl.bind_framebuffer(glow::FRAMEBUFFER, Some(f)); gl.viewport(0, 0, w, h);
