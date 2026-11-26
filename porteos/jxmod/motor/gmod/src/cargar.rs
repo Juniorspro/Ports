@@ -114,6 +114,19 @@ impl Gmod {
     pub fn dibujar3d(&mut self, dt: f64) -> crate::modelos::Dib { self.activar(); if !g(|g| g.activo) { return Default::default(); } crate::modelos::dibujar(&mut self.lua, dt) }
     /// un modelo de los addons montados (leído una vez)
     pub fn modelo(&self, ruta: &str) -> Option<Rc<crate::modelos::Modelo>> { self.activar(); crate::modelos::modelo(ruta) }
+    /// el Lua de un arma de los addons y el de sus bases (ctlBotonesDeArma de la web: para ver qué teclas usa y qué hace cada
+    /// una —nativo/teclas_mod.rs—); como mucho 2 MB
+    pub fn fuentes_arma(&self, clase: &str) -> String {
+        self.activar();
+        let (mut out, mut vistas, mut c) = (String::new(), Vec::<String>::new(), clase.trim_start_matches("gm:").to_lowercase());
+        while !c.is_empty() && !vistas.contains(&c) && vistas.len() < 6 && out.len() < 2_000_000 {
+            vistas.push(c.clone());
+            let (dir, uno) = (format!("lua/weapons/{c}/"), format!("lua/weapons/{c}.lua"));
+            g(|g| for a in &g.addons { let a = a.borrow(); for r in &a.lua { if r.starts_with(&dir) || *r == uno { if let Some(b) = a.archivos.get(r) { out.push_str(&String::from_utf8_lossy(&b[..])); out.push('\n'); } } } });
+            c = clase_tabla(&c, Lado::S).map(|t| { let b = tget(&t, "Base"); if let Valor::Cad(_) = b { js_str(&b).to_lowercase() } else { String::new() } }).unwrap_or_default();
+        }
+        out
+    }
     /// el WorldModel de un arma de los addons (por su clase)
     pub fn mundo_arma(&self, clase: &str) -> Option<String> { self.activar(); let clase = clase.trim_start_matches("gm:"); let t = clase_tabla(clase, Lado::S).or_else(|| clase_tabla(clase, Lado::C))?; let v = buscar_en_clase(&t, "WorldModel"); if v.es_nil() { None } else { Some(js_str(&v)) } }
     /// dónde está una entidad del Lua (para los sonidos que suenan atados a ella); None si ya no está

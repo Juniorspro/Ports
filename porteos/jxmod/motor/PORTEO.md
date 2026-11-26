@@ -74,7 +74,8 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | pillpacks.js, pill_gmod.js | ◐ (los propios y los de los Pill Packs del Workshop —pk_pills—: el cuerpo, la vida, la velocidad, el salto, la cámara y las habilidades con la barra de poder; sin niveles, red ni ajustes) | nativo/gmod_pill.rs, gmod/pills.rs |
 | nativos.js | ◐ | nativo/nat_juego.rs (sin lo de la red: que otro jugador te agarre) |
 | modmenu.js | ◐ | nativo/jugabilidad.rs (el menú MOD y las Opciones de los mods nativos) |
-| smods.js, acciones.js | ✘ | |
+| acciones.js (y las teclas de las armas de controles.js) | ✔ | nativo/teclas_mod.rs: con un arma de un addon en la mano se lee su Lua y el de sus bases (Gmod::fuentes_arma) y sus teclas (IN_*, KEY_*) pasan a hasta 4 botones en arco arriba del disparo, con el ícono de lo que hacen (la tabla de acciones.js sacada con herramientas/acciones_nativo.mjs → acciones_web.json); examples/teclas_mods.rs las lista para una carpeta de .gma |
+| smods.js | ✘ | |
 | modapi.js (mods con código JS) | — | no hay JavaScript en la nativa |
 
 ## Menús e interfaz

@@ -112,7 +112,7 @@ pub fn dir_al_mundo(base: &M4, d: V) -> V { [base[0] * d[0] + base[4] * d[1] + b
 // ---------------- los botones del HUD ----------------
 /// los botones propios (Boton::Jg): el menú MOD, la linterna, la cámara libre con sus dos modos, la patada y el Cíclope
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Bj { Mod, Linterna, CamLibre, CamL, CamR, Patada, Ciclope }
+pub enum Bj { Mod, Linterna, CamLibre, CamL, CamR, Patada, Ciclope, /** las teclas del arma de un mod (teclas_mod.rs) */ Tecla(u8) }
 
 /// la patada (PAT de patadas.js): desde cuándo se puede de nuevo y si ya pegó
 #[derive(Default)]
@@ -262,6 +262,7 @@ impl Juego {
             Bj::CamL | Bj::CamR => self.jg.clib.menu,
             Bj::Patada => pie && self.mapa.is_some(),
             Bj::Ciclope => self.jg.activo("ciclope") && pie,
+            Bj::Tecla(i) => pie && self.gmod_arma_activa() && (i as usize) < self.gmod.teclas.len(),
         }
     }
     pub(super) fn jg_etiqueta(&self, b: Bj) -> (&'static str, bool) {
@@ -273,6 +274,7 @@ impl Juego {
             Bj::CamR => ("R", self.jg.clib.modo == Some('R')),
             Bj::Patada => ("Patada", self.jg.pat.activa),
             Bj::Ciclope => ("Cíclope", self.jg.cic.apretado || self.jg.cic.mia()),
+            Bj::Tecla(i) => ("", self.apretado(super::Boton::Jg(Bj::Tecla(i)))),
         }
     }
     pub(super) fn jg_boton(&mut self, b: Bj) {
@@ -284,6 +286,8 @@ impl Juego {
             Bj::CamR => self.clib_elegir(Some('R')),
             Bj::Patada => self.patear(),
             Bj::Ciclope => self.cic_apretar(true),
+            // (se aprietan mientras se tocan: teclas_mod_apretadas)
+            Bj::Tecla(_) => {}
         }
     }
     /// Usar (la E) mirando una nuclear (la arma), la catapulta (la dispara) o la bomba de Rick Prime (elegir a quién)

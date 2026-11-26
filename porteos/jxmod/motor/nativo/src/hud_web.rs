@@ -28,13 +28,15 @@ const AD: [(Boton, [f32; 4]); 9] = [
 ];
 /// abajo a la derecha: [x desde el borde derecho, y desde abajo, tamaño, mínimo en px] (HUD_V2.ab: volar va donde #bcorrer,
 /// girar donde #brotar y el Cíclope donde #bvolver)
-const AB: [(Boton, [f32; 4]); 11] = [
+const AB: [(Boton, [f32; 4]); 15] = [
     (Boton::Saltar, [-90.0, 90.0, 136.0, 54.0]), (Boton::Agachar, [-228.0, 74.0, 104.0, 48.0]), (Boton::Disparo, [-235.0, 262.0, 176.0, 64.0]),
     (Boton::Disparo2, [-74.0, 300.0, 104.0, 48.0]), (Boton::Jg(Bj::Patada), [-344.0, 100.0, 92.0, 42.0]), (Boton::Volar, [-462.0, 72.0, 86.0, 38.0]),
     (Boton::Recargar, [-410.0, 282.0, 96.0, 44.0]), (Boton::Girar, [-410.0, 282.0, 96.0, 44.0]), (Boton::Lejos, [-170.0, 402.0, 84.0, 38.0]), (Boton::Cerca, [-302.0, 404.0, 84.0, 38.0]),
     (Boton::Jg(Bj::Ciclope), [-452.0, 170.0, 86.0, 38.0]),
+    // (las teclas de las armas de los mods —teclas_mod.rs—: en arco arriba del disparo, donde la web pone #bmod0…3)
+    (Boton::Jg(Bj::Tecla(0)), AB_WEB[0]), (Boton::Jg(Bj::Tecla(1)), AB_WEB[1]), (Boton::Jg(Bj::Tecla(2)), AB_WEB[2]), (Boton::Jg(Bj::Tecla(3)), AB_WEB[3]),
 ];
-/// (los de la web que acá no hay —las teclas de los mods—: cuentan para la escala del grupo, como allá)
+/// (los lugares de las teclas de los mods: #bmod0…3 de la web)
 const AB_WEB: [[f32; 4]; 4] = [[-170.0, 404.0, 90.0, 40.0], [-300.0, 404.0, 90.0, 40.0], [-450.0, 400.0, 90.0, 40.0], [-540.0, 290.0, 90.0, 40.0]];
 /// los que la web ubica con HUD_TACTIL (desde un ancla: 0,5 = el medio, 1 = el borde derecho; y desde abajo) —usar, la
 /// bocina y el turbo—: [ancla, x, y, tamaño, mínimo]
@@ -64,7 +66,7 @@ pub(super) fn disposicion(w: f32, h: f32, n_armas: usize) -> (Vec<Btn>, [f32; 3]
     // ---- la derecha: arriba y abajo, cada uno con su escala (la del tamaño elegido o la que pide el mínimo de cada botón);
     // si no entran los dos en el alto, se achican lo justo ----
     let ad: Vec<[f32; 4]> = AD.iter().map(|x| x.1).collect();
-    let ab: Vec<[f32; 4]> = AB.iter().map(|x| x.1).chain(AB_WEB).collect();
+    let ab: Vec<[f32; 4]> = AB.iter().map(|x| x.1).collect();
     let esc = |t: &[[f32; 4]]| t.iter().fold(k, |q, x| q.max(x[3] * fz / x[2]));
     let tope = |t: &[[f32; 4]]| t.iter().fold(0f32, |q, x| q.max(x[1] + x[2] / 2.0));
     let (mut kd, mut kab) = (esc(&ad), esc(&ab));
@@ -373,6 +375,10 @@ impl super::Juego {
                 Boton::Jg(Bj::CamR) => (None, "R", self.jg_etiqueta(Bj::CamR).1),
                 Boton::Jg(Bj::Patada) => (Some("patada"), "", self.jg_etiqueta(Bj::Patada).1),
                 Boton::Jg(Bj::Ciclope) => (Some("ojo"), "", self.jg_etiqueta(Bj::Ciclope).1),
+                // (las teclas de los mods: el ícono de lo que hace o, si no se sabe, su nombre o la letra)
+                Boton::Jg(Bj::Tecla(i)) => { let on = self.jg_etiqueta(Bj::Tecla(i)).1; match self.gmod.teclas.get(i as usize) {
+                    Some(t) => match &t.acc { Some(a) if crate::iconos::hay(&a.glifo) => (Some(a.glifo.as_str()), "", on), Some(a) => (None, a.es.as_str(), on), None => (None, t.t.as_str(), on) },
+                    None => (None, "", false) } }
                 Boton::Pj(Bp::Celular) => (Some("celular"), "", self.pj_etiqueta(Bp::Celular).1),
                 Boton::Arma | Boton::ArmaN(_) | Boton::Ajustes | Boton::Salas => (None, "", false),
             };
@@ -452,6 +458,7 @@ pub fn clave(b: Boton) -> Option<&'static str> {
         Boton::Jg(Bj::CamL) => "caml", Boton::Jg(Bj::CamR) => "camr", Boton::Saltar => "saltar", Boton::Agachar => "agachar", Boton::Disparo => "disparo",
         Boton::Disparo2 => "disparo2", Boton::Jg(Bj::Patada) => "patada", Boton::Volar => "volar", Boton::Recargar | Boton::Girar => "recargar", Boton::Lejos => "lejos",
         Boton::Cerca => "cerca", Boton::Jg(Bj::Ciclope) => "ciclope", Boton::Usar => "usar", Boton::Bocina => "bocina", Boton::Turbo => "turbo",
+        Boton::Jg(Bj::Tecla(i)) => ["mod0", "mod1", "mod2", "mod3"][(i as usize).min(3)],
         _ => return None,
     })
 }

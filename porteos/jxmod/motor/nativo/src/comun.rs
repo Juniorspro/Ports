@@ -51,6 +51,8 @@ use herramientas::{Herramientas, Logica, Valor};
 #[path = "banco_juego.rs"] pub mod banco_juego;
 // (la música del menú: musica.js, la estación Casual)
 #[path = "musica_juego.rs"] pub mod musica_juego;
+// (los botones de las teclas de las armas de los mods: controles.js y acciones.js)
+#[path = "teclas_mod.rs"] pub mod teclas_mod;
 // (el pad de memes: memes.js)
 #[path = "memes_juego.rs"] pub mod memes_juego;
 // (la partida en el Wi-Fi: lan.js)

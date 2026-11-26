@@ -263,6 +263,8 @@ pub struct EnGmod {
     pub pendientes: Vec<usize>,
     /// el arma de un addon en la mano (su índice en las armas registradas) y el arma del juego que presta su vista
     arma: Option<usize>, base: usize,
+    /// los botones de las teclas del arma del mod en la mano y de qué clase son (teclas_mod.rs)
+    pub teclas: Vec<super::teclas_mod::BotonTecla>, pub teclas_de: String,
     /// las carpetas de addons: la del teléfono (Android/data/…/files/addons) y la de lo bajado (datos/addons)
     pub carpeta_externa: Option<PathBuf>, datos: Option<PathBuf>,
     /// el panel «Mods» (y cuánto se bajó)
@@ -296,7 +298,7 @@ pub struct EnGmod {
 impl EnGmod {
     pub fn nueva(datos: Option<&Path>) -> EnGmod {
         let (tx, rx) = channel();
-        EnGmod { gm: None, addons: vec![], pendientes: vec![], arma: None, base: 0, carpeta_externa: None, datos: datos.map(|d| d.to_path_buf()), panel: false, scroll: 0.0, texs: vec![], hud_px: vec![], escala: 1.0,
+        EnGmod { gm: None, addons: vec![], pendientes: vec![], arma: None, base: 0, teclas: vec![], teclas_de: String::new(), carpeta_externa: None, datos: datos.map(|d| d.to_path_buf()), panel: false, scroll: 0.0, texs: vec![], hud_px: vec![], escala: 1.0,
             http_bin: None, tienda: vec![], tx, rx, tienda_pedida: false, ms: 0.0, ms_prom: 0.0, pantalla: (1280.0, 720.0), buscado: false, cuenta: BTreeMap::new(), mods: Default::default(), ms_3d: 0.0, lector_rb: None, lib: None, jxp: None, menu: Default::default(), pm: Default::default(), veh_fis: HashMap::new(), bucles: HashMap::new(), t_snd: 0.0, pill: Default::default() }
     }
     fn apagados_ruta(&self) -> Option<PathBuf> { self.datos.as_ref().map(|d| d.join("gmod_apagados.txt")) }
@@ -418,6 +420,8 @@ impl Juego {
     }
     /// ¿hay un arma de un addon en la mano? (el juego no dispara la suya)
     pub fn gmod_arma_activa(&self) -> bool { self.gmod.arma.is_some() }
+    /// la clase del arma del addon en la mano (para sus teclas: teclas_mod.rs)
+    pub(super) fn gmod_clase_arma(&self) -> Option<String> { let k = self.gmod.arma?; self.con_puente(|p| p.gm_armas.get(k).map(|a| a.0.clone())).flatten() }
     /// montar un addon de los pendientes
     fn gmod_montar_uno(&mut self) {
         if self.gmod.pendientes.is_empty() { return; }
@@ -529,6 +533,8 @@ impl Juego {
         let vivo = !self.muerto && self.jug.vida > 0.0;
         let en = Entrada { ..self.entrada(wf, hf) };
         let (d1, d2) = (self.apretado(Boton::Disparo) && self.menu.is_none(), self.apretado(Boton::Disparo2) && self.menu.is_none());
+        self.teclas_mod_paso();
+        let (teclas_mod, in_mod) = self.teclas_mod_apretadas();
         let teclas: Vec<String> = [(Boton::Recargar, "KeyR"), (Boton::Usar, "KeyE"), (Boton::Saltar, "Space"), (Boton::Agachar, "ControlLeft")].iter().filter(|(b, _)| self.apretado(*b)).map(|(_, k)| k.to_string()).collect();
         let ui = self.menu.is_some() || self.ajustes.is_some() || self.gmod.panel;
         let (jug, armas_i, objs) = (&self.jug, self.armas.i, &self.objs);
@@ -549,7 +555,7 @@ impl Juego {
             let c = &mut p.cam;
             c.pos = v3(ojos); c.fwd = v3(fw); c.der = v3(der); c.arr = v3(arr); c.q = Quat::new(cam_q[0] as f64, cam_q[1] as f64, cam_q[2] as f64, cam_q[3] as f64); c.fov = fov as f64; c.temblor = temblor as f64;
             let e = &mut p.ent;
-            e.disparo = d1; e.disparo2 = d2; e.teclas = teclas; e.correr = en.correr; e.saltar = en.saltar; e.agachar = en.agachar; e.x = en.x as f64; e.y = en.y as f64; e.ui_abierto = ui;
+            e.disparo = d1; e.disparo2 = d2; e.teclas = teclas; e.teclas_mod = teclas_mod; e.in_mod = in_mod; e.correr = en.correr; e.saltar = en.saltar; e.agachar = en.agachar; e.x = en.x as f64; e.y = en.y as f64; e.ui_abierto = ui;
             // (las armas: las del juego y las de los addons)
             let mut lista: Vec<String> = ARMAS.iter().map(|a| a.n.to_string()).collect();
             lista.extend(p.gm_armas.iter().map(|a| a.0.clone()));
