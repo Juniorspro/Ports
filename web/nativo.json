@@ -1,9 +1,9 @@
 {
- "codigo": 26112522,
- "version": "0.22",
+ "codigo": 26112606,
+ "version": "0.27",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 53316044,
- "sha256": "95e5f01b46d47054aff7658727c5efe5aa83ce2aa7b3b5733155952966ff9415",
- "notas_es": "JXMod Nativo 0.22 — Menús nuevos estilo Windows Vista con vidrio (el inicio con la idea del menú de GMod, ventanas, opciones como las de Source y la pausa), el menú de objetos y herramientas como el de GMod y los controles de vidrio líquido. Al entrar elegís qué contenido bajar (la biblioteca de GMod, los mapas, los personajes, los extras). El agua ahora es como la de Half-Life 2. Los tres motores (Vulkan, OpenGL 3 y OpenGL 2) andan más rápido sin bajar la calidad: lo tapado no se dibuja, las sombras no se rehacen si nada se movió y el reflejo se dibuja sólo donde está el agua. Todavía faltan cosas de la versión web: se van agregando en las próximas.",
- "notas_en": "JXMod Native 0.22 — New Windows Vista style menus with glass (a home screen based on the GMod menu, windows, Source-like options and the pause menu), a GMod-style spawn and tool menu and liquid glass controls. On first launch you choose what content to download (the GMod library, maps, characters, extras). Water now looks like Half-Life 2. All three engines (Vulkan, OpenGL 3 and OpenGL 2) run faster without lowering quality: hidden things are not drawn, shadows are not redrawn when nothing moved and reflections are only drawn where the water is. Some things from the web version are still missing: they will come in the next updates."
+ "tam": 74373382,
+ "sha256": "8a6bc3f341cc367ebd98ba9bc96a6718b2a35d27abf2eb6b9dbb68d6e3b59c48",
+ "notas_es": "JXMod Nativo 0.27 — Nueva calidad Definitivo (arriba de Ultra): cielo con nubes y el disco del sol, resplandor, color de película y luz de día nublado, haces de luz volumétricos que pasan entre los fierros y sombras hasta 60 m. Rayos del sol como en la versión web y bombas nucleares con el hongo volumétrico de la web. OpenGL 2 ahora se ve como OpenGL 3: sombras mejores y más lejos, luz y colores parejos y reflejos en el piso. Ultra más liviano y la pantalla a su refresco más alto (90 o 120 Hz si el celular lo tiene). En los mapas de Source: el agua de verdad del mapa (su textura animada y su niebla), la física de Source (cada material rebota, frena y pesa como allá, y su gravedad) y las rejas y alambrados sin rayas.",
+ "notas_en": "JXMod Native 0.27 — New Definitive quality (above Ultra): clouds and the sun disk, bloom, film color and overcast lighting, volumetric light shafts through railings and shadows up to 60 m. Sun rays like the web version and nukes with the web's volumetric mushroom cloud. OpenGL 2 now looks like OpenGL 3: better, longer shadows, even lighting and colors and floor reflections. Lighter Ultra and the screen at its highest refresh rate (90 or 120 Hz if the phone has it). On Source maps: the map's real water (its animated texture and fog), Source physics (each material bounces, slides and weighs like there, plus its gravity) and fences without stripes."
 }
