@@ -87,6 +87,8 @@ pub struct Vmt {
     pub shader: String, pub base: Option<String>, pub base2: Option<String>, pub bump: Option<String>, pub detalle: Option<String>, pub tinte: Option<String>,
     pub espejo: Option<[f32; 2]>, pub trans: bool, pub alfa: f32, pub corte: bool, pub umbral: f32, pub suma: bool, pub dos_lados: bool, pub brilla: bool,
     pub sin_luz: bool, pub color: Option<[f32; 3]>, pub env: bool, pub phong: bool, pub vcolor: bool, pub superficie: Option<String>, pub anim: bool, pub nodraw: bool,
+    /// el agua de Source (shader Water): su mapa de normales animado, la niebla de adentro y cuánto refleja
+    pub agua: Option<AguaVmt>,
 }
 fn latin1(b: &[u8]) -> String { b.iter().map(|&c| c as char).collect() }
 /// GMF.vmt: `buscar` trae otro .vmt por su ruta (sin «materials/»), para los «patch»
@@ -129,7 +131,9 @@ pub fn vmt(bytes: &[u8], buscar: &dyn Fn(&str) -> Option<Rc<[u8]>>) -> Option<Vm
         sin_luz: shader.contains("unlit") || shader.contains("sprite"), color: vec("$color2").or_else(|| vec("$color")), env: k.tiene("$envmap"), phong: num("$phong", 0.0) != 0.0,
         vcolor: num("$vertexcolor", 0.0) != 0.0, superficie: k.txt("$surfaceprop").map(|s| s.to_lowercase()),
         anim: px.map(|p| p.tiene("animatedtexture") || p.tiene("texturescroll")).unwrap_or(false),
-        nodraw: num("$no_draw", 0.0) != 0.0 || num("%nodraw", 0.0) != 0.0, shader,
+        nodraw: num("$no_draw", 0.0) != 0.0 || num("%nodraw", 0.0) != 0.0,
+        agua: if shader.contains("water") { Some(AguaVmt { normal: ruta("$normalmap"), niebla: vec("$fogcolor"), niebla_fin: k.txt("$fogend").and_then(|x| x.trim().parse().ok()), reflejo: num("$reflectamount", 0.0), refraccion: num("$refractamount", 0.0) }) } else { None },
+        shader,
     })
 }
 
@@ -139,8 +143,19 @@ fn vtf_tam(f: i32, w: usize, h: usize) -> usize {
     let (bw, bh) = (((w + 3) >> 2).max(1), ((h + 3) >> 2).max(1));
     match f { 13 | 20 => bw * bh * 8, 14 | 15 => bw * bh * 16, _ => w * h * vtf_bpp(f) }
 }
+/// el agua de un .vmt (shader Water): $normalmap (con sus cuadros: AnimatedTexture), $fogcolor y $fogend (en unidades),
+/// $reflectamount y $refractamount
+#[derive(Clone, Debug, Default)]
+pub struct AguaVmt { pub normal: Option<String>, pub niebla: Option<[f32; 3]>, pub niebla_fin: Option<f32>, pub reflejo: f32, pub refraccion: f32 }
 /// un nivel de una textura: tamaño, formato y sus bytes
 pub struct Vtf<'a> { pub w: usize, pub h: usize, pub fmt: i32, pub datos: &'a [u8], pub alfa: bool, pub cuadros: usize, pub banderas: u32 }
+/// todos los cuadros (de la cara 0) del nivel de detalle más grande que entra en `max`: las texturas animadas (el agua)
+pub fn vtf_cuadros(b: &[u8], max: usize) -> Result<Vec<Vtf<'_>>, String> {
+    let v = vtf(b, max)?; let base = v.datos.as_ptr() as usize - b.as_ptr() as usize; let t = v.datos.len();
+    let flags = v.banderas; let vmen = u32a(b, 8); let caras = if flags & 0x4000 == 0 { 1 } else if vmen < 5 && u16a(b, 26) != 0xffff { 7 } else { 6 };
+    let prof = if vmen >= 2 { (u16a(b, 63) as usize).max(1) } else { 1 }; let paso = t * caras * prof;
+    Ok((0..v.cuadros).filter_map(|k| { let o = base + k * paso; b.get(o..o + t).map(|d| Vtf { w: v.w, h: v.h, fmt: v.fmt, datos: d, alfa: v.alfa, cuadros: 1, banderas: flags }) }).collect())
+}
 /// GMF.vtf: el nivel de detalle más grande que entra en `max` (del cuadro 0, cara 0)
 pub fn vtf(b: &[u8], max: usize) -> Result<Vtf<'_>, String> {
     if b.len() < 64 || &b[0..4] != b"VTF\0" { return Err("no es un .vtf".into()); }

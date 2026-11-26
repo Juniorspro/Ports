@@ -86,6 +86,13 @@ fn main() {
     let p0 = j.jug.pos; let y0 = j.jug.yaw;
     println!("  el jugador quedó en {:?} (en el piso: {})", p0, j.jug.suelo);
     for (k, dy) in [0.0f32, 1.57, 3.14, 4.71].iter().enumerate() { j.poner_ojos([p0[0], p0[1] + 0.7, p0[2]], y0 + dy, -0.05); paso(&mut j, &mut m, 2); foto(&mut m, &format!("ws_{k}")); }
+    // (el agua, si hay: desde arriba de su medio, mirándola en cuatro rumbos —el agua de verdad del material del mapa—)
+    if let Some(a) = j.mapa.as_ref().and_then(|m| m.esc.c.agua.clone()) { if let Some(pr) = a.prof.as_ref() {
+        j.jug.noclip = true; let c = [pr.x0 + pr.w * 0.5, a.y + 3.0, pr.z0 + pr.h * 0.5];
+        println!("  agua: y {:.2} · {:.0}×{:.0} m · normales {:?}", a.y, pr.w, pr.h, a.normal.as_ref().map(|n| (n.w, n.h, n.n)));
+        for (k, dy) in [0.0f32, 1.57, 3.14, 4.71].iter().enumerate() { j.poner_ojos(c, y0 + dy, -0.3); paso(&mut j, &mut m, 3); foto(&mut m, &format!("ws_agua{k}")); }
+        j.jug.noclip = false;
+    } }
     // (desde arriba, mirando para abajo)
     j.jug.noclip = true; j.poner_ojos([p0[0], p0[1] + 40.0, p0[2]], y0, -0.7); paso(&mut j, &mut m, 2); foto(&mut m, "ws_arriba");
     // (el horizonte desde 20 m de alto: el cielo 3D)

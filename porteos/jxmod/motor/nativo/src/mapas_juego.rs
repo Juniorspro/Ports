@@ -4,6 +4,7 @@
 //! puertas, los trenes, los botones, las zonas, los sonidos del mapa y las puertas portal; y, en todos los mapas, la hora
 //! del día (Ajustes → Día). La lógica está en jxjuego (bsp.rs, puertas.rs, portales.rs, dia.rs). Va como hijo de comun.rs.
 use super::*;
+use jxgmod::formatos as gmf;
 use jxjuego::bsp::{self, InfoMat, MatRef, Pieza};
 use jxjuego::dia::{Dia, TipoNiebla};
 use jxjuego::fisica::{self as fz, Cuerpo, Forma, OpCuerpo};
@@ -160,11 +161,16 @@ impl Juego {
         let props = bsp::props(&bs, &ents, &lz);
         // los materiales del mapa (el de cada textura, una vez): el agua de Source va con el agua del motor
         let mut tex_mat: HashMap<u32, i64> = HashMap::new(); let mut tex2: HashMap<u32, Option<String>> = HashMap::new();
+        // (el material del agua del mapa —el primero—: su mapa de normales y su niebla, para el agua de verdad)
+        let mut agua_vmt: Option<gmf::AguaVmt> = None;
         let mut armado = {
             let mut f = |i: u32, nom: &str| -> InfoMat {
                 let v = self.gm_vmt(nom, &[]);
                 // (sin su .vmt —el contenido de HL2 que la web trae de Steam—, el agua se reconoce por el nombre)
-                if v.as_ref().map(|v| v.shader.contains("water")).unwrap_or_else(|| bsp::es_agua_nom(nom)) { return InfoMat { dibuja: true, agua: true, segunda: false }; }
+                if v.as_ref().map(|v| v.shader.contains("water")).unwrap_or_else(|| bsp::es_agua_nom(nom)) {
+                    if agua_vmt.is_none() { agua_vmt = v.as_ref().and_then(|v| v.agua.clone()); }
+                    return InfoMat { dibuja: true, agua: true, segunda: false };
+                }
                 let (id, _) = self.gm_material(m, nom, &[]); tex_mat.insert(i, id);
                 let b2 = v.and_then(|v| v.base2); let seg = b2.is_some(); tex2.insert(i, b2);
                 InfoMat { dibuja: true, agua: false, segunda: seg }
@@ -317,7 +323,23 @@ impl Juego {
         // (la gravedad de Source —sv_gravity 600 unidades/s², 15,2 m/s²—: en sus mapas todo cae, salta y rueda como allá)
         let mundo = jxjuego::mundo::Mundo::nuevo(tris, vec![], GRAVEDAD_SOURCE);
         let aguas = armado.aguas.clone();
-        let (agua, agua_y) = jxjuego::mapa::agua_hl2(&aguas, &mundo, &mut datos);
+        let (mut agua, agua_y) = jxjuego::mapa::agua_hl2(&aguas, &mundo, &mut datos);
+        // el agua de verdad: el mapa de normales animado de su material (el .vtf de Valve, todos sus cuadros, uno abajo del
+        // otro) y su niebla ($fogcolor, $fogend); si no está, el agua de HL2 hecha acá
+        if let (Some(a), Some(av)) = (agua.as_mut(), agua_vmt.as_ref()) {
+            if let Some(b) = av.normal.as_ref().and_then(|n| self.gmod_archivo(&format!("materials/{n}.vtf"))) {
+                if let Ok(cs) = gmf::vtf_cuadros(&b, 256) {
+                    let cs: Vec<_> = cs.into_iter().take(64).collect();
+                    if let Some(c0) = cs.first() { if c0.w == c0.h && c0.w >= 16 {
+                        while datos.len() % 4 != 0 { datos.push(0); } let o = datos.len();
+                        for c in &cs { datos.extend_from_slice(&gmf::vtf_rgba(c)); }
+                        a.normal = Some(jxmotor::escena::TexAgua { w: c0.w as u32, h: c0.h as u32, o, n: cs.len() as u32 });
+                    } }
+                }
+            }
+            if let Some(c) = av.niebla { let lin = |x: f32| if x <= 0.04045 { x / 12.92 } else { ((x + 0.055) / 1.055).powf(2.4) }; a.fog[0] = lin(c[0]); a.fog[1] = lin(c[1]); a.fog[2] = lin(c[2]); }
+            if let Some(fin) = av.niebla_fin.filter(|f| *f > 1.0) { a.fog[3] = (1.05 - fin / 1500.0).clamp(0.55, 0.92); a.largo = (fin * 0.0254 / 2.5).max(1.5); }
+        }
         let cab = Cabecera { mapa: nombre.to_string(), w: 0, h: 0, cam: None, luz: None, mallas, mats, texs: vec![], lms, items: vec![], agua, cielo: Some(cielo) };
         let n_items = items.len();
         self.mj.info = format!("{}: {:.1} MB, {} pedazos ({} con dibujo, {} triángulos del mundo; faltan {:?}), {} puertas, {} botones, {} zonas, {} sonidos, {} props ({} sin modelo, {} sueltos), {} triángulos de choque, {} brochas invisibles, luz {}, cielo {} ({}), cielo 3D {}, {} portales, {} del zip, {} cosas; {:.2} s (geometría {:.2} s)",
