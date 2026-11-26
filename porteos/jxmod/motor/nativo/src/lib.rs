@@ -8,6 +8,7 @@ pub mod comun;
 pub mod lan;
 /// los paquetes aparte que se bajan cuando hacen falta (datos.js: rbBajar)
 pub mod bajas;
+pub mod firma;
 // (el dibujo 2D de los menús y los íconos de la web)
 pub mod iconos;
 pub mod pincel;

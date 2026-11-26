@@ -132,6 +132,27 @@ fn main() {
     }
     // (JXM_TURBO_PRUEBA=1: el cuadro intermedio contra el de verdad: para varias vistas y movimientos de 1/120 s, la foto de
     // verdad en la cámara nueva, la vieja —lo que se vería sin intermedio— y la armada; y cuánto tarda armarla)
+    // (JXM_TURBO_GIRO=1: girando seguido —un arrastre del dedo por cuadro, a 120 por segundo—, con JX Turbo: en cada cuadro
+    // intermedio, el mismo instante dibujado de verdad —sin avanzar el tiempo— para comparar; t{vista}_{n}_inter/_real)
+    if std::env::var_os("JXM_TURBO_GIRO").is_some() {
+        j.aj.turbo = true; j.refresco = 120.0; let dx: f32 = std::env::var("JXM_GIRO_PX").ok().and_then(|v| v.parse().ok()).unwrap_or(14.0);
+        let vistas: Vec<([f32; 3], f32, f32)> = (0..3).map(|k| ([p0[0], p0[1] + 0.7, p0[2]], y0 + k as f32 * 2.1, -0.05)).collect();
+        let mut n_par = 0;
+        for (k, v) in vistas.iter().enumerate() {
+            j.poner_ojos(v.0, v.1, v.2); j.dt_fijo = Some(1.0 / 120.0); paso(&mut j, &mut m, 60);
+            for i in 0..24 {
+                j.arrastre_prueba(if (i / 8) % 2 == 0 { dx } else { -dx * 0.6 }, h as f32);
+                paso(&mut j, &mut m, 1);
+                if j.fue_inter && i >= 4 {
+                    foto(&mut m, &format!("g{k}_{i:02}_inter"));
+                    let dt0 = j.dt_fijo; j.dt_fijo = Some(1e-5); j.turbo_n = 250; paso(&mut j, &mut m, 1); j.dt_fijo = dt0;
+                    foto(&mut m, &format!("g{k}_{i:02}_real")); n_par += 1;
+                }
+            }
+        }
+        println!("GIRO: {n_par} pares");
+        return;
+    }
     if std::env::var_os("JXM_TURBO_PRUEBA").is_some() {
         // (el turbo prendido, pero acá cada cuadro del juego es de verdad —turbo_n alto: no toca intermedio—; el intermedio se arma a mano)
         j.aj.turbo = true;
@@ -145,9 +166,11 @@ fn main() {
             let p1 = [v.0[0] + sy * av + cy * co, v.0[1], v.0[2] + cy * av - sy * co];
             j.poner_ojos(p1, yaw1, v.2); paso(&mut j, &mut m, 10);
             let t = Instant::now(); paso(&mut j, &mut m, 1); t_real.push(t.elapsed().as_secs_f32() * 1000.0);
-            foto(&mut m, &format!("t{k}_{nom}_real")); let vp1 = m.vp_actual().unwrap();
+            foto(&mut m, &format!("t{k}_{nom}_real")); let vp1 = m.vp_actual().unwrap(); let w1 = j.arma_raiz;
             j.poner_ojos(v.0, v.1, v.2); paso(&mut j, &mut m, 10); foto(&mut m, &format!("t{k}_{nom}_vieja"));
-            let t = Instant::now(); let ok = unsafe { m.intermedio(w, h, &vp1, &[]) }; unsafe { m.esperar(); } t_int.push(t.elapsed().as_secs_f32() * 1000.0);
+            // (el arma: de su raíz en el cuadro viejo a la del nuevo, como en el juego; JXM_TURBO_SIN_ARMA: sin eso, para comparar)
+            let da = match (w1, j.arma_raiz) { (Some(a), Some(b)) if std::env::var_os("JXM_TURBO_SIN_ARMA").is_none() => Some(jxmotor::mat::mul(&a, &jxmotor::mat::inv(&b))), _ => None };
+            let t = Instant::now(); let ok = unsafe { m.intermedio(w, h, &vp1, da.as_ref(), &[]) }; unsafe { m.esperar(); } t_int.push(t.elapsed().as_secs_f32() * 1000.0);
             if !ok { println!("  (sin intermedio)"); }
             foto(&mut m, &format!("t{k}_{nom}_inter"));
         } }

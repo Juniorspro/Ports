@@ -85,6 +85,9 @@ pub const FL_SIN_SOMBRA: u32 = 1;
 /// la maqueta del cielo 3D de los mapas del Workshop (cielo3d.js): se dibuja primero, detrás de todo, y después se borra la
 /// profundidad (el mapa queda siempre adelante aunque la maqueta agrandada se meta en él)
 pub const FL_CIELO: u32 = 2;
+/// el arma y las manos en primera persona (pegadas a la cámara): OpenGL 3 las dibuja en una franja propia de la profundidad
+/// (de 0 a 0,01: no se meten en las paredes) y OpenGL 2 con una marca en el alfa; así JX Turbo las corre con su propio movimiento
+pub const FL_ARMA: u32 = 4;
 /// luces del cuadro: posición y radio, color, dirección y coseno del cono (-2: sin cono)
 pub type LuzP = [f32; 12];
 #[derive(Clone, Debug)]

@@ -441,7 +441,7 @@ impl Juego {
             let base = match &x.matriz { Some(mm) => m4::mul(&base, &matriz_juego(mm)), None => base };
             let n0 = items.len();
             match (x.vista, &vista_base) { (true, Some((vb, vinv))) => Self::gm_items_modelo(md, &m4::mul(vb, &m4::mul(vinv, &base)), x.huesos.as_deref(), items), _ => Self::gm_items_modelo(md, &base, x.huesos.as_deref(), items) }
-            if x.vista { for it in &mut items[n0..] { it.fl |= FL_SIN_SOMBRA_GM; it.esf[3] = -1.0; } }
+            if x.vista { for it in &mut items[n0..] { it.fl |= FL_SIN_SOMBRA_GM | jxmotor::escena::FL_ARMA; it.esf[3] = -1.0; } }
         }
         for s in &d.sprites {
             let Some(Some(mat)) = self.gmod.mods.mats_spr.get(&s.mat) else { continue };
@@ -461,7 +461,7 @@ impl Juego {
                 let n0 = items.len(); Self::gm_items_modelo(md, &base, Some(&v.huesos), items);
                 // (las manos: c_arms con los huesos de la vista)
                 if let Some((r, hs, sk, body)) = &v.manos { if let Some(Some(mh)) = mods.get(&Self::gm_clave_op(r, *sk, body)) { if mh.piel.is_some() { Self::gm_items_modelo(mh, &base, Some(hs), items); } } }
-                for it in &mut items[n0..] { it.fl |= FL_SIN_SOMBRA_GM; it.esf[3] = -1.0; }
+                for it in &mut items[n0..] { it.fl |= FL_SIN_SOMBRA_GM | jxmotor::escena::FL_ARMA; it.esf[3] = -1.0; }
             } } }
         }
         // el modelo de mundo en la mano (tercera persona): con el agarre del arma del juego que presta su lugar

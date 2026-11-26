@@ -17,10 +17,11 @@ impl Motor3d {
     pub fn poner_cuadro(&mut self, c: Cuadro) { match self { Motor3d::Gl(m, _) => m.poner_cuadro(c), Motor3d::Vk(m) => m.poner_cuadro(c), Motor3d::Gl2(m, _) => m.poner_cuadro(c) } }
     /// JX Turbo: el cuadro intermedio —el último dibujado, corrido a la cámara `vp`— y la interfaz encima; false si este motor
     /// no lo tiene o todavía no hay cuadro guardado (OpenGL 3 y 2)
-    pub unsafe fn intermedio(&mut self, w: i32, h: i32, vp: &[f32; 16], ui: &[(i64, Vec<f32>)]) -> bool {
+    /// (`arma`: cuánto se movió la raíz del arma desde el último cuadro de verdad —en el mundo—; None: el arma no está a la vista)
+    pub unsafe fn intermedio(&mut self, w: i32, h: i32, vp: &[f32; 16], arma: Option<&[f32; 16]>, ui: &[(i64, Vec<f32>)]) -> bool {
         match self {
-            Motor3d::Gl(m, salida) => { if !m.intermedio(*salida, w, h, vp) { return false; } if !sin_ui() { for (t, v) in ui { m.ui(*salida, w, h, *t, v); } } true }
-            Motor3d::Gl2(m, salida) => { if !m.intermedio(*salida, w, h, vp) { return false; } if !sin_ui() { for (t, v) in ui { m.ui(*salida, w, h, *t, v); } } true }
+            Motor3d::Gl(m, salida) => { if !m.intermedio(*salida, w, h, vp, arma) { return false; } if !sin_ui() { for (t, v) in ui { m.ui(*salida, w, h, *t, v); } } true }
+            Motor3d::Gl2(m, salida) => { if !m.intermedio(*salida, w, h, vp, arma) { return false; } if !sin_ui() { for (t, v) in ui { m.ui(*salida, w, h, *t, v); } } true }
             _ => false,
         }
     }

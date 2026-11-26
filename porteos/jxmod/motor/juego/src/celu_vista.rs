@@ -72,11 +72,15 @@ impl ManoCelu {
 impl Vista {
     /// vistaUbicar con el corrimiento del arma a gusto (armaAjAplicar: después de apuntar y antes del vaivén)
     pub fn ubicar_aj(&mut self, cam: V, cam_q: Q, sway: [f32; 5], k: f32, aj: Option<M4>) {
+        self.raiz = self.raiz_aj(cam, cam_q, sway, k, aj); self.actualizar();
+    }
+    /// dónde iría la raíz del arma (como ubicar_aj, sin moverla): JX Turbo corre el arma de los cuadros intermedios con esto
+    pub fn raiz_aj(&self, cam: V, cam_q: Q, sway: [f32; 5], k: f32, aj: Option<M4>) -> M4 {
         let mut b = trs(cam, cam_q, [1.0; 3]);
         if let (Some((q, t)), true) = (self.ads, k > 0.002) { let qk = slerp([0.0, 0.0, 0.0, 1.0], q, k); b = m4::mul(&b, &trs([t[0] * k, t[1] * k, t[2] * k], qk, [1.0; 3])); }
         if let Some(a) = aj { b = m4::mul(&b, &a); }
         let sw = 1.0 - 0.85 * k;
         let o = trs([sway[0] * sw, sway[1] * sw, sway[2] * sw], [sway[3] * sw, sway[4] * sw, 0.0, 1.0], [0.3; 3]);
-        self.raiz = m4::mul(&b, &o); self.actualizar();
+        m4::mul(&b, &o)
     }
 }

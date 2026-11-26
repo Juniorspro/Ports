@@ -15,7 +15,7 @@
 //! Lo que tiene huesos (personajes, NPC, el arma en la mano) se deforma en la CPU: una placa de ES 2 suele tener 128
 //! vectores de uniformes para el vértice y los 56 huesos piden 168. Cada malla con su pose una vez por cuadro (todas
 //! sus partes la reusan), con las mismas cuentas que VS_LUZ de gpu.rs, y va a un búfer que se reusa de un cuadro a otro.
-use crate::escena::{Cielo, Cuadro, Escena, ItemDin, Mat, FL_CIELO, EF_MARCAS, EF_PART_ALFA, EF_PART_SUMA};
+use crate::escena::{FL_ARMA, Cielo, Cuadro, Escena, ItemDin, Mat, FL_CIELO, EF_MARCAS, EF_PART_ALFA, EF_PART_SUMA};
 use crate::mat::{self, M4};
 use glow::HasContext;
 use std::collections::HashMap;
@@ -72,7 +72,7 @@ uniform sampler2D uT, uT1, uT2, uT3, uLM; uniform vec4 uS1; uniform vec2 uS3;
 uniform vec4 uC, uTi, uTi2, uTi3; uniform vec3 uSol, uSolC, uAmbS, uAmbG, uNieC, uNieS, uCam, uEm, uMat, uNie; uniform float uExpo; uniform float uModo;
 uniform vec4 uLP[4], uLC[4]; uniform float uLN;
 // (las banderas del material ya separadas: terreno, dos texturas, recorte, sin luz · luz horneada, hojas)
-uniform vec4 uBan; uniform vec3 uBan2;
+uniform vec4 uBan; uniform vec4 uBan2;
 varying vec3 vW; varying vec3 vN; varying vec2 vU; varying vec2 vL; varying float vMz; varying vec4 vS, vS2;
 // (la sombra del sol: la profundidad del mapa del sol viene en los cuatro canales de una textura común —ES 2 no tiene
 // texturas de profundidad seguro—; cuatro muestras y el borde del mapa que se desvanece)
@@ -299,7 +299,7 @@ void main() {
   }
   // (el alfa: lo transparente, el suyo para mezclarse; lo opaco, 1 —o, si la escena va a su textura, la distancia hasta 64 m:
   // es la máscara del cielo de los rayos del sol (el cielo deja 0) y hasta dónde va la luz en el aire—)
-  gl_FragColor = vec4(retoque(fin) + (ign(gl_FragCoord.xy) - 0.5) / 255.0, uBan2.z > 0.5 ? t.a : (uAlfaD > 0.5 ? clamp(dist / 64.0, 1.0 / 255.0, 1.0) : 1.0));
+  gl_FragColor = vec4(retoque(fin) + (ign(gl_FragCoord.xy) - 0.5) / 255.0, uBan2.z > 0.5 ? t.a : (uAlfaD > 0.5 ? (uBan2.w > 0.5 ? 1.0 / 255.0 : clamp(dist / 64.0, 2.0 / 255.0, 1.0)) : 1.0));
 #ifdef VER_SOMBRA
   gl_FragColor = vec4(vec3(sombra(1.0)), 1.0);
 #endif
@@ -533,23 +533,36 @@ void main() {
 // JX Turbo (como FS_REPRO de gpu.rs): la imagen terminada del último cuadro corrida a la cámara de ahora. Acá no hay profundidad
 // para leer: la distancia está en el alfa de la escena (en 64 avos de 64 m; el cielo, 0 —infinito—). El punto: el ojo viejo
 // más el rayo de ese píxel por la distancia; uVP es la cámara nueva corrida a ese ojo (las cuentas, chicas aunque el mapa sea
-// grande). Lo que está a menos de 90 cm —el arma— no se corre
+// grande). El arma —con su marca en el alfa, 1/255 (FL_ARMA)— se corre con el movimiento del arma (uVPa); y si lo encontrado no cae acá y
+// es el arma vieja, es fondo que el arma tapaba: el primer punto sin arma yendo hacia acá (no una copia del arma: el fantasma)
 const FS_REPRO: &str = r#"
 #ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
 #else
 precision mediump float;
 #endif
-uniform sampler2D uT, uEsc; uniform mat4 uVP; uniform vec3 uRay0, uRayX, uRayY; varying vec2 vU;
+uniform sampler2D uT, uEsc; uniform mat4 uVP, uVPa; uniform vec3 uRay0, uRayX, uRayY; uniform vec2 uInv; varying vec2 vU;
+bool arma(float a) { return a > 0.5 / 255.0 && a < 1.5 / 255.0; }
+vec2 donde(vec2 q, float a) {
+  vec3 d = normalize(uRay0 + q.x * uRayX + q.y * uRayY);
+  // (el arma no guarda su distancia —va su marca—: a medio metro)
+  vec4 n = a < 0.5 / 255.0 ? uVP * vec4(d, 0.0) : arma(a) ? uVPa * vec4(d * 0.5, 1.0) : uVP * vec4(d * (a * 64.0), 1.0);
+  return n.w > 1e-5 ? n.xy / n.w * 0.5 + 0.5 : vec2(-9.0);
+}
 void main() {
   vec2 q = vU; float a = texture2D(uEsc, q).a;
-  if (a > 0.0 && a < 0.9 / 64.0) { gl_FragColor = texture2D(uT, vU); return; }
-  for (int i = 0; i < 2; i++) {
+  for (int i = 0; i < 3; i++) {
     if (i > 0) a = texture2D(uEsc, q).a;
-    vec3 d = normalize(uRay0 + q.x * uRayX + q.y * uRayY);
-    vec4 n = a < 0.5 / 255.0 ? uVP * vec4(d, 0.0) : uVP * vec4(d * (a * 64.0), 1.0);
-    if (n.w <= 1e-5) break;
-    q = clamp(q + (vU - (n.xy / n.w * 0.5 + 0.5)), 0.0, 1.0);
+    vec2 n = donde(q, a); if (n.x < -8.0) break;
+    q = clamp(q + (vU - n), 0.0, 1.0);
+  }
+  a = texture2D(uEsc, q).a;
+  if (arma(a)) {
+    vec2 e = (donde(q, a) - vU) / uInv;
+    if (dot(e, e) > 2.25) {
+      vec2 dir = vU - q; dir = dot(dir, dir) > 1e-12 ? normalize(dir) * uInv * 2.0 : vec2(0.0);
+      for (int k = 1; k <= 4; k++) { vec2 r = mix(q, vU, float(k) * 0.25); if (!arma(texture2D(uEsc, r).a)) { q = clamp(r + dir, 0.0, 1.0); break; } }
+    }
   }
   gl_FragColor = texture2D(uT, q);
 }"#;
@@ -690,7 +703,7 @@ const BRILLO_PISO: f32 = 0.72;
 const AGUA_LEJOS: f32 = 10.0;
 
 const U_LUZ: [&str; 39] = ["uTam", "uBan", "uBan2", "uTi", "uTi2", "uTi3", "uVP", "uM", "uMn", "uSc", "uSt", "uT", "uT1", "uT2", "uT3", "uLM", "uS1", "uS3", "uC", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNieS", "uCam", "uEm", "uMat", "uNie", "uExpo", "uModo", "uLP", "uLC", "uLN", "uIVP", "uTop", "uMid", "uBot", "uExp"];
-const U_OTROS: [&str; 50] = ["uGI", "uGIo", "uGIn", "uAOk", "uProf", "uRadio", "uRay0", "uRayX", "uRayY", "uZl", "uFuerza", "uAO", "uOnd", "uOndN", "uCaus", "uCausB", "uEsc", "uAd", "uAdapta", "uNubes", "uBlo", "uBloomK", "uVol", "uAlfaD", "uCieloA", "uRay", "uRayK", "uRayP", "uTiene", "uCieloK", "uInv", "uRet", "uTinte", "uDia", "uCubo", "uN", "uF", "uH", "uS", "uTiempo", "uSolC", "uSuma", "uSVP", "uSom", "uSomP", "uClip", "uR", "uRP", "uSVP2", "uSomP2"];
+const U_OTROS: [&str; 51] = ["uVPa", "uGI", "uGIo", "uGIn", "uAOk", "uProf", "uRadio", "uRay0", "uRayX", "uRayY", "uZl", "uFuerza", "uAO", "uOnd", "uOndN", "uCaus", "uCausB", "uEsc", "uAd", "uAdapta", "uNubes", "uBlo", "uBloomK", "uVol", "uAlfaD", "uCieloA", "uRay", "uRayK", "uRayP", "uTiene", "uCieloK", "uInv", "uRet", "uTinte", "uDia", "uCubo", "uN", "uF", "uH", "uS", "uTiempo", "uSolC", "uSuma", "uSVP", "uSom", "uSomP", "uClip", "uR", "uRP", "uSVP2", "uSomP2"];
 
 unsafe fn programa(gl: &glow::Context, vs: &str, fs: &str, atrs: &[&str]) -> Result<Prog2, String> {
     let p = gl.create_program()?;
@@ -1156,14 +1169,15 @@ impl Motor {
     /// JX Turbo: si hay un cuadro guardado para armar intermedios de este tamaño
     pub fn turbo_listo(&self, w: i32, h: i32) -> bool { self.op.turbo && self.vp_ult.is_some() && self.escena_rt.is_some() && self.final_rt.map_or(false, |f| (f.2, f.3) == (w, h)) }
     /// JX Turbo: el cuadro intermedio (como gpu::Motor::intermedio): la imagen terminada del último cuadro corrida a la cámara `vp`
-    pub unsafe fn intermedio(&mut self, salida: Option<glow::Framebuffer>, w: i32, h: i32, vp: &M4) -> bool {
+    pub unsafe fn intermedio(&mut self, salida: Option<glow::Framebuffer>, w: i32, h: i32, vp: &M4, arma: Option<&M4>) -> bool {
         if !self.turbo_listo(w, h) { return false; }
         let (Some(vieja), Some((_, esc, ..)), Some((_, ft, ..))) = (self.vp_ult, self.escena_rt, self.final_rt) else { return false };
         let (ojo, r0, rx, ry, _) = crate::gpu::rayos(&vieja);
-        let mut t = mat::id(); t[12] = ojo[0]; t[13] = ojo[1]; t[14] = ojo[2]; let m = mat::mul(vp, &t);
+        let mut t = mat::id(); t[12] = ojo[0]; t[13] = ojo[1]; t[14] = ojo[2]; let m = mat::mul(vp, &t); let ma = arma.map(|a| mat::mul(&mat::mul(vp, a), &t)).unwrap_or(m);
         let gl = &self.gl; let p = &self.p_repro;
         gl.bind_framebuffer(glow::FRAMEBUFFER, salida); gl.viewport(0, 0, w, h); gl.disable(glow::DEPTH_TEST); gl.depth_mask(false); gl.disable(glow::BLEND);
-        gl.use_program(Some(p.p)); gl.uniform_matrix_4_f32_slice(p.u("uVP"), false, &m);
+        gl.use_program(Some(p.p)); gl.uniform_matrix_4_f32_slice(p.u("uVP"), false, &m); gl.uniform_matrix_4_f32_slice(p.u("uVPa"), false, &ma);
+        if let Some((.., ew, eh)) = self.escena_rt { gl.uniform_2_f32(p.u("uInv"), 1.0 / ew as f32, 1.0 / eh as f32); }
         gl.uniform_3_f32(p.u("uRay0"), r0[0], r0[1], r0[2]); gl.uniform_3_f32(p.u("uRayX"), rx[0], rx[1], rx[2]); gl.uniform_3_f32(p.u("uRayY"), ry[0], ry[1], ry[2]);
         gl.uniform_1_i32(p.u("uT"), 0); gl.uniform_1_i32(p.u("uEsc"), 1);
         gl.active_texture(glow::TEXTURE1); gl.bind_texture(glow::TEXTURE_2D, Some(esc)); gl.active_texture(glow::TEXTURE0); gl.bind_texture(glow::TEXTURE_2D, Some(ft));
@@ -1413,7 +1427,8 @@ impl Motor {
         let (vb, mn, sc) = pose.unwrap_or((m.vb, m.mn, m.sc));
         let gl = &self.gl; let p = match (self.refl_activo, mt.cut != 0) { (false, false) => &self.p_luz, (false, true) => &self.p_luz_c, (true, false) => &self.p_luz_r, (true, true) => &self.p_luz_rc };
         let lm = self.lms.get(&m.lm_id).map(|t| t.t);
-        let mut modo = lm.is_some() as i32 | if mt.cut != 0 { 2 } else { 0 } | if mt.unlit != 0 { 4 } else { 0 } | if mt.fol != 0 { 64 } else { 0 };
+        // (128: el arma en primera persona —FL_ARMA—: en el alfa de la escena va su marca, 1/255, en vez de la distancia)
+        let mut modo = lm.is_some() as i32 | if mt.cut != 0 { 2 } else { 0 } | if mt.unlit != 0 { 4 } else { 0 } | if mt.fol != 0 { 64 } else { 0 } | if it.fl & FL_ARMA != 0 { 128 } else { 0 };
         let mut capas = [self.tex(mt.t), self.blanca, self.blanca, self.blanca, lm.unwrap_or(self.blanca)];
         let terr = mt.terr.as_ref().filter(|t| t.len() == 3);
         if let Some(tr) = terr { modo |= 16; for k in 0..3 { capas[1 + k] = self.tex(tr[k].0); } } else if mt.t2 >= 0 { modo |= 8; capas[1] = self.tex(mt.t2); }
@@ -1431,7 +1446,7 @@ impl Motor {
             gl.uniform_1_f32(p.u("uModo"), modo as f32);
             if mt.cut != 0 { gl.uniform_2_f32(p.u("uTam"), tam_corte[0], tam_corte[1]); }
             let b = |k: i32| if modo & k != 0 { 1.0 } else { 0.0 };
-            gl.uniform_4_f32(p.u("uBan"), b(16), b(8), b(2), b(4)); gl.uniform_3_f32(p.u("uBan2"), b(1), b(64), if mt.blend != 0 || mt.add != 0 { 1.0 } else { 0.0 });
+            gl.uniform_4_f32(p.u("uBan"), b(16), b(8), b(2), b(4)); gl.uniform_4_f32(p.u("uBan2"), b(1), b(64), if mt.blend != 0 || mt.add != 0 { 1.0 } else { 0.0 }, b(128));
             gl.uniform_4_f32(p.u("uSt"), mt.st[0], mt.st[1], mt.st[2], mt.st[3]); gl.uniform_4_f32(p.u("uC"), mt.c[0], mt.c[1], mt.c[2], mt.c[3]);
             gl.uniform_3_f32(p.u("uEm"), mt.em[0], mt.em[1], mt.em[2]); gl.uniform_4_f32_slice(p.u("uTi"), &mt.ti[0..4]); gl.uniform_4_f32_slice(p.u("uTi2"), &mt.ti[4..8]); gl.uniform_4_f32_slice(p.u("uTi3"), &mt.ti[8..12]); gl.uniform_3_f32(p.u("uMat"), mt.pbr[0], mt.pbr[1], mt.pbr[2]);
             st.mat.insert(p.p, (it.mat, modo));

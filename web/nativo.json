@@ -1,9 +1,9 @@
 {
- "codigo": 26112620,
- "version": "0.33",
+ "codigo": 26112621,
+ "version": "0.34",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 74639622,
- "sha256": "7c8804efbb521b9afb6ed1f78f6a79fe867f75e35e287209a2068a0111d8a396",
- "notas_es": "JXMod Nativo 0.33 — Arreglado el tembleque de JX Turbo al girar: ahora va un cuadro intermedio por cada cuadro dibujado (con más, la placa no llegaba a tiempo y la pantalla repetía cuadros) y la resolución dinámica se ajusta para que entren los dos en el refresco de la pantalla. Además lo que tarda la placa se mide sin frenarla (antes había un tirón cada medio segundo) y los cuadros salen a ritmo parejo.",
- "notas_en": "JXMod Native 0.33 — Fixed JX Turbo stutter when turning: now there is one in-between frame per rendered frame (with more, the GPU couldn't keep up and the screen repeated frames) and dynamic resolution adjusts so both fit in the screen refresh. GPU time is now measured without stalling (there was a hitch every half second) and frames come out at an even pace."
+ "tam": 74660102,
+ "sha256": "6a52cce9d308b9ac0a4292857b81bdb7a2697fffae690f26ba664730e4799e1f",
+ "notas_es": "JXMod Nativo 0.34 — Sin el fantasma del arma con JX Turbo: el arma se marca aparte y en los cuadros intermedios se mueve con su propio movimiento (el vaivén, apuntar), así ya no se duplica ni se corre con el mundo al girar (medido: queda a menos de 1 píxel de donde la pone el cuadro de verdad; antes, 27 a 37). Y donde el arma tapaba el fondo no queda su copia. De yapa, el arma ya no se mete en las paredes.",
+ "notas_en": "JXMod Native 0.34 — No more weapon ghost with JX Turbo: the weapon is marked separately and in-between frames move it with its own motion (sway, aiming), so it no longer doubles or slides with the world when turning (measured: within 1 pixel of where the real frame puts it; before, 27 to 37). Where the weapon covered the background, no copy of it is left. Bonus: the weapon no longer clips into walls."
 }

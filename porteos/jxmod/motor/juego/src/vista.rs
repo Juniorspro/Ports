@@ -5,7 +5,7 @@
 //! dibujarla con un tubo que brilla (la malla y el material los arma `tubo`).
 use crate::mapa::{material, trs};
 use crate::paquete::Paquete;
-use jxmotor::escena::{Cabecera, Escena, ItemDin, Malla, Mat, Tex, FL_SIN_SOMBRA};
+use jxmotor::escena::{Cabecera, Escena, ItemDin, Malla, Mat, Tex, FL_SIN_SOMBRA, FL_ARMA};
 use jxmotor::mat::{self as m4, M4};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -324,7 +324,7 @@ impl Vista {
         for x in &self.rigidas {
             if !self.visible(x.i) { continue; }
             let w = &self.w[x.i]; let c = punto(w, x.c);
-            out.push(ItemDin { m: x.m, s0: x.s0, sn: x.sn, mat: x.mat, mm: *w, esf: [c[0], c[1], c[2], x.r * escala(w)], fl: FL_SIN_SOMBRA, h: vec![] });
+            out.push(ItemDin { m: x.m, s0: x.s0, sn: x.sn, mat: x.mat, mm: *w, esf: [c[0], c[1], c[2], x.r * escala(w)], fl: FL_SIN_SOMBRA | FL_ARMA, h: vec![] });
         }
         for pz in &self.pieles {
             if !self.visible(pz.i) { continue; }
@@ -337,7 +337,7 @@ impl Vista {
             }
             if h.is_empty() { h.extend_from_slice(&[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]); }
             let w = &self.w[pz.i]; let c = punto(w, pz.c);
-            for &(s0, sn, mat) in &pz.partes { out.push(ItemDin { m: pz.m, s0, sn, mat, mm: m4::id(), esf: [c[0], c[1], c[2], pz.r * 4.0 * escala(w).max(0.3)], fl: FL_SIN_SOMBRA, h: h.clone() }); }
+            for &(s0, sn, mat) in &pz.partes { out.push(ItemDin { m: pz.m, s0, sn, mat, mm: m4::id(), esf: [c[0], c[1], c[2], pz.r * 4.0 * escala(w).max(0.3)], fl: FL_SIN_SOMBRA | FL_ARMA, h: h.clone() }); }
         }
     }
 }

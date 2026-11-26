@@ -242,6 +242,8 @@ pub struct Juego {
     pub turbo_n: u8, turbo_dt: f32, turbo_vp: Option<M4>, turbo_cam: [f32; 6], pub ms_real: f32, pub ms_inter: f32, pub fue_inter: bool, pub n_inter: u32, pub turbo_on: bool,
     /// lo que tarda la placa en un intermedio (con los medidores) y la CPU en armar cada clase de cuadro (ms, promediado)
     pub placa_inter: f32, pub cpu_real: f32, pub cpu_inter: f32, reloj_ok: bool,
+    /// JX Turbo: la raíz del arma en el último cuadro de verdad (si estaba a la vista) y cuánto se movió en el intermedio que toca
+    pub arma_raiz: Option<M4>, turbo_arma: Option<M4>,
     recargar: bool,
     /// (para las pruebas: el tiempo fijo de cada cuadro, en vez del reloj)
     pub dt_fijo: Option<f32>,
@@ -361,7 +363,7 @@ impl Juego {
         let en_red = red_juego::EnRed::nueva(datos.as_deref());
         let gmod = gmod_juego::EnGmod::nueva(datos.as_deref());
         let mut j = Juego { paq, mapa: None, mapas: vec!["RB_Flatgrass".into(), "RB_Construct".into()], mapa_i: 0, letras, letras_px, jug: Jugador::nuevo(), acum: 0.0,
-            dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0, perf: [0.0; 5], drs: 1.0, drs_t: 0.0, turbo_n: 0, turbo_dt: 0.0, turbo_vp: None, turbo_cam: [0.0; 6], ms_real: 0.0, ms_inter: 0.0, fue_inter: false, n_inter: 0, turbo_on: false, placa_inter: 0.0, cpu_real: 0.0, cpu_inter: 0.0, reloj_ok: false, perf_t: Instant::now(),
+            dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0, perf: [0.0; 5], drs: 1.0, drs_t: 0.0, turbo_n: 0, turbo_dt: 0.0, turbo_vp: None, turbo_cam: [0.0; 6], ms_real: 0.0, ms_inter: 0.0, fue_inter: false, n_inter: 0, turbo_on: false, placa_inter: 0.0, cpu_real: 0.0, cpu_inter: 0.0, reloj_ok: false, arma_raiz: None, turbo_arma: None, perf_t: Instant::now(),
             recargar: true, dt_fijo: None, gfxa: Default::default(), gfx_medir: false, refresco: 60.0, memes: Default::default(), lan: Default::default(), bajas: None, bajada: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
             nombres: HashMap::new(), catalogo: vec![], cat_npc: vec![], cat_veh: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
@@ -876,6 +878,8 @@ impl Juego {
         e
     }
     /// para las pruebas: los ojos en un lugar fijo (volando, para que no caiga)
+    /// (las pruebas: arrastrar el dedo `dx` píxeles de costado en una pantalla de alto `h`, como en tocar)
+    pub fn arrastre_prueba(&mut self, dx: f32, h: f32) { self.mdx += dx * 1080.0 / h.max(1.0) / 2.5; self.jug.yaw -= dx * 0.0045 * 1080.0 / h.max(1.0) * self.aj.sens as f32 / 12.0; }
     pub fn poner_ojos(&mut self, ojos: [f32; 3], yaw: f32, pitch: f32) {
         self.jug.noclip = true; self.jug.pos = [ojos[0], ojos[1] - 0.72, ojos[2]]; self.jug.vel = [0.0; 3]; self.jug.yaw = yaw; self.jug.pitch = pitch;
     }
@@ -1129,7 +1133,21 @@ impl Juego {
             // 75 cm o 25°: un cambio de vista, subir a un auto— va uno real)
             let tc = self.turbo_cam; let salto = (cam[0] - tc[0]).powi(2) + (cam[1] - tc[1]).powi(2) + (cam[2] - tc[2]).powi(2) > 0.5625
                 || (mira[0] * tc[3] + mira[1] * tc[4] + mira[2] * tc[5]) / (mira[0] * mira[0] + mira[1] * mira[1] + mira[2] * mira[2]).sqrt().max(1e-6) < 0.906;
-            if turbo && !salto { let vpm = m4::mul(&p, &vista); self.vp_ult = vpm; self.turbo_vp = Some(vpm); self.turbo_dt += dt; break 'escena; }
+            let arma_vista = self.camara == 0 && !self.armas.zoom && self.vehs.jugador.is_none() && !self.jg.sin_hud() && !self.gmod_vista_propia();
+            if turbo && !salto {
+                let vpm = m4::mul(&p, &vista); self.vp_ult = vpm; self.turbo_vp = Some(vpm); self.turbo_dt += dt;
+                // (el arma se mueve distinto que el mundo —el vaivén, apuntar—: el intermedio la corre con su propio movimiento,
+                // de la raíz del último cuadro de verdad a la de ahora; si no, quedaba quieta y en el real saltaba: un fantasma)
+                let aj = self.arma_aj_matriz();
+                self.turbo_arma = match (arma_vista, self.arma_raiz, self.vista.as_ref()) {
+                    (true, Some(w0), Some(v)) => Some(m4::mul(&v.raiz_aj(ojos, qcam(yaw, pitch), self.sway, self.armas.ap_k, aj), &m4::inv(&w0))),
+                    _ => None,
+                };
+                // (JXM_TURBO_ARMA_FIJA, para comparar: como la 0.33 —el arma quieta en la pantalla—)
+                if self.turbo_arma.is_some() && std::env::var_os("JXM_TURBO_ARMA_FIJA").is_some() { if let Some(vv) = m.vp_actual() { self.turbo_arma = Some(m4::mul(&m4::inv(&vpm), &vv)); } }
+                break 'escena;
+            }
+            self.arma_raiz = None;
             self.turbo_cam = [cam[0], cam[1], cam[2], mira[0], mira[1], mira[2]]; let dt = dt + std::mem::take(&mut self.turbo_dt);
             // (con los ojos bajo el agua: la niebla de cerca, del color del agua —aguaNiebla—)
             let mut luz = mp.luz; jugabilidad::luz(&self.jg, &mut luz);
@@ -1156,9 +1174,9 @@ impl Juego {
             if ver_cuerpo { if let Some(pj) = &self.pj { let jp = self.jug.pos; let b = pj.base_sentado().or_else(|| personajes::emotes_juego::base_escena(&self.pjs)).unwrap_or_else(|| personaje::base([jp[0], jp[1] - 0.95, jp[2]], self.jug.yaw)); if !self.gmp_items_jugador(&b, &mut items, cam, dt) { pj.items(&b, &mut items); } } }
             // (en primera persona, el arma delante de la cámara; y el rayo de la Physics Gun, de la boca a lo agarrado)
             let aj = self.arma_aj_matriz();
-            if self.camara == 0 && !self.armas.zoom && self.vehs.jugador.is_none() && !self.jg.sin_hud() && !self.gmod_vista_propia() { if let Some(v) = self.vista.as_mut() {
+            if arma_vista { if let Some(v) = self.vista.as_mut() {
                 if self.armas.ap_k > 0.002 && v.ads_tok != self.armas.ap_tok { v.calcular_ads(self.armas.ap_tok); }
-                v.ubicar_aj(ojos, qcam(yaw, pitch), self.sway, self.armas.ap_k, aj); v.items(&mut items);
+                v.ubicar_aj(ojos, qcam(yaw, pitch), self.sway, self.armas.ap_k, aj); v.items(&mut items); self.arma_raiz = Some(v.raiz);
             } }
             self.proyectiles_items(&mut items);
             if let (Some(p1), Some(a), true) = (self.armas.punto_agarrado(&self.fis), self.armas.agarre.as_ref(), self.tubo_ok) {
@@ -1196,7 +1214,7 @@ impl Juego {
         let mut u = self.hud(w, h, placa_txt);
         unsafe { self.ini_hud(m, w, h, &mut u); }
         self.tut_hud(&mut u, w, h);
-        let inter = match self.turbo_vp.take() { Some(vp) => m.intermedio(w, h, &vp, &u), None => false };
+        let inter = match self.turbo_vp.take() { Some(vp) => m.intermedio(w, h, &vp, self.turbo_arma.take().as_ref(), &u), None => false };
         let r = if inter { Ok(()) } else { m.dibujar(w, h, self.mapa.is_some(), &u) };
         self.turbo_n = if inter { self.turbo_n + 1 } else { 0 }; self.fue_inter = inter; if inter { self.n_inter += 1; }
         marca(&mut self.perf, &mut self.perf_t, 4);

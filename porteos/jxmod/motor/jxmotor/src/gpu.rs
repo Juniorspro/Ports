@@ -8,7 +8,7 @@
 //!  - recorte por lo que ve la cámara (y por lo que ve el sol para la sombra) con la esfera de cada cosa;
 //!  - resolución dinámica: la escena a una fracción del tamaño de la pantalla y estirada al final (lo que más pesa en una
 //!    placa floja son los píxeles), y la sombra y el reflejo rehechos cada tantos cuadros.
-use crate::escena::{Agua, Cielo, Cuadro, Escena, ItemDin, Mat, FL_CIELO, FL_SIN_SOMBRA, EF_GI, EF_GI_DATOS, EF_MARCAS, EF_ONDAS, EF_PART_ALFA, EF_PART_SUMA};
+use crate::escena::{FL_ARMA, Agua, Cielo, Cuadro, Escena, ItemDin, Mat, FL_CIELO, FL_SIN_SOMBRA, EF_GI, EF_GI_DATOS, EF_MARCAS, EF_ONDAS, EF_PART_ALFA, EF_PART_SUMA};
 use crate::mat::{self, M4};
 use glow::HasContext;
 use std::collections::HashMap;
@@ -54,9 +54,9 @@ struct Destino { fb: glow::Framebuffer, color: glow::Texture, prof: Option<glow:
 
 // los uniformes, por número (buscarlos por nombre en cada dibujo cuesta)
 #[derive(Clone, Copy)]
-enum U { Mat, NieS, Sesgo, VP, M, SVP, Mn, Sc, St, C, Em, Modo, S1, S3, Sol, SolC, AmbS, AmbG, NieC, Nie, Cam, Expo, Sombra, Clip, B, LP, LC, LD, LN, LE, F, H, S, Bq, D, RefInv, Tiempo, Top, Mid, Bot, Exp, Tinte, Dia, CieloK, TieneCubo, Radio, Inv, Fuerza, Retoque, Der, Arr, RefrOn, RefrK, IVP, SVP2, Sesgo2, Ti, Ti2, Ti3, AOk, NC, Ray0, RayX, RayY, Zl, RayP, RayK, Vol, Nubes, BloomK, RP, Adapta, Caus, CausB, Ond, OndN, GIo, GIn, Corte }
-const NU: usize = U::Corte as usize + 1;
-const NOMBRES: [&str; NU] = ["uMat", "uNieS", "uSesgo", "uVP", "uM", "uSVP", "uMn", "uSc", "uSt", "uC", "uEm", "uModo", "uS1", "uS3", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNie", "uCam", "uExpo", "uSombra", "uClip", "uB", "uLP", "uLC", "uLD", "uLN", "uLE", "uF", "uH", "uS", "uBq", "uD", "uRefInv", "uTiempo", "uTop", "uMid", "uBot", "uExp", "uTinte", "uDia", "uCieloK", "uTieneCubo", "uRadio", "uInv", "uFuerza", "uRetoque", "uDer", "uArr", "uRefrOn", "uRefrK", "uIVP", "uSVP2", "uSesgo2", "uTi", "uTi2", "uTi3", "uAOk", "uNC", "uRay0", "uRayX", "uRayY", "uZl", "uRayP", "uRayK", "uVol", "uNubes", "uBloomK", "uRP", "uAdapta", "uCaus", "uCausB", "uOnd", "uOndN", "uGIo", "uGIn", "uCorte"];
+enum U { Mat, NieS, Sesgo, VP, M, SVP, Mn, Sc, St, C, Em, Modo, S1, S3, Sol, SolC, AmbS, AmbG, NieC, Nie, Cam, Expo, Sombra, Clip, B, LP, LC, LD, LN, LE, F, H, S, Bq, D, RefInv, Tiempo, Top, Mid, Bot, Exp, Tinte, Dia, CieloK, TieneCubo, Radio, Inv, Fuerza, Retoque, Der, Arr, RefrOn, RefrK, IVP, SVP2, Sesgo2, Ti, Ti2, Ti3, AOk, NC, Ray0, RayX, RayY, Zl, RayP, RayK, Vol, Nubes, BloomK, RP, Adapta, Caus, CausB, Ond, OndN, GIo, GIn, Corte, Ma }
+const NU: usize = U::Ma as usize + 1;
+const NOMBRES: [&str; NU] = ["uMat", "uNieS", "uSesgo", "uVP", "uM", "uSVP", "uMn", "uSc", "uSt", "uC", "uEm", "uModo", "uS1", "uS3", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNie", "uCam", "uExpo", "uSombra", "uClip", "uB", "uLP", "uLC", "uLD", "uLN", "uLE", "uF", "uH", "uS", "uBq", "uD", "uRefInv", "uTiempo", "uTop", "uMid", "uBot", "uExp", "uTinte", "uDia", "uCieloK", "uTieneCubo", "uRadio", "uInv", "uFuerza", "uRetoque", "uDer", "uArr", "uRefrOn", "uRefrK", "uIVP", "uSVP2", "uSesgo2", "uTi", "uTi2", "uTi3", "uAOk", "uNC", "uRay0", "uRayX", "uRayY", "uZl", "uRayP", "uRayK", "uVol", "uNubes", "uBloomK", "uRP", "uAdapta", "uCaus", "uCausB", "uOnd", "uOndN", "uGIo", "uGIn", "uCorte", "uMa"];
 struct Prog { p: glow::Program, u: Vec<Option<glow::UniformLocation>>, piel: bool, corte: bool }
 #[derive(Default)]
 struct Puesto3 { vao: Option<glow::VertexArray>, unidad: Option<u32>, tex: [Option<glow::Texture>; 8], mat: HashMap<glow::Program, (i64, i32)>, pos: HashMap<glow::Program, ([f32; 3], [f32; 3])>, mm: HashMap<glow::Program, [f32; 16]> }
@@ -562,18 +562,33 @@ void main() {
 }"#;
 // JX Turbo, el cuadro intermedio: la imagen terminada del último cuadro (con el retoque, sin la interfaz) corrida a la cámara de
 // ahora. Para cada punto de la imagen nueva, de dónde viene en la vieja: se adivina (el mismo lugar), con la profundidad de ahí
-// se pasa de la cámara vieja a la nueva (uM: la nueva por la vieja al revés, una sola cuenta) y lo que falta para caer en el
-// punto se corrige; dos veces (al girar cae justo a la primera; al moverse, lo cercano se acomoda en la segunda). Lo que está a
-// menos de uCorte de profundidad —el arma y las manos, a menos de 90 cm— va pegado a la cámara: no se corre
+// se pasa al cuadro nuevo y lo que falta para caer en el punto se corrige, tres veces. Lo del mundo se corre con la cámara (uM:
+// la nueva por la vieja al revés); el arma y las manos con
+// el movimiento del arma (uMa: además, de su raíz vieja a la de ahora: el vaivén). El arma se reconoce por su franja de la
+// profundidad (de 0 a uCorte, FL_ARMA). Al final se comprueba que lo encontrado
+// caiga de verdad acá: si no, y es el arma vieja, es fondo que el arma tapaba —no se sabe qué hay—: el primer punto sin arma
+// yendo hacia acá (el borde del fondo estirado, en vez de una copia del arma que se va con el mundo: el fantasma)
 const FS_REPRO: &str = r#"#version 300 es
-precision highp float; uniform highp sampler2D uEsc, uProf; uniform highp mat4 uM; uniform float uCorte; in vec2 vP; out vec4 o;
+precision highp float; uniform highp sampler2D uEsc, uProf; uniform highp mat4 uM, uMa; uniform float uCorte; uniform vec2 uInv; in vec2 vP; out vec4 o;
+// (el arma está en su franja —de 0 a uCorte—: su profundidad de verdad es la de la franja estirada)
+vec2 donde(vec2 q, float d) { bool a = d < uCorte; float z = a ? d / uCorte : d; vec4 n = (a ? uMa : uM) * vec4(q * 2.0 - 1.0, z * 2.0 - 1.0, 1.0); return n.w > 1e-5 ? n.xy / n.w * 0.5 + 0.5 : vec2(-9.0); }
 void main() {
   vec2 uv = vP * 0.5 + 0.5, q = uv; float d = texture(uProf, uv).r;
-  if (d >= uCorte) {
-    for (int i = 0; i < 2; i++) {
-      if (i > 0) d = texture(uProf, q).r;
-      vec4 n = uM * vec4(q * 2.0 - 1.0, d * 2.0 - 1.0, 1.0); if (n.w <= 1e-5) break;
-      q = clamp(q + (uv - (n.xy / n.w * 0.5 + 0.5)), vec2(0.0), vec2(1.0));
+#ifdef VER_CORTE
+  o = vec4(d < uCorte ? 1.0 : 0.0, fract(d * 50.0), 0.0, 1.0); return;   // (JXM_VER_CORTE: el arma en rojo)
+#endif
+  for (int i = 0; i < 3; i++) {
+    if (i > 0) d = texture(uProf, q).r;
+    vec2 n = donde(q, d); if (n.x < -8.0) break;
+    q = clamp(q + (uv - n), vec2(0.0), vec2(1.0));
+  }
+  d = texture(uProf, q).r;
+  if (d < uCorte) {
+    vec2 e = (donde(q, d) - uv) / uInv;
+    if (dot(e, e) > 2.25) {
+      // (y dos píxeles más afuera: el del borde tiene mezclado el color del arma —el contorno que quedaba como fantasma—)
+      vec2 dir = uv - q; dir = dot(dir, dir) > 1e-12 ? normalize(dir) * uInv * 2.0 : vec2(0.0);
+      for (int k = 1; k <= 4; k++) { vec2 r = mix(q, uv, float(k) * 0.25); if (texture(uProf, r).r >= uCorte) { q = clamp(r + dir, vec2(0.0), vec2(1.0)); break; } }
     }
   }
   o = texture(uEsc, q);
@@ -779,15 +794,9 @@ unsafe fn textura(gl: &glow::Context, w: u32, h: u32, px: &[u8], repetir: bool, 
     t
 }
 unsafe fn destino(gl: &glow::Context, w: i32, h: i32) -> Destino { destino_con(gl, w, h, false) }
-/// JX Turbo: la profundidad (0..1, la del búfer) de lo que está a `dist` metros adelante de la cámara `vp` (en `pos`): lo que está
-/// más cerca es el arma o las manos
-fn corte(vp: &M4, pos: [f32; 3], dist: f32) -> f32 {
-    let por = |m: &M4, v: [f32; 4]| { let mut r = [0.0f32; 4]; for i in 0..4 { r[i] = m[i] * v[0] + m[4 + i] * v[1] + m[8 + i] * v[2] + m[12 + i] * v[3]; } r };
-    let inv = mat::inv(vp); let un = |z: f32| { let v = por(&inv, [0.0, 0.0, z, 1.0]); [v[0] / v[3], v[1] / v[3], v[2] / v[3]] };
-    let (a, b) = (un(-1.0), un(1.0)); let d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]; let l = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt().max(1e-6);
-    let c = por(vp, [pos[0] + d[0] / l * dist, pos[1] + d[1] / l * dist, pos[2] + d[2] / l * dist, 1.0]);
-    if c[3] <= 1e-6 { 0.0 } else { c[2] / c[3] * 0.5 + 0.5 }
-}
+/// JX Turbo: la franja de la profundidad del arma (FL_ARMA): de 0 a esto; lo demás, de 0 a 1 (lo del mundo a menos de 8 cm
+/// del plano de cerca cae ahí también: nada)
+const FRANJA_ARMA: f32 = 0.01;
 /// el banco A/B (examples/rendimiento con JXM_AB): los cuadros se alternan entre la forma de siempre (A) y la que se prueba (B),
 /// así lo que cambia la máquina entre corridas les toca igual a las dos; el código a probar pregunta `ab()`
 pub static AB: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -1010,7 +1019,7 @@ impl Motor {
         let p_cielo = programa(&gl, VS_CIELO, &FS_CIELO.replace("@@NUBES@@", NUBES_GLSL), "")?;
         let p_ao = programa(&gl, VS_CIELO, FS_AO, "")?;
         let p_ao_poner = programa(&gl, VS_CIELO, FS_AO_PONER, "")?;
-        let p_final = programa(&gl, VS_CIELO, FS_FINAL, "")?; let p_repro = programa(&gl, VS_CIELO, FS_REPRO, "")?; let p_copia = programa(&gl, VS_CIELO, FS_COPIA, "")?; let p_adapta = programa(&gl, VS_CIELO, FS_ADAPTA, "")?;
+        let p_final = programa(&gl, VS_CIELO, FS_FINAL, "")?; let p_repro = programa(&gl, VS_CIELO, FS_REPRO, if std::env::var_os("JXM_VER_CORTE").is_some() { "#define VER_CORTE\n" } else { "" })?; let p_copia = programa(&gl, VS_CIELO, FS_COPIA, "")?; let p_adapta = programa(&gl, VS_CIELO, FS_ADAPTA, "")?;
         let p_rayos = programa(&gl, VS_CIELO, FS_RAYMASK, "")?; let p_rayos2 = programa(&gl, VS_CIELO, FS_RAYOS, "")?; let p_vol = programa(&gl, VS_CIELO, FS_VOL, "")?; let p_vol_aaa = programa(&gl, VS_CIELO, FS_VOL, "#define PASOS 24\n")?;
         let p_brillo = programa(&gl, VS_CIELO, FS_BRILLO, "")?; let p_baja = programa(&gl, VS_CIELO, FS_BAJA, "")?; let p_sube = programa(&gl, VS_CIELO, FS_SUBE, "")?;
         let p_part = programa(&gl, VS_PART, FS_PART, "")?;
@@ -1367,7 +1376,7 @@ impl Motor {
     unsafe fn dibujar_lista_con(&self, lista: &[usize], vp: &M4, clip: f32, de_sombra: bool, pre: bool) -> u32 {
         // (las copias de una misma cosa —la misma malla, parte y material, sin huesos— van juntas en la lista: de a 2 o más,
         // un solo dibujo con instancias; sus matrices, todas en un búfer)
-        let mismo = |a: &ItemDin, b: &ItemDin| a.m == b.m && a.s0 == b.s0 && a.sn == b.sn && a.mat == b.mat && a.h.is_empty() && b.h.is_empty();
+        let mismo = |a: &ItemDin, b: &ItemDin| a.m == b.m && a.s0 == b.s0 && a.sn == b.sn && a.mat == b.mat && a.h.is_empty() && b.h.is_empty() && (a.fl & FL_ARMA) == (b.fl & FL_ARMA);
         let recorte = clip > -1e8;
         let mut grupos: Vec<(usize, usize)> = Vec::new(); let mut mats: Vec<f32> = Vec::new();
         let mut k = 0;
@@ -1378,10 +1387,13 @@ impl Motor {
             grupos.push((k, e)); k = e;
         }
         if !mats.is_empty() { let gl = &self.gl; gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.inst_buf)); gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, f32_bytes(&mats), glow::STREAM_DRAW); }
-        let mut act: Option<u8> = None; let mut base = 0usize; let mut dibujos = 0;
+        let mut act: Option<u8> = None; let mut base = 0usize; let mut dibujos = 0; let mut en_franja = false;
         *self.puesto.borrow_mut() = Some(Puesto3::default());
         for (k, e) in grupos {
             let it = &self.items[lista[k]]; let n = e - k;
+            // (el arma en primera persona: en su franja de la profundidad —FL_ARMA—, salvo en las sombras)
+            let franja = it.fl & FL_ARMA != 0 && (!de_sombra || pre);
+            if franja != en_franja { self.gl.depth_range_f32(0.0, if franja { FRANJA_ARMA } else { 1.0 }); en_franja = franja; }
             let piel = !it.h.is_empty() && self.mallas.get(&it.m).map(|m| m.piel).unwrap_or(false);
             let corta = !de_sombra && (recorte || self.mats.get(&it.mat).map_or(false, |mt| mt.cut != 0));
             let tipo: u8 = (if n >= 2 { 2 } else if piel { 1 } else { 0 }) | if corta { 4 } else { 0 };
@@ -1413,6 +1425,7 @@ impl Motor {
             }
             dibujos += 1;
         }
+        if en_franja { self.gl.depth_range_f32(0.0, 1.0); }
         *self.puesto.borrow_mut() = None;
         dibujos
     }
@@ -1583,7 +1596,8 @@ impl Motor {
         let pl = planos_rect(&vp, r0, r1);
         let ay = if piso { ay + 0.03 } else { ay };
         // (lo que está entero debajo del agua no se refleja)
-        let lista: Vec<usize> = self.recortar(&vp, false).into_iter().filter(|&i| { let e = self.items[i].esf; e[1] + e[3] > ay - 0.05 && mat::esfera_dentro(&pl, &e) }).collect();
+        // (el arma en primera persona no se refleja: está pegada a la cámara)
+        let lista: Vec<usize> = self.recortar(&vp, false).into_iter().filter(|&i| { let e = self.items[i].esf; self.items[i].fl & FL_ARMA == 0 && e[1] + e[3] > ay - 0.05 && mat::esfera_dentro(&pl, &e) }).collect();
         { let gl = &self.gl; let d = self.reflejo.as_ref().unwrap(); gl.bind_framebuffer(glow::FRAMEBUFFER, Some(d.fb)); gl.viewport(0, 0, d.w, d.h);
           let (sx0, sy0) = (((r0[0] * 0.5 + 0.5) * d.w as f32).floor() as i32, ((r0[1] * 0.5 + 0.5) * d.h as f32).floor() as i32);
           let (sx1, sy1) = (((r1[0] * 0.5 + 0.5) * d.w as f32).ceil() as i32, ((r1[1] * 0.5 + 0.5) * d.h as f32).ceil() as i32);
@@ -1823,7 +1837,10 @@ impl Motor {
             if act != Some(piel) { act = Some(piel); self.luces(p, &vp, -1e9); }
             let add = self.mats[&it.mat].add != 0;
             if add { self.gl.blend_func(glow::SRC_ALPHA, glow::ONE); }
+            // (lo transparente del arma, en su franja de la profundidad como lo demás del arma)
+            let franja = it.fl & FL_ARMA != 0; if franja { self.gl.depth_range_f32(0.0, FRANJA_ARMA); }
             self.dibujar_item(p, it, true); self.dibujos += 1;
+            if franja { self.gl.depth_range_f32(0.0, 1.0); }
             if add { self.gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); }
         }
         if hay_agua {
@@ -1893,7 +1910,7 @@ impl Motor {
             gl.bind_vertex_array(None); gl.draw_arrays(glow::TRIANGLES, 0, 3);
             gl.bind_texture(glow::TEXTURE_2D, None); gl.active_texture(glow::TEXTURE0);
             gl.invalidate_framebuffer(glow::FRAMEBUFFER, &todo[1..]); gl.enable(glow::DEPTH_TEST); gl.depth_mask(true);
-            if let Some(c) = self.c.as_ref() { self.vp_ult = Some(c.vp); self.corte_ult = corte(&c.vp, c.pos, 0.9); }
+            if let Some(c) = self.c.as_ref() { self.vp_ult = Some(c.vp); self.corte_ult = FRANJA_ARMA; }
         } else {
             if let Some(d) = self.final_rt.take() { borrar_destino(&self.gl, d); } self.vp_ult = None;
             self.pasada_final(salida, w, h, ew, eh, col, rayos, brillo, adapta);
@@ -1933,7 +1950,7 @@ impl Motor {
     /// JX Turbo: el cuadro intermedio. La imagen terminada del último cuadro, corrida a la cámara de ahora (`vp`) con su
     /// profundidad —cada punto se vuelve a poner donde cae visto desde acá, como los visores de realidad virtual—: una sola pasada
     /// de pantalla en vez del mundo entero. false si no hay cuadro guardado (falta el turbo, la profundidad o un cuadro de verdad)
-    pub unsafe fn intermedio(&mut self, salida: Option<glow::Framebuffer>, w: i32, h: i32, vp: &M4) -> bool {
+    pub unsafe fn intermedio(&mut self, salida: Option<glow::Framebuffer>, w: i32, h: i32, vp: &M4, arma: Option<&M4>) -> bool {
         if !self.turbo_listo(w, h) { return false; }
         let (Some(vieja), Some(prof), Some(f)) = (self.vp_ult, self.escena_rt.as_ref().and_then(|e| e.prof_t), self.final_rt.as_ref()) else { return false };
         let gl = &self.gl;
@@ -1942,7 +1959,9 @@ impl Motor {
         gl.invalidate_framebuffer(glow::FRAMEBUFFER, todo);
         gl.disable(glow::DEPTH_TEST); gl.depth_mask(false); gl.disable(glow::BLEND);
         let p = &self.p_repro; gl.use_program(Some(p.p));
-        gl.uniform_matrix_4_f32_slice(p.u(U::M), false, &mat::mul(vp, &mat::inv(&vieja))); gl.uniform_1_f32(p.u(U::Corte), self.corte_ult);
+        let vi = mat::inv(&vieja); let mm = mat::mul(vp, &vi); let ma = arma.map(|a| mat::mul(&mat::mul(vp, a), &vi)).unwrap_or(mm);
+        gl.uniform_matrix_4_f32_slice(p.u(U::M), false, &mm); gl.uniform_matrix_4_f32_slice(p.u(U::Ma), false, &ma); gl.uniform_1_f32(p.u(U::Corte), self.corte_ult);
+        { let pr = self.escena_rt.as_ref().unwrap(); gl.uniform_2_f32(p.u(U::Inv), 1.0 / pr.w as f32, 1.0 / pr.h as f32); }
         gl.active_texture(glow::TEXTURE11); gl.bind_texture(glow::TEXTURE_2D, Some(f.color));
         gl.active_texture(glow::TEXTURE9); gl.bind_texture(glow::TEXTURE_2D, Some(prof));
         gl.bind_vertex_array(None); gl.draw_arrays(glow::TRIANGLES, 0, 3);
