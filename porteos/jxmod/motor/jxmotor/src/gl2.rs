@@ -122,6 +122,9 @@ vec3 brdf(vec3 n, vec3 v, vec3 l, vec3 dif, vec3 f0, float a) {
 
 // (el retoque final de WebGL en Alto —más color, contraste en S y viñeta—, acá mismo: sin otra pasada)
 uniform vec3 uRet;
+// (Definitivo: la luz horneada del mapa como en un día nublado —el Ravenholm con trazado de rayos—: la mitad de su color
+// pasa a un blanco frío, con el mismo brillo; el sol amarillo de muchos mapas de Source no tiñe todo de naranja)
+vec3 nublado(vec3 l) { float y = dot(l, vec3(0.2126, 0.7152, 0.0722)); return mix(l, y * vec3(0.9, 1.0, 1.12), 0.5); }
 vec3 retoque(vec3 c) {
   if (uRet.z < 0.5) return c;
   c = dec(c); float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
@@ -180,7 +183,7 @@ void main() {
     if (lm) {
       // (la luz horneada del mapa ya trae sus sombras: la del sol sólo oscurece lo que en ella estaba al sol —lo que se
       // mueve, los props—; adentro y a la sombra horneada no se oscurece dos veces)
-      lmL = dec(texture2D(uLM, vL).rgb) * 4.0; sh = sombra();
+      lmL = dec(texture2D(uLM, vL).rgb) * 4.0; if (uNubes.x > 0.5) lmL = nublado(lmL); sh = sombra();
       col = dif * lmL * (1.0 - 0.55 * (1.0 - sh) * smoothstep(0.5, 1.4, dot(lmL, vec3(0.2126, 0.7152, 0.0722))));
     } else {
       // (con el sol casi de costado la sombra de una placa sobre sí misma —el «acné»— se ve como pelos: ahí se desvanece)
@@ -335,10 +338,10 @@ void main() {
   vec3 c = texture2D(uT, vU).rgb;
   // (los rayos del sol, sumados a la luz; guardados con raíz de v/8)
   if (uRayK > 0.0) { vec3 r = texture2D(uRay, vU).rgb; r = r * r * (8.0 * uRayK); c = sqrt(c * c + 1.0 - exp(-r)); }
-  // (Definitivo: el resplandor y el color de película —lo oscuro un poco frío, lo claro cálido—)
+  // (Definitivo: el resplandor y el color de película —frío como un día nublado, más en lo oscuro; lo claro casi neutro—)
   if (uBloomK > 0.0) {
     vec3 b = texture2D(uBlo, vU).rgb; vec3 l = c * c + b * uBloomK; float y = dot(l, vec3(0.2126, 0.7152, 0.0722));
-    l = mix(vec3(y), l, 0.9); l *= mix(vec3(0.93, 1.0, 1.06), vec3(1.04, 1.0, 0.96), smoothstep(0.1, 0.8, y)); l = clamp(l, 0.0, 1.0); l = l * l * (3.0 - 2.0 * l) * 0.2 + l * 0.8;
+    l = mix(vec3(y), l, 0.92); l *= mix(vec3(0.86, 0.98, 1.12), vec3(0.98, 1.0, 1.02), smoothstep(0.1, 0.8, y)); l = clamp(l, 0.0, 1.0); l = l * l * (3.0 - 2.0 * l) * 0.2 + l * 0.8;
     c = sqrt(l);
   }
   gl_FragColor = vec4(c, 1.0);

@@ -114,6 +114,9 @@ in vec3 vS; in vec3 vS2;
 const float PI = 3.14159265;
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
+// (Definitivo: la luz horneada del mapa como en un día nublado —el Ravenholm con trazado de rayos—: la mitad de su color
+// pasa a un blanco frío, con el mismo brillo; el sol amarillo de muchos mapas de Source no tiñe todo de naranja)
+vec3 nublado(vec3 l) { float y = dot(l, vec3(0.2126, 0.7152, 0.0722)); return mix(l, y * vec3(0.9, 1.0, 1.12), 0.5); }
 #ifdef CORTE
 // (lo recortado —rejas, alambrados, hojas—: cerca, el borde parejo por las derivadas; de lejos, cuando los agujeros de la
 // textura son más chicos que un punto de la pantalla, lo que tapa en promedio —el alfa del nivel chico— en un tramado: un
@@ -223,7 +226,7 @@ void main() {
 #endif
       vec2 su = gl_FragCoord.xy * uAOk.xy, tx = 0.75 / vec2(textureSize(uAO, 0));
       aoK = mix(1.0, 0.25 * (texture(uAO, su - tx).r + texture(uAO, su + tx).r + texture(uAO, su + vec2(tx.x, -tx.y)).r + texture(uAO, su + vec2(-tx.x, tx.y)).r), uAOk.z); }
-    if (lm) { lmL = dec(texture(uLM, vL).rgb) * 4.0; col = dif * lmL * aoK; }   // (la luz horneada del mapa, en vez del sol y el cielo)
+    if (lm) { lmL = dec(texture(uLM, vL).rgb) * 4.0; if (uNubes.x > 0.5) lmL = nublado(lmL); col = dif * lmL * aoK; }   // (la luz horneada del mapa, en vez del sol y el cielo)
 #ifdef DBG_SIN_SOMBRA
     else { sh = 1.0; col = brdf(n, v, uSol, dif, f0, a) * uSolC * sh; }
 #elif defined(DBG_SIN_BRDF)
@@ -445,8 +448,9 @@ void main() {
     float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
     c = clamp(mix(vec3(l), c, 1.18), 0.0, 1.0);
     c = c * c * (3.0 - 2.0 * c) * 0.18 + c * 0.82;
-    // (Definitivo: el color de película —lo oscuro un poco frío, lo claro cálido— y un poco más de contraste)
-    if (uBloomK > 0.0) { float l2 = dot(c, vec3(0.2126, 0.7152, 0.0722)); c = mix(vec3(l2), c, 0.9); c *= mix(vec3(0.93, 1.0, 1.06), vec3(1.04, 1.0, 0.96), smoothstep(0.1, 0.8, l2)); c = clamp(c * c * (3.0 - 2.0 * c) * 0.2 + c * 0.8, 0.0, 1.0); }
+    // (Definitivo: el color de película —frío como un día nublado, más en lo oscuro; lo claro casi neutro— y un poco más de
+    // contraste)
+    if (uBloomK > 0.0) { float l2 = dot(c, vec3(0.2126, 0.7152, 0.0722)); c = mix(vec3(l2), c, 0.92); c *= mix(vec3(0.86, 0.98, 1.12), vec3(0.98, 1.0, 1.02), smoothstep(0.1, 0.8, l2)); c = clamp(c * c * (3.0 - 2.0 * c) * 0.2 + c * 0.8, 0.0, 1.0); }
     c = sqrt(c);
     vec2 q = uv - 0.5; c *= 1.0 - dot(q, q) * 0.32;
     c += (ign(gl_FragCoord.xy) - 0.5) / 255.0;
