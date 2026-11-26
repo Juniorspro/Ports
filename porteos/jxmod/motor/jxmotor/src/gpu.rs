@@ -1244,7 +1244,8 @@ impl Motor {
     unsafe fn pasada_rayos(&mut self, ew: i32, eh: i32) -> Option<(glow::Texture, f32)> {
         let c = self.c.as_ref()?; let s = self.sol(); let rp = sol_en_pantalla(c, s); let expo = c.luz.expo;
         let l = &c.luz; let luz_sol = l.sol_c[0] * 0.2126 + l.sol_c[1] * 0.7152 + l.sol_c[2] * 0.0722;
-        let vol = self.op.sombras && self.sombra.is_some() && s[1] > 0.03 && luz_sol > 0.05;
+        // (la luz en el aire, sólo en Definitivo: en Ultra van los rayos de la pantalla, que cuestan mucho menos)
+        let vol = self.op.aaa && self.op.sombras && self.sombra.is_some() && s[1] > 0.03 && luz_sol > 0.05;
         if rp.is_none() && !vol { return None; }
         let (esc, prof) = { let d = self.escena_rt.as_ref()?; (d.color, d.prof_t?) };
         let div = if self.op.aaa { 2 } else { 4 }; let (rw, rh) = ((ew / div).max(8), (eh / div).max(8));

@@ -130,11 +130,12 @@ impl Ajustes {
         let (res, so, ao, re, rt) = match k { 0 => (50, false, false, false, false), 1 => (67, false, false, true, false), 2 => (85, true, false, true, true), 3 => (100, true, false, true, true), _ => (100, true, true, true, true) };
         self.calidad = k.min(CALIDADES.len() - 1); self.res = res; self.sombras = so; self.ao = ao; self.reflejo = re; self.retoque = rt;
     }
-    /// lo que va al motor: con calidad media o menos, la sombra de 1024 cada 2 cuadros y el reflejo a un cuarto
+    /// lo que va al motor: con calidad media o menos, la sombra de 1024 y el reflejo a un cuarto; hasta Ultra la sombra y el
+    /// reflejo se rehacen un cuadro sí y uno no (los celulares flojos: el TCL 20 SE); Definitivo, todo cada cuadro
     pub fn opciones(&self) -> Opciones {
         let flojo = self.calidad <= 2; let muy = self.calidad <= 1;
-        Opciones { escala: self.res as f32 / 100.0, sombras: self.sombras, sombra_px: if flojo { 1024 } else { 2048 }, sombra_cada: if flojo { 2 } else { 1 }, sombra_radio: if flojo { 35.0 } else if self.calidad == 5 { 60.0 } else { 45.0 },
-            reflejo: self.reflejo, reflejo_div: if muy { 4 } else { 2 }, reflejo_cada: if muy { 2 } else { 1 }, ao: self.ao, ao_fuerza: 0.6, retoque: self.retoque, prepaso: true, rayos: self.calidad >= 4, hongo: self.calidad.min(4) as u8, aaa: self.calidad == 5 }
+        Opciones { escala: self.res as f32 / 100.0, sombras: self.sombras, sombra_px: if flojo { 1024 } else { 2048 }, sombra_cada: if self.calidad == 5 { 1 } else { 2 }, sombra_radio: if flojo { 35.0 } else if self.calidad == 5 { 60.0 } else { 45.0 },
+            reflejo: self.reflejo, reflejo_div: if muy { 4 } else if self.calidad == 5 { 2 } else { 3 }, reflejo_cada: if self.calidad == 5 { 1 } else { 2 }, ao: self.ao, ao_fuerza: 0.6, retoque: self.retoque, prepaso: true, rayos: self.calidad >= 4, hongo: self.calidad.min(4) as u8, aaa: self.calidad == 5 }
     }
     /// el volumen para el mezclador (80, el de fábrica, es 1: como quedó medido contra la web)
     pub fn volumen(&self) -> f32 { self.vol as f32 / 80.0 }

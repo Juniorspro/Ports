@@ -711,7 +711,7 @@ impl Motor {
         let (ew, eh) = (((w as f32) * self.op.escala).round().max(16.0) as i32, ((h as f32) * self.op.escala).round().max(16.0) as i32);
         self.rayos_ahora = if self.op.rayos { self.rayos_sol() } else { None };
         // (la luz en el aire: con la sombra del sol, de día)
-        self.vol_ahora = self.op.rayos && self.op.sombras && self.p_vol.is_some() && self.c.as_ref().map_or(false, |c| { let l = &c.luz; self.sol()[1] > 0.03 && l.sol_c[0] * 0.2126 + l.sol_c[1] * 0.7152 + l.sol_c[2] * 0.0722 > 0.05 });
+        self.vol_ahora = self.op.rayos && self.op.aaa && self.op.sombras && self.p_vol.is_some() && self.c.as_ref().map_or(false, |c| { let l = &c.luz; self.sol()[1] > 0.03 && l.sol_c[0] * 0.2126 + l.sol_c[1] * 0.7152 + l.sol_c[2] * 0.0722 > 0.05 });
         let escalada = self.op.escala < 0.999 || self.rayos_ahora.is_some() || self.vol_ahora || self.op.aaa;
         // (si la escena va a su textura, el alfa lleva la distancia —y el cielo, 0—)
         self.alfa_d = escalada;

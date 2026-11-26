@@ -28,10 +28,23 @@ public class Juego extends NativeActivity {
         Window w = getWindow();
         w.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON | WindowManager.LayoutParams.FLAG_FULLSCREEN);
         if (Build.VERSION.SDK_INT >= 28) w.getAttributes().layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        refrescoMaximo(w);
         super.onCreate(b);
         completa();
         // (¿hay una versión nueva de la app? la tarjeta del inicio la muestra y la baja: Actualizar.java)
         Actualizar.revisar(this);
+    }
+
+    /** la pantalla a lo más rápido que da (90 o 120 Hz si puede; Android deja a las apps en 60 si no lo piden), con la misma
+     *  resolución: así los cuadros de más se ven */
+    private void refrescoMaximo(Window w) {
+        if (Build.VERSION.SDK_INT < 23) return;
+        try {
+            android.view.Display d = getWindowManager().getDefaultDisplay(); android.view.Display.Mode cur = d.getMode(), mejor = cur;
+            for (android.view.Display.Mode m : d.getSupportedModes())
+                if (m.getPhysicalWidth() == cur.getPhysicalWidth() && m.getPhysicalHeight() == cur.getPhysicalHeight() && m.getRefreshRate() > mejor.getRefreshRate()) mejor = m;
+            WindowManager.LayoutParams lp = w.getAttributes(); lp.preferredDisplayModeId = mejor.getModeId(); w.setAttributes(lp);
+        } catch (Throwable t) { }
     }
 
     @Override protected void onResume() { super.onResume(); Actualizar.alVolver(this); }

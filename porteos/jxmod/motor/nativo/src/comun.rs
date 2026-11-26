@@ -1509,13 +1509,14 @@ impl Juego {
     /// lo que tardó el cuadro entero (ms, con la espera a la pantalla) y los cuadros por segundo
     pub fn medir(&mut self, ms: f32) {
         self.ms = if self.cuenta == 0 { ms } else { self.ms * 0.9 + ms * 0.1 }; self.cuenta += 1; self.n_med += 1;
-        // (la resolución dinámica: cada cuarto de segundo, si el cuadro tarda más que el de 45 por segundo, menos píxeles —lo que
-        // cuesta va con el cuadrado de la escala—; si sobra, de a poco hasta la elegida. En pasos de 5 %, entre 55 % y 100 %)
+        // (la resolución dinámica: cada cuarto de segundo, si el cuadro tarda más que el de la pantalla —60, 90 o 120 por segundo;
+        // como mucho 90—, menos píxeles —lo que cuesta va con el cuadrado de la escala—; si sobra, de a poco hasta la elegida.
+        // En pasos de 5 %, entre 50 % y 100 %)
         if self.aj.dinamica && self.mapa.is_some() && !self.ini.abierto && !self.recargar {
             self.drs_t += ms;
             if self.drs_t >= 250.0 {
-                self.drs_t = 0.0; let obj = 1000.0 / 45.0;
-                if self.ms > obj * 1.06 { self.drs = ((self.drs * (obj / self.ms).sqrt().max(0.85) * 20.0).floor() / 20.0).max(0.55); }
+                self.drs_t = 0.0; let obj = 1000.0 / self.refresco.clamp(45.0, 90.0);
+                if self.ms > obj * 1.06 { self.drs = ((self.drs * (obj / self.ms).sqrt().max(0.85) * 20.0).floor() / 20.0).max(0.5); }
                 else if self.ms < obj * 0.78 { self.drs = (((self.drs + 0.05) * 20.0).round() / 20.0).min(1.0); }
             }
         } else if !self.aj.dinamica { self.drs = 1.0; }
