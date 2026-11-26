@@ -84,7 +84,7 @@ fn indice_gma(b: &[u8]) -> Option<Vec<String>> {
     Some(v)
 }
 /// la malla de una pieza para el motor (gmMallaNueva: 14 bytes por vértice, la UV de la luz aparte, los índices por parte)
-fn malla_de(id: i64, pz: &Pieza, lm: Option<(&bsp::Atlas, i64)>, mat: &dyn Fn(MatRef) -> Option<i64>, datos: &mut Vec<u8>) -> Option<(Malla, Vec<(u32, u32, i64)>, [f32; 4])> {
+pub(super) fn malla_de(id: i64, pz: &Pieza, lm: Option<(&bsp::Atlas, i64)>, mat: &dyn Fn(MatRef) -> Option<i64>, datos: &mut Vec<u8>) -> Option<(Malla, Vec<(u32, u32, i64)>, [f32; 4])> {
     let n = pz.p.len(); if n == 0 { return None; }
     let (mut mn, mut mx) = ([f32::MAX; 3], [f32::MIN; 3]); for v in &pz.p { for k in 0..3 { mn[k] = mn[k].min(v[k]); mx[k] = mx[k].max(v[k]); } }
     let sc = [(mx[0] - mn[0]).max(1e-5), (mx[1] - mn[1]).max(1e-5), (mx[2] - mn[2]).max(1e-5)];

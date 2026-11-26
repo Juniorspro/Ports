@@ -43,7 +43,7 @@ pub fn nombre_skin(s: &str) -> Option<&'static str> {
 /// skinNom: el nombre que se ve
 pub fn skin_nom(s: &str) -> String { nombre_skin(s).map(String::from).unwrap_or_else(|| s.to_string()) }
 /// los mapas base con nombre propio (IDS_MAPAS, en castellano: la nativa está en castellano)
-pub const MAPAS: [(&str, &str); 8] = [("Desert", "Cañadón Ocre"), ("DesertV2", "Médanos"), ("FlatGrass", "Pradera"), ("City", "Distrito Norte"), ("Base", "Hangar 7"), ("BaseV2", "Polo Industrial"), ("Mars", "Planeta Rojo"), ("Space", "Órbita")];
+pub const MAPAS: [(&str, &str); 9] = [("JX_Plaza", "JX Plaza"), ("Desert", "Cañadón Ocre"), ("DesertV2", "Médanos"), ("FlatGrass", "Pradera"), ("City", "Distrito Norte"), ("Base", "Hangar 7"), ("BaseV2", "Polo Industrial"), ("Mars", "Planeta Rojo"), ("Space", "Órbita")];
 pub fn nombre_mapa(m: &str) -> String { MAPAS.iter().find(|x| x.0 == m).map(|x| x.1.to_string()).unwrap_or_else(|| m.to_string()) }
 
 fn hex(h: &str) -> [f32; 3] { [1, 3, 5].map(|i| u8::from_str_radix(&h[i..i + 2], 16).unwrap_or(0) as f32) }

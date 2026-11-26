@@ -53,6 +53,8 @@ use herramientas::{Herramientas, Logica, Valor};
 #[path = "musica_juego.rs"] pub mod musica_juego;
 // (los botones de las teclas de las armas de los mods: controles.js y acciones.js)
 #[path = "teclas_mod.rs"] pub mod teclas_mod;
+// (los mapas propios con las texturas de GMod: JX_Plaza)
+#[path = "mapas_jx.rs"] pub mod mapas_jx;
 // (el pad de memes: memes.js)
 #[path = "memes_juego.rs"] pub mod memes_juego;
 // (la partida en el Wi-Fi: lan.js)
@@ -361,6 +363,8 @@ impl Juego {
         if let Some(p) = &j.paq { if let Some(e) = p.d["esc"].as_object() {
             let mut v: Vec<String> = e.keys().cloned().collect(); v.sort_by_key(|n| (!n.starts_with("RB_"), n != "RB_Flatgrass", n.clone()));
             if !v.is_empty() { j.mapas = v; }
+            // (los propios con las texturas de GMod: mapas_jx.rs)
+            for (k, _) in mapas_jx::MAPAS_JX { if !j.mapas.iter().any(|x| x == k) { j.mapas.push(k.to_string()); } }
             let ult = j.datos.as_ref().and_then(|d| std::fs::read_to_string(d.join("mapa.txt")).ok()).unwrap_or_default();
             j.mapa_i = j.mapas.iter().position(|m| *m == ult.trim()).unwrap_or(0);
         } }
@@ -882,7 +886,7 @@ impl Juego {
         let nom = |k: String| paq.d["rbp"][&k][0].as_str().map(String::from);
         let mapa: Vec<String> = self.mapas.get(self.mapa_i).and_then(|m| nom(format!("m_{m}"))).into_iter().collect();
         let mut mapa = mapa;
-        if self.mapas.get(self.mapa_i).map(|m| m.starts_with("WS_")).unwrap_or(false) && self.gmod.lib.is_none() {
+        if self.mapas.get(self.mapa_i).map(|m| m.starts_with("WS_") || m.starts_with("JX_")).unwrap_or(false) && self.gmod.lib.is_none() {
             if let Some(l) = self.gmod.lector_rb.as_ref() { mapa.extend(gmod_juego::gmod_base_archivos_lib(l).into_iter().filter(|n| !b.disponible(n))); }
         }
         let skin: Vec<String> = nom(format!("s_{}", self.skin)).into_iter().collect();
@@ -899,7 +903,7 @@ impl Juego {
         unsafe { m.vaciar(); }
         self.mapas_vaciado();
         let Some(paq) = self.paq.as_mut() else { return };
-        match if nombre.starts_with("WS_") { self.mapa_ws(m, nombre) } else { mapa::armar(paq, nombre, 1024, 750.0) } {
+        match if nombre.starts_with("WS_") { self.mapa_ws(m, nombre) } else if nombre.starts_with("JX_") { self.mapa_jx(m, nombre) } else { mapa::armar(paq, nombre, 1024, 750.0) } {
             Ok(mp) => {
                 if let Err(e) = unsafe { m.cargar(&mp.esc) } { self.aviso = Some((format!("mapa {nombre}: {e}"), Instant::now())); }
                 let sp = mp.spawns.first().map(|s| s.0).unwrap_or([0.0, 1.0, 0.0]);

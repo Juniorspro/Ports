@@ -108,3 +108,7 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | evento.js | ◐ (la grieta en el cielo de los mapas del juego —la misma forma, las vetas y el resplandor horneados igual que la web, píxel a píxel, con el tono de la web sobre el cielo del juego— en el pase del cielo del motor, y las caídas: de 1 a 6 cada 100 a 260 s, con estela de fuego y humo, luz, silbido, golpe con polvo y temblor, la cosa de verdad o la explosión, las 12 últimas. Falta: el pulso que corre por las vetas y el parpadeo de las líneas —quedan quietos—, y en una sala no caen: el reparto por la red no está) | nativo/grieta_juego.rs |
 | ev300*.js (evento terminado) | — | |
 | ios.js, suelto.js, inflar.js | — | sólo de la web |
+
+## Mapas propios con las texturas de GMod (nativa)
+
+`nativo/src/mapas_jx.rs`: mapas armados en código con los materiales de HL2/GMod de la biblioteca (`gm_material`), UV en metros como Hammer, todo choca, cielo pintado y luz como los del Workshop. JX_Plaza: dos calles en cruz con veredas, plaza de baldosas con tarima de cuadros y bancos, cinco edificios (fachadas de HL2, puerta, interior de revoque y baldosas), un galpón de chapa con cajas, rampas de madera, un caño de concreto y paredes de roca alrededor. Necesita la biblioteca de GMod (se baja antes, como los mapas del Workshop).
