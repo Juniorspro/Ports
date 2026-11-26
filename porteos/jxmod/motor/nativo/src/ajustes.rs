@@ -57,7 +57,7 @@ impl Default for Ajustes {
 
 /// lo que se puede tocar en el menú, un renglón cada uno
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Clave { Calidad, Res, Dinamica, Sombras, Ao, Reflejo, Retoque, Sens, Fov, Fps, Vol, Ambiente, Motor, Mapa, Hora, Ciclo, TamBotones, TamPalanca, Botones }
+pub enum Clave { Calidad, Res, Dinamica, Sombras, Ao, Reflejo, Retoque, Sens, Fov, Fps, Vol, Ambiente, Motor, Comparar, Mapa, Hora, Ciclo, TamBotones, TamPalanca, Botones }
 /// las pestañas del menú y sus renglones
 pub const PESTANAS: [&str; 6] = ["Gráficos", "Controles", "Sonido", "Motor", "Mapa", "Día"];
 pub fn claves(pestana: usize) -> &'static [Clave] {
@@ -65,7 +65,7 @@ pub fn claves(pestana: usize) -> &'static [Clave] {
         0 => &[Clave::Calidad, Clave::Res, Clave::Dinamica, Clave::Sombras, Clave::Ao, Clave::Reflejo, Clave::Retoque],
         1 => &[Clave::Sens, Clave::Fov, Clave::Fps, Clave::TamBotones, Clave::TamPalanca, Clave::Botones],
         2 => &[Clave::Vol, Clave::Ambiente],
-        3 => &[Clave::Motor],
+        3 => &[Clave::Motor, Clave::Comparar],
         5 => &[Clave::Hora, Clave::Ciclo],
         _ => &[Clave::Mapa],
     }
@@ -74,7 +74,7 @@ pub fn nombre(c: Clave) -> &'static str {
     match c {
         Clave::Calidad => "Calidad", Clave::Res => "Resolución", Clave::Dinamica => "Resolución dinámica", Clave::Sombras => "Sombras", Clave::Ao => "Oclusión ambiental", Clave::Reflejo => "Reflejos del agua",
         Clave::Retoque => "Retoque de color", Clave::Sens => "Sensibilidad", Clave::Fov => "Campo de visión", Clave::Fps => "Mostrar fps", Clave::Vol => "Volumen",
-        Clave::Ambiente => "Sonido del ambiente", Clave::Motor => "Motor", Clave::Mapa => "Mapa", Clave::Hora => "Hora", Clave::Ciclo => "Ciclo (2 horas por minuto)",
+        Clave::Ambiente => "Sonido del ambiente", Clave::Motor => "Motor", Clave::Comparar => "Comparar los motores", Clave::Mapa => "Mapa", Clave::Hora => "Hora", Clave::Ciclo => "Ciclo (2 horas por minuto)",
         Clave::TamBotones => "Tamaño de los botones", Clave::TamPalanca => "Tamaño de la palanca", Clave::Botones => "Botones de la pantalla",
     }
 }
@@ -139,6 +139,8 @@ impl Ajustes {
             // (el primero abre el editor —lo hace el juego—; el segundo vuelve todo a como viene)
             Clave::Botones => vec!["Mover y agrandar".into(), "De fábrica".into()],
             Clave::Motor | Clave::Mapa => vec![],
+            // (la comparación de FPS entre los motores: la arranca el juego, banco_juego.rs)
+            Clave::Comparar => vec!["Empezar".into()],
         }
     }
     /// cuál está elegido en un renglón (ninguno si el valor guardado no es uno de la lista)
@@ -151,7 +153,7 @@ impl Ajustes {
             Clave::Retoque => Some(self.retoque as usize), Clave::Fps => Some(self.fps as usize), Clave::Ambiente => Some(self.ambiente as usize),
             Clave::Hora => HORAS.iter().position(|h| h.1 == self.hora), Clave::Ciclo => Some(self.ciclo as usize),
             Clave::TamBotones => pos(&TAM_HUD, self.hud), Clave::TamPalanca => pos(&TAM_PAL, self.pal),
-            Clave::Motor | Clave::Mapa | Clave::Botones => None,
+            Clave::Motor | Clave::Mapa | Clave::Botones | Clave::Comparar => None,
         }
     }
     /// elige el valor `k` de un renglón (tocar algo de la calidad a mano la deja en «Personal»)
@@ -171,7 +173,7 @@ impl Ajustes {
             Clave::TamBotones => self.hud = toma(&TAM_HUD), Clave::TamPalanca => self.pal = toma(&TAM_PAL),
             // (De fábrica: los lugares, el tamaño y la palanca como vienen —hudFab de la web—)
             Clave::Botones => if k == 1 { self.hud_pos.clear(); self.hud = 80; self.pal = 100; },
-            Clave::Motor | Clave::Mapa => {}
+            Clave::Motor | Clave::Mapa | Clave::Comparar => {}
         }
         // (si lo tocado a mano coincide con una calidad entera, vuelve a ser esa)
         if self.calidad == PERSONAL {

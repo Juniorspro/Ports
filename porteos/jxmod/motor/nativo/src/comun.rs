@@ -47,6 +47,8 @@ use herramientas::{Herramientas, Logica, Valor};
 #[path = "contenido_juego.rs"] pub mod contenido_juego;
 // (los gráficos automáticos: gfxauto.js)
 #[path = "gfx_juego.rs"] pub mod gfx_juego;
+// (la comparación de FPS entre los motores: banco.js)
+#[path = "banco_juego.rs"] pub mod banco_juego;
 // (el pad de memes: memes.js)
 #[path = "memes_juego.rs"] pub mod memes_juego;
 // (la partida en el Wi-Fi: lan.js)
@@ -274,6 +276,8 @@ pub struct Juego {
     // —— el sonido (como sonidos.js): pasos, golpes, agua, botones ——
     /// los ajustes (ajustes.txt) y la pestaña del menú de Ajustes, si está abierto (el juego queda en pausa)
     pub aj: Ajustes, pub ajustes: Option<usize>,
+    /// la comparación de los motores (banco_juego.rs)
+    pub banco: banco_juego::EnBanco,
     /// el panel de Actitud de la Tool Gun (npcPanel), la actitud y el personaje de los NPC que se pongan con ella
     pub npc_panel: Option<PanelNpc>, pub npc_act: Option<npc::Actitud>, pub npc_skin: String,
     /// el multijugador (red_juego.rs)
@@ -344,7 +348,7 @@ impl Juego {
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
             npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
-            her: Herramientas::default(), en_red, gmod, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), ed: hud_web::Editor::default(), tut: Default::default(), gr: Default::default(), cont: Default::default(), poner_congelado: false, pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
+            her: Herramientas::default(), en_red, gmod, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), banco: Default::default(), ed: hud_web::Editor::default(), tut: Default::default(), gr: Default::default(), cont: Default::default(), poner_congelado: false, pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
             armas_ico: false, armas_ico_h: 256, hud_ico: false, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         // los mapas: todos los de la web (DATA.esc), primero los RB (los de la versión personal); empieza en el último elegido
@@ -394,6 +398,7 @@ impl Juego {
     pub fn dedo_abajo(&mut self, id: i32, x: f32, y: f32, w: f32, h: f32) {
         // (mientras se miden los gráficos está la pantalla de carga: no se toca nada)
         if self.gfxa.midiendo() { return; }
+        if self.banco_activo() { self.banco_toque(x, y, w, h); return; }
         if self.ed.activo { self.ed_abajo(id, x, y, w, h); return; }
         if self.tut.on { self.tut_toque(x, y, w, h); return; }
         self.dedos.retain(|d| d.id != id);
@@ -822,6 +827,7 @@ impl Juego {
                     self.sonido.tocar("Click", 0.5, 1.0, None);
                     match c {
                         Clave::Motor => self.elegir_motor(k),
+                        Clave::Comparar => self.banco_empezar(),
                         Clave::Botones if k == 0 => self.ed_abrir(),
                         Clave::Mapa => { if k != self.mapa_i { self.mapa_i = k; self.recargar = true; self.ajustes = None; if let Some(d) = &self.datos { let _ = std::fs::write(d.join("mapa.txt"), &self.mapas[k]); } } }
                         _ => { self.aj.elegir(*c, k); if let Some(d) = &self.datos { let _ = std::fs::write(d.join("ajustes.txt"), self.aj.texto()); } }
@@ -943,6 +949,7 @@ impl Juego {
         }
         let ahora = Instant::now(); let dt = self.dt_fijo.unwrap_or((ahora - self.t_ant).as_secs_f32().min(0.1)); self.t_ant = ahora; self.perf_t = ahora;
         self.gfx_auto(placa_txt, w, h);
+        self.banco_paso();
         let (wf, hf) = (w as f32, h as f32);
         // la física del jugador, a paso fijo (como mucho 12 pasos por cuadro: si el teléfono se traba, no se acumula)
         let ent = self.entrada(wf, hf);
@@ -1465,6 +1472,7 @@ impl Juego {
             if ta.elapsed().as_secs_f32() < 4.0 { let c = hud_web::css(wf, hf); let tt = 13.0 * c * 1.15; let an = l.ancho(tt, a); let (px, py) = (14.0 * c, 6.0 * c); let y = hf * 0.22;
                 l.caja(&mut u, (wf - an) / 2.0 - px, y, an + 2.0 * px, tt * 1.25 + 2.0 * py, 4.0 * c, [0.0, 0.0, 0.0, 0.55]); l.texto(&mut u, (wf - an) / 2.0, y + py + tt * 0.1, tt, bl, a); }
         }
+        self.banco_hud(l, &mut u, wf, hf);
         if let Some(e) = &self.error {
             let tt = t * 0.75; let mut y = hf * 0.3; let ancho = wf * 0.8;
             l.caja(&mut u, wf * 0.08, y - tt, wf * 0.84, tt * 2.0 + tt * 1.3 * (1.0 + (l.ancho(tt, e) / ancho).ceil()), tt * 0.6, [0.35, 0.0, 0.0, 0.85]);

@@ -91,7 +91,7 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | musica.js, fondovideo.js, milogo.js, iconoapp.js | ✘ | (el fondo del inicio usa las fotos de las escenas, no el video) |
 | camlibre.js | ✔ | nativo/jugabilidad.rs |
 | cajanegra.js | ✔ | nativo/caja_negra.rs: el latido de cada cuadro y los pasos riesgosos (abrir un motor, armar un mapa, montar un addon); si pasan 10 s sin cuadros con la app a la vista queda escrito trabado.txt y la próxima vez que abre se muestra, como los errores (que ahora también llevan lo último que hacía) |
-| banco.js | ✘ | |
+| banco.js | ✔ | nativo/banco_juego.rs (Opciones → Motor → Comparar los motores): cada motor —Vulkan, OpenGL 3, OpenGL 2— se abre en la misma ventana, 3 s para asentarse y 12 s midiendo con la cámara dando una vuelta, con la calidad elegida (Alto si es Automático) y sin la resolución dinámica; vuelve al de antes y muestra la tabla con «Usar» el más rápido |
 
 ## Lo demás
 | web | estado | nativa |

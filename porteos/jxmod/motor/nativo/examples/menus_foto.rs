@@ -152,6 +152,12 @@ fn main() {
             if let Some((r, _)) = j.ini.pn.zonas.iter().find(|z| z.1 == jxmod::comun::paneles_juego::Acc::Empezar).cloned() { let (x, y) = centro(r); j.dedo_abajo(7, x, y, wf, hf); paso(&mut j, &mut m, 1); j.dedo_arriba_en(7, wf, hf);
                 paso(&mut j, &mut m, 1); foto(&mut m, "carga"); }
             paso(&mut j, &mut m, 90); foto(&mut m, "juego");
+            // (JXM_BANCO=1: la tabla de la comparación de motores, con números de ejemplo —acá no se cambia de motor—)
+            if std::env::var("JXM_BANCO").is_ok() {
+                use jxmod::comun::Placa;
+                j.banco.fin = Some(vec![(Placa::Vulkan, Some((38.4, 26.0))), (Placa::Gl3, Some((47.9, 20.9))), (Placa::Gl2, None)]);
+                paso(&mut j, &mut m, 2); foto(&mut m, "banco"); j.banco.fin = None;
+            }
             let (cx, cy, _) = jxmod::comun::pausa_juego::boton_pausa(wf, hf); tocar(&mut j, &mut m, cx, cy); paso(&mut j, &mut m, 30); foto(&mut m, "pausa");
             // (Personaje desde la pausa, y volver; después «Salir al menú»)
             let zona = |j: &Juego, p: jxmod::comun::pausa_juego::Pz| j.ini.pz_zona(p);
