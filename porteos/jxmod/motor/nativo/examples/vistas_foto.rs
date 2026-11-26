@@ -96,6 +96,12 @@ fn main() {
             let mut n = 0; while !j.gi_listo() && n < 400 { paso(&mut j, &mut m, 1); n += 1; }
             println!("  luz global lista: {} ({} cuadros)", j.gi_listo(), n);
             for (k, dy) in [0.0f32, 1.57, 3.14, 4.71].iter().enumerate() { j.poner_ojos(p, y0 + dy, -0.1); paso(&mut j, &mut m, np); foto(&mut m, &format!("i_{k}")); }
+            // (JXM_REFL_RUMBOS: el reflejo del piso, mirando para 16 lados un poco hacia abajo, ahí y en la aparición)
+            if std::env::var_os("JXM_REFL_RUMBOS").is_some() { for (nom, q) in [("adentro", p), ("aparición", [p0[0], p0[1] + 0.7, p0[2]])] {
+                let mut si = 0; let mut no = vec![];
+                for k in 0..16 { let yaw = k as f32 * std::f32::consts::TAU / 16.0; j.poner_ojos(q, yaw, -0.35); paso(&mut j, &mut m, 3); if m.piso_refleja().is_some() { si += 1; } else { no.push(k); } }
+                println!("  reflejo del piso {nom}: {si}/16 rumbos · sin reflejo en {:?}", no);
+            } }
         } else { println!("  (no se encontró un interior)"); }
     } }
     if std::env::var_os("JXM_GI_FUGAS").is_some() { if let Some(mp) = j.mapa.as_ref() { gi_fugas(&mp.mundo, mp.luz.sol, p0); return; } }

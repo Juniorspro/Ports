@@ -52,6 +52,9 @@ pub const GV: &str = "@group(0) @binding(0) var<uniform> G: Glob;\n";
 pub const LUZ: &str = r#"
 @group(0) @binding(1) var t_sombra: texture_depth_2d;
 @group(0) @binding(2) var s_cmp: sampler_comparison;
+// (Definitivo: el reflejo del piso —lo de arriba espejado—; G.extra.y prendido y .z la altura del piso; G.sesgo2.zw: 1/ancho,
+// 1/alto de la escena)
+@group(0) @binding(3) var t_rpiso: texture_2d<f32>;
 struct Obj { mn: vec4<f32>, sc: vec4<f32>, st: vec4<f32>, c: vec4<f32>, em: vec4<f32>, mat: vec4<f32>, s1: vec4<f32>, s3: vec4<f32>, ti: vec4<f32>, ti2: vec4<f32>, ti3: vec4<f32> };
 @group(1) @binding(0) var<uniform> O: Obj;
 @group(2) @binding(0) var t_t: texture_2d<f32>;
@@ -149,7 +152,7 @@ fn luz_color(i: VOut, ff: bool) -> vec4<f32> {
     let cu = mix(t.rgb, vec3<f32>(lu) * O.ti.xyz, O.ti.w); let ac = mix(t.rgb, vec3<f32>(lu) * O.ti2.xyz, O.ti2.w);
     t = vec4<f32>(mix(cu, ac, kA), t.a); emAc = ac * kA * O.ti3.xyz;
   } else if (O.ti.w > 0.0) { t = vec4<f32>(mix(t.rgb, vec3<f32>(dot(t.rgb, vec3<f32>(0.299, 0.587, 0.114))) * O.ti.xyz, O.ti.w), t.a); }
-  var col: vec3<f32>;
+  var col: vec3<f32>; var rk = 0.0; var rr = 1.0;
   if ((modo & 4) != 0) { col = dec3(t.rgb) * 1.4; }   // (sin luz)
   else {
     let alb = dec3(t.rgb); var ng = normalize(i.n); if (!ff) { ng = -ng; }
@@ -182,6 +185,8 @@ fn luz_color(i: VOut, ff: bool) -> vec4<f32> {
     let hor = clamp(1.0 + 1.3 * dot(rf, ng), 0.0, 1.0); env = env * hor * hor;
     let q1 = 1.0 - nv; let q2 = q1 * q1; let Fr = f0 + (max(vec3<f32>(1.0 - rough), f0) - f0) * (q2 * q2 * q1);
     col += dif * amb * 0.82 + env * Fr * mix(1.0, sh * 0.6 + 0.4, metal) + O.em.xyz * 1.6;
+    // (el reflejo del piso, como OpenGL 3: en lo plano a esa altura; también los pisos ásperos —borroso, más de costado—)
+    if (G.extra.y > 0.5 && ng.y > 0.94 && abs(i.w.y - G.extra.z) < 0.08) { let fr = 1.0 - nv; let fr2 = fr * fr; rk = smoothstep(0.82, 0.3, min(rough, 0.68)) * mix(0.3, 1.0, fr2 * fr2); rr = rough; }
   }
   col += emAc;
   // la niebla (hasta cuánto tapa, la luz del sol en ella mirando para el sol y la de lo lejos y bajo)
@@ -190,7 +195,13 @@ fn luz_color(i: VOut, ff: bool) -> vec4<f32> {
   let vd = (i.w - G.cam.xyz) / dist; let sd = max(dot(vd, G.sol.xyz), 0.0); let sd2 = sd * sd; let nc = G.nie_c.xyz + G.nie_s.xyz * (sd2 * sd2 * sd2);
   f = 1.0 - (1.0 - f) * exp(-max(0.0, dist - 20.0) * 0.0006 * exp(-max(i.w.y - G.cam.y + 5.0, 0.0) * 0.02));
   col = mix(col, nc, f);
-  return vec4<f32>(enc3(aces(col * G.cam.w)) + (ign(i.pos.xy) - 0.5) / 255.0, t.a);
+  var fin = enc3(aces(col * G.cam.w));
+  if (rk > 0.0) {
+    let q = i.pos.xy * G.sesgo2.zw; let d2 = G.sesgo2.zw * (1.5 + 9.0 * rr);
+    let r = 0.25 * (textureSampleLevel(t_rpiso, s_cla, q + d2, 0.0).rgb + textureSampleLevel(t_rpiso, s_cla, q - d2, 0.0).rgb + textureSampleLevel(t_rpiso, s_cla, q + vec2<f32>(d2.x, -d2.y), 0.0).rgb + textureSampleLevel(t_rpiso, s_cla, q - vec2<f32>(d2.x, -d2.y), 0.0).rgb);
+    fin = mix(fin, r, rk * (1.0 - f));
+  }
+  return vec4<f32>(fin + (ign(i.pos.xy) - 0.5) / 255.0, t.a);
 }
 // (con descarte —el reflejo: sólo lo de arriba del agua; lo recortado— y sin: un sombreador que puede descartar obliga a
 // probar la profundidad después de pintar, y entonces se pinta también lo tapado; lo opaco entero va con fs_luz_op)

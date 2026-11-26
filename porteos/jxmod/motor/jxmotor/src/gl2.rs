@@ -82,16 +82,18 @@ float pcf(vec3 q, float k, float sesgo) {
   float s01 = step(z, desem(texture2D(uSom, b + vec2(0.0, d)))), s11 = step(z, desem(texture2D(uSom, b + vec2(dx, d))));
   return mix(mix(s00, s10, f.x), mix(s01, s11, f.x), f.y);
 }
-float sombraLejos() {
+float sombraLejos(float inc) {
   vec3 q = vS2.xyz / vS2.w * 0.5 + 0.5; vec2 e = abs(q.xy - 0.5) * 2.0; float borde = smoothstep(0.85, 0.98, max(e.x, e.y));
   if (borde >= 1.0 || q.z >= 1.0) return 1.0;
-  return mix(pcf(q, 1.0, uSomP2.x), 1.0, borde);
+  return mix(pcf(q, 1.0, uSomP2.x * inc), 1.0, borde);
 }
-float sombra() {
+// (inc: el sesgo crece con lo de costado que le da el sol —como OpenGL 3—, en vez de apagar la sombra ahí: así lo que está a
+// la sombra de un techo sigue a la sombra aunque el sol le llegue de costado)
+float sombra(float inc) {
   if (uSomP.z < 0.5) return 1.0;
   vec3 q = vS.xyz / vS.w * 0.5 + 0.5; vec2 e = abs(q.xy - 0.5) * 2.0; float g = max(e.x, e.y);
-  if (g < 0.97 && q.z < 1.0) { float s0 = pcf(q, 0.0, uSomP.y), k = smoothstep(0.8, 0.97, g); return k > 0.0 ? mix(s0, sombraLejos(), k) : s0; }
-  return sombraLejos();
+  if (g < 0.97 && q.z < 1.0) { float s0 = pcf(q, 0.0, uSomP.y * inc), k = smoothstep(0.8, 0.97, g); return k > 0.0 ? mix(s0, sombraLejos(inc), k) : s0; }
+  return sombraLejos(inc);
 }
 #ifdef CLIP
 // (el reflejo del agua: lo de abajo del agua no se refleja)
@@ -183,7 +185,7 @@ void main() {
 #ifdef CLIP
   if (dot(vec4(vW, 1.0), uClip) < 0.0) discard;
 #endif
-  vec4 t; float rk = 0.0;
+  vec4 t; float rk = 0.0; vec2 rOnd = vec2(0.0);
   if (uBan.x > 0.5) { vec4 kc = texture2D(uT, vU); t = vec4(texture2D(uT1, vU * uS1.xy).rgb * kc.r + texture2D(uT2, vU * uS1.zw).rgb * kc.g + texture2D(uT3, vU * uS3).rgb * kc.b, 1.0); }
   else if (uBan.y > 0.5) t = mix(texture2D(uT, vU), texture2D(uT1, vU), clamp(vMz, 0.0, 1.0));
   else t = texture2D(uT, vU);
@@ -212,12 +214,13 @@ void main() {
     if (lm) {
       // (la luz horneada del mapa ya trae sus sombras: la del sol sólo oscurece lo que en ella estaba al sol —lo que se
       // mueve, los props—; adentro y a la sombra horneada no se oscurece dos veces)
-      lmL = dec(texture2D(uLM, vL).rgb) * 4.0; if (uNubes.x > 0.5) lmL = nublado(lmL); sh = sombra();
+      lmL = dec(texture2D(uLM, vL).rgb) * 4.0; if (uNubes.x > 0.5) lmL = nublado(lmL); sh = sombra(1.0);
       col = dif * lmL * (1.0 - 0.55 * (1.0 - sh) * smoothstep(0.5, 1.4, dot(lmL, vec3(0.2126, 0.7152, 0.0722))));
     } else {
-      // (con el sol casi de costado la sombra de una placa sobre sí misma —el «acné»— se ve como pelos: ahí se desvanece)
-      float nl = dot(n, uSol);
-      sh = nl > 0.0 ? mix(1.0, sombra(), smoothstep(0.05, 0.35, nl)) : 0.0;
+      // (con el sol casi de costado la sombra de una placa sobre sí misma —el «acné»— se ve como pelos: ahí el sesgo crece y la
+      // luz se apaga suave en el borde; antes la sombra se desvanecía hacia la luz y lo de adentro de una casa se iluminaba)
+      float nl = dot(n, uSol), ng0 = max(dot(ng, uSol), 0.0);
+      sh = nl > 0.0 && ng0 > 0.0 ? sombra(1.0 + 2.0 * (1.0 - ng0)) * smoothstep(0.0, 0.08, ng0) : 0.0;
       col = brdf(n, v, uSol, dif, f0, a) * uSolC * sh;
       if (fol) { float tr = max(dot(-v, uSol), 0.0); tr *= tr; col += dif * uSolC * (tr * tr) * 0.6 * sh; }
     }
@@ -226,10 +229,12 @@ void main() {
       float k = causticas(vW.xz * 1.1 + uSol.xz * hondo * 0.6, uCaus.z * 0.9) * exp(-hondo * 0.18) * smoothstep(0.0, 0.35, hondo) * (0.3 + 0.7 * max(n.y, 0.0)) * uCaus.y;
       col += dif * uSolC * k * (lm ? 0.3 : 0.15 + 0.4 * sh);
     }
-    if (uRP.z > 0.5 && n.y > 0.94 && abs(vW.y - uRP.w) < 0.08) {
+    if (uRP.z > 0.5 && ng.y > 0.94 && abs(vW.y - uRP.w) < 0.08) {
       float fr = 1.0 - max(dot(n, v), 0.0); fr *= fr;
       // (Definitivo: como con trazado de rayos, también los pisos ásperos reflejan —borroso, más de costado—)
       rk = smoothstep(0.82, 0.3, uNubes.x > 0.5 ? min(rough, 0.68) : rough) * mix(0.3, 1.0, fr * fr) * uRP.z;
+      // (el relieve del material ondula el reflejo, como un piso mojado de HL2)
+      rOnd = (n.xz - ng.xz) * 0.06;
     }
     for (int i = 0; i < 4; i++) {
       if (float(i) >= uLN) break;
@@ -261,7 +266,7 @@ void main() {
   col = mix(col, nc, f);
   vec3 fin = enc(aces(col * uExpo));
   if (rk > 0.0) {
-    vec2 q = gl_FragCoord.xy * uRP.xy, o = uRP.xy * (1.5 + 9.0 * uMat.x);
+    vec2 q = gl_FragCoord.xy * uRP.xy + rOnd, o = uRP.xy * (1.5 + 9.0 * uMat.x);
     vec3 r = (texture2D(uR, q + vec2(o.x, o.y)).rgb + texture2D(uR, q - vec2(o.x, o.y)).rgb + texture2D(uR, q + vec2(o.x, -o.y)).rgb + texture2D(uR, q - vec2(o.x, -o.y)).rgb) * 0.25;
     fin = mix(fin, r, rk * (1.0 - f));
   }
@@ -269,7 +274,7 @@ void main() {
   // es la máscara del cielo de los rayos del sol (el cielo deja 0) y hasta dónde va la luz en el aire—)
   gl_FragColor = vec4(retoque(fin) + (ign(gl_FragCoord.xy) - 0.5) / 255.0, uBan2.z > 0.5 ? t.a : (uAlfaD > 0.5 ? clamp(dist / 64.0, 1.0 / 255.0, 1.0) : 1.0));
 #ifdef VER_SOMBRA
-  gl_FragColor = vec4(vec3(sombra()), 1.0);
+  gl_FragColor = vec4(vec3(sombra(1.0)), 1.0);
 #endif
 }"#;
 // la caja de la oclusión: sólo se prueba contra la profundidad
@@ -627,6 +632,8 @@ pub const PART_V2: usize = 11;
 const PART_MAX2: usize = 16383;
 /// lo más áspero que todavía refleja el piso (el sombreador lo apaga del todo en 0,82)
 const BRILLO_PISO: f32 = 0.72;
+/// el agua a la vista más lejos que esto (m, de lado) no le quita el reflejo al piso (Definitivo)
+const AGUA_LEJOS: f32 = 10.0;
 
 const U_LUZ: [&str; 39] = ["uTam", "uBan", "uBan2", "uTi", "uTi2", "uTi3", "uVP", "uM", "uMn", "uSc", "uSt", "uT", "uT1", "uT2", "uT3", "uLM", "uS1", "uS3", "uC", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNieS", "uCam", "uEm", "uMat", "uNie", "uExpo", "uModo", "uLP", "uLC", "uLN", "uIVP", "uTop", "uMid", "uBot", "uExp"];
 const U_OTROS: [&str; 50] = ["uGI", "uGIo", "uGIn", "uAOk", "uProf", "uRadio", "uRay0", "uRayX", "uRayY", "uZl", "uFuerza", "uAO", "uOnd", "uOndN", "uCaus", "uCausB", "uEsc", "uAd", "uAdapta", "uNubes", "uBlo", "uBloomK", "uVol", "uAlfaD", "uCieloA", "uRay", "uRayK", "uRayP", "uTiene", "uCieloK", "uInv", "uRet", "uTinte", "uDia", "uCubo", "uN", "uF", "uH", "uS", "uTiempo", "uSolC", "uSuma", "uSVP", "uSom", "uSomP", "uClip", "uR", "uRP", "uSVP2", "uSomP2"];
@@ -727,6 +734,8 @@ pub struct Motor {
     cubo: Option<glow::Texture>,
     mallas: HashMap<i64, Malla2>, mats: HashMap<i64, Mat>, texs: HashMap<i64, Tex2>, lms: HashMap<i64, Tex2>, cielo: Option<Cielo>,
     pub c: Option<Cuadro>, items: Vec<ItemDin>, opacos: Vec<usize>, transp: Vec<usize>,
+    /// lo opaco aunque no esté en cámara: para la sombra del sol y los reflejos (el techo que no se ve igual hace sombra)
+    opacos_todos: Vec<usize>,
     uint32: bool, npot: bool,
     escena_rt: Option<(glow::Framebuffer, glow::Texture, glow::Renderbuffer, i32, i32)>,
     pub dibujos: u32, pub memoria: usize, pub mapa: String,
@@ -790,7 +799,7 @@ impl Motor {
             Some((HashMap::new(), pc, vb, ib))
         } else { None };
         Ok(Motor { gi_tex: None, gi_ver: -1.0, p_ao, ao_ahora: false, ao_prof: None, prof24: ext.contains("GL_OES_packed_depth_stencil") && std::env::var_os("JXM_GL2_PROF16").is_none(), escena_prof: None, ao_rt: None, p_adapta, adapta: None, hongos: crate::hongo::Hongos::nuevo(false), alta, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], vol_ahora: false, alfa_d: false, rayos_rt: None, rayos_ahora: None, som: None, som_vp: [mat::id(); 2], som_n: 0, som_on: false, som_off: [[0.0; 2]; 2], som_huella: [0; 2], refl_n: 0, p_som, p_som_c, p_prof_ao, som_ao: false, refl: None, refl_on: false, refl_activo: false, p_luz_r, p_luz_rc, refl_piso: None, refl_px: [0.0; 2], refl_ult: (mat::id(), f32::NAN), oclu, n_cuadro: 0, fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), gl, op, cubo: None, p_luz, p_luz_c, p_cielo, p_ui, p_copia, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), marcas_vb, marcas_n: 0, poses: vec![], poses_n: 0, pose_p: vec![], pose_v: vec![], marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
-            c: None, items: vec![], opacos: vec![], transp: vec![], uint32, npot, escena_rt: None, dibujos: 0, memoria: 0, mapa: String::new() })
+            c: None, items: vec![], opacos: vec![], opacos_todos: vec![], transp: vec![], uint32, npot, escena_rt: None, dibujos: 0, memoria: 0, mapa: String::new() })
     }
 
     /// una textura RGBA8 (con sus niveles si `mips`); si la placa no tiene texturas de lados que no son potencia de 2, se
@@ -900,14 +909,16 @@ impl Motor {
         self.items = std::mem::take(&mut c.items);
         // (las marcas llegan sólo cuando cambian: se suben en el próximo dibujo y quedan en su búfer)
         while let Some(i) = c.efectos.iter().position(|e| e.0 == EF_MARCAS) { self.marcas_nuevas = Some(c.efectos.remove(i).1); }
-        self.opacos.clear(); self.transp.clear(); self.aguas.clear();
+        self.opacos.clear(); self.transp.clear(); self.aguas.clear(); self.opacos_todos.clear();
         for (i, it) in self.items.iter().enumerate() {
             let (Some(_), Some(mt)) = (self.mallas.get(&it.m), self.mats.get(&it.mat)) else { continue };
+            if mt.agua == 0 && mt.blend == 0 && mt.add == 0 { self.opacos_todos.push(i); }
             if !mat::esfera_dentro(&pl, &it.esf) { continue; }
             if mt.agua != 0 { self.aguas.push(i) } else if mt.blend != 0 || mt.add != 0 { self.transp.push(i) } else { self.opacos.push(i) }
         }
         let (mats, items) = (&self.mats, &self.items);
         self.opacos.sort_by_key(|&i| { let it = &items[i]; (mats[&it.mat].t, it.m, it.mat) });
+        self.opacos_todos.sort_by_key(|&i| { let it = &items[i]; (mats[&it.mat].t, it.m, it.mat) });
         let d2 = |it: &ItemDin| { let e = it.esf; let (x, y, z) = (e[0] - c.pos[0], e[1] - c.pos[1], e[2] - c.pos[2]); x * x + y * y + z * z };
         self.transp.sort_by(|&a, &b| d2(&items[b]).partial_cmp(&d2(&items[a])).unwrap_or(std::cmp::Ordering::Equal));
         self.c = Some(c);
@@ -1016,7 +1027,7 @@ impl Motor {
             if !ondas.is_empty() { gl.uniform_4_f32_slice(p.u("uOnd"), &ondas); }
             gl.uniform_1_f32(p.u("uOndN"), (ondas.len() / 4) as f32);
             gl.active_texture(glow::TEXTURE0); gl.bind_texture(glow::TEXTURE_2D, Some(nt)); gl.uniform_1_i32(p.u("uN"), 0);
-            match (self.refl_on, self.refl.as_ref()) {
+            match (self.refl_on && self.refl_piso.is_none(), self.refl.as_ref()) {
                 (true, Some(r)) => { gl.active_texture(glow::TEXTURE1); gl.bind_texture(glow::TEXTURE_2D, Some(r.1)); gl.uniform_1_i32(p.u("uR"), 1); gl.active_texture(glow::TEXTURE0); gl.uniform_4_f32(p.u("uRP"), 1.0 / rw as f32, 1.0 / rh as f32, 1.0, 0.0); }
                 _ => gl.uniform_4_f32(p.u("uRP"), 0.0, 0.0, 0.0, 0.0),
             }
@@ -1364,7 +1375,9 @@ impl Motor {
             let (svp, off) = cascada2(c, s, r, px, k == 0);
             self.som_vp[k] = svp; self.som_off[k] = off;
             let pl = mat::planos(&svp);
-            let lista: Vec<usize> = self.opacos.iter().copied().filter(|&i| { let it = &self.items[i]; it.fl & FL_CIELO == 0 && mat::esfera_dentro(&pl, &it.esf) && self.mats.get(&it.mat).map_or(false, |m| m.unlit == 0) }).collect();
+            // (todo lo opaco que cae en el mapa de la sombra, esté o no en cámara: si no, el techo de una habitación que no se ve
+            // al mirar las paredes no hacía sombra y el sol las iluminaba por dentro)
+            let lista: Vec<usize> = self.opacos_todos.iter().copied().filter(|&i| { let it = &self.items[i]; it.fl & FL_CIELO == 0 && mat::esfera_dentro(&pl, &it.esf) && self.mats.get(&it.mat).map_or(false, |m| m.unlit == 0) }).collect();
             // (si no cambió nada —la misma matriz y lo mismo adentro, en el mismo lugar y pose— la mitad guardada sirve)
             let mut hu: u64 = 0xcbf29ce484222325; let mut mete = |x: u64| { hu ^= x; hu = hu.wrapping_mul(0x100000001b3); };
             for v in &svp { mete(v.to_bits() as u64); }
@@ -1506,12 +1519,19 @@ impl Motor {
         // (el plano: el agua si la hay y la cámara está arriba; si no, el piso de abajo de la cámara —si no está muy lejos—)
         let c = self.c.as_ref().unwrap();
         let agua = if self.aguas.is_empty() { None } else { c.agua_y.or(self.agua.as_ref().map(|a| a.y)).filter(|&ay| c.pos[1] >= ay + 0.05) };
-        let piso = if agua.is_some() || !self.op.reflejo_piso { None } else { c.suelo_y.filter(|&y| (0.2..25.0).contains(&(c.pos[1] - y))) };
-        // (y sólo si cerca y a la vista hay algo liso que cruza esa altura —las baldosas, el metal, lo que en Source tiene
-        // $envmap o $phong—: en un piso áspero no se vería y no se gasta)
+        let suelo = if !self.op.reflejo_piso { None } else { c.suelo_y.filter(|&y| (0.2..25.0).contains(&(c.pos[1] - y))) };
+        // (Definitivo: el agua a la vista pero lejos —la pileta por la ventana— con un piso de abajo que no es la orilla: el
+        // reflejo es del piso y el agua lejos refleja el cielo; si no, al girar y ver el agua el piso dejaba de reflejar)
+        let cp = c.pos;
+        let agua = agua.filter(|&ay| !(self.op.aaa && suelo.map_or(false, |sy| sy > ay + 0.3)
+            && self.aguas.iter().all(|&i| { let e = self.items[i].esf; ((e[0] - cp[0]).powi(2) + (e[2] - cp[2]).powi(2)).sqrt() - e[3] > AGUA_LEJOS })));
+        let piso = if agua.is_some() { None } else { suelo };
+        // (y sólo si cerca y a la vista hay algo que cruza esa altura; fuera de Definitivo, algo liso —las baldosas, el metal, lo
+        // que en Source tiene $envmap o $phong—: en un piso áspero no se vería y no se gasta. En Definitivo todo piso refleja
+        // —borroso si es áspero—: si no, el reflejo se apagaba al mirar para donde no había nada liso)
         let piso = piso.filter(|&y| { let pl = mat::planos(&c.vp); let cp = c.pos;
             self.opacos.iter().any(|&i| { let it = &self.items[i]; let e = it.esf;
-                e[3] > 0.0 && (e[1] - y).abs() < e[3] && self.mats.get(&it.mat).map_or(false, |m| m.pbr[0] < if self.op.aaa { 0.97 } else { BRILLO_PISO })
+                e[3] > 0.0 && (e[1] - y).abs() < e[3] && (self.op.aaa || self.mats.get(&it.mat).map_or(false, |m| m.pbr[0] < BRILLO_PISO))
                     && ((e[0] - cp[0]).powi(2) + (e[2] - cp[2]).powi(2)).sqrt() - e[3] < 50.0 && mat::esfera_dentro(&pl, &e) }) });
         let Some(ay) = agua.or(piso) else { return false };
         self.refl_px = [1.0 / rw as f32, 1.0 / rh as f32];
@@ -1551,7 +1571,8 @@ impl Motor {
         self.refl_activo = true;
         for p in [&self.p_luz_r, &self.p_luz_rc] { self.luces_en(p, &vp); self.gl.uniform_4_f32(p.u("uClip"), 0.0, 1.0, 0.0, -corte); }
         let pl = mat::planos(&vp); let lejos = if piso.is_some() { 110.0 } else { 160.0 };
-        let lista: Vec<usize> = self.opacos.iter().copied().filter(|&i| { let e = self.items[i].esf; self.items[i].fl & FL_CIELO == 0 && e[1] + e[3] > corte && mat::esfera_dentro(&pl, &e)
+        // (lo que se ve en el espejo, esté o no en cámara: el techo, lo que está detrás)
+        let lista: Vec<usize> = self.opacos_todos.iter().copied().filter(|&i| { let e = self.items[i].esf; self.items[i].fl & FL_CIELO == 0 && e[1] + e[3] > corte && mat::esfera_dentro(&pl, &e)
             && ((e[0] - cp[0]).powi(2) + (e[2] - cp[2]).powi(2)).sqrt() - e[3] < lejos }).collect();
         for i in self.de_cerca(&lista) { self.dibujar_item(i); }
         self.refl_activo = false;
@@ -1649,6 +1670,8 @@ impl Motor {
         gl.disable(glow::BLEND); gl.enable(glow::DEPTH_TEST);
     }
 
+    /// la altura del piso que se reflejó en el último cuadro (None: no hubo reflejo del piso)
+    pub fn piso_refleja(&self) -> Option<f32> { self.refl_piso.filter(|_| self.refl_on) }
     pub fn resumen(&self) -> String {
         format!("mapa {} · {} mallas · {} texturas · {} materiales · {:.1} MB en la placa · {} cosas ({} opacas, {} transparentes) · OpenGL ES 2",
             self.mapa, self.mallas.len(), self.texs.len(), self.mats.len(), self.memoria as f64 / 1e6, self.items.len(), self.opacos.len(), self.transp.len())

@@ -116,7 +116,7 @@ pub struct Motor {
     pool_mat: vk::DescriptorPool, g_mat: HashMap<ClaveMat, vk::DescriptorSet>,
     sombra: Option<(Img, vk::Framebuffer, i32)>,
     dest: Option<Destinos>,
-    svp: M4, sesgo: [f32; 2], svp2: M4, sesgo2: [f32; 2],
+    svp: M4, sesgo: [f32; 2], svp2: M4, sesgo2: [f32; 2], refl_piso: Option<f32>,
     /// (la huella de lo que dibujó cada cascada —su matriz y lo que tiene adentro—: si no cambió, la sombra guardada sirve)
     sombra_huella: [u64; 2],
     /// la oclusión: por cosa (su clave) si la última prueba la vio y en qué cuadro se probó; la caja (8 vértices, 36 índices)
@@ -193,7 +193,7 @@ impl Motor {
         use vk::DescriptorType as DT; use vk::ShaderStageFlags as SS;
         let (vf, fs) = (SS::VERTEX | SS::FRAGMENT, SS::FRAGMENT);
         let capas = Capas {
-            glob: lay(&[(0, DT::UNIFORM_BUFFER_DYNAMIC, vf), (1, DT::SAMPLED_IMAGE, fs), (2, DT::SAMPLER, fs)])?,
+            glob: lay(&[(0, DT::UNIFORM_BUFFER_DYNAMIC, vf), (1, DT::SAMPLED_IMAGE, fs), (2, DT::SAMPLER, fs), (3, DT::SAMPLED_IMAGE, fs)])?,
             glob_solo: lay(&[(0, DT::UNIFORM_BUFFER_DYNAMIC, vf)])?,
             obj: lay(&[(0, DT::UNIFORM_BUFFER_DYNAMIC, vf)])?,
             mat: lay(&[(0, DT::SAMPLED_IMAGE, fs), (1, DT::SAMPLED_IMAGE, fs), (2, DT::SAMPLED_IMAGE, fs), (3, DT::SAMPLED_IMAGE, fs), (4, DT::SAMPLED_IMAGE, fs), (5, DT::SAMPLER, fs), (6, DT::SAMPLER, fs)])?,
@@ -307,7 +307,7 @@ impl Motor {
             blanca: Img::nula(), cubo0: Img::nula(), prof0: Img::nula(),
             mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None, cubo: None, agua: None, agua_n: None, agua_p: None, aguas: vec![],
             pool_mat, g_mat: HashMap::new(), sombra: None, dest: None,
-            svp: mat::id(), sesgo: [0.0; 2], svp2: mat::id(), sesgo2: [0.0; 2], sombra_huella: [0; 2], oclu: HashMap::new(), caja: None, c: None, items: vec![], opacos: vec![], transp: vec![], marcas: vec![], marcas_ver: 0,
+            svp: mat::id(), sesgo: [0.0; 2], svp2: mat::id(), sesgo2: [0.0; 2], refl_piso: None, sombra_huella: [0; 2], oclu: HashMap::new(), caja: None, c: None, items: vec![], opacos: vec![], transp: vec![], marcas: vec![], marcas_ver: 0,
             cuadro: 0, dibujos: 0, memoria: 0, mapa: String::new(), placa, periodo, tiempos: vec![],
         };
         for cb in cbs {
@@ -701,7 +701,9 @@ impl Motor {
     unsafe fn destinos(&mut self, w: u32, h: u32) -> Result<(), String> {
         let ao_ok = self.dest.as_ref().map(|d| d.ao.is_some() == self.op.ao).unwrap_or(false);
         let con_agua = self.agua.is_some() && self.agua_n.is_some();
-        let agua_ok = self.dest.as_ref().map(|d| d.refr.is_some() == con_agua).unwrap_or(false);
+        // (el reflejo: el del agua o, en Definitivo, el del piso)
+        let con_refl = con_agua || (self.op.aaa && self.op.reflejo);
+        let agua_ok = self.dest.as_ref().map(|d| d.refr.is_some() == con_agua && d.refl.is_some() == con_refl).unwrap_or(false);
         if self.dest.as_ref().map(|d| d.w != w || d.h != h).unwrap_or(true) || !ao_ok || !agua_ok {
             let _ = self.dev.device_wait_idle();
             if let Some(d) = self.dest.take() { self.soltar_dest(d); }
@@ -716,8 +718,8 @@ impl Motor {
                 let fb = ve(self.dev.create_framebuffer(&vk::FramebufferCreateInfo::default().render_pass(self.pasadas.ao).attachments(&at).width(aw).height(ah).layers(1), None), "fb")?;
                 Some((a, fb))
             } else { None };
-            let (refr, refl) = if con_agua {
-                let rf = self.img(w, h, FMT, U::SAMPLED | U::TRANSFER_DST, vk::ImageAspectFlags::COLOR, 1, 1)?;
+            let refr = if con_agua { Some(self.img(w, h, FMT, U::SAMPLED | U::TRANSFER_DST, vk::ImageAspectFlags::COLOR, 1, 1)?) } else { None };
+            let refl = if con_refl {
                 let (rw, rh) = ((w / self.op.reflejo_div.max(1) as u32).max(16), (h / self.op.reflejo_div.max(1) as u32).max(16));
                 let rc = self.img(rw, rh, FMT, U::COLOR_ATTACHMENT | U::SAMPLED, vk::ImageAspectFlags::COLOR, 1, 1)?;
                 let rp = self.img(rw, rh, self.fmt_p, U::DEPTH_STENCIL_ATTACHMENT, vk::ImageAspectFlags::DEPTH, 1, 1)?;
@@ -725,8 +727,8 @@ impl Motor {
                 let fb = ve(self.dev.create_framebuffer(&vk::FramebufferCreateInfo::default().render_pass(self.pasadas.refl).attachments(&at).width(rw).height(rh).layers(1), None), "fb")?;
                 // (el reflejo, listo para leer aunque este cuadro no se dibuje —la cámara abajo del agua—)
                 let ri = rc.i; self.una_vez(|d, cb| barrera(d, cb, ri, vk::ImageAspectFlags::COLOR, vk::ImageLayout::UNDEFINED, vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL, 0, 1, 1))?;
-                (Some(rf), Some((rc, rp, fb)))
-            } else { (None, None) };
+                Some((rc, rp, fb))
+            } else { None };
             self.dest = Some(Destinos { w, h, color, prof, fb_esc, ao, refr, refl });
         }
         let px = self.op.sombra_px;
@@ -910,15 +912,25 @@ impl Motor {
         let (ew, eh) = (w, h);
         let hay_agua = !self.aguas.is_empty() && self.agua.is_some() && self.agua_n.is_some() && self.dest.as_ref().map(|d| d.refr.is_some()).unwrap_or(false);
         let cam_arriba = ay.map(|y| self.c.as_ref().unwrap().pos[1] > y + 0.05).unwrap_or(false);
-        let hacer_ref = hay_agua && self.op.reflejo && cam_arriba;
-        let vref = ay.map(|y| mat::mul(&vp, &mat::espejo_y(y))).unwrap_or(vp);
+        // (Definitivo: el reflejo del piso de abajo de la cámara —como OpenGL 3—, si a la vista y cerca hay algo que lo cruza; el
+        // agua a la vista pero lejos —la pileta por la ventana— con un piso que no es la orilla no se lo quita)
+        let piso = if self.op.aaa && self.op.reflejo && self.dest.as_ref().map_or(false, |d| d.refl.is_some()) { self.piso_reflejo() } else { None };
+        let cp = self.c.as_ref().unwrap().pos;
+        let agua_lejos = piso.map_or(false, |y| ay.map_or(true, |a| y > a + 0.3)) && self.aguas.iter().all(|&i| { let e = self.items[i].esf; ((e[0] - cp[0]).powi(2) + (e[2] - cp[2]).powi(2)).sqrt() - e[3] > 10.0 });
+        let hacer_ref = hay_agua && self.op.reflejo && cam_arriba && !agua_lejos;
+        let hacer_piso = !hacer_ref && piso.is_some(); self.refl_piso = piso.filter(|_| hacer_piso);
+        let plano = if hacer_ref { ay } else if hacer_piso { piso } else { None };
+        // (el corte: del agua, lo de arriba; del piso, lo de arriba del piso —el piso mismo no se refleja—)
+        let corte = plano.map(|y| if hacer_piso { y + 0.03 } else { y - 0.05 }).unwrap_or(-1e9);
+        let vref = plano.map(|y| mat::mul(&vp, &mat::espejo_y(y))).unwrap_or(vp);
         // (en el reflejo sólo lo que cruza el agua necesita el corte —el sombreador que descarta—; lo que está entero arriba va
         // con el que no descarta, así se prueba la profundidad antes de pintar)
         // (y sólo donde está el agua en la pantalla —más lo que la corren las olas—: ese rectángulo y lo que puede caer adentro)
-        let (r0, r1) = crate::gpu::rect_agua(&vp, self.aguas.iter().map(|&i| self.items[i].esf));
-        let (l_ref, l_ref_c) = if hacer_ref {
-            let ayv = ay.unwrap(); let pl = crate::gpu::planos_rect(&vref, r0, r1);
-            let (arr, cru): (Vec<usize>, Vec<usize>) = self.recortar(&vref, false).into_iter().filter(|&i| { let e = self.items[i].esf; e[1] + e[3] > ayv - 0.05 && mat::esfera_dentro(&pl, &e) }).partition(|&i| { let e = self.items[i].esf; e[1] - e[3] > ayv });
+        let (r0, r1) = if hacer_piso { ([-1.0, -1.0], [1.0, 1.0]) } else { crate::gpu::rect_agua(&vp, self.aguas.iter().map(|&i| self.items[i].esf)) };
+        let (l_ref, l_ref_c) = if hacer_ref || hacer_piso {
+            let pl = crate::gpu::planos_rect(&vref, r0, r1); let lejos = if hacer_piso { 110.0 } else { 1e9 };
+            let (arr, cru): (Vec<usize>, Vec<usize>) = self.recortar(&vref, false).into_iter().filter(|&i| { let e = self.items[i].esf; e[1] + e[3] > corte && mat::esfera_dentro(&pl, &e)
+                && ((e[0] - cp[0]).powi(2) + (e[2] - cp[2]).powi(2)).sqrt() - e[3] < lejos }).partition(|&i| { let e = self.items[i].esf; e[1] - e[3] > corte + 0.05 });
             (self.lista(&mut a, &arr, false), self.lista(&mut a, &cru, false))
         } else { (vec![], vec![]) };
         // (el cielo 3D —la maqueta de los mapas del Workshop— aparte: se dibuja primero y después se borra la profundidad)
@@ -979,7 +991,9 @@ impl Motor {
         }
         let n = (G_PASO / 4) as usize; let mut gb = vec![0f32; n * 4];
         self.glob(&vp, -1e9, &mut gb[0..n]);
-        if hacer_ref { self.glob(&vref, ay.unwrap() - 0.05, &mut gb[n..2 * n]); }
+        if plano.is_some() { self.glob(&vref, corte, &mut gb[n..2 * n]); }
+        // (en la cámara: el reflejo del piso prendido, su altura y 1/ancho, 1/alto de la escena para leerlo)
+        if let Some(y) = piso.filter(|_| hacer_piso) { gb[245] = 1.0; gb[246] = y; gb[266] = 1.0 / ew as f32; gb[267] = 1.0 / eh as f32; }
         if hacer_sombra { let (s0, s1) = (self.svp, self.svp2); self.glob(&s0, -1e9, &mut gb[2 * n..3 * n]); self.glob(&s1, -1e9, &mut gb[3 * n..4 * n]); }
         self.escribir(mi, 0, f32b(&gb))?; self.escribir(mi, 1, f32b(&a.obj))?; self.escribir(mi, 2, f32b(&a.hue))?; self.escribir(mi, 3, f32b(&a.inst))?;
         // (las partículas: los bloques del cuadro en su orden —las de alfa de lejos a cerca, las que suman, las trazas—, una fila
@@ -1010,18 +1024,25 @@ impl Motor {
             let av = self.texs.get(&crate::gpu::TEX_ATLAS).map(|t| t.v).unwrap_or(self.blanca.v);
             self.grupo_tex_buf(mi, av, self.s_rep, self.marcos[mi].partu.b)?
         };
-        let g_glob = {
-            let g = self.grupo(mi, self.capas.glob)?;
-            let sv = self.sombra.as_ref().map(|s| s.0.v).unwrap_or(self.prof0.v);
+        // (la cabecera con la sombra y el reflejo del piso; la del reflejo mismo, con la blanca en su lugar —no se lee lo que se
+        // está dibujando—)
+        let glob_con = |m: &Self, rv: vk::ImageView| -> Result<vk::DescriptorSet, String> {
+            let g = m.grupo(mi, m.capas.glob)?;
+            let sv = m.sombra.as_ref().map(|s| s.0.v).unwrap_or(m.prof0.v);
             let bi = [vk::DescriptorBufferInfo { buffer: mg, offset: 0, range: G_TAM }];
             let ii = [vk::DescriptorImageInfo { sampler: vk::Sampler::null(), image_view: sv, image_layout: vk::ImageLayout::DEPTH_STENCIL_READ_ONLY_OPTIMAL }];
-            let si = [vk::DescriptorImageInfo { sampler: self.s_cmp, image_view: vk::ImageView::null(), image_layout: vk::ImageLayout::UNDEFINED }];
-            self.dev.update_descriptor_sets(&[
+            let si = [vk::DescriptorImageInfo { sampler: m.s_cmp, image_view: vk::ImageView::null(), image_layout: vk::ImageLayout::UNDEFINED }];
+            let ri = [vk::DescriptorImageInfo { sampler: vk::Sampler::null(), image_view: rv, image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL }];
+            m.dev.update_descriptor_sets(&[
                 vk::WriteDescriptorSet::default().dst_set(g).dst_binding(0).descriptor_type(vk::DescriptorType::UNIFORM_BUFFER_DYNAMIC).buffer_info(&bi),
                 vk::WriteDescriptorSet::default().dst_set(g).dst_binding(1).descriptor_type(vk::DescriptorType::SAMPLED_IMAGE).image_info(&ii),
-                vk::WriteDescriptorSet::default().dst_set(g).dst_binding(2).descriptor_type(vk::DescriptorType::SAMPLER).image_info(&si)], &[]);
-            g
+                vk::WriteDescriptorSet::default().dst_set(g).dst_binding(2).descriptor_type(vk::DescriptorType::SAMPLER).image_info(&si),
+                vk::WriteDescriptorSet::default().dst_set(g).dst_binding(3).descriptor_type(vk::DescriptorType::SAMPLED_IMAGE).image_info(&ri)], &[]);
+            Ok(g)
         };
+        let rv = if hacer_piso { self.dest.as_ref().and_then(|d| d.refl.as_ref()).map(|r| r.0.v).unwrap_or(self.blanca.v) } else { self.blanca.v };
+        let g_glob = glob_con(self, rv)?;
+        let g_glob_r = if plano.is_some() { glob_con(self, self.blanca.v)? } else { g_glob };
         let g_cielo = {
             let g = self.grupo(mi, self.capas.cielo)?;
             let ii = [vk::DescriptorImageInfo { sampler: vk::Sampler::null(), image_view: self.cubo.as_ref().map(|c| c.v).unwrap_or(self.cubo0.v), image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL }];
@@ -1051,7 +1072,7 @@ impl Motor {
             if let Some(t) = t { self.marcar_fin(cb, mi, t); }
         }
         // --- el reflejo del agua: la escena espejada en el plano del agua, a una fracción de la resolución
-        if hacer_ref {
+        if plano.is_some() {
             let (fb, rw, rh) = { let r = self.dest.as_ref().unwrap().refl.as_ref().unwrap(); (r.2, r.0.w, r.0.h) };
             let t = self.marcar(cb, mi, medir, "reflejo", true);
             let lim = [vk::ClearValue { color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 1.0] } }, vk::ClearValue { depth_stencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 } }];
@@ -1061,7 +1082,7 @@ impl Motor {
             let area = vk::Rect2D { offset: vk::Offset2D { x: x0 as i32, y: y0 as i32 }, extent: vk::Extent2D { width: (x1.max(x0 + 1) - x0), height: (y1.max(y0 + 1) - y0) } };
             d.cmd_begin_render_pass(cb, &vk::RenderPassBeginInfo::default().render_pass(self.pasadas.refl).framebuffer(fb).render_area(area).clear_values(&lim), vk::SubpassContents::INLINE);
             vista(&d, cb, rw, rh, 0.0); d.cmd_set_scissor(cb, 0, &[area]);
-            d.cmd_bind_descriptor_sets(cb, vk::PipelineBindPoint::GRAPHICS, self.planos.luz, 0, &[g_glob], &[(G_REF * G_PASO) as u32]);
+            d.cmd_bind_descriptor_sets(cb, vk::PipelineBindPoint::GRAPHICS, self.planos.luz, 0, &[g_glob_r], &[(G_REF * G_PASO) as u32]);
             dibujos += self.dibujar_lista(cb, &l_ref, false, true, g_obj, g_hue);
             dibujos += self.dibujar_lista(cb, &l_ref_c, false, false, g_obj, g_hue);
             d.cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, self.tubos.cielo);
@@ -1341,6 +1362,16 @@ impl Motor {
         Some((self.tiempos.iter().map(|x| x.1).sum(), self.tiempos.iter().map(|(n, m)| format!("{n} {m:.1}")).collect::<Vec<_>>().join(" · ")))
     }
 
+    /// la altura del piso que se reflejó en el último cuadro (None: no hubo reflejo del piso)
+    pub fn piso_refleja(&self) -> Option<f32> { self.refl_piso }
+    /// el piso de abajo de la cámara para su reflejo (Definitivo, como gpu.rs): el que da el juego (`suelo_y`), no muy lejos, si
+    /// a la vista y cerca hay algo opaco que lo cruza
+    fn piso_reflejo(&self) -> Option<f32> {
+        let c = self.c.as_ref()?; let y = c.suelo_y.filter(|&y| (0.2..25.0).contains(&(c.pos[1] - y)))?;
+        let pl = mat::planos(&c.vp); let cp = c.pos;
+        self.opacos.iter().any(|&i| { let e = self.items[i].esf;
+            e[3] > 0.0 && (e[1] - y).abs() < e[3] && ((e[0] - cp[0]).powi(2) + (e[2] - cp[2]).powi(2)).sqrt() - e[3] < 50.0 && mat::esfera_dentro(&pl, &e) }).then_some(y)
+    }
     pub fn resumen(&self) -> String {
         format!("mapa {} · {} mallas · {} texturas · {} luces horneadas · {} materiales · {:.1} MB en la placa · {} cosas en el cuadro ({} opacas, {} transparentes)",
             self.mapa, self.mallas.len().saturating_sub(self.mallas.contains_key(&i64::MIN) as usize), self.texs.len(), self.lms.len(), self.mats.len(), self.memoria as f64 / 1e6, self.items.len(), self.opacos.len(), self.transp.len())

@@ -15,6 +15,8 @@ impl Motor3d {
     pub unsafe fn cargar(&mut self, e: &Escena) -> Result<(), String> { match self { Motor3d::Gl(m, _) => m.cargar(e), Motor3d::Vk(m) => m.cargar(e), Motor3d::Gl2(m, _) => m.cargar(e) } }
     pub unsafe fn vaciar(&mut self) { match self { Motor3d::Gl(m, _) => m.vaciar(), Motor3d::Vk(m) => m.vaciar(), Motor3d::Gl2(m, _) => m.vaciar() } }
     pub fn poner_cuadro(&mut self, c: Cuadro) { match self { Motor3d::Gl(m, _) => m.poner_cuadro(c), Motor3d::Vk(m) => m.poner_cuadro(c), Motor3d::Gl2(m, _) => m.poner_cuadro(c) } }
+    /// la altura del piso que se reflejó en el último cuadro (Definitivo)
+    pub fn piso_refleja(&self) -> Option<f32> { match self { Motor3d::Gl(m, _) => m.piso_refleja(), Motor3d::Vk(m) => m.piso_refleja(), Motor3d::Gl2(m, _) => m.piso_refleja() } }
     pub fn resumen(&self) -> String { match self { Motor3d::Gl(m, _) => m.resumen(), Motor3d::Vk(m) => m.resumen(), Motor3d::Gl2(m, _) => m.resumen() } }
     pub fn es_vulkan(&self) -> bool { matches!(self, Motor3d::Vk(_)) }
     /// si el motor dibuja el hongo de las nucleares con volumen (OpenGL 3 y 2 con la calidad en Bajo o más; si no, carteles)

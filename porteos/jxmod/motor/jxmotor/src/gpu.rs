@@ -224,7 +224,7 @@ void main() {
 #ifdef CORTE
   if (vW.y < uClip) discard;   // (el reflejo: sólo lo de arriba del agua)
 #endif
-  vec4 t; float rk = 0.0, rRough = 1.0, fNie = 0.0;
+  vec4 t; float rk = 0.0, rRough = 1.0, fNie = 0.0; vec2 rOnd = vec2(0.0);
 #ifdef DBG_SIN_RAMAS
   t = texture(uT, vU);
 #else
@@ -284,7 +284,8 @@ void main() {
       float k = causticas(vW.xz * 1.1 + uSol.xz * hondo * 0.6, uCaus.z * 0.9) * exp(-hondo * 0.18) * smoothstep(0.0, 0.35, hondo) * (0.3 + 0.7 * max(n.y, 0.0)) * uCaus.y;
       col += dif * uSolC * k * (lm ? 0.3 : 0.15 + 0.4 * sh);
     }
-    if (uRP.z > 0.5 && n.y > 0.94 && abs(vW.y - uRP.w) < 0.08) { float fr = 1.0 - max(dot(n, v), 0.0); fr *= fr; rk = smoothstep(0.82, 0.3, min(rough, 0.68)) * mix(0.3, 1.0, fr * fr); rRough = rough; }
+    // (lo plano a esa altura —la normal sin el relieve—; el relieve del material ondula el reflejo, como un piso mojado de HL2)
+    if (uRP.z > 0.5 && ng.y > 0.94 && abs(vW.y - uRP.w) < 0.08) { float fr = 1.0 - max(dot(n, v), 0.0); fr *= fr; rk = smoothstep(0.82, 0.3, min(rough, 0.68)) * mix(0.3, 1.0, fr * fr); rRough = rough; rOnd = (n.xz - ng.xz) * 0.06; }
 #ifndef DBG_SIN_LUCES
     for (int i = 0; i < 12; i++) {
       if (i >= uLN) break;
@@ -332,7 +333,7 @@ void main() {
 #else
   vec3 fin = enc(aces(col * uExpo));
   // (el reflejo del piso: borroso según lo áspero —4 lecturas corridas—, menos donde ya tapa la niebla)
-  if (rk > 0.0) { vec2 q = gl_FragCoord.xy * uRP.xy, d2 = uRP.xy * (1.5 + 9.0 * rRough);
+  if (rk > 0.0) { vec2 q = gl_FragCoord.xy * uRP.xy + rOnd, d2 = uRP.xy * (1.5 + 9.0 * rRough);
     vec3 r = 0.25 * (texture(uRef, q + d2).rgb + texture(uRef, q - d2).rgb + texture(uRef, q + vec2(d2.x, -d2.y)).rgb + texture(uRef, q - vec2(d2.x, -d2.y)).rgb);
     fin = mix(fin, r, rk * (1.0 - fNie)); }
   o = vec4(fin + (ign(gl_FragCoord.xy) - 0.5) / 255.0, t.a);
@@ -876,7 +877,7 @@ pub struct Motor {
     /// la vista que se acostumbra: el programa y sus dos texturas de 1×1 (una se lee, la otra se escribe), cuál toca y el tiempo
     p_adapta: Prog, adapta: Option<([(glow::Framebuffer, glow::Texture); 2], usize, f32)>,
     /// Definitivo: la altura del piso que se reflejó este cuadro (en `reflejo`, cuando no hay agua)
-    refl_piso: Option<f32>, refl_piso_ult: (M4, f32),
+    refl_piso: Option<f32>, refl_piso_ult: (M4, f32), refl_agua: bool,
     /// la luz global: la textura de las sondas y su versión
     gi_tex: Option<glow::Texture>, gi_ver: f32,
     /// el hongo de las nucleares con volumen
@@ -971,7 +972,7 @@ impl Motor {
         let mv = vbo(&[(0, 3, 0), (1, 4, 12)], 28)?; let marcas = (mv.0, mv.1, 0);
         let ui = vbo(&[(0, 2, 0), (1, 2, 8), (2, 4, 16)], 32)?;
         let blanca = textura(&gl, 1, 1, &[255, 255, 255, 255], true, false);
-        Ok(Motor { gi_tex: None, gi_ver: -1.0, refl_piso: None, refl_piso_ult: (mat::id(), f32::NAN), p_adapta, adapta: None, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], rayos_rt: None, hongos: crate::hongo::Hongos::nuevo(true), gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
+        Ok(Motor { gi_tex: None, gi_ver: -1.0, refl_agua: false, refl_piso: None, refl_piso_ult: (mat::id(), f32::NAN), p_adapta, adapta: None, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], rayos_rt: None, hongos: crate::hongo::Hongos::nuevo(true), gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
             p_luz, p_luz_piel, p_luz_c, p_luz_piel_c, p_luz_inst_c, p_pre, p_pre_piel, p_pre_inst, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_lin, p_ui, ui, p_luz_inst, p_sombra_inst, inst_buf, part, marcas, ao_rt: None, refr_rt: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], svp2: mat::id(), sesgo2: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
             opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new(), ranuras: Vec::new(), instancias: std::env::var("JXM_SIN_INST").is_err(),
             ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), fases_b: vec![], luz_b, perfil: std::env::var_os("JXM_PERFIL").map(|_| std::cell::RefCell::new(vec![])) })
@@ -1483,13 +1484,14 @@ impl Motor {
     }
     /// el reflejo del agua: la escena espejada en el plano del agua, a una fracción de la resolución
     unsafe fn pasada_reflejo(&mut self, w: i32, h: i32, ay: f32) { self.pasada_reflejo_de(w, h, ay, false) }
-    /// el piso liso de abajo de la cámara para su reflejo (Definitivo): el que da el juego (`suelo_y`), no muy lejos, si a la vista
-    /// y cerca hay algo opaco que lo cruza y no es del todo áspero
+    /// el piso de abajo de la cámara para su reflejo (Definitivo): el que da el juego (`suelo_y`), no muy lejos, si a la vista y
+    /// cerca hay algo opaco que lo cruza (cualquier material: el áspero refleja borroso; antes sólo con algo liso a la vista, y
+    /// el reflejo se apagaba al mirar para otro lado)
     fn piso_liso(&self) -> Option<f32> {
         let c = self.c.as_ref()?; let y = c.suelo_y.filter(|&y| (0.2..25.0).contains(&(c.pos[1] - y)))?;
         let pl = mat::planos(&c.vp); let cp = c.pos;
         self.opacos.iter().any(|&i| { let it = &self.items[i]; let e = it.esf;
-            e[3] > 0.0 && (e[1] - y).abs() < e[3] && self.mats.get(&it.mat).map_or(false, |m| m.pbr[0] < 0.97)
+            e[3] > 0.0 && (e[1] - y).abs() < e[3]
                 && ((e[0] - cp[0]).powi(2) + (e[2] - cp[2]).powi(2)).sqrt() - e[3] < 50.0 && mat::esfera_dentro(&pl, &e) }).then_some(y)
     }
     /// el reflejo: del agua (sólo donde está en la pantalla) o, con `piso`, del piso (toda la pantalla; el piso mismo no se
@@ -1653,10 +1655,16 @@ impl Motor {
         let ay = self.c.as_ref().unwrap().agua_y.or(self.agua.as_ref().map(|a| a.y));
         let hay_agua = !self.aguas.is_empty() && self.agua.is_some() && self.agua_n.is_some() && !self.sin_agua;
         let cam_arriba = ay.map(|y| self.c.as_ref().unwrap().pos[1] > y + 0.05).unwrap_or(false);
-        if hay_agua && self.op.reflejo && cam_arriba && (self.reflejo.is_none() || self.cuadro % self.op.reflejo_cada.max(1) as u64 == 0) { self.pasada_reflejo(w, h, ay.unwrap()); }
-        // (Definitivo sin agua a la vista: el reflejo del piso, como con trazado de rayos)
+        // (Definitivo: el agua a la vista pero lejos —la pileta por la ventana— con un piso de abajo que no es la orilla: el reflejo
+        // es del piso y el agua lejos refleja el cielo; si no, al girar y ver el agua el piso dejaba de reflejar)
+        let piso = if self.op.aaa && self.op.reflejo { self.piso_liso() } else { None };
+        let cp = self.c.as_ref().unwrap().pos;
+        let agua_lejos = piso.map_or(false, |y| ay.map_or(true, |a| y > a + 0.3)) && self.aguas.iter().all(|&i| { let e = self.items[i].esf; ((e[0] - cp[0]).powi(2) + (e[2] - cp[2]).powi(2)).sqrt() - e[3] > 10.0 });
+        self.refl_agua = hay_agua && cam_arriba && !agua_lejos;
+        if self.refl_agua && self.op.reflejo && (self.reflejo.is_none() || self.cuadro % self.op.reflejo_cada.max(1) as u64 == 0) { self.pasada_reflejo(w, h, ay.unwrap()); }
+        // (Definitivo sin agua cerca: el reflejo del piso, como con trazado de rayos)
         self.refl_piso = None;
-        if self.op.aaa && self.op.reflejo && !(hay_agua && cam_arriba) { if let Some(y) = self.piso_liso() {
+        if !self.refl_agua { if let Some(y) = piso {
             // (con la cámara quieta, un cuadro sí y otro no se usa el de antes; moviéndose, siempre nuevo)
             let vpc = self.c.as_ref().unwrap().vp; let quieta = self.refl_piso_ult.1 == y && self.refl_piso_ult.0.iter().zip(vpc.iter()).all(|(a, b)| (a - b).abs() < 1e-4);
             if !(quieta && self.cuadro % 2 == 1 && self.reflejo.is_some()) { self.pasada_reflejo_de(w, h, y, true); self.refl_piso_ult = (vpc, y); }
@@ -1754,7 +1762,7 @@ impl Motor {
             self.luces(p, &vp, -1e9);
             let gl = &self.gl;
             gl.uniform_4_f32(p.u(U::F), a.fog[0], a.fog[1], a.fog[2], a.fog[3]);
-            let refl_on = self.op.reflejo && cam_arriba && self.reflejo.is_some();
+            let refl_on = self.op.reflejo && cam_arriba && self.reflejo.is_some() && self.refl_agua;
             gl.uniform_4_f32(p.u(U::H), a.esc, a.fuerza, a.dist, if refl_on { 1.0 } else { 0.0 });
             gl.uniform_4_f32(p.u(U::S), a.s[0], a.s[1], a.s[2], a.s[3]);
             let (bx, bz, bw, bh, bd) = a.prof.as_ref().map(|q| (q.x0, q.z0, 1.0 / q.w, 1.0 / q.h, q.d)).unwrap_or((0.0, 0.0, 0.0, 0.0, 20.0));
@@ -1846,6 +1854,8 @@ impl Motor {
         let v = if ab() { &mut self.fases_b } else { v };
         match v.iter_mut().find(|x| x.0 == n) { Some(x) => x.1 += ms, None => v.push((n, ms)) }
     }
+    /// la altura del piso que se reflejó en el último cuadro (None: no hubo reflejo del piso)
+    pub fn piso_refleja(&self) -> Option<f32> { self.refl_piso }
     pub fn resumen(&self) -> String {
         let corte: Vec<usize> = self.opacos.iter().copied().filter(|&i| self.mats.get(&self.items[i].mat).map_or(false, |mt| mt.cut != 0)).collect();
         let piel: Vec<usize> = self.opacos.iter().copied().filter(|&i| !self.items[i].h.is_empty()).collect();
