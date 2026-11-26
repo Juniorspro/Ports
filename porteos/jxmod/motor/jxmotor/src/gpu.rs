@@ -114,6 +114,20 @@ in vec3 vS; in vec3 vS2;
 const float PI = 3.14159265;
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
+#ifdef CORTE
+// (lo recortado —rejas, alambrados, hojas—: cerca, el borde parejo por las derivadas; de lejos, cuando los agujeros de la
+// textura son más chicos que un punto de la pantalla, lo que tapa en promedio —el alfa del nivel chico— en un tramado: un
+// velo como el de una reja de verdad en vez de rayas)
+// (el tramado ordenado de 4×4: de lejos se lee como una malla pareja, no como ruido)
+float bayer2(vec2 a) { a = floor(a); return fract(a.x / 2.0 + a.y * a.y * 0.75); }
+float bayer4(vec2 a) { return bayer2(0.5 * a) * 0.25 + bayer2(a) + 0.03125; }
+float cobertura(float a, vec2 uv) {
+  vec2 ts = vec2(textureSize(uT, 0)), dx = dFdx(uv * ts), dy = dFdy(uv * ts);
+  float mip = 0.5 * log2(max(max(dot(dx, dx), dot(dy, dy)), 1e-8));
+  float filo = clamp((a - 0.5) / max(fwidth(a), 1e-4) + 0.5, 0.0, 1.0);
+  return mix(filo, a, clamp(mip, 0.0, 1.0));
+}
+#endif
 // (x^2,2 y x^(1/2,2) con tres raíces en vez de pow —logaritmo y exponencial—: el mismo color, menos de 0,2 de un nivel de
 // 8 bits de diferencia; la raíz es una sola instrucción)
 #ifdef DBG_POW
@@ -189,7 +203,7 @@ void main() {
     t.rgb = mix(cu, ac, kA); emAc = ac * kA * uTi3.rgb;
   } else if (uTi.a > 0.0) t.rgb = mix(t.rgb, vec3(dot(t.rgb, vec3(0.299, 0.587, 0.114))) * uTi.rgb, uTi.a);
 #ifdef CORTE
-  if ((uModo & 2) != 0 && t.a < 0.5) discard;
+  if ((uModo & 2) != 0 && cobertura(t.a, vU) <= bayer4(gl_FragCoord.xy)) discard;
 #endif
   vec3 col;
   if ((uModo & 4) != 0) col = dec(t.rgb) * 1.4;   // (sin luz)

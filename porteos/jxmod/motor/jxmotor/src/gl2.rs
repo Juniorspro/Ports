@@ -36,7 +36,7 @@ struct Malla2 { vb: glow::Buffer, ib: glow::Buffer, lm: Option<glow::Buffer>, i3
 struct PielCpu { p: Vec<[f32; 3]>, n: Vec<[f32; 3]>, j: Vec<[u8; 4]>, w: Vec<[f32; 4]>, vv: Vec<u8> }
 /// una malla ya deformada en este cuadro: su id, la pose, el búfer y la caja de sus posiciones
 struct Pose2 { m: i64, h: Vec<f32>, vb: glow::Buffer, mn: [f32; 3], sc: [f32; 3] }
-struct Tex2 { t: glow::Texture, bytes: usize }
+struct Tex2 { t: glow::Texture, bytes: usize, tam: [f32; 2] }
 struct Prog2 { p: glow::Program, u: HashMap<&'static str, glow::UniformLocation> }
 impl Prog2 { fn u(&self, n: &str) -> Option<&glow::UniformLocation> { self.u.get(n) } }
 
@@ -53,6 +53,9 @@ void main() {
   gl_Position = uVP * w;
 }"#;
 const FS_LUZ: &str = r#"
+#if defined(CORTE) && defined(GL_OES_standard_derivatives)
+#extension GL_OES_standard_derivatives : enable
+#endif
 #ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
 #else
@@ -125,6 +128,25 @@ vec3 retoque(vec3 c) {
   c = clamp(mix(vec3(l), c, 1.18), 0.0, 1.0); c = c * c * (3.0 - 2.0 * c) * 0.18 + c * 0.82; c = enc(c);
   vec2 q = gl_FragCoord.xy * uRet.xy - 0.5; return c * (1.0 - dot(q, q) * 0.32);
 }
+#ifdef CORTE
+// (lo recortado —rejas, alambrados, hojas—: cerca, el borde parejo por las derivadas; de lejos, cuando los agujeros de la
+// textura son más chicos que un punto de la pantalla, lo que tapa en promedio —el alfa del nivel chico— en un tramado: un
+// velo como el de una reja de verdad en vez de rayas; uTam: el tamaño de la textura. Sin derivadas, el corte de siempre)
+uniform vec2 uTam;
+// (el tramado ordenado de 4×4: de lejos se lee como una malla pareja, no como ruido)
+float bayer2(vec2 a) { a = floor(a); return fract(a.x / 2.0 + a.y * a.y * 0.75); }
+float bayer4(vec2 a) { return bayer2(0.5 * a) * 0.25 + bayer2(a) + 0.03125; }
+float cobertura(float a, vec2 uv) {
+#ifdef GL_OES_standard_derivatives
+  vec2 dx = dFdx(uv * uTam), dy = dFdy(uv * uTam);
+  float mip = 0.5 * log2(max(max(dot(dx, dx), dot(dy, dy)), 1e-8));
+  float filo = clamp((a - 0.5) / max(fwidth(a), 1e-4) + 0.5, 0.0, 1.0);
+  return mix(filo, a, clamp(mip, 0.0, 1.0));
+#else
+  return a < 0.5 ? 0.0 : 1.0;
+#endif
+}
+#endif
 void main() {
 #ifdef CLIP
   if (dot(vec4(vW, 1.0), uClip) < 0.0) discard;
@@ -145,7 +167,7 @@ void main() {
   } else if (uTi.a > 0.0) t.rgb = mix(t.rgb, vec3(dot(t.rgb, vec3(0.299, 0.587, 0.114))) * uTi.rgb, uTi.a);
 #ifdef CORTE
   // (sólo en el programa de lo recortado: un sombreador que puede descartar no deja probar la profundidad antes de pintar)
-  if (uBan.z > 0.5 && t.a < 0.5) discard;
+  if (uBan.z > 0.5 && cobertura(t.a, vU) <= bayer4(gl_FragCoord.xy)) discard;
 #endif
   vec3 col;
   if (uBan.w > 0.5) col = dec(t.rgb) * 1.4;
@@ -427,7 +449,7 @@ const PART_MAX2: usize = 16383;
 /// lo más áspero que todavía refleja el piso (el sombreador lo apaga del todo en 0,82)
 const BRILLO_PISO: f32 = 0.72;
 
-const U_LUZ: [&str; 38] = ["uBan", "uBan2", "uTi", "uTi2", "uTi3", "uVP", "uM", "uMn", "uSc", "uSt", "uT", "uT1", "uT2", "uT3", "uLM", "uS1", "uS3", "uC", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNieS", "uCam", "uEm", "uMat", "uNie", "uExpo", "uModo", "uLP", "uLC", "uLN", "uIVP", "uTop", "uMid", "uBot", "uExp"];
+const U_LUZ: [&str; 39] = ["uTam", "uBan", "uBan2", "uTi", "uTi2", "uTi3", "uVP", "uM", "uMn", "uSc", "uSt", "uT", "uT1", "uT2", "uT3", "uLM", "uS1", "uS3", "uC", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNieS", "uCam", "uEm", "uMat", "uNie", "uExpo", "uModo", "uLP", "uLC", "uLN", "uIVP", "uTop", "uMid", "uBot", "uExp"];
 const U_OTROS: [&str; 31] = ["uNubes", "uBlo", "uBloomK", "uVol", "uAlfaD", "uCieloA", "uRay", "uRayK", "uRayP", "uTiene", "uCieloK", "uInv", "uRet", "uTinte", "uDia", "uCubo", "uN", "uF", "uH", "uS", "uTiempo", "uSolC", "uSuma", "uSVP", "uSom", "uSomP", "uClip", "uR", "uRP", "uSVP2", "uSomP2"];
 
 unsafe fn programa(gl: &glow::Context, vs: &str, fs: &str, atrs: &[&str]) -> Result<Prog2, String> {
@@ -643,12 +665,12 @@ impl Motor {
         }
         for t in &esc.c.texs {
             let (tx, b) = self.textura(t.w, t.h, rango(t.o, (t.w * t.h * 4) as usize)?, true)?;
-            if let Some(v) = self.texs.insert(t.id, Tex2 { t: tx, bytes: b }) { self.memoria -= v.bytes; self.gl.delete_texture(v.t); }
+            if let Some(v) = self.texs.insert(t.id, Tex2 { t: tx, bytes: b, tam: [t.w as f32, t.h as f32] }) { self.memoria -= v.bytes; self.gl.delete_texture(v.t); }
             self.memoria += b;
         }
         for t in &esc.c.lms {
             let (tx, b) = self.textura(t.w, t.h, rango(t.o, (t.w * t.h * 4) as usize)?, false)?;
-            if let Some(v) = self.lms.insert(t.id, Tex2 { t: tx, bytes: b }) { self.memoria -= v.bytes; self.gl.delete_texture(v.t); }
+            if let Some(v) = self.lms.insert(t.id, Tex2 { t: tx, bytes: b, tam: [t.w as f32, t.h as f32] }) { self.memoria -= v.bytes; self.gl.delete_texture(v.t); }
             self.memoria += b;
         }
         for m in &esc.c.mats { self.mats.insert(m.id, m.clone()); }
@@ -962,6 +984,7 @@ impl Motor {
         } else if mt.t2 >= 0 { modo |= 8; capas[1] = self.tex(mt.t2); }
         for (k, t) in capas.iter().enumerate() { gl.active_texture(glow::TEXTURE0 + k as u32); gl.bind_texture(glow::TEXTURE_2D, Some(*t)); }
         gl.uniform_1_f32(p.u("uModo"), modo as f32);
+        if mt.cut != 0 { let tam = self.texs.get(&mt.t).map(|t| t.tam).unwrap_or([1.0, 1.0]); gl.uniform_2_f32(p.u("uTam"), tam[0], tam[1]); }
         let b = |k: i32| if modo & k != 0 { 1.0 } else { 0.0 };
         gl.uniform_4_f32(p.u("uBan"), b(16), b(8), b(2), b(4)); gl.uniform_3_f32(p.u("uBan2"), b(1), b(64), if mt.blend != 0 || mt.add != 0 { 1.0 } else { 0.0 });
         gl.uniform_matrix_4_f32_slice(p.u("uM"), false, &it.mm);

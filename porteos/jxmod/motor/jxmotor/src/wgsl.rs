@@ -194,9 +194,20 @@ fn luz_color(i: VOut, ff: bool) -> vec4<f32> {
 }
 // (con descarte —el reflejo: sólo lo de arriba del agua; lo recortado— y sin: un sombreador que puede descartar obliga a
 // probar la profundidad después de pintar, y entonces se pinta también lo tapado; lo opaco entero va con fs_luz_op)
+// (lo recortado —rejas, alambrados, hojas—: cerca, el borde parejo por las derivadas; de lejos, cuando los agujeros de la
+// textura son más chicos que un punto de la pantalla, lo que tapa en promedio —el alfa del nivel chico— en un tramado)
+// (el tramado ordenado de 4×4: de lejos se lee como una malla pareja, no como ruido)
+fn bayer2(a: vec2<f32>) -> f32 { let b = floor(a); return fract(b.x / 2.0 + b.y * b.y * 0.75); }
+fn bayer4(a: vec2<f32>) -> f32 { return bayer2(0.5 * a) * 0.25 + bayer2(a) + 0.03125; }
+fn cobertura(a: f32, uv: vec2<f32>) -> f32 {
+  let ts = vec2<f32>(textureDimensions(t_t, 0)); let dx = dpdx(uv * ts); let dy = dpdy(uv * ts);
+  let mip = 0.5 * log2(max(max(dot(dx, dx), dot(dy, dy)), 1e-8));
+  let filo = clamp((a - 0.5) / max(fwidth(a), 1e-4) + 0.5, 0.0, 1.0);
+  return mix(filo, a, clamp(mip, 0.0, 1.0));
+}
 @fragment fn fs_luz(i: VOut, @builtin(front_facing) ff: bool) -> @location(0) vec4<f32> {
-  let c = luz_color(i, ff);
-  if (i.w.y < G.sol_c.w || ((i32(O.s3.z) & 2) != 0 && c.a < 0.5)) { discard; }
+  let c = luz_color(i, ff); let cov = cobertura(c.a, i.u);
+  if (i.w.y < G.sol_c.w || ((i32(O.s3.z) & 2) != 0 && cov <= bayer4(i.pos.xy))) { discard; }
   return c;
 }
 @fragment fn fs_luz_op(i: VOut, @builtin(front_facing) ff: bool) -> @location(0) vec4<f32> { return luz_color(i, ff); }
