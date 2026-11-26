@@ -302,20 +302,27 @@ attribute vec2 aP; varying vec2 vU;
 void main() { vU = aP * 0.5 + 0.5; gl_Position = vec4(aP, 0.0, 1.0); }"#;
 const FS_COPIA: &str = r#"
 precision mediump float; uniform sampler2D uT, uRay; uniform float uRayK; varying vec2 vU;
-void main() { gl_FragColor = vec4(texture2D(uT, vU).rgb + texture2D(uRay, vU).rgb * uRayK, 1.0); }"#;
-// los rayos del sol (Ultra): desde cada píxel —a un cuarto del lado— hacia el sol en la pantalla, 24 lecturas de la escena; suma
-// lo que es cielo (alfa 0: lo opaco escribe 1) cerca del sol, cada vez menos. Lo que tapa el cielo corta los rayos: salen
-// entre las hojas, los edificios y por las ventanas. uRayP: el sol en la pantalla (0..1), ancho/alto y la fuerza
-const FS_RAYOS: &str = r#"
+void main() {
+  vec3 c = texture2D(uT, vU).rgb;
+  // (los rayos del sol, sumados a la luz; guardados con raíz de v/8)
+  if (uRayK > 0.0) { vec3 r = texture2D(uRay, vU).rgb; r = r * r * (8.0 * uRayK); c = sqrt(c * c + 1.0 - exp(-r)); }
+  gl_FragColor = vec4(c, 1.0);
+}"#;
+// los rayos del sol (Ultra), como los de WebGL 2 (post.js, gpu.rs): la máscara a un cuarto del lado —el cielo (alfa 0: lo
+// opaco escribe 1) cerca del sol, con su brillo y el disco del sol— y el desenfoque radial de 40 lecturas hacia el sol
+const FS_RAYMASK: &str = r#"
 precision mediump float; uniform sampler2D uT; uniform vec4 uRayP; uniform vec3 uSolC; varying vec2 vU;
 void main() {
-  vec2 d = (uRayP.xy - vU) * (0.92 / 24.0), p = vU; float w = 1.0; vec3 a = vec3(0.0);
-  for (int i = 0; i < 24; i++) {
-    vec4 s = texture2D(uT, p); vec2 q = (p - uRayP.xy) * vec2(uRayP.z, 1.0); float g = max(0.0, 1.0 - dot(q, q) * 3.5);
-    a += (s.rgb * 0.5 + 0.5) * ((1.0 - s.a) * g * g * g * w); w *= 0.95; p += d;
-  }
-  // (suave: como mucho un tercio de luz de más justo en el sol; lo tapado corta los haces)
-  gl_FragColor = vec4(1.0 - exp(-a * uSolC * (uRayP.w * 0.03)), 1.0);
+  vec4 s = texture2D(uT, vU); vec2 v = (vU - uRayP.xy) * vec2(uRayP.z, 1.0); float r2 = dot(v, v);
+  vec3 c = s.rgb * s.rgb * 1.6 + uSolC * (5.0 * exp(-r2 * 400.0));
+  gl_FragColor = vec4(sqrt(min(c, vec3(8.0)) * ((1.0 - s.a) * exp(-r2 * 6.0) / 8.0)), 1.0);
+}"#;
+const FS_RAYOS: &str = r#"
+precision mediump float; uniform sampler2D uRay; uniform vec4 uRayP; varying vec2 vU;
+void main() {
+  vec2 d = (uRayP.xy - vU) / 40.0, uv = vU; vec3 s = vec3(0.0); float w = 1.0;
+  for (int i = 0; i < 40; i++) { vec3 t = texture2D(uRay, uv).rgb; s += t * t * w; w *= 0.975; uv += d; }
+  gl_FragColor = vec4(sqrt(s / 40.0), 1.0);
 }"#;
 
 // las partículas, ya armadas en la CPU (posición, UV del atlas, color y lo del humo contra el piso), y las marcas (color por vértice)
@@ -447,7 +454,7 @@ pub struct Motor {
     oclu: Option<(HashMap<u64, (glow::Query, bool, bool, u64)>, Prog2, glow::Buffer, glow::Buffer)>, n_cuadro: u64,
     p_luz: Prog2, p_luz_c: Prog2, p_cielo: Prog2, p_ui: Prog2, p_copia: Prog2, p_agua: Prog2, p_part: Prog2, p_lin: Prog2,
     /// los rayos del sol: el programa, su destino (cuadro, textura, ancho, alto) y si van en este cuadro (el sol en la pantalla y su fuerza)
-    p_rayos: Prog2, rayos_rt: Option<(glow::Framebuffer, glow::Texture, i32, i32)>, rayos_ahora: Option<[f32; 3]>,
+    p_rayos: Prog2, p_rayos2: Prog2, rayos_rt: Option<([(glow::Framebuffer, glow::Texture); 2], i32, i32)>, rayos_ahora: Option<[f32; 3]>,
     /// el hongo de las nucleares con volumen (el ruido en un mosaico 2D: OpenGL ES 2 no tiene texturas 3D)
     pub hongos: crate::hongo::Hongos, alta: bool,
     /// las partículas: el búfer de vértices, el de índices (para cuántas alcanza) y lo armado en la CPU; las marcas: su búfer,
@@ -495,7 +502,7 @@ impl Motor {
         let p_cielo = programa(&gl, VS_CIELO, FS_CIELO, &["aP"])?;
         let p_ui = programa(&gl, VS_UI, FS_UI, &["aP", "aU", "aC"])?;
         let p_copia = programa(&gl, VS_COPIA, FS_COPIA, &["aP"])?;
-        let p_rayos = programa(&gl, VS_COPIA, FS_RAYOS, &["aP"])?;
+        let p_rayos = programa(&gl, VS_COPIA, FS_RAYMASK, &["aP"])?; let p_rayos2 = programa(&gl, VS_COPIA, FS_RAYOS, &["aP"])?;
         let p_agua = programa(&gl, VS_AGUA, &format!("{}{FS_AGUA}", if std::env::var_os("JXM_GL2_VER_REFLEJO").is_some() { "#define VER_REFLEJO\n" } else { "" }), &["aP"])?;
         let p_part = programa(&gl, VS_PART, FS_PART, &["aP", "aU", "aC", "aF"])?;
         let p_lin = programa(&gl, VS_LIN, FS_LIN, &["aP", "aC"])?;
@@ -515,7 +522,7 @@ impl Motor {
             let ib = gl.create_buffer()?; gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ib)); let ibb: Vec<u8> = caras.iter().flat_map(|x| x.to_le_bytes()).collect(); gl.buffer_data_u8_slice(glow::ELEMENT_ARRAY_BUFFER, &ibb, glow::STATIC_DRAW);
             Some((HashMap::new(), pc, vb, ib))
         } else { None };
-        Ok(Motor { hongos: crate::hongo::Hongos::nuevo(false), alta, p_rayos, rayos_rt: None, rayos_ahora: None, som: None, som_vp: [mat::id(); 2], som_n: 0, som_on: false, som_off: [[0.0; 2]; 2], som_huella: [0; 2], refl_n: 0, p_som, p_som_c, refl: None, refl_on: false, refl_activo: false, p_luz_r, p_luz_rc, refl_piso: None, refl_px: [0.0; 2], refl_ult: (mat::id(), f32::NAN), oclu, n_cuadro: 0, fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), gl, op, cubo: None, p_luz, p_luz_c, p_cielo, p_ui, p_copia, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), marcas_vb, marcas_n: 0, poses: vec![], poses_n: 0, pose_p: vec![], pose_v: vec![], marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
+        Ok(Motor { hongos: crate::hongo::Hongos::nuevo(false), alta, p_rayos, p_rayos2, rayos_rt: None, rayos_ahora: None, som: None, som_vp: [mat::id(); 2], som_n: 0, som_on: false, som_off: [[0.0; 2]; 2], som_huella: [0; 2], refl_n: 0, p_som, p_som_c, refl: None, refl_on: false, refl_activo: false, p_luz_r, p_luz_rc, refl_piso: None, refl_px: [0.0; 2], refl_ult: (mat::id(), f32::NAN), oclu, n_cuadro: 0, fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), gl, op, cubo: None, p_luz, p_luz_c, p_cielo, p_ui, p_copia, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), marcas_vb, marcas_n: 0, poses: vec![], poses_n: 0, pose_p: vec![], pose_v: vec![], marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
             c: None, items: vec![], opacos: vec![], transp: vec![], uint32, npot, escena_rt: None, dibujos: 0, memoria: 0, mapa: String::new() })
     }
 
@@ -738,8 +745,8 @@ impl Motor {
             gl.bind_framebuffer(glow::FRAMEBUFFER, salida); gl.viewport(0, 0, w, h); gl.disable(glow::DEPTH_TEST); gl.disable(glow::BLEND);
             gl.use_program(Some(self.p_copia.p)); gl.active_texture(glow::TEXTURE0); gl.bind_texture(glow::TEXTURE_2D, Some(t));
             gl.uniform_1_i32(self.p_copia.u("uT"), 0); gl.uniform_1_i32(self.p_copia.u("uRay"), 1);
-            gl.active_texture(glow::TEXTURE1); gl.bind_texture(glow::TEXTURE_2D, Some(rayos.unwrap_or(self.blanca))); gl.active_texture(glow::TEXTURE0);
-            gl.uniform_1_f32(self.p_copia.u("uRayK"), if rayos.is_some() { 1.0 } else { 0.0 });
+            gl.active_texture(glow::TEXTURE1); gl.bind_texture(glow::TEXTURE_2D, Some(rayos.map_or(self.blanca, |r| r.0))); gl.active_texture(glow::TEXTURE0);
+            gl.uniform_1_f32(self.p_copia.u("uRayK"), rayos.map_or(0.0, |r| r.1));
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.tri)); gl.enable_vertex_attrib_array(0); gl.vertex_attrib_pointer_f32(0, 2, glow::FLOAT, false, 8, 0);
             gl.draw_arrays(glow::TRIANGLES, 0, 3); gl.enable(glow::DEPTH_TEST);
         }
@@ -982,30 +989,41 @@ impl Motor {
     pub fn hongo_puede(&self) -> bool { self.alta && self.hongos.listo() }
     fn rayos_sol(&self) -> Option<[f32; 3]> { crate::gpu::sol_en_pantalla(self.c.as_ref()?, self.sol()) }
     /// los rayos del sol: de la escena dibujada (con su alfa: 0 el cielo) a una textura de un cuarto del lado; devuelve la textura
-    unsafe fn rayos_pasada(&mut self, rp: [f32; 3], ew: i32, eh: i32) -> Option<glow::Texture> {
+    unsafe fn rayos_pasada(&mut self, rp: [f32; 3], ew: i32, eh: i32) -> Option<(glow::Texture, f32)> {
         let (rw, rh) = ((ew / 4).max(8), (eh / 4).max(8));
-        if self.rayos_rt.as_ref().map_or(true, |r| r.2 != rw || r.3 != rh) {
+        if self.rayos_rt.as_ref().map_or(true, |r| r.1 != rw || r.2 != rh) {
             let gl = &self.gl;
-            if let Some((f, t, _, _)) = self.rayos_rt.take() { gl.delete_framebuffer(f); gl.delete_texture(t); }
-            let (Ok(t), Ok(f)) = (gl.create_texture(), gl.create_framebuffer()) else { self.op.rayos = false; return None };
-            gl.bind_texture(glow::TEXTURE_2D, Some(t));
-            gl.tex_image_2d(glow::TEXTURE_2D, 0, glow::RGBA as i32, rw, rh, 0, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelUnpackData::Slice(None));
-            for (k, v) in [(glow::TEXTURE_MIN_FILTER, glow::LINEAR), (glow::TEXTURE_MAG_FILTER, glow::LINEAR), (glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE), (glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE)] { gl.tex_parameter_i32(glow::TEXTURE_2D, k, v as i32); }
-            gl.bind_framebuffer(glow::FRAMEBUFFER, Some(f)); gl.framebuffer_texture_2d(glow::FRAMEBUFFER, glow::COLOR_ATTACHMENT0, glow::TEXTURE_2D, Some(t), 0);
-            if gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE { gl.delete_framebuffer(f); gl.delete_texture(t); self.op.rayos = false; return None; }
-            self.rayos_rt = Some((f, t, rw, rh));
+            if let Some((v, _, _)) = self.rayos_rt.take() { for (f, t) in v { gl.delete_framebuffer(f); gl.delete_texture(t); } }
+            let mut v = vec![];
+            for _ in 0..2 {
+                let (Ok(t), Ok(f)) = (gl.create_texture(), gl.create_framebuffer()) else { self.op.rayos = false; return None };
+                gl.bind_texture(glow::TEXTURE_2D, Some(t));
+                gl.tex_image_2d(glow::TEXTURE_2D, 0, glow::RGBA as i32, rw, rh, 0, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelUnpackData::Slice(None));
+                for (k, x) in [(glow::TEXTURE_MIN_FILTER, glow::LINEAR), (glow::TEXTURE_MAG_FILTER, glow::LINEAR), (glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE), (glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE)] { gl.tex_parameter_i32(glow::TEXTURE_2D, k, x as i32); }
+                gl.bind_framebuffer(glow::FRAMEBUFFER, Some(f)); gl.framebuffer_texture_2d(glow::FRAMEBUFFER, glow::COLOR_ATTACHMENT0, glow::TEXTURE_2D, Some(t), 0);
+                if gl.check_framebuffer_status(glow::FRAMEBUFFER) != glow::FRAMEBUFFER_COMPLETE { gl.delete_framebuffer(f); gl.delete_texture(t); self.op.rayos = false; return None; }
+                v.push((f, t));
+            }
+            self.rayos_rt = Some(([v[0], v[1]], rw, rh));
         }
-        let (f, t, ..) = *self.rayos_rt.as_ref()?; let (_, esc, ..) = *self.escena_rt.as_ref()?;
+        let ([(mf, mt), (rf, rt)], ..) = *self.rayos_rt.as_ref()?; let (_, esc, ..) = *self.escena_rt.as_ref()?;
         let gl = &self.gl; let l = &self.c.as_ref()?.luz;
-        gl.bind_framebuffer(glow::FRAMEBUFFER, Some(f)); gl.viewport(0, 0, rw, rh); gl.disable(glow::DEPTH_TEST); gl.disable(glow::BLEND);
+        gl.disable(glow::DEPTH_TEST); gl.disable(glow::BLEND); gl.viewport(0, 0, rw, rh);
+        gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.tri)); gl.enable_vertex_attrib_array(0); gl.vertex_attrib_pointer_f32(0, 2, glow::FLOAT, false, 8, 0);
+        for a in 1..4 { gl.disable_vertex_attrib_array(a); }
+        // 1) la máscara
+        gl.bind_framebuffer(glow::FRAMEBUFFER, Some(mf));
         let p = &self.p_rayos; gl.use_program(Some(p.p));
         gl.active_texture(glow::TEXTURE0); gl.bind_texture(glow::TEXTURE_2D, Some(esc)); gl.uniform_1_i32(p.u("uT"), 0);
         gl.uniform_4_f32(p.u("uRayP"), rp[0], rp[1], ew as f32 / eh as f32, rp[2]); gl.uniform_3_f32(p.u("uSolC"), l.sol_c[0], l.sol_c[1], l.sol_c[2]);
-        gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.tri)); gl.enable_vertex_attrib_array(0); gl.vertex_attrib_pointer_f32(0, 2, glow::FLOAT, false, 8, 0);
-        for a in 1..4 { gl.disable_vertex_attrib_array(a); }
+        gl.draw_arrays(glow::TRIANGLES, 0, 3);
+        // 2) el desenfoque hacia el sol
+        gl.bind_framebuffer(glow::FRAMEBUFFER, Some(rf));
+        let p = &self.p_rayos2; gl.use_program(Some(p.p));
+        gl.bind_texture(glow::TEXTURE_2D, Some(mt)); gl.uniform_1_i32(p.u("uRay"), 0); gl.uniform_4_f32(p.u("uRayP"), rp[0], rp[1], ew as f32 / eh as f32, rp[2]);
         gl.draw_arrays(glow::TRIANGLES, 0, 3); gl.enable(glow::DEPTH_TEST);
-        self.dibujos += 1;
-        Some(t)
+        self.dibujos += 2;
+        Some((rt, rp[2] * l.expo))
     }
     /// el reflejo del agua (como gpu.rs): la escena espejada en el plano del agua a 1/`reflejo_div` del lado, sin lo
     /// transparente ni lo de abajo del agua; devuelve si se dibujó

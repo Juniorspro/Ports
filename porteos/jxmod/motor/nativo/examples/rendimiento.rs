@@ -76,6 +76,9 @@ fn main() {
     let mut giro0 = 0.0f32; let mut incl: Option<f32> = None;
     if let Ok(t) = std::env::var("JXM_OJOS") { let v: Vec<f32> = t.split(',').filter_map(|x| x.trim().parse().ok()).collect();
         if v.len() >= 3 { ojos = [v[0], v[1], v[2]]; } if v.len() >= 4 { giro0 = v[3]; } if v.len() >= 5 { incl = Some(v[4].to_radians()); } }
+    // (JXM_MIRAR_SOL=1: mirando hacia el sol —el giro y la inclinación de JXM_OJOS se suman—)
+    if std::env::var_os("JXM_MIRAR_SOL").is_some() { if let Some(l) = j.mapa.as_ref().map(|m| m.luz.sol) { let n = (l[0] * l[0] + l[1] * l[1] + l[2] * l[2]).sqrt().max(1e-6);
+        giro0 += l[0].atan2(l[2]).to_degrees(); incl = Some((l[1] / n).asin() + incl.unwrap_or(0.0)); println!("sol: {:?}", l); } }
     cpu.set(0.0); if let Motor3d::Gl(g, _) = &mut m { if let Some(f) = g.fases.as_mut() { f.1.clear(); } g.fases_b.clear(); } medir_ab.set(true); let mut total = 0.0; let mut n = 0; let mut peor = 0f64; let mut por_vista = vec![];
     for (k, yaw) in [0.0f32, 90.0, 180.0, 270.0].iter().enumerate() {
         j.poner_ojos(ojos, (yaw + giro0).to_radians(), incl.unwrap_or(if std::env::var_os("JXM_AGUA").is_some() { -0.35 } else { -0.05 }));

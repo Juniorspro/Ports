@@ -411,6 +411,8 @@ void main() {
   // (la escena a menos píxeles —la resolución dinámica—: un poco de nitidez, contra lo de alrededor —dos lecturas a medio
   // píxel en diagonal, cada una el promedio de cuatro—)
   if (uFuerza > 0.0) { vec3 b = 0.5 * (texture(uEsc, uv + uInv * 0.5).rgb + texture(uEsc, uv - uInv * 0.5).rgb); c = clamp(c + (c - b) * uFuerza, 0.0, 1.0); }
+  // (los rayos del sol, sumados a la luz —como en post.js, antes del tono—)
+  if (uRayK > 0.0) { vec3 r = texture(uRay, uv).rgb; r = r * r * (8.0 * uRayK); c = sqrt(c * c + 1.0 - exp(-r)); }
   if (uRetoque > 0.5) {
     // (como FS_FINAL de post.js: un toque más de color y de contraste —curva en S suave— y un poco de viñeta)
     c = c * c;
@@ -421,20 +423,26 @@ void main() {
     vec2 q = uv - 0.5; c *= 1.0 - dot(q, q) * 0.32;
     c += (ign(gl_FragCoord.xy) - 0.5) / 255.0;
   }
-  if (uRayK > 0.0) c += texture(uRay, uv).rgb * uRayK;
   o = vec4(c, 1.0);
 }"#;
-// los rayos del sol (Ultra, como gl2.rs): desde cada píxel —a un cuarto del lado— hacia el sol en la pantalla, 24 lecturas; suma
-// lo que es cielo (la profundidad en el fondo) cerca del sol, cada vez menos: lo que tapa el cielo corta los haces
-const FS_RAYOS: &str = r#"#version 300 es
+// los rayos del sol (Ultra), como los de WebGL 2 (post.js): 1) la máscara, a un cuarto del lado: dónde se ve el cielo (la
+// profundidad en el fondo) cerca del sol, con su brillo —la escena acá ya está en la pantalla: se vuelve a la luz y se le
+// suma el disco del sol, que en la web está en el HDR del cielo—; 2) el desenfoque radial hacia el sol: 40 lecturas cada vez
+// menos (0,975). Los valores, en 8 bits con raíz (v/8): lo oscuro con más escalones
+const FS_RAYMASK: &str = r#"#version 300 es
 precision highp float; uniform highp sampler2D uEsc, uProf; uniform vec4 uRayP; uniform vec3 uSolC; in vec2 vP; out vec4 o;
 void main() {
-  vec2 uv = vP * 0.5 + 0.5; vec2 d = (uRayP.xy - uv) * (0.92 / 24.0), p = uv; float w = 1.0; vec3 a = vec3(0.0);
-  for (int i = 0; i < 24; i++) {
-    float cielo = texture(uProf, p).r >= 0.99999 ? 1.0 : 0.0; vec2 q = (p - uRayP.xy) * vec2(uRayP.z, 1.0); float g = max(0.0, 1.0 - dot(q, q) * 3.5);
-    a += (texture(uEsc, p).rgb * 0.5 + 0.5) * (cielo * g * g * g * w); w *= 0.95; p += d;
-  }
-  o = vec4(1.0 - exp(-a * uSolC * (uRayP.w * 0.03)), 1.0);
+  vec2 uv = vP * 0.5 + 0.5; vec2 v = (uv - uRayP.xy) * vec2(uRayP.z, 1.0); float r2 = dot(v, v);
+  float k = texture(uProf, uv).r >= 0.99999 ? 1.0 : 0.0;
+  vec3 c = texture(uEsc, uv).rgb; c = c * c * 1.6 + uSolC * (5.0 * exp(-r2 * 400.0));
+  o = vec4(sqrt(min(c, vec3(8.0)) * (k * exp(-r2 * 6.0) / 8.0)), 1.0);
+}"#;
+const FS_RAYOS: &str = r#"#version 300 es
+precision mediump float; uniform sampler2D uRay; uniform vec4 uRayP; in vec2 vP; out vec4 o;
+void main() {
+  vec2 uv = vP * 0.5 + 0.5; vec2 d = (uRayP.xy - uv) / 40.0; vec3 s = vec3(0.0); float w = 1.0;
+  for (int i = 0; i < 40; i++) { vec3 t = texture(uRay, uv).rgb; s += t * t * w; w *= 0.975; uv += d; }
+  o = vec4(sqrt(s / 40.0), 1.0);
 }"#;
 
 // las partículas como en efectos.js (VS_PART/FS_PART): carteles que giran, chispas estiradas por su velocidad y ondas planas
@@ -561,17 +569,18 @@ pub(crate) fn planos_rect(vp: &M4, r0: [f32; 2], r1: [f32; 2]) -> [[f32; 4]; 6] 
 /// para rehacer el mundo desde la profundidad sin la inversa por píxel: el ojo, el rayo por cada punto de la pantalla (uv de
 /// 0 a 1: r0 + u·rx + v·ry, medido para que la w de recorte crezca 1 por unidad) y lo que pasa de la profundidad (−1..1) a la
 /// distancia por ese rayo: t = zl[0] / (z − zl[1])
-/// dónde está el sol en la pantalla (0..1) y con qué fuerza van sus rayos (gpu.rs y gl2.rs): nada si es de noche, si está
-/// atrás o muy afuera; se apagan de a poco cuando sale de la pantalla y cuando baja
+/// dónde está el sol en la pantalla (0..1) y con qué fuerza van sus rayos (gpu.rs y gl2.rs), como postTerminar de post.js:
+/// nada de noche o con el sol abajo; se apagan cuando el sol sale de la pantalla (del todo a 0,4 pantallas) y cuando no se
+/// mira para su lado; como mucho 0,55
 pub(crate) fn sol_en_pantalla(c: &crate::escena::Cuadro, s: [f32; 3]) -> Option<[f32; 3]> {
-    if s[1] < 0.02 { return None; }
+    if s[1] < -0.05 { return None; }
     let l = &c.luz; let k = l.sol_c[0] * 0.2126 + l.sol_c[1] * 0.7152 + l.sol_c[2] * 0.0722; if k < 0.05 { return None; }
-    let p = [c.pos[0] + s[0] * 1000.0, c.pos[1] + s[1] * 1000.0, c.pos[2] + s[2] * 1000.0];
-    let v = &c.vp; let cw = v[3] * p[0] + v[7] * p[1] + v[11] * p[2] + v[15]; if cw <= 1e-3 { return None; }
-    let x = (v[0] * p[0] + v[4] * p[1] + v[8] * p[2] + v[12]) / cw; let y = (v[1] * p[0] + v[5] * p[1] + v[9] * p[2] + v[13]) / cw;
-    let fuera = x.abs().max(y.abs()); let f = (1.0 - ((fuera - 0.8) / 0.9).clamp(0.0, 1.0)) * (s[1] / 0.12).clamp(0.0, 1.0);
-    if f <= 0.01 { return None; }
-    Some([x * 0.5 + 0.5, y * 0.5 + 0.5, f * 0.9])
+    let v = &c.vp; let (x, y, w) = (v[0] * s[0] + v[4] * s[1] + v[8] * s[2], v[1] * s[0] + v[5] * s[1] + v[9] * s[2], v[3] * s[0] + v[7] * s[1] + v[11] * s[2]);
+    if w <= 0.0 { return None; }
+    let (su, sv) = (x / w * 0.5 + 0.5, y / w * 0.5 + 0.5); let fuera = ((su - 0.5).abs() - 0.5).max((sv - 0.5).abs() - 0.5).max(0.0);
+    let f = mat::norm([v[3], v[7], v[11]]); let rayo = (1.0 - fuera * 2.5).clamp(0.0, 1.0) * (mat::punto(f, s) * 2.0).clamp(0.0, 1.0) * 0.55;
+    if rayo <= 0.01 { return None; }
+    Some([su, sv, rayo])
 }
 pub(crate) fn rayos(vp: &M4) -> ([f32; 3], [f32; 3], [f32; 3], [f32; 3], [f32; 2]) {
     let iv = mat::inv(vp);
@@ -627,7 +636,7 @@ pub struct Motor {
     reflejo: Option<Destino>,
     escena_rt: Option<Destino>,
     /// los rayos del sol: el programa y su destino (un cuarto del lado)
-    p_rayos: Prog, rayos_rt: Option<Destino>,
+    p_rayos: Prog, p_rayos2: Prog, rayos_rt: Option<(Destino, Destino)>,
     /// el hongo de las nucleares con volumen
     pub hongos: crate::hongo::Hongos,
     svp: M4,
@@ -705,7 +714,7 @@ impl Motor {
         let p_ao = programa(&gl, VS_CIELO, FS_AO, "")?;
         let p_ao_poner = programa(&gl, VS_CIELO, FS_AO_PONER, "")?;
         let p_final = programa(&gl, VS_CIELO, FS_FINAL, "")?;
-        let p_rayos = programa(&gl, VS_CIELO, FS_RAYOS, "")?;
+        let p_rayos = programa(&gl, VS_CIELO, FS_RAYMASK, "")?; let p_rayos2 = programa(&gl, VS_CIELO, FS_RAYOS, "")?;
         let p_part = programa(&gl, VS_PART, FS_PART, "")?;
         let p_lin = programa(&gl, VS_LIN, FS_LIN, "")?;
         let p_ui = programa(&gl, VS_UI, FS_UI, "")?;
@@ -719,7 +728,7 @@ impl Motor {
         let mv = vbo(&[(0, 3, 0), (1, 4, 12)], 28)?; let marcas = (mv.0, mv.1, 0);
         let ui = vbo(&[(0, 2, 0), (1, 2, 8), (2, 4, 16)], 32)?;
         let blanca = textura(&gl, 1, 1, &[255, 255, 255, 255], true, false);
-        Ok(Motor { p_rayos, rayos_rt: None, hongos: crate::hongo::Hongos::nuevo(true), gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
+        Ok(Motor { p_rayos, p_rayos2, rayos_rt: None, hongos: crate::hongo::Hongos::nuevo(true), gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
             p_luz, p_luz_piel, p_luz_c, p_luz_piel_c, p_luz_inst_c, p_pre, p_pre_piel, p_pre_inst, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_lin, p_ui, ui, p_luz_inst, p_sombra_inst, inst_buf, part, marcas, ao_rt: None, refr_rt: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], svp2: mat::id(), sesgo2: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
             opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new(), ranuras: Vec::new(), instancias: std::env::var("JXM_SIN_INST").is_err(),
             ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), fases_b: vec![], luz_b, perfil: std::env::var_os("JXM_PERFIL").map(|_| std::cell::RefCell::new(vec![])) })
@@ -1136,22 +1145,29 @@ impl Motor {
     fn cascada(&self, k: usize) -> (M4, [f32; 2]) { cascada(self.c.as_ref().unwrap(), self.sol(), &self.op, k) }
 
     /// los rayos del sol: de la escena (su color y su profundidad) a una textura de un cuarto del lado; devuelve la textura
-    unsafe fn pasada_rayos(&mut self, ew: i32, eh: i32) -> Option<glow::Texture> {
-        let c = self.c.as_ref()?; let rp = sol_en_pantalla(c, self.sol())?;
+    unsafe fn pasada_rayos(&mut self, ew: i32, eh: i32) -> Option<(glow::Texture, f32)> {
+        let c = self.c.as_ref()?; let rp = sol_en_pantalla(c, self.sol())?; let expo = c.luz.expo;
         let (esc, prof) = { let d = self.escena_rt.as_ref()?; (d.color, d.prof_t?) };
         let (rw, rh) = ((ew / 4).max(8), (eh / 4).max(8));
-        if self.rayos_rt.as_ref().map(|d| d.w != rw || d.h != rh).unwrap_or(true) { if let Some(d) = self.rayos_rt.take() { borrar_destino(&self.gl, d); } self.rayos_rt = Some(destino(&self.gl, rw, rh)); }
-        let d = self.rayos_rt.as_ref()?; let (fb, t) = (d.fb, d.color); let l = &self.c.as_ref()?.luz;
+        if self.rayos_rt.as_ref().map(|d| d.0.w != rw || d.0.h != rh).unwrap_or(true) { if let Some((a, b)) = self.rayos_rt.take() { borrar_destino(&self.gl, a); borrar_destino(&self.gl, b); } self.rayos_rt = Some((destino(&self.gl, rw, rh), destino(&self.gl, rw, rh))); }
+        let (m_fb, m_t, r_fb, r_t) = { let d = self.rayos_rt.as_ref()?; (d.0.fb, d.0.color, d.1.fb, d.1.color) }; let l = &self.c.as_ref()?.luz;
         let gl = &self.gl;
-        gl.bind_framebuffer(glow::FRAMEBUFFER, Some(fb)); gl.viewport(0, 0, rw, rh); gl.disable(glow::DEPTH_TEST); gl.depth_mask(false); gl.disable(glow::BLEND);
+        gl.disable(glow::DEPTH_TEST); gl.depth_mask(false); gl.disable(glow::BLEND); gl.bind_vertex_array(None);
+        // 1) la máscara
+        gl.bind_framebuffer(glow::FRAMEBUFFER, Some(m_fb)); gl.viewport(0, 0, rw, rh);
         let p = &self.p_rayos; gl.use_program(Some(p.p));
         gl.uniform_4_f32(p.u(U::RayP), rp[0], rp[1], ew as f32 / eh as f32, rp[2]); gl.uniform_3_f32(p.u(U::SolC), l.sol_c[0], l.sol_c[1], l.sol_c[2]);
         gl.active_texture(glow::TEXTURE11); gl.bind_texture(glow::TEXTURE_2D, Some(esc));
-        gl.active_texture(glow::TEXTURE9); gl.bind_texture(glow::TEXTURE_2D, Some(prof)); gl.active_texture(glow::TEXTURE0);
-        gl.bind_vertex_array(None); gl.draw_arrays(glow::TRIANGLES, 0, 3);
+        gl.active_texture(glow::TEXTURE9); gl.bind_texture(glow::TEXTURE_2D, Some(prof));
+        gl.draw_arrays(glow::TRIANGLES, 0, 3);
+        // 2) el desenfoque hacia el sol
+        gl.bind_framebuffer(glow::FRAMEBUFFER, Some(r_fb));
+        let p = &self.p_rayos2; gl.use_program(Some(p.p)); gl.uniform_4_f32(p.u(U::RayP), rp[0], rp[1], ew as f32 / eh as f32, rp[2]);
+        gl.active_texture(glow::TEXTURE15); gl.bind_texture(glow::TEXTURE_2D, Some(m_t)); gl.active_texture(glow::TEXTURE0);
+        gl.draw_arrays(glow::TRIANGLES, 0, 3);
         gl.enable(glow::DEPTH_TEST); gl.depth_mask(true);
-        self.dibujos += 1; self.marca("rayos");
-        Some(t)
+        self.dibujos += 2; self.marca("rayos");
+        Some((r_t, rp[2] * expo))
     }
     /// el reflejo del agua: la escena espejada en el plano del agua, a una fracción de la resolución
     unsafe fn pasada_reflejo(&mut self, w: i32, h: i32, ay: f32) {
@@ -1405,8 +1421,8 @@ impl Motor {
         let nit = if self.op.escala < 0.97 { ((1.0 - self.op.escala) * 1.4).min(0.6) } else { 0.0 };
         gl.uniform_1_f32(p.u(U::Fuerza), nit); gl.uniform_2_f32(p.u(U::Inv), 1.0 / ew as f32, 1.0 / eh as f32);
         gl.active_texture(glow::TEXTURE11); gl.bind_texture(glow::TEXTURE_2D, Some(col));
-        gl.uniform_1_f32(p.u(U::RayK), if rayos.is_some() { 1.0 } else { 0.0 });
-        gl.active_texture(glow::TEXTURE15); gl.bind_texture(glow::TEXTURE_2D, Some(rayos.unwrap_or(self.blanca))); gl.active_texture(glow::TEXTURE11);
+        gl.uniform_1_f32(p.u(U::RayK), rayos.map_or(0.0, |r| r.1));
+        gl.active_texture(glow::TEXTURE15); gl.bind_texture(glow::TEXTURE_2D, Some(rayos.map_or(self.blanca, |r| r.0))); gl.active_texture(glow::TEXTURE11);
         gl.bind_vertex_array(None); gl.draw_arrays(glow::TRIANGLES, 0, 3);
         gl.bind_texture(glow::TEXTURE_2D, None); gl.active_texture(glow::TEXTURE0);
         gl.invalidate_framebuffer(glow::FRAMEBUFFER, &todo[1..]);
