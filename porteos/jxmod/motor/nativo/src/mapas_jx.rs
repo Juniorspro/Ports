@@ -116,6 +116,12 @@ fn plaza() -> Obra {
     o.caja("phoenix_storms/construct/concrete_pipe_00", "phoenix_storms/construct/concrete_pipe_00", [50.0, 3.6, 20.0], [70.0, 4.0, 24.0], false);
     o.caja("phoenix_storms/construct/concrete_pipe_00", "phoenix_storms/construct/concrete_pipe_00", [50.0, 0.0, 19.6], [70.0, 4.0, 20.0], false);
     o.caja("phoenix_storms/construct/concrete_pipe_00", "phoenix_storms/construct/concrete_pipe_00", [50.0, 0.0, 24.0], [70.0, 4.0, 24.4], false);
+    // la pérgola de fierros (al este): cuatro columnas y un techo de vigas con huecos —el sol pasa entre las vigas: con la luz en
+    // el aire (Ultra) se ven los haces—
+    let (px0, pz0, px1, pz1, ph) = (50.0f32, 30.0f32, 72.0f32, 52.0f32, 5.0f32);
+    for (x, z) in [(px0, pz0), (px1 - 0.4, pz0), (px0, pz1 - 0.4), (px1 - 0.4, pz1 - 0.4)] { o.caja("metal/metalwall005b", "metal/metalwall005b", [x, 0.0, z], [x + 0.4, ph, z + 0.4], false); }
+    for x in [px0, (px0 + px1) / 2.0 - 0.15, px1 - 0.3] { o.caja("metal/metalwall005b", "metal/metalwall005b", [x, ph, pz0], [x + 0.3, ph + 0.4, pz1], true); }
+    let mut z = pz0; while z + 0.25 <= pz1 { o.caja("metal/metalwall001a", "metal/metalwall001a", [px0, ph + 0.4, z], [px1, ph + 0.7, z + 0.25], true); z += 1.1; }
     // las paredes de roca alrededor (que no se caiga del mapa)
     let r = 25.0;
     o.caja("nature/cliffface001a", "nature/dirtwall001a", [-l - 2.0, -1.0, -l - 2.0], [-l, r, l + 2.0], false);
