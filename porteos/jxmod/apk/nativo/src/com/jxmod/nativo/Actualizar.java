@@ -36,6 +36,11 @@ final class Actualizar {
     private static BroadcastReceiver receptor;
     private static Novedad pendiente;   // (la que se quiso instalar pero faltaba el permiso: se sigue al volver)
     private static boolean trabajando;
+    // (lo que ve el juego: la versión nueva que hay, cuánto se bajó y si falló —estado()—)
+    private static volatile Novedad nueva;
+    private static volatile long hecho, total;
+    private static volatile String fallo;
+    private static volatile boolean bajando;
 
     private Actualizar() {}
 
@@ -46,6 +51,21 @@ final class Actualizar {
         catch (Exception e) { return Long.MAX_VALUE; }
     }
     @SuppressWarnings("deprecation") private static long versionVieja(android.content.pm.PackageInfo p) { return p.versionCode; }
+
+    /** (al abrir) se fija en silencio si hay una versión nueva: la muestra la tarjeta del inicio del juego */
+    static void revisar(final Activity a) {
+        new Thread(new Runnable() { @Override public void run() {
+            try { Novedad n = Novedad.leer(Novedad.pedir(Novedad.BASE + Novedad.MANIFIESTO), Locale.getDefault().getLanguage()); if (n != null && n.masNuevaQue(propio(a))) nueva = n; } catch (Exception e) { /* sin internet: nada */ }
+        } }, "jxm-version").start();
+    }
+    /** para el juego: «nueva\tversión\tbytes», «bajando\thecho\ttotal», «error\tmensaje» o "" */
+    static String estado() {
+        if (bajando) return "bajando\t" + hecho + "\t" + total;
+        String f = fallo; if (f != null) return "error\t" + f.replace('\t', ' ').replace('\n', ' ');
+        Novedad n = nueva; return n == null ? "" : "nueva\t" + n.version + "\t" + n.tam;
+    }
+    /** (la tarjeta del inicio) bajar la nueva e instalarla, con el progreso en el juego */
+    static void desdeJuego(Activity a) { Novedad n = nueva; if (n == null || bajando) return; fallo = null; empezar(a, n); }
 
     /** se fija si hay una versión nueva (en otro hilo); `aviso`: decir también «ya tenés la última» */
     static void buscar(final Activity a, final boolean aviso) {
@@ -82,13 +102,27 @@ final class Actualizar {
         if (!puede(a)) {
             pendiente = n;
             Toast.makeText(a, en() ? "Allow installing from JXMod and come back" : "Permití «instalar apps» para JXMod y volvé", Toast.LENGTH_LONG).show();
-            try { a.startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + a.getPackageName()))); } catch (ActivityNotFoundException x) { pendiente = null; bajar(a, n); }
+            try { a.startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + a.getPackageName()))); } catch (ActivityNotFoundException x) { pendiente = null; bajarEnJuego(a, n); }
             return;
         }
-        bajar(a, n);
+        bajarEnJuego(a, n);
     }
 
-    private static void bajar(final Activity a, final Novedad n) {
+    /** baja sin ventana de Android: el juego muestra cómo va (estado()); al terminar, el instalador de Android */
+    private static void bajarEnJuego(final Activity a, final Novedad n) {
+        if (bajando) return;
+        bajando = true; hecho = 0; total = n.tam; fallo = null;
+        final File apk = new File(a.getCacheDir(), "JXModNativo.apk");
+        new Thread(new Runnable() { @Override public void run() {
+            try {
+                n.bajar(n.url(), apk, new Novedad.Progreso() { @Override public void va(long h, long t) { hecho = h; if (t > 0) total = t; } });
+                instalar(a, apk);
+            } catch (Exception e) { fallo = e.getMessage() == null ? e.toString() : e.getMessage(); }
+            bajando = false;
+        } }, "jxm-bajar").start();
+    }
+
+    @SuppressWarnings("unused") private static void bajar(final Activity a, final Novedad n) {
         trabajando = true;
         final ProgressBar barra = new ProgressBar(a, null, android.R.attr.progressBarStyleHorizontal); barra.setMax(1000);
         final TextView txt = new TextView(a); txt.setPadding(0, 18, 0, 0);

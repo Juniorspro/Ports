@@ -35,9 +35,24 @@ pub struct Foto { pub id: i64, pub w: u32, pub h: u32, subida: bool, px: Option<
 pub struct Recursos { pub atlas: Option<Atlas>, pub ico: Iconos, pub gl: pincel::Glifos, atlas_subido: bool, aero_subida: bool, atlas_px: Option<Vec<u8>>, pub fotos: HashMap<String, Foto>, sig_foto: i64, pub error: Option<String> }
 
 /// el estado del inicio
+/// la actualización de la app (Actualizar.java): hay una versión nueva, se está bajando o falló
+#[derive(Clone, Debug, PartialEq)]
+pub enum Act { Nueva { version: String, mb: f32 }, Bajando { f: f32 }, Error(String) }
+/// lo que dice Actualizar.java («nueva\tversión\tbytes», «bajando\thecho\ttotal», «error\tmensaje» o nada)
+pub fn act_de(s: &str) -> Option<Act> {
+    let v: Vec<&str> = s.split('\t').collect();
+    match v.first().copied()? {
+        "nueva" => Some(Act::Nueva { version: v.get(1)?.to_string(), mb: v.get(2).and_then(|x| x.parse::<f32>().ok()).unwrap_or(0.0) / 1048576.0 }),
+        "bajando" => { let (h, t) = (v.get(1)?.parse::<f32>().ok()?, v.get(2)?.parse::<f32>().ok()?.max(1.0)); Some(Act::Bajando { f: h / t }) }
+        "error" => Some(Act::Error(v.get(1).unwrap_or(&"").to_string())),
+        _ => None,
+    }
+}
 pub struct Inicio {
     /// a la vista (el juego no corre) y el panel abierto encima del fondo (None: el menú)
     pub abierto: bool, pub panel: Option<super::paneles_juego::PanelIni>,
+    /// la actualización de la app y cómo preguntarle a Java (cada medio segundo) y pedirle que la baje (app.rs)
+    pub act: Option<Act>, pub act_estado: Option<Box<dyn Fn() -> String>>, pub act_pedir: Option<Box<dyn Fn()>>, pub act_t: f32,
     /// el reloj del inicio (s) y cuándo apareció el menú (la entrada) o cambió la elegida (el barrido)
     pub reloj: f32, pub entrada: f32, pub sel: Option<usize>, sel_t: f32,
     /// el golpe al tocar (qué y cuándo) y el dedo que está tocando (su número, qué tocó y dónde empezó)
@@ -74,7 +89,7 @@ impl Default for Inicio {
         let nucleo = include_str!("../../../juego/nucleo.js");
         let version = nucleo.split("const JX_VERSION = '").nth(1).and_then(|r| r.split('\'').next()).unwrap_or("?").to_string();
         let armado = option_env!("JXM_ARMADO").map(|s| s.to_string()).unwrap_or_else(|| super::paneles_juego::novedades().first().map(|n| { let p: Vec<&str> = n.f.split('-').collect(); if p.len() == 3 { format!("{}/{}/{}", p[2], p[1], p[0]) } else { n.f.clone() } }).unwrap_or_default());
-        Inicio { abierto: false, panel: None, reloj: 0.0, entrada: -10.0, sel: None, sel_t: -10.0, golpe: None, dedo: None, apretado: None,
+        Inicio { abierto: false, panel: None, act: None, act_estado: None, act_pedir: None, act_t: 0.0, reloj: 0.0, entrada: -10.0, sel: None, sel_t: -10.0, golpe: None, dedo: None, apretado: None,
             fondos: vec![], fondo: 0, fondo_t: 0.0, fundido: -10.0, ken_t: 0.0, glitch: -10.0, glitch_prox: 14.0, azar: 0x51ed270b, nivel: Nivel::Pleno,
             rec: Recursos::default(), perdidas: Cell::new(false), letras_ok: Cell::new(false), lector: None, version, armado, zonas: vec![], ins: [0.0; 4], desde_juego: false,
             pn: Default::default(), pz: Default::default(), salir: false, cuerpo_nuevo: false, quieto: false,
@@ -187,6 +202,8 @@ impl Juego {
         let ahora = Instant::now(); let dt = self.dt_fijo.unwrap_or((ahora - self.t_ant).as_secs_f32().min(0.1)); self.t_ant = ahora;
         let (wf, hf) = (w as f32, h as f32);
         self.ini.reloj += dt;
+        // (la actualización: se le pregunta a Java cada medio segundo)
+        self.ini.act_t -= dt; if self.ini.act_t <= 0.0 { self.ini.act_t = 0.5; if let Some(f) = &self.ini.act_estado { self.ini.act = act_de(&f()); } }
         self.ini.nivel = if self.aj.calidad == 0 { Nivel::Quieto } else if self.aj.calidad == 1 { Nivel::Bajo } else { Nivel::Pleno };
         m.opciones(&self.aj.opciones()); self.sonido.volumen = self.aj.volumen();
         self.escrito_paso();
@@ -432,7 +449,7 @@ impl Juego {
             Pieza::Grieta => self.pn_abrir(P::Grieta),
             Pieza::Novedades => self.pn_abrir(P::Bugs { tab: 2, scroll: 0.0 }),
             Pieza::Contenido => self.cont_abrir(),
-            Pieza::Actualizar => {}
+            Pieza::Actualizar => { if let Some(f) = &self.ini.act_pedir { f(); } self.ini.act_t = 0.0; }
         }
     }
     /// «Salir»: en el celular cierra la app (como la de la web: JXNativo.salir); en la compu no hace nada

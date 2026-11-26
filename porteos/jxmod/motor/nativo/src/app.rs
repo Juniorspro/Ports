@@ -85,6 +85,8 @@ fn android_main(app: AndroidApp) {
         if let Some(r) = t.refresco() { if r > 20.0 { j.refresco = r; } }
         // (el candado de multicast, la primera vez que se buscan partidas en el Wi-Fi)
         { let t4 = t.clone(); j.lan.candado = Some(Box::new(move || t4.candado_multicast())); }
+        // (la actualización de la app, en el inicio: Actualizar.java la busca al abrir, la baja y la instala encima)
+        { let (t5, t6) = (t.clone(), t.clone()); j.ini.act_estado = Some(Box::new(move || t5.estado_actualizacion())); j.ini.act_pedir = Some(Box::new(move || t6.actualizar_ahora())); }
         let (t1, t2) = (t.clone(), t);
         j.teclado = Some(crate::comun::Teclado { pedir: Box::new(move |id, ti, ini, max, cl| t1.pedir(id, ti, ini, max, cl)), tomar: Box::new(move || t2.tomar()) });
     }

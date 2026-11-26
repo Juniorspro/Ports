@@ -142,6 +142,17 @@ impl Teclado {
             Ok(())
         });
     }
+    /// cómo va la actualización de la app (Juego.estadoActualizacion: «nueva\t…», «bajando\t…», «error\t…» o "")
+    pub fn estado_actualizacion(&self) -> String {
+        let a = self.act.clone();
+        con_java(&self.vm, |env| {
+            let r = env.call_method(a.as_obj(), jni_str!("estadoActualizacion"), jni_sig!("()Ljava/lang/String;"), &[])?.l()?;
+            if r.is_null() { return Ok(String::new()); }
+            env.cast_local::<JString>(r)?.try_to_string(env)
+        }).unwrap_or_default()
+    }
+    /// baja la versión nueva y la instala encima (Juego.actualizarAhora)
+    pub fn actualizar_ahora(&self) { let a = self.act.clone(); let _ = con_java(&self.vm, |env| { env.call_method(a.as_obj(), jni_str!("actualizarAhora"), jni_sig!("()V"), &[])?; Ok(()) }); }
     /// el refresco de la pantalla (Hz: 60, 90, 120…), para los gráficos automáticos
     pub fn refresco(&self) -> Option<f32> {
         let a = self.act.clone();

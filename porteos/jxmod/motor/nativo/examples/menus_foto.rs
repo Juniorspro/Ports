@@ -59,6 +59,8 @@ fn main() {
     if let Some(i) = std::env::var("JXM_IDIOMA").ok().and_then(|c| jxjuego::idiomas::de_codigo(&c)) { jxjuego::idiomas::poner(i); }
     // (JXM_MUSICA=1: la placa de lo que suena —acá no hay sonido—)
     if std::env::var("JXM_MUSICA").is_ok() { j.musica.sonando = Some("Airport Lounge".into()); }
+    // (JXM_ACT=1: la tarjeta de la actualización —acá no hay Java—)
+    if std::env::var("JXM_ACT").is_ok() { j.ini.act = Some(jxmod::comun::inicio_juego::Act::Nueva { version: "0.23".into(), mb: 51.4 }); }
     j.dt_fijo = Some(1.0 / 60.0); j.en_uso = if vk { Placa::Vulkan } else if gl2 { Placa::Gl2 } else { Placa::Gl3 };
     let base = menus.clone(); j.inicio_lector(Box::new(move |n| std::fs::read(Path::new(&base).join(n)).ok()));
     let mut tam_vk = (mw, mh);

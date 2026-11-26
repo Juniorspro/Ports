@@ -30,8 +30,8 @@ public class Juego extends NativeActivity {
         if (Build.VERSION.SDK_INT >= 28) w.getAttributes().layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
         super.onCreate(b);
         completa();
-        // (¿hay una versión nueva de la app? se instala encima: Actualizar.java)
-        Actualizar.buscar(this, false);
+        // (¿hay una versión nueva de la app? la tarjeta del inicio la muestra y la baja: Actualizar.java)
+        Actualizar.revisar(this);
     }
 
     @Override protected void onResume() { super.onResume(); Actualizar.alVolver(this); }
@@ -39,6 +39,10 @@ public class Juego extends NativeActivity {
 
     /** (Rust: Ajustes → «Buscar actualización») */
     public void buscarActualizacion() { runOnUiThread(new Runnable() { @Override public void run() { Actualizar.buscar(Juego.this, true); } }); }
+    /** (Rust, cada medio segundo en el inicio) cómo va la actualización: «nueva\tversión\tbytes», «bajando\thecho\ttotal», «error\tmensaje» o "" */
+    public String estadoActualizacion() { return Actualizar.estado(); }
+    /** (Rust: la tarjeta «Actualización» del inicio) bajarla e instalarla encima */
+    public void actualizarAhora() { runOnUiThread(new Runnable() { @Override public void run() { Actualizar.desdeJuego(Juego.this); } }); }
     /** (Rust) la versión instalada, para mostrarla */
     public String version() { try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception e) { return ""; } }
 

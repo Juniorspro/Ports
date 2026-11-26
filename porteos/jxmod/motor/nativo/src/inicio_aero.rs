@@ -2,6 +2,7 @@
 //! blancas grandes, por grupos— con el vidrio de aero.rs: la fila apretada de vidrio, los paneles de la derecha (las novedades
 //! y el evento) y la barra de tareas de vidrio negro abajo (el orbe, los botones y el área de avisos con tu nombre, Discord,
 //! TikTok y la versión con la fecha, donde va el reloj)
+use jxjuego::idiomas::tr;
 use super::*;
 use super::aero::{self, blanco, negro, Aero, BLANCO};
 use super::inicio_juego::{prog, Nivel, Pieza, CL_TXT};
@@ -46,6 +47,21 @@ impl Juego {
         let gw = 206.0 * u; let gx = w - ins[1] - 16.0 * u - gw;
         if gx > x0 + ancho_lista + 40.0 * u {
             let mut gy = y_top; let k = ent(0.3, 0.45); let dx = (1.0 - k) * 30.0 * u;
+            // (la actualización de la app, si hay: arriba de todo —Actualizar.java la baja y la instala encima—)
+            if let Some(a) = ini.act.clone() {
+                let gh = 46.0 * u; let r = [gx + dx, gy, gw, gh];
+                p.con_alfa(k, |p| {
+                    aero::tarjeta(p, r, u, apr(Pieza::Actualizar));
+                    let (tit, sub, f) = match &a { super::inicio_juego::Act::Nueva { version, mb } => (format!("{} {version}", tr("Actualización")), format!("{} · {mb:.0} MB", tr("Tocá para actualizar")), None),
+                        super::inicio_juego::Act::Bajando { f } => (tr("Bajando la actualización…").to_string(), format!("{:.0} %", f * 100.0), Some(*f)),
+                        super::inicio_juego::Act::Error(e) => (tr("No se pudo actualizar").to_string(), e.clone(), None) };
+                    p.icono("bajar", r[0] + 11.0 * u, gy + (gh - 22.0 * u) / 2.0, 22.0 * u, 2.2, aero::hex(0x6fdc6f));
+                    p.texto_sombra(Cara::S7, 12.5 * u, r[0] + 42.0 * u, gy + 20.0 * u, BLANCO, &tit, u);
+                    p.texto_max(Cara::S4, 11.0 * u, r[0] + 42.0 * u, gy + 35.0 * u, blanco(0.85), 0.0, &sub, gw - 52.0 * u);
+                    if let Some(f) = f { let (bx, bw) = (r[0] + 42.0 * u, gw - 54.0 * u); p.rect(bx, gy + 39.0 * u, bw, 2.5 * u, negro(0.45)); p.rect(bx, gy + 39.0 * u, bw * f.clamp(0.0, 1.0), 2.5 * u, aero::hex(0x3ccb45)); }
+                });
+                z.push((r, Pieza::Actualizar)); gy += gh + 10.0 * u;
+            }
             let (v, f, es) = ultima_nota();
             if !es.is_empty() {
                 let tl = 11.5 * u; let lh = 14.5 * u; let ancho_t = gw - 22.0 * u;
