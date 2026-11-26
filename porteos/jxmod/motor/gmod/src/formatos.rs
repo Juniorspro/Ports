@@ -127,7 +127,7 @@ pub fn vmt(bytes: &[u8], buscar: &dyn Fn(&str) -> Option<Rc<[u8]>>) -> Option<Vm
     Some(Vmt {
         base: ruta("$basetexture"), base2: ruta("$basetexture2"), bump: ruta("$bumpmap"), detalle: ruta("$detail"), tinte: ruta("$refracttinttexture"), espejo,
         trans: num("$translucent", 0.0) != 0.0 || num("$alpha", 1.0) < 1.0, alfa: num("$alpha", 1.0), corte: num("$alphatest", 0.0) != 0.0, umbral: num("$alphatestreference", 0.5),
-        suma: num("$additive", 0.0) != 0.0, dos_lados: num("$nocull", 0.0) != 0.0, brilla: num("$selfillum", 0.0) != 0.0,
+        suma: num("$additive", 0.0) != 0.0 || (shader.contains("sprite") && [3.0, 5.0, 9.0].contains(&num("$spriterendermode", 0.0))), dos_lados: num("$nocull", 0.0) != 0.0, brilla: num("$selfillum", 0.0) != 0.0,
         sin_luz: shader.contains("unlit") || shader.contains("sprite"), color: vec("$color2").or_else(|| vec("$color")), env: k.tiene("$envmap"), phong: num("$phong", 0.0) != 0.0,
         vcolor: num("$vertexcolor", 0.0) != 0.0, superficie: k.txt("$surfaceprop").map(|s| s.to_lowercase()),
         anim: px.map(|p| p.tiene("animatedtexture") || p.tiene("texturescroll")).unwrap_or(false),

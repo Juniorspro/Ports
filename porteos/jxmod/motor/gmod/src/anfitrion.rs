@@ -67,11 +67,14 @@ pub struct Camara {
     pub fov: f64,
     /// el temblor que pide el Lua (ViewPunch, util.ScreenShake): 0..1
     pub temblor: f64,
+    /// dónde está de verdad la cámara con que se dibuja (en tercera persona, atrás del personaje; `pos` son los ojos): las
+    /// tiras y los sprites miran hacia acá
+    pub vista: Option<V3>,
 }
 
 impl Default for Camara {
     fn default() -> Camara {
-        Camara { pos: V3 { x: 0.0, y: 1.6, z: 0.0 }, fwd: V3 { x: 0.0, y: 0.0, z: 1.0 }, der: V3 { x: -1.0, y: 0.0, z: 0.0 }, arr: V3 { x: 0.0, y: 1.0, z: 0.0 }, q: Quat::default(), fov: 75.0, temblor: 0.0 }
+        Camara { pos: V3 { x: 0.0, y: 1.6, z: 0.0 }, fwd: V3 { x: 0.0, y: 0.0, z: 1.0 }, der: V3 { x: -1.0, y: 0.0, z: 0.0 }, arr: V3 { x: 0.0, y: 1.0, z: 0.0 }, q: Quat::default(), fov: 75.0, temblor: 0.0, vista: None }
     }
 }
 
@@ -244,6 +247,11 @@ pub trait Anfitrion {
 
     // ---- estado compartido ----
     fn jug(&mut self) -> &mut Jugador;
+    /// los huesos del jugador como los dibuja el juego, con su nombre de GMod («ValveBiped.Bip01_R_Hand»...): el lugar
+    /// (en el juego) y los ejes de Source del hueso —adelante, izquierda, arriba— en direcciones del juego
+    fn huesos_jugador(&mut self) -> Vec<(String, V3, [V3; 3])> { Vec::new() }
+    /// dónde va el modelo de mundo del arma en la mano (en el juego: el lugar y el giro), si el juego lo sabe
+    fn arma_mundo(&mut self) -> Option<(V3, Quat)> { None }
     fn cam(&mut self) -> &mut Camara;
     fn entrada(&mut self) -> &mut Entrada;
     fn armas(&mut self) -> &mut Armas;

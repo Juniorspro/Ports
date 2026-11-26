@@ -42,7 +42,13 @@ fn main() {
         let p2 = prog.clone(); let fin = Arc::new(std::sync::atomic::AtomicBool::new(false)); let f2 = fin.clone();
         let mirar = std::thread::spawn(move || { while !f2.load(std::sync::atomic::Ordering::Relaxed) { std::thread::sleep(std::time::Duration::from_millis(5000)); let (h, tt) = (p2.hecho.load(std::sync::atomic::Ordering::Relaxed), p2.total.load(std::sync::atomic::Ordering::Relaxed)); eprintln!("  {:.0}/{:.0} MB", h as f64 / 1e6, tt as f64 / 1e6); } });
         let directo = std::env::var_os("SP_DIRECTO").is_some();
-        let r = steampipe::bajar(Arc::new(curl), jxmod::comun::gmod_juego::TIENDA_URL, id, &sal, directo, prog);
+        let mut r = steampipe::bajar(Arc::new(curl), jxmod::comun::gmod_juego::TIENDA_URL, id, &sal, directo, prog);
+        // (los que Steam da como archivo directo: por la tienda, en LZMA —como gmod_bajar del juego—)
+        if let Err(_) = &r { {
+            r = curl(&format!("{}gmod/archivo/{}", jxmod::comun::gmod_juego::TIENDA_URL, id)).and_then(|(c, b)| if c == 200 { Ok(b) } else { Err(format!("HTTP {c}")) })
+                .and_then(|b| if b.starts_with(b"GMAD") { Ok(b) } else { jxmod::comun::gmod_juego::lzma(&b) })
+                .and_then(|b| std::fs::write(&sal, &b).map(|_| sal.clone()).map_err(|e| e.to_string()));
+        } }
         fin.store(true, std::sync::atomic::Ordering::Relaxed); let _ = mirar.join();
         match r { Ok(p) => { let b = std::fs::read(&p).unwrap(); println!("BAJADO {} en {:.0} s · {:.1} MB · empieza con {}", p.display(), t.elapsed().as_secs_f64(), b.len() as f64 / 1e6, String::from_utf8_lossy(&b[..4])); } Err(e) => println!("ERROR al bajar: {e}") }
     }

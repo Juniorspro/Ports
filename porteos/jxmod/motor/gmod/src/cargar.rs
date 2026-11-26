@@ -111,6 +111,9 @@ impl Gmod {
     pub fn hud(&mut self) { self.activar(); hud(&mut self.lua); }
     /// lo 3D del cuadro (gmrAntes): los Draw de las entidades, los modelos de los addons que se ven (con su pose), los
     /// objetos que no se ven, los sprites de render.* y la vista del arma del addon. `dt`: lo que avanza la vista
+    /// la cámara que piden los addons (hook CalcView y el CalcView del arma: la tercera persona del sable); None si nadie
+    /// la toca
+    pub fn calc_vista(&mut self) -> Option<crate::modelos::CalcVista> { self.activar(); if !g(|g| g.activo) { return None; } crate::modelos::calc_vista(&mut self.lua) }
     pub fn dibujar3d(&mut self, dt: f64) -> crate::modelos::Dib { self.activar(); if !g(|g| g.activo) { return Default::default(); } crate::modelos::dibujar(&mut self.lua, dt) }
     /// un modelo de los addons montados (leído una vez)
     pub fn modelo(&self, ruta: &str) -> Option<Rc<crate::modelos::Modelo>> { self.activar(); crate::modelos::modelo(ruta) }

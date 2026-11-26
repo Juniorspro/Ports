@@ -346,8 +346,9 @@ impl Juego {
             if piel { let ya = self.gmod.mods.modelos.get(&r).map(|x| x.as_ref().map(|y| y.piel.is_some()).unwrap_or(true)).unwrap_or(false); if !ya { self.gm_piel(m, &r); } }
             else if !self.gmod.mods.modelos.contains_key(&r) { self.gm_modelo(m, &r); }
         }
-        let mats: Vec<String> = self.gmod.mods.dib.sprites.iter().map(|s| s.mat.clone()).collect();
-        for k in mats { if !self.gmod.mods.mats_spr.contains_key(&k) { let x = self.gm_mat_sprite(m, &k); self.gmod.mods.mats_spr.insert(k, x); } }
+        // (cada material con cada color —el del sable, el de un láser—: el color va en el material)
+        let mats: Vec<(String, [f32; 4])> = self.gmod.mods.dib.sprites.iter().map(|s| (clave_spr(&s.mat, s.color), s.color)).collect();
+        for (k, c) in mats { if !self.gmod.mods.mats_spr.contains_key(&k) && self.gmod.mods.mats_spr.len() < 400 { let x = self.gm_mat_sprite(m, &k, c); self.gmod.mods.mats_spr.insert(k, x); } }
         // (los objetos que esperaban su modelo)
         let pend = std::mem::take(&mut self.gmod.mods.crear);
         for (oid, nombre) in pend {
@@ -366,7 +367,8 @@ impl Juego {
         }
     }
     /// el material de un sprite (render.SetMaterial): su textura, transparente o sumada, sin luz
-    fn gm_mat_sprite(&mut self, m: &mut Motor3d, nombre: &str) -> Option<i64> {
+    fn gm_mat_sprite(&mut self, m: &mut Motor3d, nombre: &str, color: [f32; 4]) -> Option<i64> {
+        let nombre = nombre.split('#').next().unwrap_or(nombre);
         let k = nombre.to_lowercase().replace('\\', "/"); let k = k.trim_start_matches("materials/").to_string();
         let (tex, suma) = if k.ends_with(".png") { (self.gm_textura(m, &format!("materials/{k}")).or_else(|| self.gm_textura(m, &k)), false) } else {
             let kb = k.trim_end_matches(".vmt").trim_end_matches(".vtf").to_string();
@@ -376,7 +378,7 @@ impl Juego {
         };
         let (t, _, _) = tex?;
         let id = self.gm_id();
-        let mat = Mat { ti: [0.0; 12], pbr: [0.9, 0.0, 0.04], fol: 0, id, t2: -1, terr: None, c: [1.0; 4], st: [1.0, 1.0, 0.0, 0.0], t, blend: (!suma) as u8, cut: 0, unlit: 1, add: suma as u8, agua: 0, em: [0.0; 3] };
+        let mat = Mat { ti: [0.0; 12], pbr: [0.9, 0.0, 0.04], fol: 0, id, t2: -1, terr: None, c: color, st: [1.0, 1.0, 0.0, 0.0], t, blend: (!suma) as u8, cut: 0, unlit: 1, add: suma as u8, agua: 0, em: [0.0; 3] };
         let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas: vec![], mats: vec![mat], texs: vec![], lms: vec![], items: vec![], agua: None, cielo: None };
         unsafe { m.cargar(&Escena { c: cab, datos: vec![] }) }.ok()?; Some(id)
     }
@@ -444,7 +446,7 @@ impl Juego {
             if x.vista { for it in &mut items[n0..] { it.fl |= FL_SIN_SOMBRA_GM | jxmotor::escena::FL_ARMA; it.esf[3] = -1.0; } }
         }
         for s in &d.sprites {
-            let Some(Some(mat)) = self.gmod.mods.mats_spr.get(&s.mat) else { continue };
+            let Some(Some(mat)) = self.gmod.mods.mats_spr.get(&clave_spr(&s.mat, s.color)) else { continue };
             if s.vista && vista_base.is_none() { continue; }
             let a_v = |p: [f32; 3]| match (s.vista, &vista_base) { (true, Some((vb, vinv))) => { let m = m4::mul(vb, vinv); [m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12], m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13], m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14]] } _ => p };
             let [a, b, _c, dd] = s.esq.map(|p| a_v([p.x as f32, p.y as f32, p.z as f32]));
@@ -455,7 +457,7 @@ impl Juego {
             items.push(ItemDin { m: QUAD_MALLA, s0: 0, sn: 12, mat: *mat, mm, esf: [a[0] + (ux[0] + uy[0]) / 2.0, a[1] + (ux[1] + uy[1]) / 2.0, a[2] + (ux[2] + uy[2]) / 2.0, r], fl: FL_SIN_SOMBRA_GM, h: vec![] });
         }
         // la vista del arma del addon (primera persona): los huesos en los ejes de la cámara, con su campo visual
-        if self.camara == 0 && !self.armas.zoom && self.vehs.jugador.is_none() && self.gmod.arma.is_some() && !self.muerto {
+        if self.camara_ef() == 0 && !self.armas.zoom && self.vehs.jugador.is_none() && self.gmod.arma.is_some() && !self.muerto {
             if let Some(v) = &d.vista { if let Some(Some(md)) = mods.get(&v.modelo) { if md.piel.is_some() {
                 let Some((base, _)) = self.gmod_vista_base(ojos, yaw, pitch) else { return };
                 let n0 = items.len(); Self::gm_items_modelo(md, &base, Some(&v.huesos), items);
@@ -465,21 +467,55 @@ impl Juego {
             } } }
         }
         // el modelo de mundo en la mano (tercera persona): con el agarre del arma del juego que presta su lugar
-        if self.camara != 0 && self.gmod_arma_mundo() {
-            if let (Some(pj), Some(r), Some(paq)) = (self.pj.as_ref(), self.gm_modelo_mundo(), self.paq.as_ref()) {
-                if let (Some(Some(md)), Some((mut fm, l))) = (mods.get(&r), pj.mano_marco(0)) {
-                    let gm = &paq.d["gm"]; let g = &gm["armas"][self.armas.def().n]["G"]; let ml = gm["manoR"]["L"].as_f64().unwrap_or(0.0);
-                    if g.is_array() && ml > 0.0 {
-                        let k = (l / ml).clamp(0.3, 2.6) as f32; for i in 0..12 { if i % 4 != 3 { fm[i] *= k; } }
-                        let mut gg = [0.0f32; 16]; for (i, e) in gg.iter_mut().enumerate() { *e = g[i].as_f64().unwrap_or(0.0) as f32; }
-                        let jp = self.jug.pos; let b = pj.base_sentado().unwrap_or_else(|| personaje::base([jp[0], jp[1] - 0.95, jp[2]], self.jug.yaw));
-                        let base = m4::mul(&b, &m4::mul(&fm, &gg));
-                        Self::gm_items_modelo(md, &base, None, items);
-                    }
-                }
+        if self.camara_ef() != 0 && self.gmod_arma_mundo() {
+            if let (Some(r), Some(base)) = (self.gm_modelo_mundo(), self.gm_base_mano()) {
+                if let Some(Some(md)) = mods.get(&r) { Self::gm_items_modelo(md, &base, None, items); }
             }
         }
     }
+    /// dónde va el modelo de mundo del arma del addon en la mano (en el juego): la mano del personaje con el agarre del
+    /// arma del juego que presta su lugar
+    pub(crate) fn gm_base_mano(&self) -> Option<M4> {
+        let (pj, paq) = (self.pj.as_ref()?, self.paq.as_ref()?);
+        let (mut fm, l) = pj.mano_marco(0)?;
+        let gm = &paq.d["gm"]; let g = &gm["armas"][self.armas.def().n]["G"]; let ml = gm["manoR"]["L"].as_f64().unwrap_or(0.0);
+        if !g.is_array() || ml <= 0.0 { return None; }
+        let k = (l / ml).clamp(0.3, 2.6) as f32; for i in 0..12 { if i % 4 != 3 { fm[i] *= k; } }
+        let mut gg = [0.0f32; 16]; for (i, e) in gg.iter_mut().enumerate() { *e = g[i].as_f64().unwrap_or(0.0) as f32; }
+        Some(m4::mul(&self.gm_base_pj(pj), &m4::mul(&fm, &gg)))
+    }
+    /// el lugar del personaje del jugador en el mundo (parado o sentado)
+    fn gm_base_pj(&self, pj: &Personaje) -> M4 { let jp = self.jug.pos; pj.base_sentado().unwrap_or_else(|| personaje::base([jp[0], jp[1] - 0.95, jp[2]], self.jug.yaw)) }
+    /// los huesos del personaje del jugador con los nombres de GMod (el Lua los pide: LookupBone, GetBonePosition...) y el
+    /// arma en la mano (sus enganches: la hoja del sable). Los ejes de Source: adelante a lo largo del hueso —el Y de
+    /// Mixamo—, izquierda y arriba
+    pub(crate) fn gm_huesos_jug(&self) -> (Vec<(String, jxgmod::mates::V3, [jxgmod::mates::V3; 3])>, Option<(jxgmod::mates::V3, jxgmod::mates::Quat)>) {
+        use jxgmod::mates::V3 as V;
+        const VB: [(&str, &str); 21] = [("Hips", "Pelvis"), ("Spine", "Spine"), ("Spine1", "Spine1"), ("Spine2", "Spine2"), ("Spine2", "Spine4"), ("Neck", "Neck1"), ("Head", "Head1"),
+            ("LeftShoulder", "L_Clavicle"), ("LeftArm", "L_UpperArm"), ("LeftForeArm", "L_Forearm"), ("LeftHand", "L_Hand"), ("RightShoulder", "R_Clavicle"), ("RightArm", "R_UpperArm"),
+            ("RightForeArm", "R_Forearm"), ("RightHand", "R_Hand"), ("LeftUpLeg", "L_Thigh"), ("LeftLeg", "L_Calf"), ("LeftFoot", "L_Foot"), ("RightUpLeg", "R_Thigh"), ("RightLeg", "R_Calf"), ("RightFoot", "R_Foot")];
+        let Some(pj) = self.pj.as_ref() else { return (Vec::new(), None) };
+        let b = self.gm_base_pj(pj);
+        let col = |w: &M4, c: usize, k: f64| { let v = V { x: w[c * 4] as f64 * k, y: w[c * 4 + 1] as f64 * k, z: w[c * 4 + 2] as f64 * k }; v.norm() };
+        let mut l = Vec::with_capacity(VB.len());
+        for (n, vb) in VB { if let Some(m) = pj.hueso(n) { let w = m4::mul(&b, &m); l.push((format!("ValveBiped.Bip01_{vb}"), V { x: w[12] as f64, y: w[13] as f64, z: w[14] as f64 }, [col(&w, 1, 1.0), col(&w, 0, -1.0), col(&w, 2, 1.0)])); } }
+        let am = self.gm_base_mano().map(|m| (V { x: m[12] as f64, y: m[13] as f64, z: m[14] as f64 }, quat_de(&m)));
+        (l, am)
+    }
+}
+/// la clave de un material de sprite con su color (de a 1/32 para no armar uno por cada matiz)
+fn clave_spr(mat: &str, c: [f32; 4]) -> String { let q = |x: f32| (x.clamp(0.0, 1.0) * 32.0).round() as u8; format!("{}#{}.{}.{}.{}", mat, q(c[0]), q(c[1]), q(c[2]), q(c[3])) }
+/// el giro de una matriz (sin su escala)
+fn quat_de(m: &M4) -> jxgmod::mates::Quat {
+    let c = |k: usize| { let (x, y, z) = (m[k * 4] as f64, m[k * 4 + 1] as f64, m[k * 4 + 2] as f64); let l = (x * x + y * y + z * z).sqrt().max(1e-9); [x / l, y / l, z / l] };
+    let (a, b, d) = (c(0), c(1), c(2));
+    // (columnas a, b, d: r[fila][col])
+    let (r00, r11, r22) = (a[0], b[1], d[2]); let tr = r00 + r11 + r22;
+    let (x, y, z, w) = if tr > 0.0 { let s = (tr + 1.0).sqrt() * 2.0; ((b[2] - d[1]) / s, (d[0] - a[2]) / s, (a[1] - b[0]) / s, 0.25 * s) }
+        else if r00 > r11 && r00 > r22 { let s = (1.0 + r00 - r11 - r22).sqrt() * 2.0; (0.25 * s, (b[0] + a[1]) / s, (d[0] + a[2]) / s, (b[2] - d[1]) / s) }
+        else if r11 > r22 { let s = (1.0 + r11 - r00 - r22).sqrt() * 2.0; ((b[0] + a[1]) / s, 0.25 * s, (d[1] + b[2]) / s, (d[0] - a[2]) / s) }
+        else { let s = (1.0 + r22 - r00 - r11).sqrt() * 2.0; ((d[0] + a[2]) / s, (d[1] + b[2]) / s, 0.25 * s, (a[1] - b[0]) / s) };
+    jxgmod::mates::Quat::new(x, y, z, w).norm()
 }
 /// una VMatrix de Source (filas, pulgadas) a una matriz del juego (columnas, metros): gmrMatrizJuego
 fn matriz_juego(m: &[f32; 16]) -> M4 {
@@ -491,7 +527,7 @@ impl Juego {
     /// la vista del arma del addon (primera persona): la matriz con que se dibuja (su lugar, su campo visual y su espejo) y
     /// la inversa de su lugar (para llevar a ella lo que el Lua dibuja en la pasada de la vista); None si no se ve
     pub(crate) fn gmod_vista_base(&self, ojos: [f32; 3], yaw: f32, pitch: f32) -> Option<(M4, M4)> {
-        if !(self.camara == 0 && !self.armas.zoom && self.vehs.jugador.is_none() && self.gmod.arma.is_some() && !self.muerto) { return None; }
+        if !(self.camara_ef() == 0 && !self.armas.zoom && self.vehs.jugador.is_none() && self.gmod.arma.is_some() && !self.muerto) { return None; }
         let v = self.gmod.mods.dib.vista.as_ref()?; let md = self.gmod.mods.modelos.get(&v.modelo)?.as_ref()?; md.piel.as_ref()?;
         let fov = if self.fov_b > 0.0 { self.fov_b } else { self.aj.fov as f32 };
         let kf = (fov.to_radians() / 2.0).tan() / ((v.fov.clamp(20.0, 120.0) as f32).to_radians() / 2.0).tan() / 0.75;

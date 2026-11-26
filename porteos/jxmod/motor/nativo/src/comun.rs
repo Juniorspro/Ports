@@ -879,6 +879,8 @@ impl Juego {
     }
     /// para las pruebas: los ojos en un lugar fijo (volando, para que no caiga)
     /// (las pruebas: arrastrar el dedo `dx` píxeles de costado en una pantalla de alto `h`, como en tocar)
+    /// la cámara de verdad: la elegida o la tercera persona que pide un addon (el sable: CalcView con drawviewer)
+    pub(crate) fn camara_ef(&self) -> u8 { if self.camara == 0 && self.vehs.jugador.is_none() && self.gmod.calc.as_ref().map(|c| c.ver_jug).unwrap_or(false) { 1 } else { self.camara } }
     pub fn arrastre_prueba(&mut self, dx: f32, h: f32) { self.mdx += dx * 1080.0 / h.max(1.0) / 2.5; self.jug.yaw -= dx * 0.0045 * 1080.0 / h.max(1.0) * self.aj.sens as f32 / 12.0; }
     pub fn poner_ojos(&mut self, ojos: [f32; 3], yaw: f32, pitch: f32) {
         self.jug.noclip = true; self.jug.pos = [ojos[0], ojos[1] - 0.72, ojos[2]]; self.jug.vel = [0.0; 3]; self.jug.yaw = yaw; self.jug.pitch = pitch;
@@ -1073,7 +1075,8 @@ impl Juego {
         // el cuerpo, animado (tercera persona y de frente, y en un vehículo si no es desde adentro): el piso bajo la cápsula,
         // la mirada, el agua si nada, el arma en la mano (P.arma: ninguna en un vehículo) y el asiento (asientoPose)
         let en_veh = self.vehs.jugador;
-        let ver_cuerpo = (self.camara != 0 || (en_veh.is_some() && !self.vehs.primera) || self.jg.cuerpo_en_primera()) && !self.jg.sin_cuerpo();
+        let cam_ef = self.camara_ef();
+        let ver_cuerpo = (cam_ef != 0 || (en_veh.is_some() && !self.vehs.primera) || self.jg.cuerpo_en_primera()) && !self.jg.sin_cuerpo();
         // (con un arma de un addon que trae su modelo de mundo, ése va en la mano: gmod_juego.rs)
         let gm_mano = self.gmod_arma_mundo();
         if let (Some(pj), Some(paq)) = (self.pj.as_mut(), self.paq.as_mut()) {
@@ -1094,7 +1097,7 @@ impl Juego {
                 let agua = if self.jug.nada { self.jug.aguas.iter().find(|v| jp[0] >= v[0] && jp[0] <= v[3] && jp[2] >= v[2] && jp[2] <= v[5] && piso[1] < v[4]).map(|v| v[4]) } else { None };
                 let e = personaje::Estado { piso, vel: self.jug.vel, yaw: self.jug.yaw, mira: -self.jug.pitch, en_suelo: self.jug.suelo || self.jug.noclip, agachado: self.jug.agachado, agua };
                 let e = jugabilidad::estado(&self.jg, e); pj.animar(dt, &e);
-                jugabilidad::pose_jugador(&mut self.jg, pj, &self.jug, self.mapa.as_ref().map(|m| &m.mundo), self.camara, dt);
+                jugabilidad::pose_jugador(&mut self.jg, pj, &self.jug, self.mapa.as_ref().map(|m| &m.mundo), cam_ef, dt);
                 personajes::pose_jugador(&mut self.pjs, pj, self.armas.def().tipo == "celu", self.emote.is_some(), en_veh.is_some());
             }
         }
@@ -1102,13 +1105,19 @@ impl Juego {
         let turbo = self.mapa.is_some() && self.turbo_n < self.turbo_max() && m.turbo_listo(w, h);
         if let Some(mp) = &self.mapa { 'escena: {
             // (el campo de visión: el de Ajustes, más cerrado apuntando y 18° con la mira del francotirador; va de a poco)
-            let z = if self.armas.zoom { 18.0 } else { self.aj.fov as f32 * (1.0 - 0.27 * self.armas.ap_k) };
+            let z = if self.armas.zoom { 18.0 } else if let Some(f) = self.gmod.calc.as_ref().and_then(|c| c.fov) { f as f32 } else { self.aj.fov as f32 * (1.0 - 0.27 * self.armas.ap_k) };
             if self.fov_b == 0.0 { self.fov_b = z; } self.fov_b += (z - self.fov_b) * (dt * if (z - self.fov_b).abs() > 10.0 { 12.0 } else { 4.0 }).min(1.0);
             let p = persp(self.fov_b.to_radians(), wf / hf.max(1.0), 0.08, mp.lejos * 1.05);
             // (la cámara: en primera, los ojos; en tercera, 3,1 m atrás; de frente, 2,6 m adelante mirándote —jugadorCamara—;
             // si hay una pared en el medio, se acerca)
             let tam = self.pj.as_ref().map(|p| p.tam).unwrap_or(1.0); let kt = (0.45 + 0.55 * tam).clamp(0.6, 1.0);
-            let (cam, mira) = if let Some(c) = cam_veh { c } else { match self.camara {
+            // (la cámara que pide un addon —CalcView: el sable te pone en tercera persona—: corrida de los ojos lo mismo que
+            // de donde la calculó, que es el cuadro anterior)
+            let calc = self.gmod.calc.clone().filter(|c| cam_veh.is_none() && (self.camara == 0 || c.ver_jug) && (c.pos.is_some() || c.fwd.is_some()));
+            let (cam, mira) = if let Some(c) = cam_veh { c } else if let Some(cv) = calc {
+                let d = cv.pos.map(|p| p.sub(cv.desde)).unwrap_or_default();
+                ([ojos[0] + d.x as f32, ojos[1] + d.y as f32, ojos[2] + d.z as f32], cv.fwd.map(|f| [f.x as f32, f.y as f32, f.z as f32]).unwrap_or(fw))
+            } else { match self.camara_ef() {
                 1 if self.pill_camara(&mp.mundo, ojos, fw).is_some() => self.pill_camara(&mp.mundo, ojos, fw).unwrap(),
                 1 => {
                     let d = [-fw[0], -fw[1], -fw[2]]; let l0 = 3.1 * kt;
@@ -1133,7 +1142,7 @@ impl Juego {
             // 75 cm o 25°: un cambio de vista, subir a un auto— va uno real)
             let tc = self.turbo_cam; let salto = (cam[0] - tc[0]).powi(2) + (cam[1] - tc[1]).powi(2) + (cam[2] - tc[2]).powi(2) > 0.5625
                 || (mira[0] * tc[3] + mira[1] * tc[4] + mira[2] * tc[5]) / (mira[0] * mira[0] + mira[1] * mira[1] + mira[2] * mira[2]).sqrt().max(1e-6) < 0.906;
-            let arma_vista = self.camara == 0 && !self.armas.zoom && self.vehs.jugador.is_none() && !self.jg.sin_hud() && !self.gmod_vista_propia();
+            let arma_vista = self.camara_ef() == 0 && !self.armas.zoom && self.vehs.jugador.is_none() && !self.jg.sin_hud() && !self.gmod_vista_propia();
             if turbo && !salto {
                 let vpm = m4::mul(&p, &vista); self.vp_ult = vpm; self.turbo_vp = Some(vpm); self.turbo_dt += dt;
                 // (el arma se mueve distinto que el mundo —el vaivén, apuntar—: el intermedio la corre con su propio movimiento,
@@ -1180,7 +1189,7 @@ impl Juego {
             } }
             self.proyectiles_items(&mut items);
             if let (Some(p1), Some(a), true) = (self.armas.punto_agarrado(&self.fis), self.armas.agarre.as_ref(), self.tubo_ok) {
-                let p0 = self.vista.as_ref().filter(|_| self.camara == 0).and_then(|v| v.punta()).unwrap_or([ojos[0], ojos[1] - 0.2, ojos[2]]);
+                let p0 = self.vista.as_ref().filter(|_| self.camara_ef() == 0).and_then(|v| v.punta()).unwrap_or([ojos[0], ojos[1] - 0.2, ojos[2]]);
                 let mid = [ojos[0] + fw[0] * a.dist * 0.5, ojos[1] + fw[1] * a.dist * 0.5, ojos[2] + fw[2] * a.dist * 0.5];
                 let mat = if self.armas.def().jx.is_empty() { vista::TUBO_MAT } else { vista::TUBO_AMBAR };
                 vista::rayo_items(p0, mid, p1, self.t0.elapsed().as_secs_f32(), mat, &mut items);

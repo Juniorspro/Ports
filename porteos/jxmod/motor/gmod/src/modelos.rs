@@ -28,6 +28,7 @@ struct Estado3 {
     act_nom: HashMap<i32, String>,
     act_num: HashMap<String, i32>,
 }
+thread_local! { static TIRA: std::cell::RefCell<Vec<(V3, f64, [f32; 4])>> = const { std::cell::RefCell::new(Vec::new()) }; }
 thread_local! { static E3: RefCell<Estado3> = RefCell::new(Estado3::default()); }
 fn e3<X>(f: impl FnOnce(&mut Estado3) -> X) -> X { E3.with(|x| f(&mut x.borrow_mut())) }
 pub(crate) fn olvidar() { e3(|x| *x = Estado3::default()); }
@@ -505,6 +506,17 @@ fn instalar_nav(e: &mut Estado) {
     def(&nav, "GetGroundHeight", |_, a, o| { let Some(p) = vec_de(&ar(a, 0)) else { return Ok(()) }; let gp = a_juego(p).add(v3(0.0, 0.5, 0.0)); match h(|h| h.raycast(gp, v3(0.0, -1.0, 0.0), 400.0, &[])) { Some(x) => { o.push(Valor::Num(a_source(gp.add(v3(0.0, -x.t, 0.0)))[2])); o.push(nv(0.0, 0.0, 1.0)); Ok(()) } None => Ok(()) } });
 }
 
+/// los huesos del jugador que da el juego (vacío si no es el jugador o el juego no los sabe: va el modelo en reposo)
+fn huesos_jug(x: &Valor) -> Vec<(String, V3, [V3; 3])> { if es_jug(x) { h(|h| h.huesos_jugador()) } else { Vec::new() } }
+/// los enganches del jugador (los de los modelos de jugador de GMod) y el hueso de donde salen («» los ojos)
+const ENG_JUG: [(&str, &str); 6] = [("eyes", ""), ("anim_attachment_rh", "valvebiped.bip01_r_hand"), ("anim_attachment_lh", "valvebiped.bip01_l_hand"), ("anim_attachment_head", "valvebiped.bip01_head1"), ("chest", "valvebiped.bip01_spine2"), ("forward", "")];
+fn eng_jug(i: i64) -> Option<Valor> {
+    let (_, hueso) = ENG_JUG.get(usize::try_from(i).ok()?)?;
+    let (p, an_) = if hueso.is_empty() { let c = h(|h| h.cam().clone()); (ojo(), dir_ang(ds(c.fwd))) } else {
+        let hj = h(|h| h.huesos_jugador()); let b = hj.iter().find(|b| b.0.to_lowercase() == *hueso)?; (b.1, mat_ang(ds(b.2[0]), ds(b.2[1]), ds(b.2[2]))) };
+    Some(tabla_kv(vec![("Pos", vv(p)), ("Ang", naa(an_)), ("Bone", Valor::Num(0.0))]))
+}
+
 // ---------------- la API en las entidades (gmnbApi) ----------------
 fn instalar_api(_e: &mut Estado) {
     let Some(em) = g(|g| g.mt.ent_m.clone()) else { return };
@@ -513,6 +525,12 @@ fn instalar_api(_e: &mut Estado) {
     let envolver = |k: &str, f: Rc<dyn Fn(&mut Estado, &[Valor], &mut Vec<Valor>) -> R>| {
         let o0 = orig(k);
         def(&em, k, move |e, a, o| { let x = ar(a, 0); if es_nb(&x) || es_vm(&x) { return f(e, a, o); } if let Valor::Func(_) = o0 { o.extend(e.llamar_aqui(&o0, a)?); } Ok(()) });
+    };
+    // (los huesos y los enganches: también en el jugador —los huesos que dibuja el juego o los de su modelo—, en el arma
+    // en la mano —el sable: su hoja sale del enganche «blade1»— y en las entidades con un modelo que se carga)
+    let envolver_h = |k: &str, f: Rc<dyn Fn(&mut Estado, &[Valor], &mut Vec<Valor>) -> R>| {
+        let o0 = orig(k);
+        def(&em, k, move |e, a, o| { let x = ar(a, 0); if es_nb(&x) || es_vm(&x) || es_jug(&x) || (ent_tipo(&x) != Some(TipoEnt::Jug) && modelo_ent(&x).is_some()) { return f(e, a, o); } if let Valor::Func(_) = o0 { o.extend(e.llamar_aqui(&o0, a)?); } Ok(()) });
     };
     // (el ViewModel anima con la del arma que tiene en la mano: su secuencia, su ciclo y su velocidad —vm:GetCycle()—)
     let id0 = |a: &[Valor]| { let x = ar(a, 0); if es_vm(&x) { vista_id() } else { ent_id(&x) }.unwrap_or(-1) };
@@ -596,18 +614,23 @@ fn instalar_api(_e: &mut Estado) {
         let fw = q.rot(dg([m[0] as f64, m[4] as f64, m[8] as f64])); let lf = q.rot(dg([m[1] as f64, m[5] as f64, m[9] as f64])); let up = q.rot(dg([m[2] as f64, m[6] as f64, m[10] as f64]));
         (wp, mat_ang(ds(fw), ds(lf), ds(up)))
     };
-    envolver("LookupBone", Rc::new(|_, a, o| { let k = js_str(&ar(a, 1)).to_lowercase(); match modelo_ent(&ar(a, 0)).and_then(|m| m.m.huesos.iter().position(|h| h.n.to_lowercase() == k)) { Some(i) => n(o, i as f64), None => Ok(()) } }));
-    envolver("GetBoneCount", Rc::new(|_, a, o| n(o, modelo_ent(&ar(a, 0)).map(|m| m.m.huesos.len()).unwrap_or(0) as f64)));
-    envolver("GetBoneName", Rc::new(|_, a, o| ok1(o, cad(&modelo_ent(&ar(a, 0)).and_then(|m| m.m.huesos.get(num(&ar(a, 1), 0.0).max(0.0) as usize).map(|h| h.n.clone())).unwrap_or_else(|| "__INVALIDBONE__".into())))));
-    envolver("GetBoneParent", Rc::new(|_, a, o| n(o, modelo_ent(&ar(a, 0)).and_then(|m| m.m.huesos.get(num(&ar(a, 1), 0.0).max(0.0) as usize).map(|h| h.pa)).unwrap_or(-1) as f64)));
-    envolver("GetBonePosition", Rc::new(move |_, a, o| { let x = ar(a, 0); let i = num(&ar(a, 1), 0.0) as usize;
+    envolver_h("LookupBone", Rc::new(|_, a, o| { let k = js_str(&ar(a, 1)).to_lowercase();
+        let hj = huesos_jug(&ar(a, 0)); if !hj.is_empty() { return match hj.iter().position(|b| b.0.to_lowercase() == k) { Some(i) => n(o, i as f64), None => Ok(()) }; }
+        match modelo_ent(&ar(a, 0)).and_then(|m| m.m.huesos.iter().position(|h| h.n.to_lowercase() == k)) { Some(i) => n(o, i as f64), None => Ok(()) } }));
+    envolver_h("GetBoneCount", Rc::new(|_, a, o| { let hj = huesos_jug(&ar(a, 0)); if !hj.is_empty() { return n(o, hj.len() as f64); } n(o, modelo_ent(&ar(a, 0)).map(|m| m.m.huesos.len()).unwrap_or(0) as f64) }));
+    envolver_h("GetBoneName", Rc::new(|_, a, o| { if let Some(b) = huesos_jug(&ar(a, 0)).get(num(&ar(a, 1), 0.0).max(0.0) as usize) { return ok1(o, cad(&b.0)); } ok1(o, cad(&modelo_ent(&ar(a, 0)).and_then(|m| m.m.huesos.get(num(&ar(a, 1), 0.0).max(0.0) as usize).map(|h| h.n.clone())).unwrap_or_else(|| "__INVALIDBONE__".into()))) }));
+    envolver_h("GetBoneParent", Rc::new(|_, a, o| n(o, modelo_ent(&ar(a, 0)).and_then(|m| m.m.huesos.get(num(&ar(a, 1), 0.0).max(0.0) as usize).map(|h| h.pa)).unwrap_or(-1) as f64)));
+    envolver_h("GetBonePosition", Rc::new(move |_, a, o| { let x = ar(a, 0); let i = num(&ar(a, 1), 0.0) as usize;
         if es_vm(&x) { if let Some(m) = vm_hueso(i) { o.push(nv(m[3], m[7], m[11])); o.push(naa(mat_ang([m[0], m[4], m[8]], [m[1], m[5], m[9]], [m[2], m[6], m[10]]))); return Ok(()); } }
+        let hj = huesos_jug(&x); if !hj.is_empty() { let (p, an_) = hj.get(i).map(|b| (b.1, mat_ang(ds(b.2[0]), ds(b.2[1]), ds(b.2[2])))).unwrap_or((ent_pos(&x), quat_ang(ent_q(&x)))); o.push(vv(p)); o.push(naa(an_)); return Ok(()); }
         match mundo(&x).and_then(|(_, w)| w.get(i).copied()) { Some(m) => { let (p, an_) = a_mundo(&x, m); o.push(vv(p)); o.push(naa(an_)); Ok(()) } None => { o.push(vv(ent_pos(&x))); o.push(naa(quat_ang(ent_q(&x)))); Ok(()) } } }));
     // (la vista: el hueso en el mundo con la vista donde está —la cámara o GetViewModelPosition—; las demás, su hueso en el
     // mundo: ejes de Source adelante, izquierda, arriba por columnas)
-    envolver("GetBoneMatrix", Rc::new(move |_, a, o| {
+    envolver_h("GetBoneMatrix", Rc::new(move |_, a, o| {
         let x = ar(a, 0); let i = num(&ar(a, 1), 0.0).max(0.0) as usize;
         if es_vm(&x) { if let Some(m) = vm_hueso(i) { o.push(crate::matriz::nueva(m)); } return Ok(()); }
+        let hj = huesos_jug(&x); if !hj.is_empty() { if let Some(b) = hj.get(i) { let t = vs(b.1, g(|g| g.oy)); let (f, l, u) = (ds(b.2[0]), ds(b.2[1]), ds(b.2[2]));
+            o.push(crate::matriz::nueva([f[0], l[0], u[0], t[0], f[1], l[1], u[1], t[1], f[2], l[2], u[2], t[2], 0.0, 0.0, 0.0, 1.0])); } return Ok(()); }
         let Some(m) = mundo(&x).and_then(|(_, w)| w.get(i).copied()) else { return Ok(()) };
         let (p, q) = (ent_pos(&x), ent_q(&x)); let s = escala(&x);
         let wp = p.add(q.rot(vg([m[3] as f64, m[7] as f64, m[11] as f64], 0.0).scale(s))); let t = vs(wp, g(|g| g.oy));
@@ -615,14 +638,16 @@ fn instalar_api(_e: &mut Estado) {
         let (f, l, u) = (ax(0), ax(1), ax(2));
         o.push(crate::matriz::nueva([f[0], l[0], u[0], t[0], f[1], l[1], u[1], t[1], f[2], l[2], u[2], t[2], 0.0, 0.0, 0.0, 1.0])); Ok(())
     }));
-    envolver("LookupAttachment", Rc::new(|_, a, o| { let k = js_str(&ar(a, 1)).to_lowercase(); n(o, modelo_ent(&ar(a, 0)).and_then(|m| m.m.adjuntos.iter().position(|x| x.n.to_lowercase() == k)).map(|i| i as f64 + 1.0).unwrap_or(0.0)) }));
-    envolver("GetAttachment", Rc::new(move |_, a, o| {
-        let x = ar(a, 0); let i = num(&ar(a, 1), 0.0) as i64 - 1; let Some((md, w)) = mundo(&x) else { return Ok(()) };
+    envolver_h("LookupAttachment", Rc::new(|_, a, o| { let k = js_str(&ar(a, 1)).to_lowercase(); if es_jug(&ar(a, 0)) { if let Some(i) = ENG_JUG.iter().position(|x| x.0 == k) { return n(o, i as f64 + 1.0); } } n(o, modelo_ent(&ar(a, 0)).and_then(|m| m.m.adjuntos.iter().position(|x| x.n.to_lowercase() == k)).map(|i| i as f64 + 1.0).unwrap_or(0.0)) }));
+    envolver_h("GetAttachment", Rc::new(move |_, a, o| {
+        let x = ar(a, 0); let i = num(&ar(a, 1), 0.0) as i64 - 1;
+        if es_jug(&x) { if let Some(r) = eng_jug(i) { return ok1(o, r); } }
+        let Some((md, w)) = mundo(&x) else { return Ok(()) };
         let Some(ad) = md.m.adjuntos.get(i.max(0) as usize).filter(|_| i >= 0) else { return Ok(()) };
         let m = if ad.hueso >= 0 && (ad.hueso as usize) < w.len() { gmf::mul34(&w[ad.hueso as usize], &ad.m) } else { ad.m };
         let (p, an_) = a_mundo(&x, m); ok1(o, tabla_kv(vec![("Pos", vv(p)), ("Ang", naa(an_)), ("Bone", Valor::Num(ad.hueso as f64))]))
     }));
-    envolver("GetAttachments", Rc::new(|_, a, o| { let l: Vec<Valor> = modelo_ent(&ar(a, 0)).map(|m| m.m.adjuntos.iter().enumerate().map(|(i, x)| tabla_kv(vec![("id", Valor::Num(i as f64 + 1.0)), ("name", cad(&x.n))])).collect()).unwrap_or_default(); ok1(o, tab_de(l)) }));
+    envolver_h("GetAttachments", Rc::new(|_, a, o| { let l: Vec<Valor> = modelo_ent(&ar(a, 0)).map(|m| m.m.adjuntos.iter().enumerate().map(|(i, x)| tabla_kv(vec![("id", Valor::Num(i as f64 + 1.0)), ("name", cad(&x.n))])).collect()).unwrap_or_default(); ok1(o, tab_de(l)) }));
     def(&em, "BecomeRagdoll", |e, a, o| { let x = ar(a, 0); if es_nb(&x) { quitar(e, &x); } ok1(o, null()) });
 }
 
@@ -851,6 +876,19 @@ fn instalar_render(e: &mut Estado) {
     def(&rd, "DrawQuadEasy", move |_, a, _| { let (Some(p), Some(nn)) = (vec_de(&ar(a, 0)), vec_de(&ar(a, 1))) else { return Ok(()) }; let (w, hh) = (num(&ar(a, 2), 8.0) * GS / 2.0, num(&ar(a, 3), 8.0) * GS / 2.0); let c = col(&ar(a, 4));
         let mut an_ = dir_ang(nn); an_[2] = 180.0 - num(&ar(a, 5), 0.0); let m = ang_mat(an_); let rt = dg([-m[1][0], -m[1][1], -m[1][2]]).scale(w); let u = dg(m[2]).scale(hh); let p = a_juego(p);
         ps(|z| { let mt = z.mat.clone(); if z.dib.sprites.len() < 512 { z.dib.sprites.push(Sprite3 { mat: mt, esq: [p.add(rt).add(u), p.sub(rt).add(u), p.sub(rt).sub(u), p.add(rt).sub(u)], color: c, vista: z.vista }); } }); Ok(()) });
+    // (render.DrawBeam: una tira de frente a la cámara de un punto a otro —la hoja del sable, los láseres—; el ancho va de
+    // un borde de la textura al otro y el largo a lo largo; StartBeam/AddBeam/EndBeam: varios tramos seguidos)
+    fn tira(a: V3, b: V3, w: f64, c: [f32; 4]) {
+        let cam = h(|h| h.cam().clone()); let d = b.sub(a); let s = d.cross(a.add(b).scale(0.5).sub(cam.vista.unwrap_or(cam.pos))); let l = s.len(); if l < 1e-9 || w <= 0.0 { return; }
+        let s = s.scale(w * GS / 2.0 / l);
+        ps(|z| { let m = z.mat.clone(); if z.dib.sprites.len() < 512 { z.dib.sprites.push(Sprite3 { mat: m, esq: [a.add(s), a.sub(s), b.sub(s), b.add(s)], color: c, vista: z.vista }); } });
+    }
+    def(&rd, "DrawBeam", move |_, a, _| { let (Some(p0), Some(p1)) = (vec_de(&ar(a, 0)), vec_de(&ar(a, 1))) else { return Ok(()) }; tira(a_juego(p0), a_juego(p1), num(&ar(a, 2), 1.0), col(&ar(a, 5))); Ok(()) });
+    def(&rd, "StartBeam", |_, _, _| { TIRA.with(|t| t.borrow_mut().clear()); Ok(()) });
+    def(&rd, "AddBeam", move |_, a, _| { if let Some(p) = vec_de(&ar(a, 0)) { let c = col(&ar(a, 3)); TIRA.with(|t| { let mut t = t.borrow_mut(); if t.len() < 64 { t.push((a_juego(p), num(&ar(a, 1), 1.0), c)); } }); } Ok(()) });
+    def(&rd, "EndBeam", |_, _, _| { let l = TIRA.with(|t| std::mem::take(&mut *t.borrow_mut())); for w in l.windows(2) { tira(w[0].0, w[1].0, (w[0].1 + w[1].1) / 2.0, w[1].2); } Ok(()) });
+    def(&rd, "DrawQuad", move |_, a, _| { let mut q = [V3::default(); 4]; for (i, x) in q.iter_mut().enumerate() { let Some(p) = vec_de(&ar(a, i)) else { return Ok(()) }; *x = a_juego(p); } let c = col(&ar(a, 4));
+        ps(|z| { let m = z.mat.clone(); if z.dib.sprites.len() < 512 { z.dib.sprites.push(Sprite3 { mat: m, esq: q, color: c, vista: z.vista }); } }); Ok(()) });
     let em = g(|g| g.mt.ent_m.clone());
     if let Some(em) = em {
         let o0 = em.borrow().get_str("DrawModel");
@@ -865,6 +903,38 @@ fn instalar_render(e: &mut Estado) {
             Ok(())
         });
     }
+}
+/// lo que pide el CalcView (los ganchos de los addons o el CalcView del arma): la cámara (en el juego), hacia dónde mira, el
+/// campo visual y si se ve al jugador (drawviewer o ShouldDrawLocalPlayer: la tercera persona del sable)
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct CalcVista { pub pos: Option<V3>, pub fwd: Option<V3>, pub fov: Option<f64>, pub ver_jug: bool, /** la cámara que se le pasó (pos se usa relativa a ésta) */ pub desde: V3 }
+/// GM:CalcView con sus ganchos (CalcView devuelve una tabla: origin, angles, fov, drawviewer; si ningún gancho contesta,
+/// el del arma —SWEP:CalcView(ply, pos, ang, fov)—) y ShouldDrawLocalPlayer. Lo que pide se ve en este cuadro: el
+/// jugador queda en tercera persona para el Lua (ShouldDrawLocalPlayer, sin la vista del arma)
+pub(crate) fn calc_vista(e: &mut Estado) -> Option<CalcVista> {
+    let swep = g(|g| g.swep.clone()).filter(|w| ce(w, |x| x.vivo).unwrap_or(false));
+    let cv_arma = swep.as_ref().and_then(|w| ce(w, |x| x.clase.clone())).and_then(|c| clase_tabla(&c, Lado::C)).map(|t| buscar_en_clase(&t, "CalcView")).filter(|f| matches!(f, Valor::Func(_)));
+    if !hay_hook("CalcView") && !hay_hook("ShouldDrawLocalPlayer") && cv_arma.is_none() { return None; }
+    if h(|h| h.jug().vehiculo.is_some() || !h.jug().vivo) { return None; }
+    let (jug, c) = (g(|g| g.jug.clone()), h(|h| h.cam().clone()));
+    let ang = dir_ang(ds(c.fwd));
+    let mut v = CalcVista::default();
+    let (mut p, mut a, mut f) = (None, None, None);
+    let r = hook(e, "CalcView", C, &[jug.clone(), vv(c.pos), naa(ang), Valor::Num(c.fov), Valor::Num(3.0), Valor::Num(28377.92)]);
+    if let Some(Valor::Tabla(t)) = r.first() {
+        let t = t.borrow();
+        p = vec_de(&t.get_str("origin")); a = ang_de(&t.get_str("angles")); if let Valor::Num(x) = t.get_str("fov") { f = Some(x); }
+        v.ver_jug = t.get_str("drawviewer").es_verdad();
+    } else if let (Some(w), Some(_)) = (swep, cv_arma) {
+        let r = metodo(e, &w, "CalcView", Lado::C, &[jug.clone(), vv(c.pos), naa(ang), Valor::Num(c.fov)]);
+        p = r.first().and_then(vec_de); a = r.get(1).and_then(ang_de); if let Some(Valor::Num(x)) = r.get(2) { f = Some(*x); }
+    }
+    if !v.ver_jug { v.ver_jug = hook(e, "ShouldDrawLocalPlayer", C, &[jug]).first().map(|x| x.es_verdad()).unwrap_or(false); }
+    v.pos = p.map(a_juego).filter(|q| q.sub(c.pos).len() > 1e-4);
+    v.fwd = a.filter(|x| x.iter().zip(ang.iter()).any(|(u, w)| ((u - w + 540.0).rem_euclid(360.0) - 180.0).abs() > 0.01)).map(|x| dg(ang_mat(x)[0]));
+    v.fov = f.filter(|x| (x - c.fov).abs() > 0.01 && *x > 1.0 && *x < 179.0);
+    if v.ver_jug { h(|h| h.jug().tercera = true); }
+    if v == CalcVista::default() { None } else { v.desde = c.pos; Some(v) }
 }
 /// gmrAntes: lo que dibuja el Lua en 3D y qué modelos se ven
 pub(crate) fn dibujar(e: &mut Estado, dt: f64) -> Dib {
@@ -898,6 +968,12 @@ pub(crate) fn dibujar(e: &mut Estado, dt: f64) -> Dib {
         if dm && nb { dib_nb(&x); } else if let (Some(o), false) = (o, dm) { ps(|p| p.dib.ocultos.push(o)); }
     }
     ps(|p| p.act = None);
+    // (en tercera persona, el arma en la mano: SWEP:DrawWorldModel —el sable dibuja ahí su hoja—)
+    let tercera = h(|h| h.jug().tercera);
+    if tercera { if let Some(w) = g(|g| g.swep.clone()).filter(|w| ce(w, |x| x.vivo).unwrap_or(false)) {
+        let f = ce(&w, |x| x.clase.clone()).and_then(|c| clase_tabla(&c, Lado::C)).map(|t| buscar_en_clase(&t, "DrawWorldModel")).unwrap_or(Valor::Nil);
+        if let (Valor::Func(_), Some(id)) = (&f, ent_id(&w)) { ps(|p| { p.act = Some(id); p.dm = false; p.mat.clear(); p.modc = [1.0; 3]; p.blend = 1.0; }); llamar(e, &f, Lado::C, &[w.clone(), Valor::Num(1.0)]); ps(|p| p.act = None); }
+    } }
     hook(e, "PostDrawOpaqueRenderables", C, &[Valor::Bool(false), Valor::Bool(false)]);
     hook(e, "PreDrawTranslucentRenderables", C, &[Valor::Bool(false), Valor::Bool(false)]);
     hook(e, "PostDrawTranslucentRenderables", C, &[Valor::Bool(false), Valor::Bool(false)]);
@@ -905,7 +981,7 @@ pub(crate) fn dibujar(e: &mut Estado, dt: f64) -> Dib {
     // (los objetos que DrawModel dibujó desde otra entidad se ven aunque su Draw no lo haya hecho)
     let vistos: HashSet<ObjId> = e3(|s| { let l: Vec<i64> = s.anim.iter().filter(|(_, a)| a.dm).map(|(k, _)| *k).collect(); for k in &l { if let Some(a) = s.anim.get_mut(k) { a.dm = false; } } l }).into_iter().filter_map(|id| ce(&ent_por_id(id), |y| y.o).flatten()).collect();
     if !vistos.is_empty() { d.ocultos.retain(|o| !vistos.contains(o)); }
-    d.vista = vista_cuadro(e, dt).map(|v| std::rc::Rc::new(VistaArma2 { modelo: v.modelo, fov: v.fov, flip: v.flip, huesos: v.huesos, piel: v.piel, lugar: v.lugar, manos: v.manos }));
+    d.vista = if tercera { None } else { vista_cuadro(e, dt) }.map(|v| std::rc::Rc::new(VistaArma2 { modelo: v.modelo, fov: v.fov, flip: v.flip, huesos: v.huesos, piel: v.piel, lugar: v.lugar, manos: v.manos }));
     // la vista del arma: los ganchos de GMod alrededor del ViewModel (gmrVistaArma: PreDrawViewModel, ViewModelDrawn,
     // PostDrawViewModel), lo que dibujan va con la vista (las piezas del SWEP Construction Kit)
     if d.vista.is_some() {

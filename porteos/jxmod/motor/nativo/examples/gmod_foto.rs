@@ -105,7 +105,7 @@ fn main() {
         j.camara = 1; paso(&mut j, &mut m, 6); foto(&mut m, "7b_arma_tercera"); j.camara = 0; paso(&mut j, &mut m, 2);
         println!("vista propia {} · modelo de mundo en la mano {}", j.gmod_vista_propia(), j.gmod_arma_mundo());
         // (JXM_LUA: un pedazo de Lua para preguntar algo después de tener el arma 4 s en la mano, como la web)
-        if let Ok(l) = std::env::var("JXM_LUA") { j.jug.yaw = 0.0; j.jug.pitch = 0.0; paso(&mut j, &mut m, 240); println!("lua: {}", j.gmod_lua_texto(&std::fs::read_to_string(&l).unwrap_or(l))); foto(&mut m, "7c_arma_4s"); }
+        if let Ok(l) = std::env::var("JXM_LUA") { j.jug.yaw = 0.0; j.jug.pitch = 0.0; paso(&mut j, &mut m, 240); println!("lua: {}", j.gmod_lua_texto(&std::fs::read_to_string(&l).unwrap_or(l))); paso(&mut j, &mut m, 2); foto(&mut m, "7c_arma_4s"); }
     }
     // (JXM_NB: un nextbot delante; persigue al jugador)
     if let Ok(nb) = std::env::var("JXM_NB") {

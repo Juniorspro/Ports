@@ -63,6 +63,8 @@ enum Pedido {
 struct Puente {
     t: f64, dt: f64, t0: Instant, pantalla: (f64, f64), escala: f32,
     jug: jxgmod::Jugador, cam: jxgmod::Camara, ent: jxgmod::Entrada, armas: jxgmod::Armas,
+    /// los huesos del personaje del jugador (con nombres de GMod) y el arma en la mano (para los enganches del Lua)
+    huesos_jug: Vec<(String, V3, [V3; 3])>, arma_mundo: Option<(V3, Quat)>,
     /// los cuerpos de los objetos de los addons (el juego los copia de su física y aplica lo que el Lua cambió)
     cuerpos: BTreeMap<ObjId, jxgmod::Cuerpo>, sig: ObjId,
     pedidos: Vec<Pedido>, cmds: Vec<Cmd2D>,
@@ -132,6 +134,8 @@ impl Anfitrion for Puente {
     fn nombre_mapa(&self) -> String { self.mapa_nombre.clone() }
     fn apariciones(&self) -> Vec<(V3, Option<f64>)> { self.spawns.clone() }
     fn jug(&mut self) -> &mut jxgmod::Jugador { &mut self.jug }
+    fn huesos_jugador(&mut self) -> Vec<(String, V3, [V3; 3])> { self.huesos_jug.clone() }
+    fn arma_mundo(&mut self) -> Option<(V3, Quat)> { self.arma_mundo }
     fn cam(&mut self) -> &mut jxgmod::Camara { &mut self.cam }
     fn entrada(&mut self) -> &mut jxgmod::Entrada { &mut self.ent }
     fn armas(&mut self) -> &mut jxgmod::Armas { &mut self.armas }
@@ -286,6 +290,8 @@ pub struct EnGmod {
     pub mods: gmod_modelos::GmModelos,
     /// lo que tardó en el último cuadro el dibujo 3D del Lua más armar y ubicar los modelos (ms)
     pub ms_3d: f32,
+    /// lo que pidió el CalcView de los addons en este cuadro (la cámara del sable: tercera persona)
+    pub calc: Option<jxgmod::modelos::CalcVista>,
     /// cómo leer rb/ (la biblioteca gm_lib y rb/jxp: en la APK o en una carpeta; lo pone la app), lo leído y el menú de GMod
     pub lector_rb: Option<LectorRb>, pub(crate) lib: Option<Rc<gmod_base::Biblioteca>>, pub jxp: Option<gmod_base::MenuJxp>, pub menu: gmod_menu::MenuGm,
     /// los modelos de jugador puestos (el jugador y los NPC con uno: gmod_pm.rs)
@@ -302,7 +308,7 @@ impl EnGmod {
     pub fn nueva(datos: Option<&Path>) -> EnGmod {
         let (tx, rx) = channel();
         EnGmod { gm: None, addons: vec![], pendientes: vec![], arma: None, base: 0, teclas: vec![], teclas_de: String::new(), carpeta_externa: None, datos: datos.map(|d| d.to_path_buf()), panel: false, scroll: 0.0, texs: vec![], hud_px: vec![], escala: 1.0,
-            http_bin: None, tienda: vec![], tx, rx, tienda_pedida: false, ms: 0.0, ms_prom: 0.0, pantalla: (1280.0, 720.0), buscado: false, cuenta: BTreeMap::new(), mods: Default::default(), ms_3d: 0.0, lector_rb: None, lib: None, jxp: None, menu: Default::default(), pm: Default::default(), veh_fis: HashMap::new(), bucles: HashMap::new(), t_snd: 0.0, pill: Default::default() }
+            http_bin: None, tienda: vec![], tx, rx, tienda_pedida: false, ms: 0.0, ms_prom: 0.0, pantalla: (1280.0, 720.0), buscado: false, cuenta: BTreeMap::new(), mods: Default::default(), ms_3d: 0.0, calc: None, lector_rb: None, lib: None, jxp: None, menu: Default::default(), pm: Default::default(), veh_fis: HashMap::new(), bucles: HashMap::new(), t_snd: 0.0, pill: Default::default() }
     }
     fn apagados_ruta(&self) -> Option<PathBuf> { self.datos.as_ref().map(|d| d.join("gmod_apagados.txt")) }
     /// los addons de las carpetas (.gma y carpetas con lua/), en orden de nombre; los apagados quedan anotados
@@ -402,7 +408,7 @@ impl Juego {
         let spawns = self.mapa.as_ref().map(|mp| mp.spawns.iter().map(|s| (v3(s.0), s.1.map(|y| y as f64))).collect()).unwrap_or_default();
         let p = Puente {
             t: 0.0, dt: 1.0 / 60.0, t0: Instant::now(), pantalla: (1280.0, 720.0), escala: 1.0,
-            jug: jxgmod::Jugador::default(), cam: jxgmod::Camara::default(), ent: jxgmod::Entrada::default(), armas: jxgmod::Armas::default(),
+            jug: jxgmod::Jugador::default(), cam: jxgmod::Camara::default(), ent: jxgmod::Entrada::default(), armas: jxgmod::Armas::default(), huesos_jug: Vec::new(), arma_mundo: None,
             cuerpos: BTreeMap::new(), sig: 0, pedidos: vec![], cmds: vec![], gm_armas: vec![], mapa: None, fis: None, letras: None,
             de_fis: HashMap::new(), a_fis: HashMap::new(), archivos: HashMap::new(), mats: HashMap::new(), prefabs: nombres, caja, datos, datos_sucio: false,
             nombre: "Jugador".into(), mapa_nombre: self.mapas.get(self.mapa_i).cloned().unwrap_or_default(), spawns, cajas: HashMap::new(), lib: self.gmod.lib.clone(),
@@ -481,7 +487,7 @@ impl Juego {
         self.gmod_copiar(dt);
         let pausa = self.ajustes.is_some();
         self.gmod_prestar(true);
-        if !pausa { if let Some(gm) = self.gmod.gm.as_mut() { gm.paso(dt as f64, &[]); gm.hud(); let t3 = Instant::now(); self.gmod.mods.dib = gm.dibujar3d(dt as f64); self.gmod.ms_3d = t3.elapsed().as_secs_f32() * 1000.0; } }
+        if !pausa { if let Some(gm) = self.gmod.gm.as_mut() { gm.paso(dt as f64, &[]); gm.hud(); let t3 = Instant::now(); self.gmod.calc = gm.calc_vista(); self.gmod.mods.dib = gm.dibujar3d(dt as f64); self.gmod.ms_3d = t3.elapsed().as_secs_f32() * 1000.0; } }
         self.gmod_prestar(false);
         self.gmod_aplicar(m);
         self.gm_bucles_paso(dt, pausa);
@@ -543,9 +549,12 @@ impl Juego {
         let (jug, armas_i, objs) = (&self.jug, self.armas.i, &self.objs);
         let fis = &self.fis;
         let cam_q = qcam(jug.yaw, jug.pitch);
-        let tercera = self.camara != 0;
+        let tercera = self.camara_ef() != 0;
+        let (huesos_jug, arma_mundo) = self.gm_huesos_jug();
         let fov = if self.fov_b > 0.0 { self.fov_b } else { self.aj.fov as f32 };
         let temblor = self.temblor;
+        // (la cámara con que se dibujó el último cuadro: en tercera persona no son los ojos)
+        let vista = if self.camara_ef() != 0 { Some(v3(self.jg.cam_ult)) } else { None };
         let Some(gm) = self.gmod.gm.as_ref() else { return };
         gm.anfitrion(|h| {
             let Some(p) = h.como_any().and_then(|a| a.downcast_mut::<Puente>()) else { return };
@@ -554,9 +563,11 @@ impl Juego {
             let j = &mut p.jug;
             j.pos = v3(jug.pos); j.vel = v3(jug.vel); j.vivo = vivo; j.vida = jug.vida as f64; j.yaw = jug.yaw as f64; j.pitch = -jug.pitch as f64;
             j.medio = jug.medio as f64; j.radio = jug.radio as f64; j.ojo_alto = jug.ojo_alto as f64; j.suelo = jug.suelo; j.agachado = jug.agachado; j.noclip = jug.noclip;
+            p.huesos_jug = huesos_jug; p.arma_mundo = arma_mundo;
+            let j = &mut p.jug;
             j.tercera = tercera; j.ojo_pos = Some(v3(ojos)); j.vel_max = jug.vel_max as f64; j.salto = jug.salto as f64;
             let c = &mut p.cam;
-            c.pos = v3(ojos); c.fwd = v3(fw); c.der = v3(der); c.arr = v3(arr); c.q = Quat::new(cam_q[0] as f64, cam_q[1] as f64, cam_q[2] as f64, cam_q[3] as f64); c.fov = fov as f64; c.temblor = temblor as f64;
+            c.pos = v3(ojos); c.fwd = v3(fw); c.der = v3(der); c.arr = v3(arr); c.q = Quat::new(cam_q[0] as f64, cam_q[1] as f64, cam_q[2] as f64, cam_q[3] as f64); c.fov = fov as f64; c.temblor = temblor as f64; c.vista = vista;
             let e = &mut p.ent;
             e.disparo = d1; e.disparo2 = d2; e.teclas = teclas; e.teclas_mod = teclas_mod; e.in_mod = in_mod; e.correr = en.correr; e.saltar = en.saltar; e.agachar = en.agachar; e.x = en.x as f64; e.y = en.y as f64; e.ui_abierto = ui;
             // (las armas: las del juego y las de los addons)
@@ -663,7 +674,7 @@ impl Juego {
             Pedido::ExplosionFx(p) => self.ef.explosion(p, 1.0, None),
             Pedido::Traza(a, b) => {
                 // (la trazadora sale de la punta del arma, no de los ojos)
-                let a = self.vista.as_ref().filter(|_| self.camara == 0).and_then(|v| v.punta()).unwrap_or(a);
+                let a = self.vista.as_ref().filter(|_| self.camara_ef() == 0).and_then(|v| v.punta()).unwrap_or(a);
                 self.ef.traza(a, b);
             }
             Pedido::Fogonazo => { let o = self.ojos_ult; let fw = self.mira(); let p = self.vista.as_ref().and_then(|v| v.punta()).unwrap_or([o[0] + fw[0] * 0.6, o[1] + fw[1] * 0.6 - 0.1, o[2] + fw[2] * 0.6]); self.ef.fogonazo(p); }

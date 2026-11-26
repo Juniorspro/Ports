@@ -66,13 +66,21 @@ pub(crate) fn ent_pos(e: &Valor) -> V3 {
         if es_jug(e) { return h(|h| { let j = h.jug(); j.pos.add(v3(0.0, -(j.medio + j.radio), 0.0)) }); }
         return V3::default();
     }
+    if tipo == TipoEnt::Arma { if let Some((p, _)) = arma_en_mano(e) { return p; } }
     if let Some(o) = o { if let Some(p) = origen(o) { return p; } }
     pos
+}
+/// el arma que tiene en la mano el jugador va donde la pone el juego (el modelo de mundo en la mano: sus enganches —la
+/// hoja del sable— salen de ahí)
+fn arma_en_mano(e: &Valor) -> Option<(V3, Quat)> {
+    if !g(|g| g.swep.as_ref().map(|w| mismo(w, e)).unwrap_or(false)) { return None; }
+    h(|h| h.arma_mundo())
 }
 /// entQ
 pub(crate) fn ent_q(e: &Valor) -> Quat {
     let Some((tipo, o, q)) = ce(e, |x| (x.tipo, x.o, x.q)) else { return Quat::default() };
     if tipo == TipoEnt::Jug { let yaw = if es_jug(e) { h(|h| h.jug().yaw) } else { 0.0 }; return Quat::axis(0.0, 1.0, 0.0, yaw); }
+    if tipo == TipoEnt::Arma { if let Some((_, q)) = arma_en_mano(e) { return q; } }
     if let Some(o) = o { if let Some(q) = cuerpo(o, |b| b.q) { return q; } }
     q
 }
