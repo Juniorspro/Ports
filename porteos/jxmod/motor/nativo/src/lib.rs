@@ -13,6 +13,8 @@ pub mod iconos;
 pub mod pincel;
 pub mod motor;
 pub mod sonido;
+/// qué estaba haciendo el juego antes de trabarse (cajanegra.js)
+pub mod caja_negra;
 #[cfg(target_os = "android")]
 mod app;
 // (el multijugador en Android: el TLS y el HTTPS de Java por JNI)

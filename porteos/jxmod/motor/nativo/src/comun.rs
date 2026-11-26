@@ -879,6 +879,7 @@ impl Juego {
     }
     fn cargar_mapa(&mut self, m: &mut Motor3d) {
         let nombre = self.mapas[self.mapa_i].clone(); let nombre = nombre.as_str();
+        crate::caja_negra::paso(format!("armar el mapa {nombre}"));
         self.mapa = None;
         self.objs.clear(); self.prefabs.clear(); self.cargados.olvidar(); if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; }
         self.npcs.olvidar(); self.npc_skins.olvidar(); self.vehs = Vehiculos::nuevo(); self.pila.clear(); self.jg_limpiar(); self.pjs_limpiar();

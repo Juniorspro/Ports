@@ -34,8 +34,13 @@ fn android_main(app: AndroidApp) {
     let marca = datos.as_ref().map(|d| d.join("ultimo_error.txt"));
     let anterior = marca.as_ref().and_then(|m| { let t = std::fs::read_to_string(m).ok(); let _ = std::fs::remove_file(m); t });
     let m2 = marca.clone();
+    // (y si se trabó: la caja negra —caja_negra.rs— lo deja escrito en trabado.txt)
+    let trabado = datos.as_ref().map(|d| d.join("trabado.txt"));
+    let se_trabo = trabado.as_deref().and_then(crate::caja_negra::anterior);
+    if let Some(t) = &trabado { crate::caja_negra::vigilar(t.clone()); }
+    crate::caja_negra::paso("arranque");
     std::panic::set_hook(Box::new(move |i| {
-        let t = format!("se cerró: {i}"); log(&t);
+        let t = format!("se cerró: {i}\nLo último que hacía:\n{}", crate::caja_negra::registro()); log(&t);
         if let Some(m) = &m2 { let _ = std::fs::write(m, &t); }
     }));
     // el paquete del juego, de los archivos de la APK (el mismo de la web)
@@ -92,7 +97,7 @@ fn android_main(app: AndroidApp) {
     let fuente = app.asset_manager().open(c"pk.bin").and_then(|a| a.open_file_descriptor().ok()).map(|o| (o.fd, o.offset));
     j.sonido = crate::sonido::Sonido::android(fuente, rangos);
     log(&format!("sonido: {}", if j.sonido.suena() { "AAudio" } else { "sin salida" }));
-    if let Some(a) = anterior { if j.error.is_none() { j.error = Some(format!("la vez anterior {a}")); } }
+    if let Some(a) = anterior.or(se_trabo) { if j.error.is_none() { j.error = Some(format!("la vez anterior {a}")); } }
     let mut v: Option<Ventana> = None;
     let mut salir = false;
     while !salir {
@@ -100,8 +105,8 @@ fn android_main(app: AndroidApp) {
         app.poll_events(espera, |ev| {
             if let PollEvent::Main(me) = ev {
                 match me {
-                    MainEvent::InitWindow { .. } => { if let Some(w) = app.native_window() { v = abrir(w, &mut j, marca.as_deref()); } }
-                    MainEvent::TerminateWindow { .. } => { if let Some(x) = v.take() { cerrar(x); } }
+                    MainEvent::InitWindow { .. } => { crate::caja_negra::paso("abrir la ventana"); if let Some(w) = app.native_window() { v = abrir(w, &mut j, marca.as_deref()); } crate::caja_negra::a_la_vista(v.is_some()); }
+                    MainEvent::TerminateWindow { .. } => { crate::caja_negra::a_la_vista(false); crate::caja_negra::paso("cerrar la ventana"); if let Some(x) = v.take() { cerrar(x); } }
                     MainEvent::Destroy => { salir = true; }
                     _ => {}
                 }
@@ -123,12 +128,15 @@ fn android_main(app: AndroidApp) {
             if let Err(e) = unsafe { j.cuadro(&mut x.m, x.w, x.h, &x.placa) } { log(&format!("cuadro: {e}")); if j.error.is_none() { j.error = Some(format!("el motor: {e}")); } }
             if let Some(b) = &x.gl { let _ = b.e.swap_buffers(b.d, b.s); }
             j.medir(t0.elapsed().as_secs_f32() * 1000.0);
+            crate::caja_negra::latido();
         }
         if j.ini.salir { salir = true; }
         // (se eligió otro motor: se cierra el que está y se abre el nuevo en la misma ventana)
         if j.cambiar_motor {
             j.cambiar_motor = false;
+            crate::caja_negra::paso(format!("cambiar el motor a {:?}", j.motor_pedido()));
             if let Some(x) = v.take() { let w = x._win.clone(); cerrar(x); v = abrir(w, &mut j, marca.as_deref()); }
+            crate::caja_negra::a_la_vista(v.is_some());
         }
     }
     if let Some(x) = v.take() { cerrar(x); }

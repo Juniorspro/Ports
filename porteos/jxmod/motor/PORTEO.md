@@ -90,7 +90,8 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | iconos.js, novedades.js | ✔ | nativo/iconos.rs, paneles_juego.rs |
 | musica.js, fondovideo.js, milogo.js, iconoapp.js | ✘ | (el fondo del inicio usa las fotos de las escenas, no el video) |
 | camlibre.js | ✔ | nativo/jugabilidad.rs |
-| banco.js, cajanegra.js | ✘ | |
+| cajanegra.js | ✔ | nativo/caja_negra.rs: el latido de cada cuadro y los pasos riesgosos (abrir un motor, armar un mapa, montar un addon); si pasan 10 s sin cuadros con la app a la vista queda escrito trabado.txt y la próxima vez que abre se muestra, como los errores (que ahora también llevan lo último que hacía) |
+| banco.js | ✘ | |
 
 ## Lo demás
 | web | estado | nativa |

@@ -429,6 +429,7 @@ impl Juego {
         let arch = if ruta.is_dir() { Some(jxgmod::leer_carpeta(&ruta)) } else { std::fs::read(&ruta).ok().and_then(|b| jxgmod::leer_gma(&b)) };
         let Some(arch) = arch else { self.avisar(format!("No se pudo leer {}", self.gmod.addons[i].nombre)); return };
         let nombre = self.gmod.addons[i].nombre.clone();
+        crate::caja_negra::paso(format!("montar el addon {nombre}"));
         let ad = Addon::de_archivos(&nombre, &nombre, arch);
         let copia: Vec<(String, Rc<[u8]>)> = ad.archivos.iter().filter(|(k, _)| k.starts_with("sound/") || k.starts_with("materials/")).map(|(k, v)| (k.clone(), v.clone())).collect();
         self.con_puente(|p| for (k, v) in copia { p.archivos.entry(k).or_insert(v); });
