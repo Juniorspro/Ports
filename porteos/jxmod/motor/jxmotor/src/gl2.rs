@@ -1109,7 +1109,6 @@ impl Motor {
         let rayos = if self.rayos_ahora.is_some() || (self.vol_ahora && self.som_on) { self.rayos_pasada(self.rayos_ahora, ew, eh) } else { None };
         let brillo = if self.op.aaa { self.brillo_pasada(ew, eh) } else { None };
         let adapta = if self.op.adapta && escalada { self.adapta_pasada() } else { None };
-        let gl = &self.gl;
         // (la escena chica, estirada a la pantalla; con los rayos sumados)
         if escalada {
             let (_, t, _, _, _) = *self.escena_rt.as_ref().unwrap();
