@@ -123,7 +123,7 @@ impl Inicio {
 
 impl Juego {
     /// abrir el inicio (al arrancar la app y al salir de una partida)
-    pub fn inicio_abrir(&mut self) { self.ini.mostrar(); self.menu = None; self.ajustes = None; self.emotes_panel = false; self.npc_panel = None; self.en_red.panel = false; self.gmod.panel = false; self.dedos.clear(); }
+    pub fn inicio_abrir(&mut self) { crate::caja_negra::partida_lista(); self.ini.mostrar(); self.menu = None; self.ajustes = None; self.emotes_panel = false; self.npc_panel = None; self.en_red.panel = false; self.gmod.panel = false; self.dedos.clear(); }
     /// de dónde leer lo de la APK (o de carpetas, en la compu)
     pub fn inicio_lector(&mut self, f: Box<dyn Fn(&str) -> Option<Vec<u8>>>) { self.ini.lector = Some(f); }
     /// el motor se vació: las texturas del inicio se vuelven a subir cuando hagan falta
@@ -205,9 +205,13 @@ impl Juego {
     /// los mapas de «Empezar partida nueva» (los de la versión personal, MAPAS_RB con JXP: gm_construct y gm_flatgrass; si el
     /// paquete no los tiene, todos)
     pub(super) fn mapas_inicio(&self) -> Vec<String> {
-        let v: Vec<String> = ["RB_Construct", "RB_Flatgrass"].iter().filter(|m| self.mapas.iter().any(|x| x == *m)).map(|s| s.to_string()).collect();
-        if v.is_empty() { self.mapas.clone() } else { v }
+        let mut v: Vec<String> = ["RB_Construct", "RB_Flatgrass"].iter().filter(|m| self.mapas.iter().any(|x| x == *m)).map(|s| s.to_string()).collect();
+        if v.is_empty() { return self.mapas.clone(); }
+        // (y los bajados: los .bsp de los addons del Workshop —WS_…—, como «Garry's Mod» en la web)
+        v.extend(self.mapas_bajados()); v
     }
+    /// los mapas bajados del Workshop (los .bsp de los addons prendidos)
+    pub(super) fn mapas_bajados(&self) -> Vec<String> { self.mapas.iter().filter(|m| m.starts_with("WS_")).cloned().collect() }
 
     /// un cuadro con el inicio a la vista: sin el juego, sólo el fondo, el menú o un panel (y lo que esté abierto encima)
     pub(super) unsafe fn ini_cuadro(&mut self, m: &mut Motor3d, w: i32, h: i32) -> Result<(), String> {
@@ -219,6 +223,8 @@ impl Juego {
         self.ini.nivel = if self.aj.calidad == 0 { Nivel::Quieto } else if self.aj.calidad == 1 { Nivel::Bajo } else { Nivel::Pleno };
         m.opciones(&self.aj.opciones()); self.sonido.volumen = self.aj.volumen();
         self.escrito_paso();
+        // (los mapas bajados del Workshop, a la lista de Partida nueva)
+        self.mapas_registrar();
         self.ini_red(dt);
         self.ini_fondos();
         self.ini_paso(dt);

@@ -296,7 +296,7 @@ pub struct EnGmod {
     /// lo que tardó el último cuadro del Lua (ms) y en promedio
     pub ms: f32, pub ms_prom: f32,
     /// el tamaño de la pantalla (lo pone el HUD) y si ya se buscaron los addons de las carpetas
-    pub pantalla: (f32, f32), buscado: bool,
+    pub pantalla: (f32, f32), pub buscado: bool,
     /// cuántos pedidos de cada clase hizo el Lua (para las pruebas)
     pub cuenta: BTreeMap<&'static str, u32>,
     /// los modelos de los addons (gmod_modelos.rs)
@@ -1302,7 +1302,7 @@ pub fn ws_id_de(q: &str) -> Option<String> {
 }
 fn url_cod(s: &str) -> String { s.bytes().map(|b| if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect() }
 /// una foto de Steam a RGBA de hasta `max` de ancho (JPEG o PNG): w y h en los primeros 8 bytes
-fn ws_foto_rgba(b: &[u8], max: u32) -> Option<Vec<u8>> {
+pub(crate) fn ws_foto_rgba(b: &[u8], max: u32) -> Option<Vec<u8>> {
     let (w, h, px) = if b.starts_with(&[0xFF, 0xD8]) {
         let op = zune_jpeg::zune_core::options::DecoderOptions::default().jpeg_set_out_colorspace(zune_jpeg::zune_core::colorspace::ColorSpace::RGBA);
         let mut d = zune_jpeg::JpegDecoder::new_with_options(zune_jpeg::zune_core::bytestream::ZCursor::new(b), op);

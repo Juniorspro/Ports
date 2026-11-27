@@ -53,6 +53,9 @@ fn main() {
     println!("paquete: {:.0} ms · {placa}", t0.elapsed().as_secs_f64() * 1000.0);
     let datos = std::env::temp_dir().join("jxm_menus_datos"); let _ = std::fs::create_dir_all(&datos); for n in ["mapa.txt", "ajustes.txt", "skin.txt", "nombre.txt"] { let _ = std::fs::remove_file(datos.join(n)); }
     let _ = std::fs::write(datos.join("nombre.txt"), "NijulaX");
+    // (JXM_WS_MAPAS=carpeta: los .gma de ahí como addons bajados —para ver los mapas bajados en Partida nueva—)
+    let _ = std::fs::remove_dir_all(datos.join("addons"));
+    if let Ok(c) = std::env::var("JXM_WS_MAPAS") { let _ = std::fs::create_dir_all(datos.join("addons")); for e in std::fs::read_dir(&c).unwrap().flatten() { if e.path().extension().map_or(false, |x| x == "gma") { let _ = std::os::unix::fs::symlink(e.path(), datos.join("addons").join(e.file_name())); } } }
     let lj = std::fs::read_to_string(Path::new(&let_).join("letras.json")).ok(); let lp = std::fs::read(Path::new(&let_).join("letras.png")).ok();
     let mut j = Juego::nuevo(paq, lj, lp, Some(datos.clone()));
     // (JXM_IDIOMA=en|ja|ar…: las fotos en ese idioma)
@@ -176,6 +179,14 @@ fn main() {
                         paso(&mut j, &mut m, 4); foto(&mut m, "crear_server_elegido");
                         println!("crear server: {:?} · mapa {:?}", j.ini.pn.srv, j.ini.pn.mapa);
                         toca(&mut j, &mut m, Acc::Volver); paso(&mut j, &mut m, 40); }
+                }
+                if *n == "nueva" { // (la pestaña de los bajados)
+                    use jxmod::comun::paneles_juego::Acc;
+                    if let Some((r, _)) = j.ini.pn.zonas.iter().find(|z| z.1 == Acc::Cat(1)).cloned() { let (x, y) = centro(r); tocar(&mut j, &mut m, x, y); paso(&mut j, &mut m, 40);
+                        if let Some((r, _)) = j.ini.pn.zonas.iter().find(|z| matches!(&z.1, Acc::Mapa(mp) if mp.starts_with("WS_"))).cloned() { let (x, y) = centro(r); tocar(&mut j, &mut m, x, y); paso(&mut j, &mut m, 20); }
+                        println!("nueva · descargados: {:?} · elegido {:?}", j.ini.pn.zonas.iter().filter_map(|z| if let Acc::Mapa(mp) = &z.1 { Some(mp.clone()) } else { None }).collect::<Vec<_>>(), j.ini.pn.mapa);
+                        foto(&mut m, "nueva_descargados");
+                        if let Some((r, _)) = j.ini.pn.zonas.iter().find(|z| z.1 == Acc::Cat(0)).cloned() { let (x, y) = centro(r); tocar(&mut j, &mut m, x, y); paso(&mut j, &mut m, 30); } }
                 }
                 if *n == "nueva" { // (elegir el otro mapa)
                     if let Some((r, _)) = j.ini.pn.zonas.iter().find(|z| matches!(&z.1, jxmod::comun::paneles_juego::Acc::Mapa(mp) if mp == "RB_Construct")).cloned() { let (x, y) = centro(r); tocar(&mut j, &mut m, x, y); paso(&mut j, &mut m, 4); foto(&mut m, "nueva_construct"); } }

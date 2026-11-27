@@ -105,6 +105,12 @@ fn android_main(app: AndroidApp) {
     let fuente = app.asset_manager().open(c"pk.bin").and_then(|a| a.open_file_descriptor().ok()).map(|o| (o.fd, o.offset));
     j.sonido = crate::sonido::Sonido::android(fuente, rangos);
     log(&format!("sonido: {}", if j.sonido.suena() { "AAudio" } else { "sin salida" }));
+    // (la memoria del celular: con poca, Automático no prueba las calidades que no entran)
+    j.tope_memoria(crate::comun::gfx_juego::memoria_mb());
+    // (si la vez anterior se cerró entrando a una partida —el sistema la cerró por memoria o se cayó la placa: eso no deja un
+    // «se cerró»—, esta vez entra con gráficos más livianos y sin el mod que se estaba montando)
+    let entrando = j.entrando_anterior();
+    if let Some(t) = &entrando { let msg = j.seguro_tras_cierre(t); log(&format!("{msg}\n{t}")); if j.error.is_none() && anterior.is_none() && se_trabo.is_none() { j.error = Some(format!("{msg}\n\n{t}")); } }
     if let Some(a) = anterior.or(se_trabo) { if j.error.is_none() { j.error = Some(format!("la vez anterior {a}")); } }
     // (Vulkan ya no está en el celular: el que lo tenía elegido queda en OpenGL 3)
     if vk_cayo.is_some() || j.placa == Placa::Vulkan { j.placa = Placa::Gl3; if let Some(d) = vk_prueba().as_deref().and_then(|p| p.parent()) { let _ = std::fs::write(d.join("motor.txt"), Placa::Gl3.clave()); } }
@@ -126,7 +132,7 @@ fn android_main(app: AndroidApp) {
             if let PollEvent::Main(me) = ev {
                 match me {
                     MainEvent::InitWindow { .. } => { crate::caja_negra::paso("abrir la ventana"); if let Some(w) = app.native_window() { v = abrir(w, &mut j, marca.as_deref()); } crate::caja_negra::a_la_vista(v.is_some()); }
-                    MainEvent::TerminateWindow { .. } => { if let (Some(g), Some(t), Some(x)) = (grab.take(), &java, v.as_ref()) { if let Some(b) = &x.gl { let _ = grab_terminar(g, t, b, &x.m, &j); } j.grabando = false; } crate::caja_negra::a_la_vista(false); crate::caja_negra::paso("cerrar la ventana"); if let Some(x) = v.take() { cerrar(x); } vk_prueba_fin(); }
+                    MainEvent::TerminateWindow { .. } => { if let (Some(g), Some(t), Some(x)) = (grab.take(), &java, v.as_ref()) { if let Some(b) = &x.gl { let _ = grab_terminar(g, t, b, &x.m, &j); } j.grabando = false; } crate::caja_negra::a_la_vista(false); crate::caja_negra::partida_lista(); crate::caja_negra::paso("cerrar la ventana"); if let Some(x) = v.take() { cerrar(x); } vk_prueba_fin(); }
                     MainEvent::Destroy => { salir = true; }
                     _ => {}
                 }

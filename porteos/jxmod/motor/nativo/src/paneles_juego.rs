@@ -364,7 +364,9 @@ impl Juego {
         p.borde(r[0], r[1], r[2], h, 1.0, if sel { AMA } else { PN_LIN });
         let (fx, fy) = (r[0] + 1.0, r[1] + 1.0);
         p.rect(fx, fy, fw, fh, PN_PL1);
-        if let Some((id, tw, th)) = self.ini_foto(&format!("i:mapa_{}", mapa_base(mapa))) { p.foto_cubre(id, tw, th, fx, fy, fw, fh, [0.5, 0.5], [1.0; 4]); }
+        let kf = if mapa.starts_with("WS_") { format!("wsm:{mapa}") } else { format!("i:mapa_{}", mapa_base(mapa)) };
+        if let Some((id, tw, th)) = self.ini_foto(&kf) { p.foto_cubre(id, tw, th, fx, fy, fw, fh, [0.5, 0.5], [1.0; 4]); }
+        else if mapa.starts_with("WS_") { p.icono("mundo", fx + fw / 2.0 - fh * 0.2, fy + fh * 0.3, fh * 0.4, 2.0, [1.0, 1.0, 1.0, 0.35]); }
         self.pn_marco_foto(p, [fx, fy, fw, fh]);
         if sel { p.rect(fx + 6.0 + 2.0, fy + 6.0 + 2.0, 26.0, 26.0, [0.0, 0.0, 0.0, 0.5]); p.rect(fx + 6.0, fy + 6.0, 26.0, 26.0, AMA); p.icono("si", fx + 10.0, fy + 10.0, 18.0, 3.0, NEGRO); }
         let base = p.at.base_centrada(Cara::S4, fs, fs * 1.2, fy + fh + fs * 0.42, fs * 1.2);
@@ -405,11 +407,14 @@ impl Juego {
     /// Empezar partida nueva (panelNueva): las pestañas de grupos, el elegido en grande a la izquierda y las tarjetas
     fn pn_nueva(&mut self, p: &mut Pincel, m: &Pm, cat: usize, scroll: f32, t: f32, z: &mut Vec<([f32; 4], Acc)>) {
         let mapas = self.mapas_inicio(); let sel = self.ini.pn.mapa.clone().unwrap_or_default();
-        for mp in &mapas { self.ini_pedir_foto(&format!("i:mapa_{mp}")); }
+        // (las fotos: las del paquete; las de los bajados, la miniatura de su addon)
+        let mut fotos_ws: HashMap<String, String> = HashMap::new();
+        for mp in &mapas { if mp.starts_with("WS_") { if let Some(k) = self.ws_mapa_foto(mp) { fotos_ws.insert(mp.clone(), k); } } else { self.ini_pedir_foto(&format!("i:mapa_{mp}")); } }
+        let bajados = self.mapas_bajados();
         let clave_carga = fondo_mapa(mapa_base(&sel)); let foto_carga = clave_carga.map(|c| format!("a:carga/{c}.webp")).filter(|k| self.ini_pedir_foto(k));
         let com: Vec<String> = jugabilidad::ent_juego::COMUNIDAD.iter().map(|c| format!("com:{}", c.0)).collect();
-        let cats = [("Todos los mapas", mapas.len()), ("Comunidad", com.len())];
-        let lista: Vec<String> = if cat == 0 { mapas.clone() } else { com.clone() };
+        let cats = [("Todos los mapas", mapas.len()), ("Descargados", bajados.len()), ("Comunidad", com.len())];
+        let lista: Vec<String> = match cat { 0 => mapas.clone(), 1 => bajados.clone(), _ => com.clone() };
         let autor = sel.strip_prefix("com:").and_then(|id| jugabilidad::ent_juego::COMUNIDAD.iter().find(|c| c.0 == id)).map(|c| format!("por {}", c.2));
         let (pie_h, alto_cont, contenido) = self.pn_marco(p, m, t, |p, c| {
             let (_, hc) = self.pn_cabecera(p, m, c, "01", None, "Empezar partida nueva", t);
@@ -457,13 +462,13 @@ impl Juego {
             let fr = [hero[0] + u * 1.2, hero[1] + u * 1.2, hero[2] - 1.0 - u * 2.4, (hero[3] - u * 1.2 - info_h).max(10.0)];
             self.pn_cascada(p, t, 1, |p| {
                 p.rect(fr[0] + 4.0, fr[1] + 4.0, fr[2], fr[3], [0.0, 0.0, 0.0, 0.6]); p.rect(fr[0], fr[1], fr[2], fr[3], rgba(0x1b1c1f, 1.0));
-                let k = foto_carga.clone().unwrap_or_else(|| format!("i:mapa_{}", mapa_base(&sel)));
+                let k = foto_carga.clone().or_else(|| fotos_ws.get(&sel).cloned()).unwrap_or_else(|| format!("i:mapa_{}", mapa_base(&sel)));
                 if let Some((id, tw, th)) = self.ini_foto(&k) { p.foto_cubre(id, tw, th, fr[0], fr[1], fr[2], fr[3], [0.5, 0.5], [1.0; 4]); }
                 self.pn_marco_foto(p, fr); p.borde(fr[0] - 1.0, fr[1] - 1.0, fr[2] + 2.0, fr[3] + 2.0, 1.0, PN_LIN2);
                 let ix = hero[0] + u * 1.5; let mut y = fr[1] + fr[3] + u * 1.1; let iw = hero[2] - 1.0 - u * 3.0;
-                p.texto(Cara::S4, fs, ix, p.at.base_centrada(Cara::S4, fs, fs, y, fs), AMA, 0.16, if autor.is_some() { "Comunidad" } else { "Todos los mapas" }); y += fs + u * 0.25;
+                p.texto(Cara::S4, fs, ix, p.at.base_centrada(Cara::S4, fs, fs, y, fs), AMA, 0.16, if autor.is_some() { "Comunidad" } else if sel.starts_with("WS_") { "Descargados" } else { "Todos los mapas" }); y += fs + u * 0.25;
                 p.texto_max(Cara::S7, fb, ix, p.at.base_centrada(Cara::S7, fb, fb * 1.2, y, fb * 1.2), TX, 0.01, &nombre_mapa(&sel), iw); y += fb * 1.2 + fb * 0.14 + u * 0.25;
-                let (a, d) = p.at.metricas(Cara::S4, fs); p.texto(Cara::S4, fs, ix, y + (fs * 1.35 - a - d) / 2.0 + a, PN_T2, 0.0, autor.as_deref().unwrap_or("Garry's Mod"));
+                let (a, d) = p.at.metricas(Cara::S4, fs); p.texto(Cara::S4, fs, ix, y + (fs * 1.35 - a - d) / 2.0 + a, PN_T2, 0.0, autor.as_deref().unwrap_or(if sel.starts_with("WS_") { "Workshop de Garry's Mod" } else { "Garry's Mod" }));
             });
             // (la grilla: columnas de max(104 px, 25 % del alto) que llenan el ancho)
             let g = [hero[0] + hero[2], cuerpo[1] + 1.0, cuerpo[2] - hero[2], cuerpo[3] - 1.0];
@@ -471,7 +476,7 @@ impl Juego {
             let n = (((iw + gap) / (minc + gap)).floor() as usize).max(1); let cw = (iw - gap * (n - 1) as f32) / n as f32;
             let mut alto = pt + u * 1.6;
             p.con_recorte(g, |p| {
-                if lista.is_empty() { let base = g[1] + pt + m.ft; p.texto_c(Cara::S4, m.ft, g[0] + g[2] / 2.0, base, PN_T2, 0.0, "No hay resultados · Mods y mapas"); }
+                if lista.is_empty() { let base = g[1] + pt + m.ft; p.texto_c(Cara::S4, m.ft, g[0] + g[2] / 2.0, base, PN_T2, 0.0, if cat == 1 { "Todavía no bajaste mapas · Mods y mapas → Workshop → Mapas" } else { "No hay resultados · Mods y mapas" }); }
                 let mut fila_h = 0.0f32;
                 for (k, mp) in lista.iter().enumerate() { let (col, fila) = (k % n, k / n);
                     let r = [g[0] + pl + col as f32 * (cw + gap), g[1] + pt + fila as f32 * (fila_h.max(1.0) + gap) - scroll, cw, 0.0];
@@ -1081,7 +1086,7 @@ impl Juego {
 /// el nombre de un mapa (mapaNom: los de GMod con su nombre de GMod)
 /// el mapa de la Comunidad («com:<id>») o el mapa tal cual: el mapa base sobre el que se arma
 pub fn mapa_base(m: &str) -> &str { match m.strip_prefix("com:") { Some(id) => jugabilidad::ent_juego::COMUNIDAD.iter().find(|c| c.0 == id).map(|c| c.3).unwrap_or("FlatGrass"), None => m } }
-pub fn nombre_mapa(m: &str) -> String { if let Some(id) = m.strip_prefix("com:") { return jugabilidad::ent_juego::COMUNIDAD.iter().find(|c| c.0 == id).map(|c| c.1.to_string()).unwrap_or_default(); } match m { "RB_Construct" => "gm_construct".into(), "RB_Flatgrass" => "gm_flatgrass".into(), x => x.trim_start_matches("RB_").to_string() } }
+pub fn nombre_mapa(m: &str) -> String { if let Some(id) = m.strip_prefix("com:") { return jugabilidad::ent_juego::COMUNIDAD.iter().find(|c| c.0 == id).map(|c| c.1.to_string()).unwrap_or_default(); } match m { "RB_Construct" => "gm_construct".into(), "RB_Flatgrass" => "gm_flatgrass".into(), x => x.trim_start_matches("RB_").trim_start_matches("WS_").to_string() } }
 /// la foto de la pantalla de carga de cada mapa (FONDO_MAPA de rbmenus.js)
 pub fn fondo_mapa(m: &str) -> Option<&'static str> {
     Some(match m { "FlatGrass" => "rb_flatgrass", "City" => "rb_city", "Desert" | "DesertV2" => "rb_desert", "Mars" => "rb_mars", "RB_Pizzeria" => "rb_pizzeria", "RB_Construct" => "rb_construct", "RB_Flatgrass" => "rb_gmflatgrass",

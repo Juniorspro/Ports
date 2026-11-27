@@ -37,6 +37,8 @@ struct PuertaJ { cuerpos: Vec<(u32, [f64; 3])>, items: Vec<ItemDin> }
 pub struct EnMapas {
     /// los mapas de los addons y los addons ya mirados
     pub ws: Vec<WsMapa>, vistos: Vec<PathBuf>,
+    /// las miniaturas de los mapas bajados ya buscadas (estén o no: se buscan una vez)
+    fotos_buscadas: std::collections::HashSet<String>,
     /// las puertas (lógica, cuerpos y dibujo), las puertas portal y lo que se mira para «Usar»
     pub pta: Option<Puertas>, pj: Vec<PuertaJ>, pub por: Portales, pub usar: Option<Usar>, pub usar_txt: Option<&'static str>,
     /// la hora del día: el estado, la luz de base del mapa, su niebla, si es el espacio, cuánto es de noche
@@ -76,15 +78,37 @@ fn bsps_de(ruta: &Path) -> Vec<String> {
     vec![]
 }
 /// los nombres de los archivos de un .gma (como leer_gma de jxgmod, sin los datos); None si el pedazo no alcanza
-fn indice_gma(b: &[u8]) -> Option<Vec<String>> {
+fn indice_gma(b: &[u8]) -> Option<Vec<String>> { indice_gma_tam(b).map(|(v, _)| v.into_iter().map(|x| x.0).collect()) }
+/// el índice de un .gma con el tamaño de cada archivo y dónde empiezan los datos (van seguidos, en el orden del índice)
+fn indice_gma_tam(b: &[u8]) -> Option<(Vec<(String, u64)>, usize)> {
     if b.len() < 5 || &b[0..4] != b"GMAD" { return None; }
     let ver = b[4]; let mut p = 5 + 16;
     let cad = |p: &mut usize| -> Option<String> { let i = b.get(*p..)?.iter().position(|c| *c == 0)? + *p; let s = String::from_utf8_lossy(&b[*p..i]).into_owned(); *p = i + 1; Some(s) };
     if ver > 1 { while !cad(&mut p)?.is_empty() {} }
     cad(&mut p)?; cad(&mut p)?; cad(&mut p)?; p += 4;
     let mut v = vec![];
-    loop { let n = u32::from_le_bytes(b.get(p..p + 4)?.try_into().ok()?); p += 4; if n == 0 { break; } v.push(cad(&mut p)?.to_lowercase().replace('\\', "/")); p += 12; if p > b.len() { return None; } }
-    Some(v)
+    loop {
+        let n = u32::from_le_bytes(b.get(p..p + 4)?.try_into().ok()?); p += 4; if n == 0 { break; }
+        let nom = cad(&mut p)?.to_lowercase().replace('\\', "/"); let tam = u64::from_le_bytes(b.get(p..p + 8)?.try_into().ok()?); p += 12;
+        if p > b.len() { return None; } v.push((nom, tam));
+    }
+    Some((v, p))
+}
+/// un archivo de un addon (una carpeta, o un .gma leyendo sólo su índice y ese pedazo)
+fn archivo_addon(ruta: &Path, nombre: &str) -> Option<Vec<u8>> {
+    if ruta.is_dir() { return std::fs::read(ruta.join(nombre)).ok(); }
+    use std::io::{Read, Seek, SeekFrom};
+    let mut f = std::fs::File::open(ruta).ok()?;
+    for tope in [1usize << 20, 16 << 20] {
+        let mut b = vec![]; f.seek(SeekFrom::Start(0)).ok()?; (&mut f).take(tope as u64).read_to_end(&mut b).ok()?;
+        if let Some((v, ini)) = indice_gma_tam(&b) {
+            let mut o = ini as u64;
+            for (n, t) in v { if n == nombre { if t > 8 << 20 { return None; } f.seek(SeekFrom::Start(o)).ok()?; let mut d = vec![0u8; t as usize]; f.read_exact(&mut d).ok()?; return Some(d); } o += t; }
+            return None;
+        }
+        if b.len() < tope { break; }
+    }
+    None
 }
 /// la malla de una pieza para el motor (gmMallaNueva: 14 bytes por vértice, la UV de la luz aparte, los índices por parte)
 pub(super) fn malla_de(id: i64, pz: &Pieza, lm: Option<(&bsp::Atlas, i64)>, mat: &dyn Fn(MatRef) -> Option<i64>, datos: &mut Vec<u8>) -> Option<(Malla, Vec<(u32, u32, i64)>, [f32; 4])> {
@@ -118,8 +142,9 @@ fn piezas_fis(pf: &jxjuego::forma::PrefabFisica) -> Vec<(Vec<[f32; 3]>, Vec<Vec<
 fn hipot3(a: [f32; 3]) -> f32 { (a[0] * a[0] + a[1] * a[1] + a[2] * a[2]).sqrt() }
 
 impl Juego {
-    /// cada cuadro: los mapas de los addons a la lista (los nuevos) y los de los apagados fuera
-    fn mapas_registrar(&mut self) {
+    /// cada cuadro (en el juego y en el inicio): los mapas de los addons a la lista (los nuevos) y los de los apagados fuera
+    pub(super) fn mapas_registrar(&mut self) {
+        if !self.gmod.buscado { self.gmod.buscado = true; self.gmod.buscar(); }
         for a in &self.gmod.addons {
             if !a.prendido || self.mj.vistos.contains(&a.ruta) { continue; }
             self.mj.vistos.push(a.ruta.clone());
@@ -138,6 +163,18 @@ impl Juego {
             self.mapa_i = self.mapas.iter().position(|m| *m == actual).unwrap_or(0);
             self.mj.vistos.retain(|r| !apagados.contains(r) || self.mj.ws.iter().any(|w| w.addon == *r));
         }
+    }
+    /// la miniatura de un mapa bajado (maps/thumb/<mapa>.png de su addon, la del menú de mapas de GMod; o maps/<mapa>.jpg):
+    /// su clave de foto si está (se busca una sola vez)
+    pub(super) fn ws_mapa_foto(&mut self, clave: &str) -> Option<String> {
+        let k = format!("wsm:{clave}");
+        if self.ini_foto_lista(&k) { return Some(k); }
+        if !self.mj.fotos_buscadas.insert(clave.to_string()) { return None; }
+        let w = self.mj.ws.iter().find(|w| w.clave == clave)?.clone();
+        let base = w.ruta.trim_start_matches("maps/").trim_end_matches(".bsp").to_string();
+        let b = [format!("maps/thumb/{base}.png"), format!("maps/thumb/{base}.jpg"), format!("maps/{base}.png"), format!("maps/{base}.jpg")].iter().find_map(|n| archivo_addon(&w.addon, n))?;
+        let r = super::gmod_juego::ws_foto_rgba(&b, 512)?; let u = |i: usize| u32::from_le_bytes([r[i], r[i + 1], r[i + 2], r[i + 3]]);
+        self.ini_poner_foto(&k, u(0), u(4), r[8..].to_vec()); Some(k)
     }
     /// el motor se vació para otro mapa: lo armado de los addons ya no está en él, ni lo de este mapa
     pub(crate) fn mapas_vaciado(&mut self) {

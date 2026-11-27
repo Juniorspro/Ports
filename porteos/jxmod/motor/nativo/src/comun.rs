@@ -254,6 +254,8 @@ pub struct Juego {
     pub dt_fijo: Option<f32>,
     /// los gráficos automáticos (gfx_juego.rs): la búsqueda, si se mide (sólo en la app) y el refresco de la pantalla (Hz)
     pub gfxa: jxjuego::gfxauto::Busqueda, pub gfx_medir: bool, pub refresco: f32,
+    /// la calidad más alta que prueba Automático según la memoria del celular (gfx_juego.rs: 4 GB → Medio)
+    pub tope_mem: usize,
     /// los memes (memes_juego.rs)
     pub memes: memes_juego::Memes,
     /// la partida en el Wi-Fi (lan_juego.rs)
@@ -263,6 +265,8 @@ pub struct Juego {
     /// lo que salió mal (se muestra en la pantalla: en el teléfono no hay otra forma de verlo)
     pub error: Option<String>,
     mapa_cartel: bool,
+    /// cuándo se armó el mapa: a los 12 s jugando la entrada a la partida anduvo (caja_negra::partida_lista)
+    partida_t: Option<Instant>,
     /// el motor que se está usando (lo pone la app) y si hay que cambiarlo (se eligió otro)
     pub en_uso: Placa, pub cambiar_motor: bool,
     /// lo que tardó cada pasada en la placa (Vulkan)
@@ -377,7 +381,7 @@ impl Juego {
         let gmod = gmod_juego::EnGmod::nueva(datos.as_deref());
         let mut j = Juego { paq, mapa: None, mapas: vec!["RB_Flatgrass".into(), "RB_Construct".into()], mapa_i: 0, letras, letras_px, jug: Jugador::nuevo(), acum: 0.0,
             dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0, perf: [0.0; 5], drs: 1.0, drs_t: 0.0, turbo_n: 0, turbo_dt: 0.0, turbo_vp: None, turbo_cam: [0.0; 6], ms_real: 0.0, ms_inter: 0.0, fue_inter: false, n_inter: 0, turbo_on: false, placa_inter: 0.0, cpu_real: 0.0, cpu_inter: 0.0, reloj_ok: false, arma_raiz: None, turbo_arma: None, perf_t: Instant::now(),
-            recargar: true, dt_fijo: None, antilag: 0, antilag_ok: 0.0, antilag_mal: 0.0, gfxa: Default::default(), gfx_medir: false, refresco: 60.0, memes: Default::default(), lan: Default::default(), bajas: None, bajada: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
+            recargar: true, partida_t: None, dt_fijo: None, antilag: 0, antilag_ok: 0.0, antilag_mal: 0.0, gfxa: Default::default(), gfx_medir: false, tope_mem: ajustes::CALIDADES.len() - 1, refresco: 60.0, memes: Default::default(), lan: Default::default(), bajas: None, bajada: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
             nombres: HashMap::new(), catalogo: vec![], cat_npc: vec![], cat_veh: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![], por_cargar: vec![],
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
@@ -972,7 +976,7 @@ impl Juego {
                 self.jug = Jugador::nuevo(); self.jug.noclip = noclip; self.acum = 0.0;
                 self.jug.aparecer(&mp.mundo, sp, Some(yaw)); self.jug.aguas = mp.aguas.clone();
                 self.aguas = Aguas::de_cajas(&mp.aguas); self.ef.limpiar(); self.jg.agua.flu.limpiar(); self.jg.agua.manguera = false; self.jg.agua.src.puesta = None; self.ef.luz_de(&mp.luz);
-                self.mapa = Some(mp); self.npcs.piso = self.piso().into();
+                self.mapa = Some(mp); self.npcs.piso = self.piso().into(); crate::caja_negra::paso(format!("mapa {nombre} armado: a dibujarlo"));
                 self.pjs_mapa(m);
             }
             Err(e) => { self.error = Some(format!("mapa {nombre}: {e}")); }
@@ -1020,6 +1024,7 @@ impl Juego {
         if self.ini.abierto { self.gmod_tienda_paso(); return self.ini_cuadro(m, w, h); }
         // (al cargar: primero un cuadro con el cartel de «Cargando…», y en el siguiente se arma el mapa, que tarda)
         if self.recargar {
+            if self.paq.is_some() && !self.mapa_cartel && !self.ini.abierto { self.entrando_partida(); }
             if self.paq.is_some() && !self.mapa_cartel { self.mapa_cartel = true; self.mapa = None; m.vaciar(); self.objs.clear(); self.fis = Fisica::nueva(); self.npcs.olvidar(); self.npc_skins.olvidar(); self.vehs = Vehiculos::nuevo(); self.pila.clear(); self.prefabs.clear(); self.cargados.olvidar(); self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false; self.armas_ico = false; self.hud_ico = false; self.gr.cargada = false; self.ef_atlas = false; if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; } self.cargar_letras(m); }
             // (si al mapa —o a la skin elegida— le falta bajar su paquete aparte, la pantalla de carga espera y dice cuánto va;
             // si el mapa no se puede bajar, vuelve al menú)
@@ -1029,8 +1034,10 @@ impl Juego {
             }
             // (los mapas del Workshop: lo de HL2 y CS:S que piden y no está, de Steam; si no se puede, se arma igual)
             else if let Some(b) = self.base_falta_carga() { self.bajada = Some(b); }
-            else { self.bajada = None; self.recargar = false; self.mapa_cartel = false; if self.paq.is_some() { self.cargar_mapa(m); } else { m.vaciar(); self.cargar_letras(m); } }
+            else { self.bajada = None; self.recargar = false; self.mapa_cartel = false; if self.paq.is_some() { self.cargar_mapa(m); } else { m.vaciar(); self.cargar_letras(m); } self.partida_t = Some(Instant::now()); }
         }
+        // (la entrada a la partida anduvo: 12 s jugando sin que se cierre)
+        if !self.recargar && self.mapa.is_some() && crate::caja_negra::partida_en_curso() { if self.partida_t.map_or(false, |t| t.elapsed().as_secs_f32() > 12.0) { crate::caja_negra::partida_lista(); if let Some(d) = &self.datos { let _ = std::fs::remove_file(d.join("seguro.txt")); } } }
         let ahora = Instant::now(); let dt = self.dt_fijo.unwrap_or((ahora - self.t_ant).as_secs_f32().min(0.1)); self.t_ant = ahora; self.perf_t = ahora;
         self.gfx_auto(placa_txt, w, h);
         self.banco_paso();

@@ -44,7 +44,7 @@ pub fn nombre_skin(s: &str) -> Option<&'static str> {
 pub fn skin_nom(s: &str) -> String { nombre_skin(s).map(String::from).unwrap_or_else(|| s.to_string()) }
 /// los mapas base con nombre propio (IDS_MAPAS, en castellano: la nativa está en castellano)
 pub const MAPAS: [(&str, &str); 9] = [("JX_Plaza", "JX Plaza"), ("Desert", "Cañadón Ocre"), ("DesertV2", "Médanos"), ("FlatGrass", "Pradera"), ("City", "Distrito Norte"), ("Base", "Hangar 7"), ("BaseV2", "Polo Industrial"), ("Mars", "Planeta Rojo"), ("Space", "Órbita")];
-pub fn nombre_mapa(m: &str) -> String { MAPAS.iter().find(|x| x.0 == m).map(|x| x.1.to_string()).unwrap_or_else(|| m.to_string()) }
+pub fn nombre_mapa(m: &str) -> String { MAPAS.iter().find(|x| x.0 == m).map(|x| x.1.to_string()).unwrap_or_else(|| m.trim_start_matches("WS_").to_string()) }
 
 fn hex(h: &str) -> [f32; 3] { [1, 3, 5].map(|i| u8::from_str_radix(&h[i..i + 2], 16).unwrap_or(0) as f32) }
 fn rampa(n: &str) -> [[f32; 3]; 3] { let r = RAMPAS.iter().find(|x| x.0 == n).or(RAMPAS.iter().find(|x| x.0 == "grafito")).unwrap().1; [hex(r[0]), hex(r[1]), hex(r[2])] }
