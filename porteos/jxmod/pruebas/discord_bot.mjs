@@ -36,6 +36,7 @@ const par = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 
 const pub = hex(await crypto.subtle.exportKey('raw', par.publicKey));
 // la API de Discord de mentira y los archivos de versión
 const llamadas = [], geminiPedidos = [], geminiModelos = [], geminiModos = {}; let roles = [{ id: 'r0', name: '@everyone' }], reglas = [], sigRol = 1, sigRegla = 1;
+let NATIVO = { codigo: 26112705, version: '0.38', apk: 'jxmod/JXModNativo.apk', tam: 72050000, notas_es: 'Olas simuladas' };
 let VERSION = { codigo: 3911, version: '3.9.11', apk: 'https://x/JXMod.apk', web: 'https://x/web/', notas_es: 'Arreglos del 21/11' }, APP = { v: 26112190, nombre: '0.8' };
 async function falso(url, op = {}) {
   const u = String(url), m = op.method || 'GET', b = op.body ? JSON.parse(op.body) : undefined;
@@ -48,6 +49,7 @@ async function falso(url, op = {}) {
   }
   if (u.includes('generativelanguage.googleapis.com')) { const q = JSON.parse(op.body); geminiPedidos.push(q); const ult = q.contents[q.contents.length - 1].parts[0].text; return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'Respuesta IA a: ' + ult }] } }] })); }
   if (u.includes('web/version.json')) return new Response(JSON.stringify(VERSION));
+  if (u.includes('web/nativo.json')) return new Response(JSON.stringify(NATIVO));
   if (u.includes('descargas/app.json')) return new Response(JSON.stringify(APP));
   if (!u.startsWith('https://discord.com/api/v10')) return new Response('?', { status: 404 });
   const ruta = u.slice('https://discord.com/api/v10'.length); llamadas.push({ m, ruta, b, auth: (op.headers || {}).Authorization });
@@ -427,10 +429,10 @@ const en1 = await pedir(cmdG('encuesta', A, [{ name: 'pregunta', value: '¿?' },
 const ay = await pedir({ type: 2, channel_id: 'dmx', token: 't', user: { id: U1, username: 'x' }, data: { name: 'ayuda' } });
 const nombres = M.COMANDOS.map((c) => c.name), adminSinPermiso = M.COMANDOS.filter((c) => ['bienvenida', 'autorol', 'niveles', 'registro', 'encuesta', 'limpiar', 'warn', 'perdonar', 'historial', 'silenciar', 'expulsar', 'ban', 'desbanear', 'lento', 'bloquear', 'desbloquear', 'Warn por este mensaje', 'reiniciar-limite', 'configurar', 'roles', 'anunciar'].includes(c.name) && !c.default_member_permissions);
 const bienPuestos = (L) => L.every((o) => (o.type === 3 && !o.description && !o.options ? o.name.length <= 32 : o.name && o.description && o.description.length <= 100 && /^[a-z0-9_-]{1,32}$/.test(o.name) && (!o.options || bienPuestos(o.options))));
-ok('18. /servidor, /usuario (cuenta, entrada, nivel, roles), /encuesta de Discord (y con 1 opción no), /ayuda también por privado; 37 comandos (2 de clic derecho) sin repetir, bien formados, los de admin escondidos',
+ok('18. /servidor, /usuario (cuenta, entrada, nivel, roles), /encuesta de Discord (y con 1 opción no), /ayuda también por privado; 40 comandos (2 de clic derecho) sin repetir, bien formados, los de admin escondidos',
   sv.d.data.embeds[0].title === 'JXMod' && sv.d.data.embeds[0].fields.find((f) => f.name === 'Miembros').value === '349' && us.d.data.embeds[0].author.name === 'Tres' && us.d.data.embeds[0].fields.some((f) => f.name === 'Entró al servidor') && us.d.data.embeds[0].fields.find((f) => f.name === 'Nivel').value.startsWith('2')
     && en.d.data.poll && en.d.data.poll.answers.length === 3 && en.d.data.poll.duration === 24 && en.d.data.poll.answers[2].poll_media.text === 'Mars' && /al menos 2/.test(en1.d.data.content)
-    && ay.d.data.flags === 64 && ay.d.data.embeds[0].fields.length === 4 && nombres.length === 37 && new Set(nombres).size === 37 && adminSinPermiso.length === 0 && bienPuestos(M.COMANDOS),
+    && ay.d.data.flags === 64 && ay.d.data.embeds[0].fields.length === 4 && nombres.length === 40 && new Set(nombres).size === 40 && adminSinPermiso.length === 0 && bienPuestos(M.COMANDOS),
   { nombres: nombres.length, sinPermiso: adminSinPermiso.map((c) => c.name), poll: en.d.data.poll && en.d.data.poll.answers.map((x) => x.poll_media.text) });
 // 20: el límite para hablarle (7 s entre mensajes, 10 cada 30 min, con el contador de Discord; admins y mods sin
 // límite; el aviso una sola vez por espera; /limite y /reiniciar-limite; /jb avisa sólo a quien tiene que esperar)
@@ -473,4 +475,57 @@ ok('18. /servidor, /usuario (cuenta, entrada, nivel, roles), /encuesta de Discor
 pu2.cerrar();
 }
 pu.cerrar();
+// 21. /jxmod con la versión Rust; los rangos (/rango: sólo los del código); /proteccion; el anti-spam y el anti-raid
+{
+  const PR = await import('../tienda/discord_proteccion.js');
+  const jx = await pedir(cmd('jxmod')); const emb = (jx.d && jx.d.data.embeds) || [];
+  const nat = emb.find((x) => /Nativo 0\.38/.test(x.title));
+  // (los rangos: en el servidor g1; u1 mandó el código; u3 no)
+  const conOp = (name, member, sub, opts) => cmd(name, member, [{ type: 1, name: sub, options: opts }]);
+  const U3 = { user: { id: '3333', username: 'goshumio_no' }, permissions: '0', roles: [] };
+  const sinCodigo = await pedir(conOp('rango', U3, 'dar', [{ name: 'usuario', value: '4444' }, { name: 'rango', value: 'mod' }]));
+  await pedir(cmd('admin', ADMIN, [{ name: 'codigo', value: env.DISCORD_ADMIN_CODE }]));
+  const dar = await pedir(conOp('rango', ADMIN, 'dar', [{ name: 'usuario', value: '4444' }, { name: 'rango', value: 'mod' }]));
+  const darA = await pedir(conOp('rango', ADMIN, 'dar', [{ name: 'usuario', value: '5555' }, { name: 'rango', value: 'admin' }]));
+  const ver = await pedir(conOp('rango', ADMIN, 'ver', []));
+  const C = await import('../tienda/discord_comunidad.js');
+  const esMod4 = await C.esModInteraccion(env, { guild_id: 'g1', member: { user: { id: '4444' }, permissions: '0', roles: [] } });
+  const esAdm5 = await M.esAdminDe(env, '5555', 'g1'), esAdm4 = await M.esAdminDe(env, '4444', 'g1');
+  // (el admin con rango usa los de admin, pero no pone rangos)
+  const admRango = await pedir(conOp('proteccion', { user: { id: '5555', username: 'adm' }, permissions: '0', roles: [] }, 'configurar', [{ name: 'menciones', value: 8 }, { name: 'dias', value: 3 }, { name: 'invitaciones', value: false }]));
+  const admRangoNo = await pedir(conOp('rango', { user: { id: '5555', username: 'adm' }, permissions: '0', roles: [] }, 'dar', [{ name: 'usuario', value: '6666' }, { name: 'rango', value: 'admin' }]));
+  const aj = await C.ajustes(env, 'g1'); const cfg = PR.protDe(aj);
+  const quitar = await pedir(conOp('rango', ADMIN, 'quitar', [{ name: 'usuario', value: '4444' }]));
+  const esMod4b = await C.esModInteraccion(env, { guild_id: 'g1', member: { user: { id: '4444' }, permissions: '0', roles: [] } });
+  // (el anti-spam, con la lógica sola)
+  const pr = new PR.Proteccion(), base = 1.8e12, viejo = idAhora(base - 400 * 86400e3), nuevo = idAhora(base - 3600e3);
+  const msg = (id, autor, content, extra = {}) => ({ id: String(id), guild_id: 'g1', channel_id: 'c1', author: { id: autor }, content, mentions: [], mention_roles: [], ...extra });
+  const def = PR.protDe({}); let fl = null;
+  for (let i = 0; i < 7; i++) fl = pr.revisar(msg(i, viejo, 'hola ' + i), def, base + i * 500, false) || fl;
+  let fl2 = null; for (let i = 0; i < 7; i++) fl2 = pr.revisar(msg(20 + i, viejo, 'chau ' + i), def, base + 20e3 + i * 500, false) || fl2;
+  let rep = null; for (let i = 0; i < 4; i++) rep = pr.revisar(msg(40 + i, idAhora(base - 500 * 86400e3), 'COMPREN YA'), def, base + i * 9e3, false) || rep;
+  const men = pr.revisar(msg(60, viejo, 'hola', { mentions: [1, 2, 3, 4, 5, 6].map((k) => ({ id: 'x' + k })) }), def, base + 90e3, false);
+  const inv = pr.revisar(msg(61, idAhora(base - 300 * 86400e3), 'entren a discord.gg/abc123'), def, base, false);
+  const inv2 = pr.revisar(msg(62, idAhora(base - 300 * 86400e3), 'discord.gg/otro'), def, base + 5e3, false);
+  const lnk = pr.revisar(msg(63, nuevo, 'mirá https://x.y/z'), def, base, false);
+  const lnkViejo = pr.revisar(msg(64, idAhora(base - 100 * 86400e3), 'mirá https://x.y/z'), def, base, false);
+  const modNo = pr.revisar(msg(65, idAhora(base - 100 * 86400e3), 'discord.gg/abc'), def, base, true);
+  const apagado = pr.revisar(msg(66, idAhora(base - 100 * 86400e3), 'discord.gg/abc'), { ...def, spam: false }, base, false);
+  // (el anti-raid: 8 entradas en un minuto; las cuentas nuevas afuera; las viejas pasan; termina a los 10 min)
+  const pr2 = new PR.Proteccion(); const ent = [];
+  for (let i = 0; i < 9; i++) ent.push(pr2.entrada('g1', { id: i < 7 ? idAhora(base - 200 * 86400e3) : idAhora(base - 86400e3) }, def, base + i * 3e3));
+  const fuera = pr2.entrada('g1', { id: idAhora(base - 3 * 86400e3) }, def, base + 30e3), pasa = pr2.entrada('g1', { id: idAhora(base - 30 * 86400e3) }, def, base + 31e3);
+  const escribe = pr2.revisar(msg(70, idAhora(base - 30 * 86400e3), 'hola'), def, base + 40e3, false);
+  const venc = pr2.vencidos(base + 11 * 60e3), despues = pr2.entrada('g1', { id: idAhora(base - 3 * 86400e3) }, def, base + 12 * 60e3);
+  const dias = new PR.Proteccion().entrada('g1', { id: idAhora(base - 86400e3) }, { ...def, dias: 3 }, base);
+  ok('21. /jxmod con la versión Rust (0.38, link a la APK nativa); /rango sólo con el código (mod y admin del bot, ver, quitar; el admin con rango usa /proteccion pero no da rangos); anti-spam (inundar 5 min y después 30, repetir, menciones, invitación y la segunda aislado, link de cuenta nueva, a los mods no, apagado); anti-raid (8 en un minuto: las nuevas afuera, las viejas pasan, lo que escriben los recién llegados se borra, termina solo; días mínimos)',
+    emb.length === 2 && nat && JSON.stringify(nat.fields).includes('raw.githubusercontent.com/Juniorspro/Ports/claude/ports-continuation-dm754a/jxmod/JXModNativo.apk')
+      && /código/.test(sinCodigo.d.data.content) && /mod/.test(dar.d.data.content) && /admin del bot/.test(darA.d.data.content) && /4444/.test(ver.d.data.content) && /5555/.test(ver.d.data.content)
+      && esMod4 && esAdm5 && !esAdm4 && /Protección/.test(admRango.d.data.content) && /código/.test(admRangoNo.d.data.content) && cfg.menciones === 8 && cfg.dias === 3 && cfg.invitaciones === false
+      && /ya no tiene rango/.test(quitar.d.data.content) && !esMod4b
+      && fl && fl.aislar === 300 && fl.borrar.length === 7 && fl2 && fl2.aislar === 1800 && rep && /repetir/.test(rep.motivo) && men && men.aislar === 1800 && inv && inv.aislar === 0 && inv2 && inv2.aislar === 1800
+      && lnk && /cuenta/.test(lnk.motivo) && !lnkViejo && !modNo && !apagado
+      && ent[7].raid === 'empieza' && ent[7].expulsar && !ent[6].expulsar && fuera.expulsar && !pasa.expulsar && escribe && /raid/.test(escribe.motivo) && venc.length === 1 && !despues.expulsar && dias.expulsar,
+    { emb: emb.map((x) => x.title), dar: dar.d.data.content.slice(0, 60), cfg, fl: fl && [fl.aislar, fl.borrar.length], fl2: fl2 && fl2.aislar, rep: rep && rep.motivo, ent: ent.map((x) => [x.raid, !!x.expulsar]), fuera: fuera.expulsar, venc: venc.length });
+}
 console.log('RESUMEN ' + R.filter(Boolean).length + '/' + R.length); process.exit(R.every(Boolean) ? 0 : 1);

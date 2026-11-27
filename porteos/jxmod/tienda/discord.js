@@ -5,7 +5,9 @@
 // Comandos: /jxmod, /stickerazo, /estado (quién está jugando ahora), /bug y /sugerencia (un formulario que cae en «Bugs y
 // sugerencias» del juego, el mismo panel), y para los admins /configurar (canal de anuncios, roles y AutoMod de Discord:
 // insultos, contenido sexual, spam y menciones en masa), /roles (los botones para ponerse los roles), /anunciar y
-// /memoria (enseñarle cosas a la IA: agregar, ver, borrar; ver discord_ia.js).
+// /memoria (enseñarle cosas a la IA: agregar, ver, borrar; ver discord_ia.js). /jxmod muestra también la versión en Rust
+// (JXMod Nativo: web/nativo.json) y el cron la anuncia cuando sale. Anti-spam, anti-raid y los rangos (/proteccion, /raid,
+// /rango: los del código ponen admins y mods sin pasarles el código) en discord_proteccion.js.
 // Ser admin del bot no depende de los permisos de Discord: hay que mandarle el código con /admin (un formulario que no
 // queda en el chat). Queda guardado por persona y por servidor; 5 intentos fallidos por hora como mucho; si el código
 // cambia, los habilitados con el anterior dejan de serlo.
@@ -17,6 +19,8 @@ import { respuestaIA, memoriaAgregar, memoriaBorrar, memoriaLista, cupoIA, texto
 import { REPO, SITIO_SZ, ROSA, AMARILLO, VIOLETA, VERDE, GRIS, EFIMERO, MIN, corto, traer, dc, msg, efimero, usuarioDe, sha, huellaCodigo } from './discord_base.js';
 import { comandoComunidad, botonComunidad, COMANDOS_COMUNIDAD, PERM, esModInteraccion } from './discord_comunidad.js';
 import { comandoModeracion, botonModeracion, formularioModeracion, COMANDOS_MODERACION } from './discord_moderacion.js';
+import { comandoProteccion, COMANDOS_PROTECCION, rangoDe } from './discord_proteccion.js';
+import { ajustes, ajustar } from './discord_comunidad.js';
 export { dc };
 export const ROLES = [['jxmod', 'JXMod', 0x9aa0a6], ['stickerazo', 'Stickerazo', AMARILLO], ['avisos', 'Avisos de versiones', ROSA]];
 const enc = new TextEncoder();
@@ -53,9 +57,16 @@ export const conf = (env, g) => env.DB.prepare('SELECT * FROM dc_conf WHERE guil
 
 // ---- las versiones (las mismas que leen el juego y la app) ----
 async function versiones(env) {
-  const [jx, sz] = await Promise.all([REPO + 'web/version.json', REPO + 'porteos/stickerazo/descargas/app.json'].map((u) =>
+  const [jx, sz, nat] = await Promise.all([REPO + 'web/version.json', REPO + 'porteos/stickerazo/descargas/app.json', REPO + 'web/nativo.json'].map((u) =>
     traer(env, u + '?t=' + Date.now(), { cf: { cacheTtl: 60 } }).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
-  return { jx, sz };
+  return { jx, sz, nat };
+}
+// la versión en Rust (JXMod Nativo: la app sin WebView; se actualiza sola desde web/nativo.json)
+function embedNativo(v, titulo) {
+  const apk = /^https?:/.test(String(v.apk || '')) ? v.apk : REPO + String(v.apk || 'jxmod/JXModNativo.apk');
+  return { title: titulo || `JXMod Nativo ${v.version} (versión Rust)`, description: corto(String(v.notas_es || 'La versión de JXMod hecha en Rust: más liviana y rápida.').replace(/\r/g, ''), 1500), color: 0xdea584,
+    fields: [{ name: 'Celular (APK)', value: `[Bajar JXMod Nativo ${v.version}](${apk})`, inline: true }, { name: 'Tamaño', value: v.tam ? `${(v.tam / 1e6).toFixed(0)} MB` : '—', inline: true }],
+    footer: { text: 'JXApps · motor propio en Rust (OpenGL 3 y OpenGL 2) · se actualiza solo' } };
 }
 function embedJxmod(v, titulo) {
   const notas = corto(String(v.notas_es || '').replace(/\r/g, ''), 1500);
@@ -88,7 +99,13 @@ export async function contestarJB(env, j) {
 // ---- el código de admin: se guarda la huella (SHA-256) del código con que se habilitó, nunca el código ----
 async function igualSeguro(a, b) { const [x, y] = await Promise.all([sha('jx|' + a), sha('jx|' + b)]); let d = 0; for (let i = 0; i < x.length; i++) d |= x.charCodeAt(i) ^ y.charCodeAt(i); return d === 0; }
 // (el que lo mandó en el servidor, o por mensaje privado al bot: ése vale en todos los servidores)
+// (admin del bot: el que mandó el código, o a quien uno de ésos le dio el rango de admin con /rango en ese servidor)
 export async function esAdminDe(env, usuario, guild) {
+  if (await esAdminCodigoDe(env, usuario, guild)) return true;
+  try { return guild ? (await rangoDe(env, guild, usuario)) === 'admin' : false; } catch (e) { return false; }
+}
+// (sólo los del código: ellos ponen y sacan rangos)
+export async function esAdminCodigoDe(env, usuario, guild) {
   if (!env.DISCORD_ADMIN_CODE) return false; await tablasDc(env);
   const f = await env.DB.prepare("SELECT 1 AS s FROM dc_admins WHERE usuario = ?2 AND guild IN (?1, 'dm') AND huella = ?3").bind(guild || 'dm', usuario, await huellaCodigo(env)).first();
   return !!f;
@@ -129,7 +146,12 @@ async function comando(env, it, ctx) {
   if (rc) return rc;
   const rm = await comandoModeracion(env, it, ctx, { esAdmin: () => esAdmin(env, it) });   // (warns, ban, reportes…: discord_moderacion.js)
   if (rm) return rm;
-  if (n === 'jxmod') { const { jx } = await versiones(env); return jx ? msg({ embeds: [embedJxmod(jx)] }) : efimero('No pude leer la versión de JXMod ahora. Probá en un rato.'); }
+  // (anti-spam, anti-raid y los rangos: discord_proteccion.js)
+  const rp = await comandoProteccion(env, it, ctx, { esAdmin: () => esAdmin(env, it), esAdminCodigo: () => esAdminCodigoDe(env, usuarioDe(it).id, it.guild_id), esMod: () => esModInteraccion(env, it),
+    avisarPuerta: (gid) => { if (env.DC_PUERTA) ctx.waitUntil(puerta(env, '/ajustes', { method: 'POST', body: gid }).catch(() => {})); },
+    puerta: env.DC_PUERTA ? (r, i) => puerta(env, r, i) : null });
+  if (rp) return rp;
+  if (n === 'jxmod') { const { jx, nat } = await versiones(env); const e = [...(jx ? [embedJxmod(jx)] : []), ...(nat ? [embedNativo(nat)] : [])]; return e.length ? msg({ embeds: e }) : efimero('No pude leer la versión de JXMod ahora. Probá en un rato.'); }
   if (n === 'stickerazo') { const { sz } = await versiones(env); return sz ? msg({ embeds: [embedStickerazo(sz)] }) : efimero('No pude leer la versión de Stickerazo ahora.'); }
   if (n === 'estado') {
     const ahora = Date.now();
@@ -290,13 +312,22 @@ export async function discordCron(env) {
   if (env.DC_PUERTA) await puerta(env, '/asegurar').catch((e) => console.error('puerta', e));
   const servidores = (await env.DB.prepare('SELECT * FROM dc_conf WHERE canal IS NOT NULL').all()).results;
   if (servidores.length) {
-    const { jx, sz } = await versiones(env);
+    const { jx, sz, nat } = await versiones(env);
     for (const s of servidores) {
       const roles = s.roles ? JSON.parse(s.roles) : {}, avisar = roles.avisos ? `<@&${roles.avisos}>` : undefined, men = { roles: roles.avisos ? [roles.avisos] : [] };
       try {
         if (jx && jx.codigo > (s.ult_jxmod || 0)) {
           await dc(env, 'POST', `/channels/${s.canal}/messages`, { content: avisar, allowed_mentions: men, embeds: [embedJxmod(jx, `Salió JXMod ${jx.version}`)] });
           await env.DB.prepare('UPDATE dc_conf SET ult_jxmod = ?1 WHERE guild = ?2').bind(jx.codigo, s.guild).run();
+        }
+        if (nat && nat.codigo) {
+          const aj = await ajustes(env, s.guild);
+          // (la primera vez sólo se anota cuál hay: no se anuncia una versión vieja)
+          if (aj.ult_nat == null) await ajustar(env, s.guild, 'ult_nat', nat.codigo);
+          else if (nat.codigo > aj.ult_nat) {
+            await dc(env, 'POST', `/channels/${s.canal}/messages`, { content: avisar, allowed_mentions: men, embeds: [embedNativo(nat, `Salió JXMod Nativo ${nat.version} (versión Rust)`)] });
+            await ajustar(env, s.guild, 'ult_nat', nat.codigo);
+          }
         }
         if (sz && sz.v > (s.ult_sz || 0)) {
           await dc(env, 'POST', `/channels/${s.canal}/messages`, { content: avisar, allowed_mentions: men, embeds: [embedStickerazo(sz, `Salió Stickerazo ${sz.nombre}`)] });
@@ -342,4 +373,5 @@ export const COMANDOS = [
   { name: 'reiniciar-limite', description: 'Mods: le vuelve a dar los 10 mensajes a alguien', dm_permission: false, default_member_permissions: PERM.MODERAR, options: [{ type: 6, name: 'usuario', description: 'A quién', required: true }] },
   ...COMANDOS_COMUNIDAD,
   ...COMANDOS_MODERACION,
+  ...COMANDOS_PROTECCION,
 ];

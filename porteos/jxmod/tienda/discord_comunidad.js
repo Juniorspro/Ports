@@ -62,7 +62,8 @@ export function infoDe(g) {
 // ¿es mod? el dueño, quien tenga un rol con permisos de moderación (admin, gestionar servidor o mensajes, expulsar,
 // banear, aislar) o el rol de mods de /registro. (@everyone no cuenta: si tuviera esos permisos, todos serían mods)
 export const BITS_MOD = 8n | 32n | 2n | 4n | 8192n | (1n << 40n);
-export function esModerador(info, rolMods, uid, roles, g) {
+export function esModerador(info, rolMods, uid, roles, g, rangos) {
+  if (rangos && (rangos[uid] === 'mod' || rangos[uid] === 'admin')) return true;   // (los rangos de /rango)
   if (!info) return false;
   if (info.dueno && info.dueno === uid) return true;
   if (rolMods && roles.includes(rolMods)) return true;
@@ -72,7 +73,9 @@ export function esModerador(info, rolMods, uid, roles, g) {
 export async function esModInteraccion(env, it) {   // (en un comando, Discord ya manda los permisos calculados)
   const m = it.member; if (!m || !it.guild_id) return false;
   if ((BigInt(m.permissions || '0') & BITS_MOD) !== 0n) return true;
-  const aj = await ajustes(env, it.guild_id); return !!(aj.mods && (m.roles || []).includes(aj.mods));
+  const aj = await ajustes(env, it.guild_id); const uid = m.user && m.user.id;
+  if (aj.rangos && uid && (aj.rangos[uid] === 'mod' || aj.rangos[uid] === 'admin')) return true;   // (los rangos de /rango)
+  return !!(aj.mods && (m.roles || []).includes(aj.mods));
 }
 export async function infoServidor(env, g) {
   const [s, ch] = await Promise.all([dc(env, 'GET', `/guilds/${g}?with_counts=true`), dc(env, 'GET', `/guilds/${g}/channels`).catch(() => [])]);

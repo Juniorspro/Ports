@@ -19,6 +19,8 @@ import { dc, probarCodigo, esAdminDe, contestarJB } from './discord.js';
 import { respuestaIA, memoriaAgregar, memoriaBorrar, memoriaLista } from './discord_ia.js';
 import { alEntrar, alSalir, darXP, infoDe, olvidarAjustes, ajustes, esModerador } from './discord_comunidad.js';
 import { cupoIA, textoCupo } from './discord_ia.js';
+import { Proteccion, protDe, aplicarMensaje, aplicarEntrada, verificacion } from './discord_proteccion.js';
+import { registrar } from './discord_comunidad.js';
 
 const GATEWAY = 'https://gateway.discord.gg/?v=10&encoding=json';
 const GUILDS = 1 << 0, GUILD_MEMBERS = 1 << 1, GUILD_MESSAGES = 1 << 9, DIRECT_MESSAGES = 1 << 12, MESSAGE_CONTENT = 1 << 15;
@@ -84,11 +86,18 @@ export class PuertaJX {
     this.avisados = new Map();
     this.servidores = new Map(); this.entradas = 0; this.salidas = 0; this.xp = 0;   // (lo de cada servidor: nombre, miembros, canales para la bienvenida)
     this.abrir = env.__abrirWs || abrirGateway;
+    this.prot = new Proteccion(); this.protegidos = 0;   // (anti-spam y anti-raid: discord_proteccion.js)
   }
   async fetch(req) {
     const u = new URL(req.url), p = u.pathname, v = u.searchParams.get('v'), mia = this.env.CF_VERSION_METADATA && this.env.CF_VERSION_METADATA.id;
     if (v && mia && v !== mia) { this.cerrar(); this.state.abort('hay una versión nueva del bot'); }
-    if (p === '/ajustes' && req.method === 'POST') { olvidarAjustes(await req.text()); return new Response('ok'); }   // (un comando cambió los ajustes de un servidor)
+    if (p === '/ajustes' && req.method === 'POST') { olvidarAjustes(await req.text()); return new Response('ok'); }
+    if (p === '/raid' && req.method === 'POST') {   // (/raid activar o desactivar: el modo raid vive acá)
+      const j = await req.json(); const ahora = Date.now();
+      if (j.on) { const r = this.prot.raidManual(j.g, true, ahora, j.min || 30); r.verifAntes = await verificacion(this.env, j.g, 3); }
+      else { const r = this.prot.raidManual(j.g, false, ahora); if (r && r.verifAntes != null) await verificacion(this.env, j.g, r.verifAntes); }
+      return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
+    }   // (un comando cambió los ajustes de un servidor)
     if (p === '/jb' && req.method === 'POST') {   // (el trabajo de /jb que manda el Worker: se acepta enseguida y se hace acá)
       const j = await req.json();
       this.asegurar().catch(() => {});   // (si recién se reinició por una versión nueva, de paso vuelve a conectarse)
@@ -104,9 +113,25 @@ export class PuertaJX {
   async esMod(m) {
     if (!m.guild_id) return false;
     const aj = await ajustes(this.env, m.guild_id);
-    return esModerador(this.servidores.get(m.guild_id), aj.mods, m.author.id, (m.member && m.member.roles) || [], m.guild_id);
+    return esModerador(this.servidores.get(m.guild_id), aj.mods, m.author.id, (m.member && m.member.roles) || [], m.guild_id, aj.rangos);
   }
-  async alarm() { await this.asegurar(); await this.state.storage.setAlarm(Date.now() + 60e3); }
+  // el anti-spam con un mensaje: true si lo borró (entonces no suma XP ni lo contesta la IA)
+  async proteger(m) {
+    if (!m || !m.guild_id || !m.author || m.author.bot || m.webhook_id) return false;
+    const aj = await ajustes(this.env, m.guild_id); const cfg = protDe(aj); if (!cfg.spam && !this.prot.enRaid(m.guild_id, Date.now())) return false;
+    // (si es mod o admin se mira sólo cuando algo parece spam: así no se consulta la base por cada mensaje)
+    const d = this.prot.revisar(m, cfg, Date.now(), false); if (!d) return false;
+    if ((await this.esMod(m).catch(() => false)) || (await esAdminDe(this.env, m.author.id, m.guild_id).catch(() => false))) return false;
+    this.protegidos++; await aplicarMensaje(this.env, m, d); return true;
+  }
+  // los modos raid que terminaron: la verificación vuelve a la de antes
+  async raidsVencidos() {
+    for (const [g, r] of this.prot.vencidos(Date.now())) {
+      if (r.verifAntes != null) await verificacion(this.env, g, r.verifAntes);
+      await registrar(this.env, g, { title: 'Terminó el modo raid', color: 0x3ba55c, description: 'La verificación del servidor volvió a la de antes.' });
+    }
+  }
+  async alarm() { await this.raidsVencidos().catch(() => {}); await this.asegurar(); await this.state.storage.setAlarm(Date.now() + 60e3); }
   async asegurar() {
     if (this.parado || !this.env.DISCORD_TOKEN) return;
     if (this.ws && Date.now() - this.ultimo < 120e3) return;
@@ -165,14 +190,27 @@ export class PuertaJX {
         if (!this.servidores.has(g)) this.servidores.set(g, info);
         const entra = p.t === 'GUILD_MEMBER_ADD';
         info.miembros = Math.max(0, (info.miembros || 0) + (entra ? 1 : -1)); this[entra ? 'entradas' : 'salidas']++;
-        (entra ? alEntrar(this.env, g, { ...info }, p.d) : alSalir(this.env, g, { ...info }, p.d.user))
-          .catch((e) => { this.error = String((e && e.stack) || e).slice(0, 500); this.errorT = Date.now(); console.error('puerta miembro', e); });
+        // (el anti-raid: si entran muchos de golpe, modo raid; las cuentas que no pasan, afuera y sin bienvenida)
+        const d = p.d, info2 = { ...info };
+        (async () => {
+          if (entra && d.user && !d.user.bot) {
+            const r = this.prot.entrada(g, d.user, protDe(await ajustes(this.env, g)), Date.now());
+            if (r.raid || r.expulsar) await aplicarEntrada(this.env, g, d, r, this.prot);
+            if (r.expulsar) { this.protegidos++; return; }
+          }
+          await (entra ? alEntrar(this.env, g, info2, d) : alSalir(this.env, g, info2, d.user));
+        })().catch((e) => { this.error = String((e && e.stack) || e).slice(0, 500); this.errorT = Date.now(); console.error('puerta miembro', e); });
       }
       else if (p.t === 'MESSAGE_CREATE') {
         this.mensajes++;
-        darXP(this.env, p.d).then((r) => { if (r) this.xp++; }).catch((e) => console.error('puerta xp', e));
-        manejarMensaje(this.env, p.d, this.yo, { avisados: this.avisados, esMod: () => this.esMod(p.d) }).then((r) => { if (r) this.contestados = (this.contestados || 0) + 1; })
-          .catch((e) => { this.error = String((e && e.stack) || e).slice(0, 500); this.errorT = Date.now(); console.error('puerta mensaje', e); });
+        const md = p.d;
+        // (primero el anti-spam: lo que borra no suma XP ni lo contesta la IA)
+        this.proteger(md).catch((e) => { console.error('puerta protección', e); return false; }).then((borrado) => {
+          if (borrado) return;
+          darXP(this.env, md).then((r) => { if (r) this.xp++; }).catch((e) => console.error('puerta xp', e));
+          manejarMensaje(this.env, md, this.yo, { avisados: this.avisados, esMod: () => this.esMod(md) }).then((r) => { if (r) this.contestados = (this.contestados || 0) + 1; })
+            .catch((e) => { this.error = String((e && e.stack) || e).slice(0, 500); this.errorT = Date.now(); console.error('puerta mensaje', e); });
+        });
       }
     }
   }
