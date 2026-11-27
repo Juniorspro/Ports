@@ -1,9 +1,9 @@
 {
- "codigo": 26112714,
- "version": "0.47",
+ "codigo": 26112715,
+ "version": "0.48",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 76101894,
- "sha256": "6bd2dfd3297f1bd45b4552856d728838deff5f4503bc05d3acfe5077b83442e4",
- "notas_es": "gm_construct Win 7 es el mapa de inicio (se baja solo la primera vez) y reemplaza al gm_construct viejo. Bugs y sugerencias abre los posts publicados. En el mapa: texturas que faltaban, cielo sin la cuña blanca, pasto sin la franja negra y sin la pared invisible del polvo; carga en menos pedazos. Las armas siguen como antes.",
- "notas_en": "gm_construct Win 7 is now the starting map (downloads automatically the first time) and replaces the old gm_construct. Bugs and suggestions shows the published posts. Map fixes: missing textures, no white wedge in the sky, no black strip on the grass, no invisible wall from the dust; loads in fewer chunks. Weapons stay as before."
+ "tam": 76302598,
+ "sha256": "14d23f156a2a2bdf66e3642db8c48c0b76b8c3d160c647d0f146f973026871e9",
+ "notas_es": "Social: entrá con tu cuenta de Google y chateá con tus amigos (grupos, tildes de leído, invitar a tu partida y Unirse), agregá amigos por su ID, solicitudes y bloqueados, y tu perfil con tu ID. Se sacó la pizzería de FNAF. La actualización dentro de la app ya no falla con «más grande de lo que debía».",
+ "notas_en": "Social: sign in with Google and chat with your friends (groups, read ticks, invite to your game and Join), add friends by ID, requests and blocked, and your profile with your ID. The FNAF pizzeria map was removed. The in-app update no longer fails with a size error."
 }
