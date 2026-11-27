@@ -131,7 +131,12 @@ fn android_main(app: AndroidApp) {
         // el tacto
         if let Ok(mut it) = app.input_events_iter() {
             loop {
-                let hubo = it.next(|e| { if let InputEvent::MotionEvent(me) = e { tocar(&mut j, &v, me); } InputStatus::Handled });
+                // (las teclas de volumen siguen a Android: antes se daban por usadas y el volumen del celu no se podía bajar)
+                let hubo = it.next(|e| match e {
+                    InputEvent::MotionEvent(me) => { tocar(&mut j, &v, me); InputStatus::Handled }
+                    InputEvent::KeyEvent(k) if matches!(k.key_code(), android_activity::input::Keycode::VolumeUp | android_activity::input::Keycode::VolumeDown | android_activity::input::Keycode::VolumeMute) => InputStatus::Unhandled,
+                    _ => InputStatus::Handled,
+                });
                 if !hubo { break; }
             }
         }

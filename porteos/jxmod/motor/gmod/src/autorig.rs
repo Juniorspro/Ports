@@ -176,5 +176,5 @@ pub fn rig(m: &Mdl) -> Option<Mdl> {
     }
     let mut v2 = v.clone(); v2.hb = hb; v2.w = w;
     Some(Mdl { version: m.version, nombre: m.nombre.clone(), hull: m.hull, flags: m.flags, huesos, texturas: m.texturas.clone(), carpetas: m.carpetas.clone(), pieles: m.pieles.clone(), adjuntos: vec![], cuerpos: m.cuerpos.clone(),
-        anims: vec![], secuencias: vec![], pose_params: vec![], pose_rangos: vec![], ani_nom: String::new(), bloques: vec![], b: m.b.clone(), ani: None, v: Some(v2), mallas: m.mallas.clone() })
+        anims: vec![], secuencias: vec![], pose_params: vec![], pose_rangos: vec![], ani_nom: String::new(), bloques: vec![], b: m.b.clone(), ani: None, v: Some(v2), mallas: m.mallas.clone(), mallas_lejos: vec![] })
 }

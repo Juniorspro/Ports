@@ -24,6 +24,8 @@ pub struct ModeloGm { pub quieto: Vec<MallaGm>, pub piel: Option<Vec<MallaGm>>, 
 #[derive(Default)]
 pub struct GmModelos {
     pub modelos: HashMap<String, Option<Rc<ModeloGm>>>,
+    /// el nivel de detalle de lejos de cada modelo (las mismas mallas con menos caras: los props lejanos de los mapas)
+    pub lejos: HashMap<String, MallaGm>,
     sig: i64,
     texs: HashMap<String, Option<(i64, u32, u32)>>,
     /// lo que ocupan en la placa las texturas subidas (bytes): pasado el presupuesto de la calidad, las que siguen van a la mitad
@@ -69,7 +71,7 @@ impl Juego {
     pub(crate) fn gm_id_pub(&mut self) -> i64 { self.gm_id() }
     /// el motor se vació (otro mapa): los modelos, materiales y texturas armados ya no están en él (los prefabs «gm:» tampoco)
     pub(crate) fn gm_olvidar_motor(&mut self) {
-        let mm = &mut self.gmod.mods; mm.modelos.clear(); mm.texs.clear(); mm.bytes = 0; mm.mats.clear(); mm.mats_spr.clear(); mm.quad = false; mm.lote = None;
+        let mm = &mut self.gmod.mods; mm.modelos.clear(); mm.lejos.clear(); mm.texs.clear(); mm.bytes = 0; mm.mats.clear(); mm.mats_spr.clear(); mm.quad = false; mm.lote = None;
         self.gmod.texs.clear();
     }
     fn gm_id(&mut self) -> i64 { self.gmod.mods.sig += 1; ID_GM - 16 - self.gmod.mods.sig }
@@ -203,8 +205,22 @@ impl Juego {
             let l = match por_mat.iter_mut().find(|x| x.0 == mat) { Some(x) => &mut x.1, None => { por_mat.push((mat, vec![])); &mut por_mat.last_mut().unwrap().1 } };
             for t in mm.tris.chunks_exact(3) { l.extend_from_slice(&[t[0], t[2], t[1]]); if dos { l.extend_from_slice(&[t[0], t[1], t[2]]); } }
         }
+        // (el nivel de detalle de lejos, si tiene bastantes menos caras: sus partes van detrás en la misma malla)
+        let n0 = por_mat.iter().filter(|x| !x.1.is_empty()).count(); let t0: usize = por_mat.iter().map(|x| x.1.len()).sum();
+        let mut lejos: Vec<(i64, Vec<u32>)> = vec![];
+        for mm in &mdl.mallas_lejos {
+            if mm.modelo != 0 { continue; }
+            let ti = piel0.get(mm.mat as usize).map(|&x| x as usize).unwrap_or(mm.mat as usize);
+            let tex = mdl.texturas.get(ti).or_else(|| mdl.texturas.get(mm.mat as usize)).cloned().unwrap_or_else(|| "error".into());
+            let (mat, dos) = self.gm_material(m, &tex, &mdl.carpetas);
+            let l = match lejos.iter_mut().find(|x| x.0 == mat) { Some(x) => &mut x.1, None => { lejos.push((mat, vec![])); &mut lejos.last_mut().unwrap().1 } };
+            for t in mm.tris.chunks_exact(3) { l.extend_from_slice(&[t[0], t[2], t[1]]); if dos { l.extend_from_slice(&[t[0], t[1], t[2]]); } }
+        }
+        let tl: usize = lejos.iter().map(|x| x.1.len()).sum(); let con_lejos = tl > 0 && tl * 10 < t0 * 7;
+        if con_lejos { por_mat.extend(lejos); }
         marca("materiales");
-        let quieto = self.gm_subir(m, &p, &nr, &uv, &por_mat, None)?; marca("subir");
+        let mut quieto = self.gm_subir(m, &p, &nr, &uv, &por_mat, None)?; marca("subir");
+        if con_lejos && quieto.partes.len() > n0 { let pl = quieto.partes.split_off(n0); self.gmod.mods.lejos.insert(ruta.to_string(), MallaGm { m: quieto.m, partes: pl, huesos: vec![], esf: quieto.esf }); }
         let (mut mn, mut mx) = ([f32::MAX; 3], [f32::MIN; 3]); for x in &p { for k in 0..3 { mn[k] = mn[k].min(x[k]); mx[k] = mx[k].max(x[k]); } }
         // la forma de choque: las piezas del .phy (hasta 24) o el casco de la malla
         let mut partes: Vec<(fz::Casco, [f64; 3], f64)> = vec![];

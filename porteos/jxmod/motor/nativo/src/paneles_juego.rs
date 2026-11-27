@@ -54,9 +54,13 @@ impl Default for SrvForm { fn default() -> Self { SrvForm { n: String::new(), pw
 #[derive(Clone, Copy, Debug)]
 pub struct Pm { /** la unidad de aero.rs */ pub au: f32, pub vh: f32, pub u: f32, pub ph: f32, /** el alto de lo de la tienda y Personajes (--tiHb: 40 px con poco alto) */ pub hb: f32, pub ft: f32, pub fs: f32, pub fg: f32, pub x: f32, pub y: f32, pub w: f32, pub h: f32 }
 pub fn pm(w: f32, h: f32) -> Pm {
-    let vh = h / 100.0; let c = |a: f32, v: f32, b: f32| v.max(a).min(b);
+    // (los topes de paneles.css son píxeles de la web —independientes de la densidad—: en un celu de 2000×920 eran letras de 16
+    // píxeles de verdad y 13 tarjetas por fila, como en una compu. Acá van por la densidad de la pantalla —la unidad de los menús,
+    // con su tamaño elegido—; en pantallas chicas o de compu queda igual que antes)
+    let d = aero::unidad(w, h).max(1.0);
+    let vh = h / 100.0; let c = |a: f32, v: f32, b: f32| v.max(a * d).min(b * d);
     let m = c(8.0, 3.2 * vh, 34.0); let my = c(4.0, 1.2 * vh, 16.0);
-    Pm { au: aero::unidad(w, h), vh, u: c(6.0, 1.6 * vh, 14.0), ph: c(44.0, 9.5 * vh, 54.0), hb: if h <= 500.0 { 40.0 } else { c(44.0, 9.5 * vh, 54.0) }, ft: c(15.0, 3.5 * vh, 19.0), fs: c(14.0, 3.0 * vh, 16.0), fg: c(21.0, 5.4 * vh, 34.0), x: m, y: my, w: w - 2.0 * m, h: h - 2.0 * my }
+    Pm { au: aero::unidad(w, h), vh, u: c(6.0, 1.6 * vh, 14.0), ph: c(44.0, 9.5 * vh, 54.0), hb: if h <= 500.0 { 40.0 * d } else { c(44.0, 9.5 * vh, 54.0) }, ft: c(15.0, 3.5 * vh, 19.0), fs: c(14.0, 3.0 * vh, 16.0), fg: c(21.0, 5.4 * vh, 34.0), x: m, y: my, w: w - 2.0 * m, h: h - 2.0 * my }
 }
 
 /// una nota de novedades.js (el registro de actualizaciones)

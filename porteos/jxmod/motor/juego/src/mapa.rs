@@ -28,9 +28,9 @@ pub struct Mapa {
     pub agua_y: Option<f32>, pub aguas: Vec<[f32; 6]>,
     /// hasta dónde se ve
     pub lejos: f32,
-    /// hasta dónde se dibuja cada cosa de `items` (los props de los mapas del Workshop: su FadeMaxDist, en metros; 0: siempre).
-    /// Vacío: todo siempre
-    pub lejos_items: Vec<f32>,
+    /// desde y hasta dónde se dibuja cada cosa de `items` (los props de los mapas del Workshop: su nivel de detalle de cerca hasta
+    /// donde cambia al de lejos, y ése hasta su FadeMaxDist; en metros; hasta 0: siempre). Vacío: todo siempre
+    pub lejos_items: Vec<(f32, f32)>,
     /// la luz del mapa en gamma (de donde sale `luz`): la mueve la hora del día (dia.rs)
     pub base: LuzBase,
 }

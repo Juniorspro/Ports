@@ -279,6 +279,9 @@ pub struct Mdl {
     pub anims: Vec<Anim>, pub secuencias: Vec<Secuencia>, pub pose_params: Vec<String>, pub pose_rangos: Vec<[f32; 2]>,
     pub ani_nom: String, pub bloques: Vec<[i32; 2]>, pub b: Rc<[u8]>, pub ani: Option<Rc<[u8]>>,
     pub v: Option<Vertices>, pub mallas: Vec<MallaGeo>,
+    /// las mallas del nivel de detalle más bajo (el último del .vtx, sin el de las sombras): los mismos vértices, menos caras;
+    /// vacío si el modelo trae uno solo
+    pub mallas_lejos: Vec<MallaGeo>,
 }
 /// GMF.mdl (con el .vvd y el .vtx, la geometría)
 pub fn mdl(b: Rc<[u8]>, vvd: Option<&[u8]>, vtx: Option<&[u8]>) -> Result<Mdl, String> {
@@ -347,7 +350,7 @@ pub fn mdl(b: Rc<[u8]>, vvd: Option<&[u8]>, vtx: Option<&[u8]>) -> Result<Mdl, S
     let (mut ani_nom, mut bloques) = (String::new(), vec![]);
     { let (no, nbl, bli) = (i32_(348) as i64, i32_(352) as i64, i32_(356) as i64);
       if nbl > 1 && nbl < 4096 && bli > 0 && bli + nbl * 8 <= l { for k in 0..nbl { bloques.push([i32_(bli + k * 8), i32_(bli + k * 8 + 4)]); } if no > 0 && no < l { ani_nom = ruta_n(&cad(m, no)).trim_start_matches('/').to_string(); } } }
-    let mut md = Mdl { version: i32_(4), nombre: cad(m, 12), hull: [p3(104), p3(116)], flags: i32_(152), huesos, texturas, carpetas, pieles, adjuntos, cuerpos, anims, secuencias, pose_params, pose_rangos, ani_nom, bloques, b: b.clone(), ani: None, v: None, mallas: vec![] };
+    let mut md = Mdl { version: i32_(4), nombre: cad(m, 12), hull: [p3(104), p3(116)], flags: i32_(152), huesos, texturas, carpetas, pieles, adjuntos, cuerpos, anims, secuencias, pose_params, pose_rangos, ani_nom, bloques, b: b.clone(), ani: None, v: None, mallas: vec![], mallas_lejos: vec![] };
     if let (Some(vvd), Some(vtx)) = (vvd, vtx) { geo(&mut md, vvd, vtx)?; }
     Ok(md)
 }
@@ -602,12 +605,13 @@ fn geo(m: &mut Mdl, vvd: &[u8], vtx: &[u8]) -> Result<(), String> {
         v.w.push(w); v.hb.push(hb); v.pos.push(p); v.nor.push(nr); v.uv.push([f32a(vvd, o + 40), f32a(vvd, o + 44)]);
     }
     let (nbp, bpo) = (i32a(vtx, 28) as i64, i32a(vtx, 32) as i64);
-    let leer = |tam: i64| -> Result<Vec<MallaGeo>, ()> {
+    // (los niveles de detalle: todos usan los vértices del primero —con todos los arreglos del .vvd—, cada uno con sus caras)
+    let leer = |tam: i64, lod: i64| -> Result<Vec<MallaGeo>, ()> {
         let mut out = vec![]; let lv = vtx.len() as i64;
         for k in 0..nbp.clamp(0, 256) {
             let o = bpo + k * 8; let (nm, mo) = (i32a(vtx, o) as i64, i32a(vtx, o + 4) as i64);
             for j in 0..nm.clamp(0, 64) {
-                let om = o + mo + j * 8; let lo = i32a(vtx, om + 4) as i64; let ol = om + lo; let (nme, meo) = (i32a(vtx, ol) as i64, i32a(vtx, ol + 4) as i64);
+                let om = o + mo + j * 8; let lo = i32a(vtx, om + 4) as i64; let nl = (i32a(vtx, om) as i64).max(1); let ol = om + lo + lod.min(nl - 1) * 12; let (nme, meo) = (i32a(vtx, ol) as i64, i32a(vtx, ol + 4) as i64);
                 let md = m.cuerpos.get(k as usize).and_then(|c| c.modelos.get(j as usize)).ok_or(())?;
                 for t in 0..nme.clamp(0, 512) {
                     let ome = ol + meo + t * 9; let (nsg, sgo) = (i32a(vtx, ome) as i64, i32a(vtx, ome + 4) as i64); let mm = md.mallas.get(t as usize).ok_or(())?;
@@ -624,7 +628,11 @@ fn geo(m: &mut Mdl, vvd: &[u8], vtx: &[u8]) -> Result<(), String> {
         }
         Ok(out)
     };
-    let mallas = leer(25).or_else(|_| leer(33)).map_err(|_| "vtx ilegible".to_string())?;
+    let tam = if leer(25, 0).is_ok() { 25 } else { 33 };
+    let mallas = leer(tam, 0).map_err(|_| "vtx ilegible".to_string())?;
+    // (el último nivel de detalle; si el modelo trae el de las sombras —STUDIOHDR_FLAGS_HASSHADOWLOD—, el anterior)
+    let nlod = i32a(vtx, 20) as i64 - if m.flags & 0x40 != 0 { 1 } else { 0 };
+    m.mallas_lejos = if nlod >= 2 { leer(tam, nlod - 1).unwrap_or_default() } else { vec![] };
     m.v = Some(v); m.mallas = mallas; Ok(())
 }
 

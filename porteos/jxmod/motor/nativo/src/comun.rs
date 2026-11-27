@@ -238,6 +238,8 @@ pub struct Juego {
     pub perf: [f32; 5], perf_t: Instant,
     /// la resolución dinámica: la fracción de la resolución elegida con la que se dibuja ahora (1: toda) y lo que se lleva medido
     pub drs: f32, drs_t: f32,
+    /// el antilag: cuántos escalones de efectos se apagaron (0 ninguno … 4) y cuánto va estable o trabado (ms) para subir o bajar
+    pub antilag: u8, antilag_ok: f32, antilag_mal: f32,
     /// JX Turbo (cuadros intermedios): cuántos van desde el último real, el tiempo que se saltó (lo recupera el real), la cámara
     /// del intermedio que toca, la del último real (posición y mirada, para no correr un cuadro viejo después de un salto) y lo que
     /// tarda cada clase de cuadro (ms, promediado)
@@ -368,7 +370,7 @@ impl Juego {
         let gmod = gmod_juego::EnGmod::nueva(datos.as_deref());
         let mut j = Juego { paq, mapa: None, mapas: vec!["RB_Flatgrass".into(), "RB_Construct".into()], mapa_i: 0, letras, letras_px, jug: Jugador::nuevo(), acum: 0.0,
             dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0, perf: [0.0; 5], drs: 1.0, drs_t: 0.0, turbo_n: 0, turbo_dt: 0.0, turbo_vp: None, turbo_cam: [0.0; 6], ms_real: 0.0, ms_inter: 0.0, fue_inter: false, n_inter: 0, turbo_on: false, placa_inter: 0.0, cpu_real: 0.0, cpu_inter: 0.0, reloj_ok: false, arma_raiz: None, turbo_arma: None, perf_t: Instant::now(),
-            recargar: true, dt_fijo: None, gfxa: Default::default(), gfx_medir: false, refresco: 60.0, memes: Default::default(), lan: Default::default(), bajas: None, bajada: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
+            recargar: true, dt_fijo: None, antilag: 0, antilag_ok: 0.0, antilag_mal: 0.0, gfxa: Default::default(), gfx_medir: false, refresco: 60.0, memes: Default::default(), lan: Default::default(), bajas: None, bajada: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
             nombres: HashMap::new(), catalogo: vec![], cat_npc: vec![], cat_veh: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
@@ -1033,7 +1035,9 @@ impl Juego {
         if self.emote.is_some() && (ent.x.abs() + ent.y.abs() > 0.15 || ent.saltar) { self.hacer_emote(None); }
         // (lo de Ajustes, cada cuadro: la calidad al motor y el volumen al mezclador)
         // (JX Turbo prendido en el motor sólo cuando hace falta —los reales no llegan al refresco—: si no, ni guarda la imagen)
-        { let mut op = self.aj.opciones(); op.escala *= self.drs; op.turbo = self.aj.turbo && self.turbo_on; m.opciones(&op); } self.sonido.volumen = self.aj.volumen();
+        { let mut op = self.aj.opciones(); op.escala *= self.drs; op.turbo = self.aj.turbo && self.turbo_on;
+          if self.aj.dinamica { let a = self.antilag; if a >= 1 { op.rayos = false; op.aaa = false; } if a >= 2 { op.ao = false; } if a >= 3 { op.reflejo = false; } if a >= 4 { op.sombras = false; } }
+          m.opciones(&op); } self.sonido.volumen = self.aj.volumen();
         if self.ajustes.is_some() { self.acum = 0.0; }
         else if let Some(mp) = &self.mapa {
             self.acum = (self.acum + dt).min(PASO * 12.0);
@@ -1224,7 +1228,7 @@ impl Juego {
             // (los props de los mapas del Workshop, hasta su distancia de desvanecido —más cerca en las calidades bajas—)
             let mut items = if mp.lejos_items.len() == mp.items.len() {
                 let k = [0.5f32, 0.6, 0.75, 0.9, 1.0, 1.0][self.aj.calidad.min(5)];
-                mp.items.iter().zip(&mp.lejos_items).filter(|(it, f)| **f <= 0.0 || { let (dx, dy, dz) = (it.esf[0] - cam[0], it.esf[1] - cam[1], it.esf[2] - cam[2]); dx * dx + dy * dy + dz * dz < (**f * k) * (**f * k) }).map(|(it, _)| it.clone()).collect()
+                mp.items.iter().zip(&mp.lejos_items).filter(|(it, (c, f))| (*c <= 0.0 && *f <= 0.0) || { let (dx, dy, dz) = (it.esf[0] - cam[0], it.esf[1] - cam[1], it.esf[2] - cam[2]); let d2 = dx * dx + dy * dy + dz * dz; d2 >= (c * k) * (c * k) && (*f <= 0.0 || d2 < (f * k) * (f * k)) }).map(|(it, _)| it.clone()).collect()
             } else { mp.items.clone() };
             // (el cuerpo con el arma en la mano; sentado, en el asiento)
             if ver_cuerpo { if let Some(pj) = &self.pj { let jp = self.jug.pos; let b = pj.base_sentado().or_else(|| personajes::emotes_juego::base_escena(&self.pjs)).unwrap_or_else(|| personaje::base([jp[0], jp[1] - 0.95, jp[2]], self.jug.yaw)); if !self.gmp_items_jugador(&b, &mut items, cam, dt) { pj.items(&b, &mut items); } } }
@@ -1663,6 +1667,11 @@ impl Juego {
                 self.drs_t = 0.0; let obj = if turbo { obj_turbo } else { 1000.0 / self.refresco.clamp(45.0, 90.0) };
                 if ms > obj * 1.06 { self.drs = ((self.drs * (obj / ms).sqrt().max(0.85) * 20.0).floor() / 20.0).max(0.5); }
                 else if ms < obj * 0.78 { self.drs = (((self.drs + 0.05) * 20.0).round() / 20.0).min(1.0); }
+                // el antilag: con la resolución ya en el piso y todavía trabado (grabando la pantalla, un mapa pesado, el celu
+                // caliente), se apagan efectos de a uno —rayos, oclusión, reflejo, sombras— cada segundo trabado; vuelven de a uno
+                // después de 6 s estable
+                if self.drs <= 0.5 && ms > obj * 1.15 { self.antilag_mal += 250.0; self.antilag_ok = 0.0; if self.antilag_mal >= 1000.0 && self.antilag < 4 { self.antilag += 1; self.antilag_mal = 0.0; } }
+                else if ms < obj * 0.8 { self.antilag_ok += 250.0; self.antilag_mal = 0.0; if self.antilag_ok >= 6000.0 && self.antilag > 0 { self.antilag -= 1; self.antilag_ok = 0.0; } }
             }
         } else if !self.aj.dinamica { self.drs = 1.0; }
         self.fps_paso();

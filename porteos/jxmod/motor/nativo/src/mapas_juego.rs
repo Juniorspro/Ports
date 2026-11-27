@@ -222,7 +222,7 @@ impl Juego {
         let (mut n_props, mut n_falta, mut fisicos) = (0, 0, vec![]); let n_mundo = tris.len() / 9; let n_dib = armado.pedazos.iter().filter(|(_, p)| !p.por.is_empty()).count(); let mut faltan: Vec<String> = vec![];
         let props = std::mem::take(&mut armado.props);
         // (los props con distancia de desvanecido: dónde quedaron en la lista y hasta dónde se dibujan)
-        let mut rangos: Vec<(usize, usize, f32)> = vec![];
+        let mut rangos: Vec<(usize, usize, f32, f32)> = vec![]; let mut n_lod = 0;
         for pr in &props {
             let Some(md) = self.gm_modelo(m, &pr.modelo) else { n_falta += 1; if faltan.len() < 8 && !faltan.contains(&pr.modelo) { faltan.push(pr.modelo.clone()); } continue };
             let pos = bsp::g(pr.o[0], pr.o[1], pr.o[2]); let q = bsp::ang_quat(pr.a); let es = pr.esc;
@@ -255,7 +255,19 @@ impl Juego {
                 cascos.push(casco); cascos_t.push(vec![]); solida.push(true); hijos.push(1); pj.push(x);
                 continue;
             }
-            let n0 = items.len(); poner(&mm, 0, &mut items); n_props += 1; if pr.fade > 0.0 { rangos.push((n0, items.len(), pr.fade)); }
+            let n0 = items.len(); poner(&mm, 0, &mut items); n_props += 1;
+            // (el nivel de detalle de lejos: desde unas 12 veces su radio —un pino de 6 m cambia a los 72 m— hasta su desvanecido)
+            let lejos_m = self.gmod.mods.lejos.get(&pr.modelo).map(|l| (l.partes.clone(), l.m, l.esf));
+            let cambio = lejos_m.as_ref().map(|l| (l.2[3] * escala(&mm) * 12.0).max(18.0)).filter(|c| pr.fade <= 0.0 || *c < pr.fade);
+            match (cambio, lejos_m) {
+                (Some(c), Some((partes, ml, esf))) => {
+                    rangos.push((n0, items.len(), 0.0, c)); let n1 = items.len();
+                    let cc = punto(&mm, [esf[0], esf[1], esf[2]]); let r = esf[3] * escala(&mm);
+                    for (s0, sn, mat) in partes { items.push(ItemDin { m: ml, s0, sn, mat, mm, esf: [cc[0], cc[1], cc[2], r], fl: 0, h: vec![] }); }
+                    rangos.push((n1, items.len(), c, pr.fade)); n_lod += 1;
+                }
+                _ => if pr.fade > 0.0 { rangos.push((n0, items.len(), 0.0, pr.fade)); },
+            }
             if !pr.solido { continue; }
             // (choque: sus cascos del .phy, ya puestos en su lugar, como triángulos del mapa)
             for (pts, caras) in &fis_pts {
@@ -349,9 +361,9 @@ impl Juego {
         }
         let cab = Cabecera { mapa: nombre.to_string(), w: 0, h: 0, cam: None, luz: None, mallas, mats, texs: vec![], lms, items: vec![], agua, cielo: Some(cielo) };
         let n_items = items.len();
-        let mut lejos_items = vec![]; if !rangos.is_empty() { lejos_items = vec![0f32; n_items]; for (a, b, f) in &rangos { for x in &mut lejos_items[*a..*b] { *x = *f; } } }
-        self.mj.info = format!("{}: {:.1} MB, {} pedazos ({} con dibujo, {} triángulos del mundo; faltan {:?}), {} puertas, {} botones, {} zonas, {} sonidos, {} props ({} sin modelo, {} sueltos, {} con desvanecido), {} triángulos de choque, {} brochas invisibles, luz {}, cielo {} ({}), cielo 3D {}, {} portales, {} del zip, {} cosas; {:.2} s (geometría {:.2} s)",
-            nombre, b.len() as f64 / 1e6, armado.pedazos.len(), n_dib, n_mundo, faltan, puertas.l.len(), puertas.bot.len(), puertas.zona.len(), puertas.snd.len(), n_props, n_falta, n_fis, rangos.len(), n_tris, armado.brochas.0,
+        let mut lejos_items = vec![]; if !rangos.is_empty() { lejos_items = vec![(0f32, 0f32); n_items]; for (a, b, c, f) in &rangos { for x in &mut lejos_items[*a..*b] { *x = (*c, *f); } } }
+        self.mj.info = format!("{}: {:.1} MB, {} pedazos ({} con dibujo, {} triángulos del mundo; faltan {:?}), {} puertas, {} botones, {} zonas, {} sonidos, {} props ({} sin modelo, {} sueltos, {} con desvanecido, {} con detalle de lejos), {} triángulos de choque, {} brochas invisibles, luz {}, cielo {} ({}), cielo 3D {}, {} portales, {} del zip, {} cosas; {:.2} s (geometría {:.2} s)",
+            nombre, b.len() as f64 / 1e6, armado.pedazos.len(), n_dib, n_mundo, faltan, puertas.l.len(), puertas.bot.len(), puertas.zona.len(), puertas.snd.len(), n_props, n_falta, n_fis, rangos.len() - n_lod, n_lod, n_tris, armado.brochas.0,
             armado.atlas.as_ref().map(|a| format!("{}×{} (÷{})", a.w, a.h, a.f)).unwrap_or("no".into()), cielo_n, if pintado { "pintado" } else { "caras" }, if c3.is_some() { "sí" } else { "no" }, armado.portales.len(), n_pak, n_items, t0.elapsed().as_secs_f32(), t_geo);
         let por = Portales::nuevo(&armado.portales);
         self.mj.pend = Some((puertas, pj2, por, armado.sin_sombra, if armado.niebla.is_some() { TipoNiebla::Lineal } else { TipoNiebla::Cielo }));
