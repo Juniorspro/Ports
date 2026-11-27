@@ -64,7 +64,7 @@ pub const BROKER: &str = "mqtts://broker.emqx.io:8883";
 /// la tienda del juego (la lista de servers creados)
 pub const TIENDA_URL: &str = "https://rezobox-tienda.holasoyjuniors365.workers.dev/api/";
 /// los mapas de las salas oficiales de la versión pública (MAPAS y MAPAS_RB de mundo.js; en la personal sólo los dos RB de GMod)
-pub const MAPAS_PUBLICA: [&str; 17] = ["Desert", "DesertV2", "FlatGrass", "City", "Base", "BaseV2", "Mars", "Space", "RB_Llanura", "RB_Colinas", "RB_Isla", "RB_Ciudad", "RB_Desierto", "RB_Luna", "RB_Pizzeria", "RB_Construct", "RB_Flatgrass"];
+pub const MAPAS_PUBLICA: [&str; 16] = ["Desert", "DesertV2", "FlatGrass", "City", "Base", "BaseV2", "Mars", "Space", "RB_Llanura", "RB_Colinas", "RB_Isla", "RB_Ciudad", "RB_Desierto", "RB_Luna", "RB_Construct", "RB_Flatgrass"];
 const GRAV: f64 = 9.81;
 
 // ---------------- las cuentas de JavaScript (para mandar lo mismo, byte por byte) ----------------

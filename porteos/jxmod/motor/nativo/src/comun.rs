@@ -402,7 +402,7 @@ impl Juego {
             // (los propios con las texturas de GMod: mapas_jx.rs)
             for (k, _) in mapas_jx::MAPAS_JX { if !j.mapas.iter().any(|x| x == k) { j.mapas.push(k.to_string()); } }
             // (el gm_construct de siempre ya no está: el de inicio es el gm_construct Windows 7 del Workshop, que se baja solo)
-            j.mapas.retain(|m| m != "RB_Construct"); j.mapas.insert(0, mapas_juego::MAPA_INICIAL.0.to_string());
+            j.mapas.retain(|m| m != "RB_Construct" && m != "RB_Pizzeria"); // (la pizzería de FNAF ya no: el que quiera, la juega con lo del Workshop) j.mapas.insert(0, mapas_juego::MAPA_INICIAL.0.to_string());
             let ult = j.datos.as_ref().and_then(|d| std::fs::read_to_string(d.join("mapa.txt")).ok()).unwrap_or_default();
             j.mapa_i = j.mapas.iter().position(|m| *m == ult.trim()).unwrap_or(0);
         } }

@@ -50,7 +50,9 @@ public final class Novedad {
     }
     /** ¿hay que ofrecerla? (más nueva que la instalada) */
     public boolean masNuevaQue(long propio) { return codigo > propio; }
-    public String url() { return BASE + apk; }
+    /** (con la huella en la dirección: el caché de raw.githubusercontent puede seguir dando el APK anterior unos minutos después
+     *  de publicar, y la descarga fallaba con «más grande de lo que debía»; así cada versión tiene su dirección) */
+    public String url() { return BASE + apk + "?v=" + sha256.substring(0, 16); }
 
     public interface Progreso { void va(long hecho, long total); }
 
