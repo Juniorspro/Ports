@@ -14,6 +14,8 @@ const ID_ENT: i64 = ID_JG - 2000;
 const M_TECLA_B: i64 = ID_ENT - 10; const M_TECLA_N: i64 = ID_ENT - 20; const M_BOTON_R: i64 = ID_ENT - 30; const M_TELE: i64 = ID_ENT - 40; const M_IMPULSO: i64 = ID_ENT - 50;
 const M_MADERA: i64 = ID_ENT - 60; const M_BOTON_B: i64 = ID_ENT - 61; const M_FLECHA: i64 = ID_ENT - 62; const M_META_B: i64 = ID_ENT - 63; const M_META_N: i64 = ID_ENT - 64;
 const M_PALO: i64 = ID_ENT - 65; const M_TABLA: i64 = ID_ENT - 66; const M_MUERTE: i64 = ID_ENT - 67; const M_RAMPA_PISO: i64 = ID_ENT - 68; const M_RAMPA_EST: i64 = ID_ENT - 69;
+/// la radio: el plástico, el parlante y lo metálico
+const M_RADIO: i64 = ID_ENT - 70; const M_PARLANTE: i64 = ID_ENT - 71; const M_METAL: i64 = ID_ENT - 72;
 /// el foco de cada luz (su color): uno por entidad
 const M_FOCO: i64 = ID_ENT - 100;
 /// las mallas de las rampas (de a una por rampa)
@@ -37,7 +39,7 @@ fn por_defecto(t: &str) -> Option<Value> {
         "piano" => json!({ "n": 25, "o": 3, "a": 1.2, "l": 5 }), "rampa" => json!({ "alto": 120, "ancho": 16, "ang": 50, "salto": true }),
         "boton_autos" => json!({ "auto": "", "a": null, "ya": null, "ini": false }), "teleport" => json!({ "a": null }), "zona_muerte" => json!({ "s": [6, 3, 6] }),
         "cartel" => json!({ "texto": "JXMod", "color": "#ffffff" }), "luz" => json!({ "color": "#ffd9a0", "r": 14, "i": 1 }), "impulso" => json!({ "f": 16, "d": 8 }),
-        "meta" => json!({ "texto": "" }), _ => return None,
+        "meta" => json!({ "texto": "" }), "radio" => json!({ "v": "", "vol": 1, "r": 40 }), _ => return None,
     })
 }
 
@@ -71,6 +73,10 @@ impl Ents {
     pub fn notas_distintas(&self) -> usize { self.notas.len() }
     /// (para las pruebas) dónde está la primera de un tipo y su giro
     pub fn lugar(&self, t: &str) -> Option<(V, Q)> { self.lista.iter().find(|e| e.t == t).map(|e| (e.p, e.q)) }
+    /// dónde está la entidad con ese número
+    pub fn lugar_de(&self, id: u32) -> Option<V> { self.lista.iter().find(|e| e.id == id).map(|e| e.p) }
+    /// la entidad (número y tipo) dueña de un cuerpo de la física
+    pub fn de_cuerpo(&self, c: u32) -> Option<(u32, &str)> { self.lista.iter().find(|e| e.cuerpos.contains(&c)).map(|e| (e.id, e.t.as_str())) }
 }
 
 // ---------------- los mapas de la Comunidad (los oficiales) ----------------
@@ -127,6 +133,7 @@ impl Juego {
         mats.push(mat(M_META_B, [0.95, 0.95, 0.95], [0.5, 0.0, 0.04], [0.0; 3])); mats.push(mat(M_META_N, [0.05, 0.05, 0.05], [0.5, 0.0, 0.04], [0.0; 3]));
         mats.push(mat(M_PALO, [0.35, 0.22, 0.12], [0.8, 0.0, 0.03], [0.0; 3])); mats.push(mat(M_TABLA, [0.92, 0.88, 0.78], [0.8, 0.0, 0.03], [0.0; 3]));
         mats.push(mat(M_MUERTE, [0.5, 0.02, 0.02], [0.72, 0.0, 0.04], [0.9, 0.05, 0.05]));
+        mats.push(mat(M_RADIO, [0.62, 0.08, 0.07], [0.35, 0.0, 0.05], [0.0; 3])); mats.push(mat(M_PARLANTE, [0.04, 0.04, 0.045], [0.75, 0.0, 0.04], [0.0; 3])); mats.push(mat(M_METAL, [0.75, 0.76, 0.78], [0.25, 0.9, 0.05], [0.0; 3]));
         mats.push(mat(M_RAMPA_PISO, [0.32, 0.33, 0.36], [0.85, 0.0, 0.03], [0.0; 3])); mats.push(mat(M_RAMPA_EST, [0.92, 0.72, 0.16], [0.5, 0.1, 0.04], [0.0; 3]));
         let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas: vec![], mats, texs: vec![], lms: vec![], items: vec![], agua: None, cielo: None };
         let _ = m.cargar(&Escena { c: cab, datos: vec![] });
@@ -163,6 +170,8 @@ impl Juego {
             }
             "rampa" => self.ent_rampa(m, &mut e),
             "boton_autos" => { let c = ew(&e, 0.0, 0.06, 0.0); let id = self.ent_caja_fija(c, [0.75, 0.06, 0.75], e.q); e.cuerpos.push(id); }
+            // (la radio: una caja de 72 × 46 × 28 cm que choca —y se mira para Usar—)
+            "radio" => { let c = ew(&e, 0.0, 0.23, 0.0); let id = self.ent_caja_fija(c, [0.36, 0.23, 0.14], e.q); e.cuerpos.push(id); e.rad = 1.0; }
             "luz" => { let c = color_rgb(e.prm.get("color").and_then(|x| x.as_str()).unwrap_or("")); let id = M_FOCO - self.jg.ents.n_focos; self.jg.ents.n_focos += 1; e.mat = id;
                 let foco = Mat { ti: [0.0; 12], pbr: [0.3, 0.0, 0.04], fol: 0, id, t2: -1, terr: None, c: [c[0], c[1], c[2], 1.0], st: [1.0, 1.0, 0.0, 0.0], t: -1, blend: 0, cut: 0, unlit: 0, add: 0, agua: 0, em: [c[0] * 2.5, c[1] * 2.5, c[2] * 2.5] };
                 let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas: vec![], mats: vec![foco], texs: vec![], lms: vec![], items: vec![], agua: None, cielo: None };
@@ -437,6 +446,10 @@ impl Juego {
                 "rampa" => { if let Some((id, partes)) = &e.malla { for (k, (s0, sn)) in partes.iter().enumerate() {
                     let mm = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0];
                     out.push(ItemDin { m: *id, s0: *s0, sn: *sn, mat: if k == 0 { M_RAMPA_PISO } else { M_RAMPA_EST }, mm, esf: e.esf, fl: 0, h: vec![] }); } } }
+                // (la radio: el cuerpo, los dos parlantes de adelante —el frente mira al que la puso—, la manija y la antena)
+                "radio" => { caja(ew(0.0, 0.23, 0.0), [0.72, 0.42, 0.26], e.q, M_RADIO, out); for x in [-0.19f32, 0.19] { caja(ew(x, 0.21, -0.132), [0.24, 0.24, 0.02], e.q, M_PARLANTE, out); }
+                    caja(ew(0.0, 0.36, -0.132), [0.1, 0.06, 0.02], e.q, M_METAL, out); caja(ew(0.0, 0.48, 0.0), [0.5, 0.04, 0.05], e.q, M_METAL, out); for x in [-0.23f32, 0.23] { caja(ew(x, 0.455, 0.0), [0.04, 0.06, 0.05], e.q, M_METAL, out); }
+                    caja(ew(0.3, 0.7, 0.06), [0.015, 0.5, 0.015], e.q, M_METAL, out); }
                 "boton_autos" => { caja(ew(0.0, 0.04, 0.0), [1.6, 0.08, 1.6], e.q, M_BOTON_B, out);
                     let k = 0.5 + 0.5 * (t * 4.0).sin(); caja(ew(0.0, 0.13 - e.ap * 0.06, 0.0), [1.1, 0.1, 1.1], e.q, M_BOTON_R - nivel(k), out); }
                 "teleport" => { let k = 0.5 + 0.5 * (t * 3.0).sin(); caja(ew(0.0, 0.05, 0.0), [2.4, 0.1, 2.4], e.q, M_TELE - nivel(k), out); }

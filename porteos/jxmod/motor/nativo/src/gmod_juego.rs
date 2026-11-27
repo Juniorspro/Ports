@@ -997,6 +997,7 @@ impl Juego {
     }
     pub(crate) fn gmod_tienda_paso(&mut self) {
         self.cu_paso();
+        if self.ini.abierto && !self.med.teles.is_empty() { self.med_esconder(); }
         self.base_addons_paso();
         // (cómo van las bajadas por SteamPipe)
         for it in self.gmod.tienda.iter_mut() { if let Some(p) = &it.prog { let (h, t) = (p.hecho.load(std::sync::atomic::Ordering::Relaxed), p.total.load(std::sync::atomic::Ordering::Relaxed)); if it.estado.starts_with("Bajando") && t > 0 { it.estado = format!("Bajando {}%", h * 100 / t); } } }
@@ -1018,6 +1019,9 @@ impl Juego {
                     None => self.avisar("No se pudo leer la tienda".into()),
                 }
                 self.gmod.tienda_pedida = false;
+            } else if let Some(c) = k.strip_prefix("med:") {
+                // (la radio y la tele)
+                self.med_llego(c, r);
             } else if let Some(c) = k.strip_prefix("cu:") {
                 // (la cuenta y lo social)
                 self.cu_llego(c, r);

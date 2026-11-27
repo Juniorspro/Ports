@@ -90,6 +90,8 @@ fn android_main(app: AndroidApp) {
         { let (t5, t6) = (t.clone(), t.clone()); j.ini.act_estado = Some(Box::new(move || t5.estado_actualizacion())); j.ini.act_pedir = Some(Box::new(move || t6.actualizar_ahora())); }
         // (la cuenta con Google: la página de la tienda en el navegador del celular)
         { let t7 = t.clone(); j.soc.abrir = Some(Box::new(move |u: &str| t7.abrir_url(u))); }
+        // (la radio y la tele: Medios.java)
+        j.med.app = Some(Box::new(t.clone()));
         java = Some(t.clone());
         let (t1, t2) = (t.clone(), t);
         j.teclado = Some(crate::comun::Teclado { pedir: Box::new(move |id, ti, ini, max, cl| t1.pedir(id, ti, ini, max, cl)), tomar: Box::new(move || t2.tomar()) });

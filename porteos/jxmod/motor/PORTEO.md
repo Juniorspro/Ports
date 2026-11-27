@@ -18,7 +18,7 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | linterna.js | ◐ | nativo/jugabilidad.rs (sin el Lua de GMod ni la de los demás de la sala; en OpenGL 2, una luz donde pega) |
 | puertas.js, mapaio.js | ✔ (sin avisarle a la sala) | juego/puertas.rs, nativo/mapas_juego.rs |
 | portales.js | ◐ (se cruza; falta ver a través de la puerta) | juego/portales.rs |
-| entidades.js (piano, radio, mega rampa… de los mapas de la comunidad y los mods) | ✘ | |
+| entidades.js (piano, radio, mega rampa… de los mapas de la comunidad y los mods) | ◐ | radio (Props → Opciones → Radio: emisoras de Radio Browser por la tienda, volumen por oído según el lugar y las paredes); falta piano, mega rampa |
 | gmod_bsp.js (mapas del Workshop) | ✔ (sin el contenido de HL2 que la web trae de Steam —gmod_steam.js— ni la luz por lugar de las manos) | juego/bsp.rs, nativo/mapas_juego.rs; prueba: examples/mapas_foto.rs |
 
 ## Jugador, personajes, NPC, vehículos
@@ -98,9 +98,9 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 ## Lo demás
 | web | estado | nativa |
 |---|---|---|
-| sonidos.js, audio.js | ◐ | nativo/sonido.rs |
+| sonidos.js, audio.js | ◐ | nativo/sonido.rs + acustica.rs: sonido espacial (24 ambientes medidos con rayos, eco, reverberación, paredes que tapan, bajo el agua) |
 | memes.js | ✔ (los míos, desde la carpeta memes/ de la app; sin el interruptor de silenciar los de los demás) | nativo/memes_juego.rs, celu_juego.rs (app Memes) |
-| maquinitas.js, pantalla.js | ✘ | (juegos HTML y videos de YouTube) |
+| maquinitas.js, pantalla.js | ◐ | tele: el objeto «TV» se usa y pasa YouTube (reproductor oficial encima de la pantalla, sigue a la cámara y se esconde tapado/lejos); maquinitas después |
 | animedit.js, creador.js, verity.js, veritycrea.js | ✘ | |
 | grabar.js | ✘ | |
 | vr.js, manos_jx.js | ✘ | |

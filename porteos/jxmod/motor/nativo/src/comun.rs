@@ -90,7 +90,7 @@ pub struct PanelNpc { pub npc: Option<u32>, pub est: String }
 pub enum BtnNpc { Rapida(usize), Arma(Option<npc::Arma>), SkinAnt, SkinSig, Escribir, Borrar, BorrarTodos, Cerrar }
 /// para qué se pidió escribir (el cuadro de texto de Android)
 #[derive(Clone, Debug)]
-pub enum Escribir { /** la cuenta y lo social (social_juego.rs): 0 Gmail, 1 código, 2 nombre, 3 ID, 4 mensaje, 5 grupo */ Soc(u8), Chat, Clave(jxjuego::red::Sala), Nombre, Actitud, Pj, SrvNombre, SrvClave, Buscar, /** un cuadro de texto de un menú de un addon (DTextEntry) */ Vgui, /** un cuadro de texto de las opciones de un mod (la opción y el control) */ OpcMod(usize, usize), /** la Workshop: lo buscado y un link o número */ WsBuscar, WsLink }
+pub enum Escribir { /** lo buscado en la radio o la tele */ Med, /** la cuenta y lo social (social_juego.rs): 0 Gmail, 1 código, 2 nombre, 3 ID, 4 mensaje, 5 grupo */ Soc(u8), Chat, Clave(jxjuego::red::Sala), Nombre, Actitud, Pj, SrvNombre, SrvClave, Buscar, /** un cuadro de texto de un menú de un addon (DTextEntry) */ Vgui, /** un cuadro de texto de las opciones de un mod (la opción y el control) */ OpcMod(usize, usize), /** la Workshop: lo buscado y un link o número */ WsBuscar, WsLink }
 /// pedir texto (título, lo que ya hay, hasta cuántas letras, si es contraseña; con un número) y levantar lo escrito
 /// (número y texto, o None si se canceló): en Android, el cuadro de Juego.java (red_android::Teclado)
 pub struct Teclado { pub pedir: Box<dyn Fn(i32, &str, &str, i32, bool)>, pub tomar: Box<dyn Fn() -> Option<(i32, Option<String>)>> }
@@ -350,6 +350,8 @@ pub struct Juego {
     pub ini: inicio_juego::Inicio,
     /// la cuenta y lo social (social_juego.rs)
     pub soc: paneles_juego::social::Social,
+    /// la radio y la tele (medios_juego.rs)
+    pub med: paneles_juego::medios::Medios,
     /// escribir (sin teclado —en la compu—, no se puede) y lo que se está esperando
     pub teclado: Option<Teclado>, escribir: Option<(i32, Escribir)>, escribir_n: i32,
     /// el emote que hace el jugador (P.emote) y el panel para elegirlo
@@ -396,7 +398,7 @@ impl Juego {
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3], acu_d: [crate::acustica::LEJOS; 14], acu_i: 0, acu_t: 0.0,
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
             npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), ondas: Vec::new(), onda_t: 0.0, gi: Default::default(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
-            her: Herramientas::default(), soc: Default::default(), en_red, gmod, gb: Default::default(), vr: Default::default(), grabar_pedido: None, grabando: false, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), banco: Default::default(), musica: Default::default(), ed: hud_web::Editor::default(), tut: Default::default(), gr: Default::default(), cont: Default::default(), poner_congelado: false, pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
+            her: Herramientas::default(), soc: Default::default(), med: Default::default(), en_red, gmod, gb: Default::default(), vr: Default::default(), grabar_pedido: None, grabando: false, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), banco: Default::default(), musica: Default::default(), ed: hud_web::Editor::default(), tut: Default::default(), gr: Default::default(), cont: Default::default(), poner_congelado: false, pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
             armas_ico: false, armas_ico_h: 256, hud_ico: false, aero: None, aero_tiro: 9.0, aero_abre: 0.0, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         // los mapas: todos los de la web (DATA.esc), primero los RB (los de la versión personal); empieza en el último elegido
@@ -614,6 +616,7 @@ impl Juego {
         match que {
             Escribir::WsBuscar | Escribir::WsLink => {}
             Escribir::Soc(k) => self.soc_escrito(k, t),
+            Escribir::Med => self.med_escrito(t),
             Escribir::Vgui | Escribir::OpcMod(..) => {}
             Escribir::Chat => { if self.en_red.en_sala() { self.en_red.red.chat(&t, None); let n = self.en_red.red.nombre.clone(); self.en_red.al_chat(format!("{n}: {t}")); } }
             Escribir::Clave(s) => self.entrar_sala_con(&s, Some(&t)),
@@ -1310,7 +1313,7 @@ impl Juego {
                 match o.cuerpo.and_then(|id| self.vehs.de(id)) { Some(v) => v.items(pf, &matriz_obj(o, t_fis), &mut items), None => pf.items(&matriz_obj(o, t_fis), &mut items) }
             } }
             // los NPC: su animación (sólo los que se ven) y lo que se dibuja
-            let vpm = m4::mul(&p, &vista); self.vp_ult = vpm;
+            let vpm = m4::mul(&p, &vista); self.vp_ult = vpm; self.med.pantalla = (wf, hf);
             self.npcs.animar(dt, cam, Some(&vpm), &self.fis); self.npcs.items(&mut items); self.gmp_items_npcs(&mut items, cam, dt); self.red_items(&mut items); self.mapas_items(&mut items); self.grieta_items(&mut items, cam, mira); self.jg_items(&mut items, cam); personajes::celu_juego::antes_items(&mut self.pjs.celu, self.ojos_ult, qcam(self.jug.yaw, self.jug.pitch), self.fov_b, wf / hf.max(1.0), self.sway); self.pjs_items(&mut items, cam, ver_cuerpo); self.gmod_items(ojos, yaw, pitch, &mut items);
             // los efectos: avanzan, y sus bloques (partículas, trazas, marcas) y sus luces —primero: GL2 usa 4—
             self.ef.calidad(self.aj.calidad.min(4)); self.ef.alto_px = hf; self.ef.paso(dt, efx::GRAV);
@@ -1351,6 +1354,7 @@ impl Juego {
     /// los sonidos del jugador este cuadro (sonPasos de sonidos.js y los del agua de agua.js)
     fn sonidos(&mut self, dt: f32, ojos: [f32; 3], ent: &Entrada) {
         self.sonido.oyente = (ojos, self.jug.yaw);
+        self.med_paso(dt);
         if !self.sonido.suena() || self.mapa.is_none() { return; }
         // el sonido espacial (acustica.rs): dos de los 14 rayos por cuadro miden el lugar y, en cada vuelta, sale el ambiente
         // (su reverberación y su eco); lo tapado por una pared de los sonidos nuevos (hasta 4 por cuadro) y, cada medio

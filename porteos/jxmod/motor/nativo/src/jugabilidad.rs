@@ -174,7 +174,7 @@ impl Jugabilidad {
     pub fn nombre_item<'a>(&'a self, it: &'a str) -> &'a str {
         if let Some(m) = MUNDO.iter().find(|m| m.0 == it) { return m.1; }
         if let Some(a) = agua_juego::ITEMS.iter().find(|a| a.0 == it) { return a.1; }
-        match it { "opc:piano" => "Piano gigante", "opc:volar" => "Volar", "opc:ragdoll" => "Muñeco de trapo", "opc:scp" => "SCP en cuatro patas", "opc:ciclope" => "Cíclope", _ => self.nombres.get(it).map(|s| s.as_str()).unwrap_or(it) }
+        match it { "opc:piano" => "Piano gigante", "opc:radio" => "Radio", "opc:volar" => "Volar", "opc:ragdoll" => "Muñeco de trapo", "opc:scp" => "SCP en cuatro patas", "opc:ciclope" => "Cíclope", _ => self.nombres.get(it).map(|s| s.as_str()).unwrap_or(it) }
     }
     pub fn activo(&self, k: &str) -> bool { self.mods.contains(&k) }
 }
@@ -211,7 +211,7 @@ impl Juego {
         let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas: vec![malla], mats, texs: vec![], lms: vec![], items: vec![], agua: None, cielo: None };
         let _ = m.cargar(&Escena { c: cab, datos });
         // (las Opciones de JXMod, primeras en Props: ui.js, spawnSubs; las de los mods nativos de esta parte)
-        if !self.catalogo.iter().any(|c| c.0 == "Opciones") { self.catalogo.insert(0, ("Opciones".into(), ["opc:volar", "opc:ragdoll", "opc:scp", "opc:ciclope", "opc:piano"].iter().map(|s| s.to_string()).collect())); }
+        if !self.catalogo.iter().any(|c| c.0 == "Opciones") { self.catalogo.insert(0, ("Opciones".into(), ["opc:volar", "opc:ragdoll", "opc:scp", "opc:ciclope", "opc:piano", "opc:radio"].iter().map(|s| s.to_string()).collect())); }
         // (el agua de partículas: un balde, un montón, una canilla, la manguera y secar)
         // (la categoría Agua de los props ya existe —cubeta, tina, bañeras—: las opciones del agua van primero, y la categoría,
         // al lado de Opciones)
@@ -318,8 +318,19 @@ impl Juego {
     /// Usar (la E) mirando una nuclear (la arma), la catapulta (la dispara) o la bomba de Rick Prime (elegir a quién)
     pub(super) fn jg_usar(&mut self) -> bool {
         if self.vehs.jugador.is_some() { return false; }
+        // (la radio —una entidad— y la tele —el objeto TV—: su panel)
+        if let Some((id, t)) = self.ent_mirada() { if t == "radio" { self.med_abrir(false, id); return true; } }
         let Some(i) = self.mirado() else { return false };
+        if self.es_tele(&self.objs[i].nombre) { let id = self.objs[i].id; self.med_abrir(true, id); return true; }
         self.nuk_usar(i) || self.art_usar(i)
+    }
+    /// ¿es la tele del menú de props? (el objeto «TV»: TV#… en el paquete)
+    pub(crate) fn es_tele(&self, nombre: &str) -> bool { nombre == "TV" || nombre.starts_with("TV#") || self.nombres.get(nombre).map_or(false, |k| k.starts_with("TV#")) }
+    /// la entidad que se mira de cerca (la radio): su número y su tipo
+    pub(super) fn ent_mirada(&mut self) -> Option<(u32, String)> {
+        let mp = self.mapa.as_ref()?; let (o, f) = (self.ojos_ult, self.mira());
+        let g = self.fis.rayo(&mp.mundo, v64(o), v64(f), 4.5, &[])?; let c = g.cuerpo?;
+        self.jg.ents.de_cuerpo(c).map(|(i, t)| (i, t.to_string()))
     }
     /// el objeto que se mira de cerca (a 4,5 m, como la pista de la E de herramientas.js)
     pub(super) fn mirado(&mut self) -> Option<usize> {
@@ -329,7 +340,9 @@ impl Juego {
     }
     fn mirado_txt(&mut self) -> Option<&'static str> {
         if self.vehs.jugador.is_some() { return None; }
+        if let Some((_, "radio")) = self.ent_mirada().map(|(i, t)| (i, if t == "radio" { "radio" } else { "" })) { return Some("Radio"); }
         let i = self.mirado()?; let o = &self.objs[i];
+        if self.es_tele(&o.nombre) { return Some("Tele"); }
         if self.nuk_bomba(&o.nombre).is_some() { return if self.jg.nuk.armadas.iter().any(|a| a.id == o.id) { None } else { Some("Armar") }; }
         match self.art_tipo(&o.nombre) { Some("catapulta") => Some("Disparar"), Some("omega") => Some("Elegir"), _ => None }
     }
@@ -349,6 +362,7 @@ impl Juego {
         if let Some(k) = nombre.strip_prefix("agua:") { return self.agua_poner(k); }
         let Some(k) = nombre.strip_prefix("opc:") else { return false };
         // (el piano gigante: se pone delante —o se trae, si ya está—; entidadPonerMod)
+        if k == "radio" { self.jg.ents.poner = Some("radio"); self.avisar("Radio: mirala y tocá Usar para elegir una emisora".into()); return true; }
         if k == "piano" { self.jg.ents.poner = Some("piano"); self.avisar("Piano: pisá las teclas (también con un auto o tirándoles cosas)".into()); return true; }
         let k: &'static str = match k { "volar" => "volar", "ragdoll" => "ragdoll", "scp" => "scp", "ciclope" => "ciclope", _ => return true };
         if let Some(i) = self.jg.mods.iter().position(|x| *x == k) {

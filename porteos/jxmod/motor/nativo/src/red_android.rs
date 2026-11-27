@@ -151,6 +151,9 @@ impl Teclado {
             env.cast_local::<JString>(r)?.try_to_string(env)
         }).unwrap_or_default()
     }
+    fn medios<R>(&self, f: impl FnOnce(&mut Env, &jni::objects::JClass, &JObject) -> Result<R, JErr>) -> Option<R> {
+        let a = self.act.clone(); con_java(&self.vm, |env| { let c = env.find_class(jni_str!("com/jxmod/nativo/Medios"))?; f(env, &c, a.as_obj()) }).ok()
+    }
     /// abre una dirección en el navegador del celular (Juego.abrirUrl: la cuenta con Google)
     pub fn abrir_url(&self, u: &str) { let a = self.act.clone(); let _ = con_java(&self.vm, |env| { let s = env.new_string(u)?; env.call_method(a.as_obj(), jni_str!("abrirUrl"), jni_sig!("(Ljava/lang/String;)V"), &[JValue::Object(&s)])?; Ok(()) }); }
     /// baja la versión nueva y la instala encima (Juego.actualizarAhora)
@@ -310,4 +313,16 @@ impl Flujo for TlsJava {
         })
     }
     fn cerrar(&mut self) { let s = &self.sock; let _ = con_java(&self.vm, |env| { env.call_method(s.as_obj(), jni_str!("close"), jni_sig!("()V"), &[])?; Ok(()) }); }
+}
+
+/// la radio y la tele de Medios.java
+impl crate::comun::paneles_juego::medios::MediosApp for Teclado {
+    fn radio_poner(&self, id: i32, url: &str) { self.medios(|env, c, _| { let u = env.new_string(url)?; env.call_static_method(c, jni_str!("radioPoner"), jni_sig!("(ILjava/lang/String;)V"), &[JValue::Int(id), JValue::Object(&u)])?; Ok(()) }); }
+    fn radio_vol(&self, id: i32, l: f32, r: f32) { self.medios(|env, c, _| { env.call_static_method(c, jni_str!("radioVol"), jni_sig!("(IFF)V"), &[JValue::Int(id), JValue::Float(l), JValue::Float(r)])?; Ok(()) }); }
+    fn radio_parar(&self, id: i32) { self.medios(|env, c, _| { env.call_static_method(c, jni_str!("radioParar"), jni_sig!("(I)V"), &[JValue::Int(id)])?; Ok(()) }); }
+    fn radio_estado(&self, id: i32) -> String { self.medios(|env, c, _| { let r = env.call_static_method(c, jni_str!("radioEstado"), jni_sig!("(I)Ljava/lang/String;"), &[JValue::Int(id)])?.l()?; if r.is_null() { return Ok(String::new()); } env.cast_local::<JString>(r)?.try_to_string(env) }).unwrap_or_default() }
+    fn tele_poner(&self, id: i32, vid: &str) { self.medios(|env, c, a| { let v = env.new_string(vid)?; env.call_static_method(c, jni_str!("telePoner"), jni_sig!("(Landroid/app/Activity;ILjava/lang/String;)V"), &[JValue::Object(a), JValue::Int(id), JValue::Object(&v)])?; Ok(()) }); }
+    fn tele_lugar(&self, id: i32, r: [i32; 4], ve: bool) { self.medios(|env, c, a| { env.call_static_method(c, jni_str!("teleLugar"), jni_sig!("(Landroid/app/Activity;IIIIIZ)V"), &[JValue::Object(a), JValue::Int(id), JValue::Int(r[0]), JValue::Int(r[1]), JValue::Int(r[2]), JValue::Int(r[3]), JValue::Bool(ve)])?; Ok(()) }); }
+    fn tele_vol(&self, id: i32, v: i32) { self.medios(|env, c, a| { env.call_static_method(c, jni_str!("teleVol"), jni_sig!("(Landroid/app/Activity;II)V"), &[JValue::Object(a), JValue::Int(id), JValue::Int(v)])?; Ok(()) }); }
+    fn tele_parar(&self, id: i32) { self.medios(|env, c, a| { env.call_static_method(c, jni_str!("teleParar"), jni_sig!("(Landroid/app/Activity;I)V"), &[JValue::Object(a), JValue::Int(id)])?; Ok(()) }); }
 }

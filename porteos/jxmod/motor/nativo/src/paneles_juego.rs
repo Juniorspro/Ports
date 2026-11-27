@@ -9,6 +9,7 @@ use super::inicio_juego::{bezier, prog, Nivel};
 use super::aero::{self, blanco, negro, Aero, OpVentana};
 use crate::pincel::{self, rgba, con_a, Cara, Col, Pincel};
 #[path = "social_juego.rs"] pub mod social;
+#[path = "medios_juego.rs"] pub mod medios;
 
 // —— los colores de los paneles (--pn…) ——
 const PN_PL: Col = rgba(0x0a0e14, 0.80);
@@ -33,6 +34,8 @@ pub enum PanelIni {
     Personajes { tab: usize, scroll: f32 }, Opciones { tab: usize, scroll: f32 }, Idioma, Avisos, Bugs { tab: usize, scroll: f32 }, Grieta,
     /// el formulario de Crear server (panelMultiCrear)
     CrearServer { scroll: f32 },
+    /// la radio o la tele (medios_juego.rs)
+    Medios { scroll: f32 },
 }
 
 /// lo que hace cada cosa que se toca en un panel
@@ -48,7 +51,9 @@ pub enum Acc { Volver, Cerrar, Cat(usize), Mapa(String), Empezar, Hora, Mods, Vr
     /// prender o apagar un instalado, cerrar la ficha y la página siguiente
     WsCat(usize), WsBuscar, WsLink, WsOrden, WsFicha(usize), WsBajar(String), WsAlternar(String), WsCerrar, WsMas,
     /// la cuenta y lo social (social_juego.rs): «orden|a|b»
-    Soc(String) }
+    Soc(String),
+    /// la radio y la tele (medios_juego.rs): «orden|a»
+    Med(String) }
 
 /// lo que se va eligiendo en Crear server (RB.srv de la web: Libre, sin PvP, RPG ni nextbots, 1000 props y 40 autos)
 #[derive(Clone, Debug)]
@@ -143,7 +148,7 @@ impl Juego {
         if d.5 { let c = self.ini.pn.contenido; let max = (self.ini.pn.alto_contenido - c[3]).max(0.0);
             if matches!(self.ini.panel, Some(PanelIni::Tienda { tab: 3, .. })) { let ws = &mut self.gmod.ws; if ws.ficha.is_none() { let rc = ws.r_cats;
                 if d.1 >= rc[0] && d.1 <= rc[0] + rc[2] && d.2 >= rc[1] && d.2 <= rc[1] + rc[3] { ws.scroll_cats = (ws.scroll_cats - dy).clamp(0.0, (ws.alto_cats - rc[3]).max(0.0)); } else { ws.scroll = (ws.scroll - dy).clamp(0.0, max); } } return; }
-            if let Some(pn) = self.ini.panel.as_mut() { match pn { PanelIni::Nueva { scroll, .. } | PanelIni::Multi { scroll } | PanelIni::Personajes { scroll, .. } | PanelIni::Opciones { scroll, .. } | PanelIni::Bugs { scroll, .. } | PanelIni::Social { scroll, .. } | PanelIni::CrearServer { scroll } => { *scroll = (*scroll - dy).clamp(0.0, max); } _ => {} } } }
+            if let Some(pn) = self.ini.panel.as_mut() { match pn { PanelIni::Nueva { scroll, .. } | PanelIni::Multi { scroll } | PanelIni::Personajes { scroll, .. } | PanelIni::Opciones { scroll, .. } | PanelIni::Bugs { scroll, .. } | PanelIni::Social { scroll, .. } | PanelIni::Medios { scroll } | PanelIni::CrearServer { scroll } => { *scroll = (*scroll - dy).clamp(0.0, max); } _ => {} } } }
     }
     pub(super) fn pn_dedo_arriba(&mut self, id: i32, _w: f32, _h: f32) {
         let Some(d) = self.ini.pn.dedo.take() else { return }; if d.0 != id { return; }
@@ -182,6 +187,7 @@ impl Juego {
             (_, Acc::Buscar) => self.avisar("Para buscar hace falta el teclado del celular".into()),
             (Some(PanelIni::Social { .. }), Acc::Tab(k)) => { self.ini.panel = Some(PanelIni::Social { tab: k, scroll: 0.0 }); self.soc.sumar = false; }
             (_, Acc::Soc(s)) => self.soc_accion(&s),
+            (_, Acc::Med(s)) => self.med_accion(&s),
             (Some(PanelIni::Tienda { cat, .. }), Acc::Tab(k)) => { self.ini.panel = Some(PanelIni::Tienda { tab: k, cat }); if k == 3 && !self.gmod.ws.buscada { self.ws_buscar(true); } }
             (_, Acc::WsCat(k)) => { self.gmod.ws.cat = k; if !self.gmod.ws.q.is_empty() && super::gmod_juego::ws_id_de(&self.gmod.ws.q).is_some() { self.gmod.ws.q.clear(); } self.ws_buscar(true); }
             (_, Acc::WsBuscar) => { let q = if super::gmod_juego::ws_id_de(&self.gmod.ws.q).is_some() { String::new() } else { self.gmod.ws.q.clone() }; self.pedir_texto(Escribir::WsBuscar, "Buscar en la Workshop", &q, 80, false); }
@@ -251,6 +257,7 @@ impl Juego {
             PanelIni::CrearServer { scroll } => self.pn_crear_server(p, &m, *scroll, ent, &mut z),
             PanelIni::Multi { scroll } => self.pn_multi(p, &m, *scroll, ent, &mut z),
             PanelIni::Social { tab, scroll } => self.pn_social(p, &m, *tab, *scroll, ent, &mut z),
+            PanelIni::Medios { scroll } => self.pn_medios(p, &m, *scroll, ent, &mut z),
             PanelIni::Tienda { tab, cat } => self.pn_tienda(p, &m, *tab, *cat, ent, &mut z),
             PanelIni::Personajes { tab, scroll } => self.pn_personajes(p, &m, *tab, *scroll, ent, &mut z),
             PanelIni::Opciones { tab, scroll } => self.pn_opciones(p, &m, *tab, *scroll, ent, &mut z),
@@ -266,7 +273,7 @@ impl Juego {
     fn pn_titulo(&self) -> (&'static str, Option<&'static str>) {
         match self.ini.panel.as_ref() {
             Some(PanelIni::Nueva { .. }) => ("Empezar partida nueva", Some("jugar")), Some(PanelIni::Multi { .. }) => ("Buscar partida multijugador", Some("mundo")),
-            Some(PanelIni::Social { .. }) => ("Social", Some("gente")), Some(PanelIni::Tienda { .. }) => ("Mods y mapas", Some("mods")),
+            Some(PanelIni::Social { .. }) => ("Social", Some("gente")), Some(PanelIni::Medios { .. }) => (if self.med.modo == 1 { "Tele" } else { "Radio" }, Some("radio")), Some(PanelIni::Tienda { .. }) => ("Mods y mapas", Some("mods")),
             Some(PanelIni::Crear) => ("Crear un mapa", Some("martillo")), Some(PanelIni::Personajes { .. }) => ("Personajes", Some("persona")),
             Some(PanelIni::Opciones { .. }) => ("Opciones", Some("ajustes")), Some(PanelIni::Idioma) => ("Idioma", Some("mundo")),
             Some(PanelIni::Avisos) => ("Avisos", Some("campana")), Some(PanelIni::Bugs { .. }) => ("Bugs y sugerencias", Some("bicho")),

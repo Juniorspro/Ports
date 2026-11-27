@@ -197,6 +197,28 @@ fn main() {
         j.agua_poner("secar");
     }
     // ---------------- la Comunidad: Mega rampa (entidades.js) ----------------
+    if hace("radio") {
+        // (la radio de Props → Opciones y la tele —el objeto TV—: Usar abre su panel con lo de la tienda de verdad, por curl)
+        j.gmod.http_bin = Some(std::sync::Arc::new(|u: &str| { let o = std::process::Command::new("curl").args(["-s", "--max-time", "30", "-w", "\n%{http_code}", u]).output().map_err(|e| e.to_string())?;
+            let mut b = o.stdout; let i = b.iter().rposition(|c| *c == b'\n').unwrap_or(0); let cod: u16 = String::from_utf8_lossy(&b[i + 1..]).trim().parse().unwrap_or(0); b.truncate(i); Ok((cod, b)) }));
+        j.poner_mapa("RB_Flatgrass"); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 60); j.jug.noclip = false; paso(&mut j, &mut m, 20);
+        j.jg.ents.poner = Some("radio"); paso(&mut j, &mut m, 3);
+        let (rp, _) = j.jg.ents.lugar("radio").unwrap(); println!("radio en {:?}", rp);
+        let f = [j.jug.yaw.sin(), 0.0, j.jug.yaw.cos()];
+        mirar(&mut j, [rp[0] - f[0] * 1.3 + f[2] * 0.6, rp[1] + 0.9, rp[2] - f[2] * 1.3 - f[0] * 0.6], [rp[0], rp[1] + 0.25, rp[2]]); paso(&mut j, &mut m, 3); foto(&mut m, "radio");
+        mirar(&mut j, [rp[0] - f[0] * 1.4, rp[1] + 1.0, rp[2] - f[2] * 1.4], [rp[0], rp[1] + 0.23, rp[2]]); paso(&mut j, &mut m, 3);
+        println!("lo que se mira: {:?}", j.jg.usar_txt); boton(&mut j, Boton::Usar); paso(&mut j, &mut m, 2);
+        let t0 = std::time::Instant::now(); while j.med.res.is_empty() && j.med.error.is_none() && t0.elapsed().as_secs() < 25 { paso(&mut j, &mut m, 1); std::thread::sleep(std::time::Duration::from_millis(100)); }
+        paso(&mut j, &mut m, 40); println!("radio: {} emisoras · error {:?}", j.med.res.len(), j.med.error); foto(&mut m, "radio_panel");
+        j.ini.panel = None; j.ini.desde_juego = false; paso(&mut j, &mut m, 5);
+        let _ = j.crear_en(&mut m, "TV", [rp[0] + f[2] * 2.0, rp[1] + 0.5, rp[2] - f[0] * 2.0], j.jug.yaw + 3.14); paso(&mut j, &mut m, 60);
+        let tv = j.objs.last().map(|o| (o.pos, o.id)).unwrap(); println!("tele {:?}", tv);
+        mirar(&mut j, [tv.0[0] - f[0] * 1.8, tv.0[1] + 0.6, tv.0[2] - f[2] * 1.8], tv.0); paso(&mut j, &mut m, 3); foto(&mut m, "tele");
+        println!("lo que se mira: {:?}", j.jg.usar_txt); boton(&mut j, Boton::Usar); paso(&mut j, &mut m, 2);
+        let t0 = std::time::Instant::now(); while j.med.res.is_empty() && j.med.error.is_none() && t0.elapsed().as_secs() < 25 { paso(&mut j, &mut m, 1); std::thread::sleep(std::time::Duration::from_millis(100)); }
+        paso(&mut j, &mut m, 40); println!("tele: {} videos · error {:?}", j.med.res.len(), j.med.error); foto(&mut m, "tele_panel");
+        j.ini.panel = None; j.ini.desde_juego = false;
+    }
     if hace("entidades") {
         j.jg.ents.pend = Some("megarampa".into()); j.poner_mapa("FlatGrass"); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 90);
         let e = &j.jg.ents; println!("mega rampa: {} rampa, {} botones, {} carteles, {} teletransportes, {} luz · jugador {:?}", e.cuantas("rampa"), e.cuantas("boton_autos"), e.cuantas("cartel"), e.cuantas("teleport"), e.cuantas("luz"), j.jug.pos);
