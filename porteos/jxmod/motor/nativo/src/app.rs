@@ -1,4 +1,4 @@
-//! Lo de Android (NativeActivity): el bucle, la ventana con el motor elegido (Vulkan propio u OpenGL 3 con EGL), los
+//! Lo de Android (NativeActivity): el bucle, la ventana con el motor elegido (OpenGL 3 u OpenGL 2 con EGL), los
 //! archivos de la APK y el tacto. El juego está en comun.rs.
 use crate::comun::{Juego, Placa};
 use crate::motor::Motor3d;
@@ -37,8 +37,7 @@ fn android_main(app: AndroidApp) {
     // (y si se trabó: la caja negra —caja_negra.rs— lo deja escrito en trabado.txt)
     let trabado = datos.as_ref().map(|d| d.join("trabado.txt"));
     let se_trabo = trabado.as_deref().and_then(crate::caja_negra::anterior);
-    // (Vulkan a prueba: mientras abre y los primeros 10 s jugando queda escrito vulkan_prueba.txt con el paso en que va; si
-    // la app se cierra de golpe —el controlador de Vulkan de algunos celulares—, la próxima vez abre con OpenGL 3 y lo dice)
+    // (vulkan_prueba.txt: lo que quedó de cuando se podía elegir Vulkan; se borra)
     let _ = VK_PRUEBA.set(datos.as_ref().map(|d| d.join("vulkan_prueba.txt")));
     let vk_cayo = vk_prueba().and_then(|p| { let t = std::fs::read_to_string(&p).ok(); let _ = std::fs::remove_file(&p); t });
     if let Some(t) = &trabado { crate::caja_negra::vigilar(t.clone()); }
@@ -104,11 +103,8 @@ fn android_main(app: AndroidApp) {
     j.sonido = crate::sonido::Sonido::android(fuente, rangos);
     log(&format!("sonido: {}", if j.sonido.suena() { "AAudio" } else { "sin salida" }));
     if let Some(a) = anterior.or(se_trabo) { if j.error.is_none() { j.error = Some(format!("la vez anterior {a}")); } }
-    if let Some(paso) = vk_cayo {
-        j.placa = Placa::Gl3; if let Some(d) = vk_prueba().as_deref().and_then(|p| p.parent()) { let _ = std::fs::write(d.join("motor.txt"), Placa::Gl3.clave()); }
-        if j.error.is_none() { j.error = Some(format!("la vez anterior Vulkan cerró el juego en este celular ({}). Ahora se usa OpenGL 3; podés volver a probar Vulkan en Opciones → Motor", paso.trim())); }
-    }
-    let mut vk_cuadros = 0u32;
+    // (Vulkan ya no está en el celular: el que lo tenía elegido queda en OpenGL 3)
+    if vk_cayo.is_some() || j.placa == Placa::Vulkan { j.placa = Placa::Gl3; if let Some(d) = vk_prueba().as_deref().and_then(|p| p.parent()) { let _ = std::fs::write(d.join("motor.txt"), Placa::Gl3.clave()); } }
     let mut v: Option<Ventana> = None;
     let mut salir = false;
     let mut t_ritmo = Instant::now();
@@ -149,15 +145,13 @@ fn android_main(app: AndroidApp) {
             if let Some(b) = &x.gl { let _ = b.e.swap_buffers(b.d, b.s); }
             j.medir(t0.elapsed().as_secs_f32() * 1000.0);
             crate::caja_negra::latido();
-            // (Vulkan: 10 s jugando sin cerrarse = anda en este celular)
-            if j.en_uso == Placa::Vulkan { if j.mapa.is_some() { vk_cuadros += 1; if vk_cuadros == 600 { vk_prueba_fin(); } } else if vk_cuadros < 600 { vk_prueba_paso(); } }
         }
         if j.ini.salir { salir = true; }
         // (se eligió otro motor: se cierra el que está y se abre el nuevo en la misma ventana)
         if j.cambiar_motor {
             j.cambiar_motor = false;
             crate::caja_negra::paso(format!("cambiar el motor a {:?}", j.motor_pedido()));
-            if let Some(x) = v.take() { let w = x._win.clone(); cerrar(x); vk_prueba_fin(); vk_cuadros = 0; v = abrir(w, &mut j, marca.as_deref()); }
+            if let Some(x) = v.take() { let w = x._win.clone(); cerrar(x); v = abrir(w, &mut j, marca.as_deref()); }
             crate::caja_negra::a_la_vista(v.is_some());
         }
     }
@@ -178,33 +172,14 @@ fn tocar(j: &mut Juego, v: &Option<Ventana>, me: &android_activity::input::Motio
 
 static VK_PRUEBA: std::sync::OnceLock<Option<std::path::PathBuf>> = std::sync::OnceLock::new();
 fn vk_prueba() -> Option<std::path::PathBuf> { VK_PRUEBA.get().cloned().flatten() }
-/// Vulkan a prueba: escribe el paso en que va (si la app se cierra de golpe, queda)
-fn vk_prueba_paso() {
-    static ULT: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
-    let Some(p) = vk_prueba() else { return }; let paso = crate::caja_negra::ultimo().unwrap_or_default();
-    if let Ok(mut u) = ULT.lock() { if *u == paso && p.exists() { return; } *u = paso.clone(); }
-    let _ = std::fs::write(p, paso);
-}
 /// Vulkan anduvo (o se cerró bien): ya no está a prueba
 fn vk_prueba_fin() { if let Some(p) = vk_prueba() { let _ = std::fs::remove_file(p); } }
 
-/// abre el motor que pidió el jugador en la ventana; si Vulkan no anda, OpenGL 3 (y lo avisa)
+/// abre el motor que pidió el jugador en la ventana (OpenGL 3 u OpenGL 2; si OpenGL 2 no anda, OpenGL 3)
 fn abrir(win: android_activity::ndk::native_window::NativeWindow, j: &mut Juego, marca: Option<&std::path::Path>) -> Option<Ventana> {
     let p = win.ptr().as_ptr() as *mut c_void;
     pedir_120(p);
     let quiere = j.motor_pedido();
-    if quiere == Placa::Vulkan {
-        crate::caja_negra::paso("abrir Vulkan"); vk_prueba_paso();
-        match unsafe { jxmotor::vk::Motor::nuevo(Some(p), 0, 0, Opciones::default()) } {
-            Ok(m) => {
-                let (w, h) = m.tam(); let placa = m.placa.clone();
-                log(&format!("Vulkan: {w}×{h} · {placa}"));
-                j.en_uso = Placa::Vulkan; j.al_abrir();
-                return Some(Ventana { m: Motor3d::Vk(m), gl: None, w: w as i32, h: h as i32, placa, _win: win });
-            }
-            Err(e) => { vk_prueba_fin(); log(&format!("Vulkan no anduvo: {e}")); j.avisar(format!("Vulkan no anduvo ({e}): se usa OpenGL 3")); }
-        }
-    }
     if quiere == Placa::Gl2 {
         match abrir_gl(p, 2).and_then(|(gl, b, w, h, placa)| unsafe { jxmotor::gl2::Motor::nuevo(gl, jxmotor::gl2::Opciones2::default()) }.map(|m| (m, b, w, h, placa)).map_err(|e| format!("motor: {e}"))) {
             Ok((m, b, w, h, placa)) => {

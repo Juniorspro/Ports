@@ -2,7 +2,7 @@
 name = "jxmod-nativo"
 version = "0.1.0"
 edition = "2021"
-description = "JXMod nativo: la app de Android en Rust, sin WebView (NativeActivity). Motores: Vulkan, OpenGL 3, OpenGL 2"
+description = "JXMod nativo: la app de Android en Rust, sin WebView (NativeActivity). Motores: OpenGL 3 y OpenGL 2"
 
 [lib]
 name = "jxmod"
@@ -10,7 +10,8 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 serde_json = "1"
-jxmotor = { path = "../jxmotor", features = ["vk"] }
+# (Vulkan quedó afuera del celular: fallaba en muchos; sólo lo usan las pruebas en la compu)
+jxmotor = { path = "../jxmotor" }
 jxjuego = { path = "../juego" }
 # (los addons de GMod: la capa de la web en Rust, gmod_juego.rs)
 jxgmod = { path = "../gmod" }
@@ -24,6 +25,9 @@ khronos-egl = { version = "6", features = ["dynamic"] }
 libloading = "0.8"
 # (las fotos de la Workshop de Steam vienen en JPEG: ya estaba en el caché de cargo)
 zune-jpeg = "0.5"
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+jxmotor = { path = "../jxmotor", features = ["vk"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 android-activity = { version = "0.6", features = ["native-activity"] }

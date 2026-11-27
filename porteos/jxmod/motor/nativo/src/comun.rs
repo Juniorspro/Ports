@@ -66,15 +66,16 @@ use jxmotor::gpu::TEX_LETRAS;
 use jxmotor::mat::{self as m4, M4};
 use std::time::Instant;
 
-/// los motores que se pueden elegir: Vulkan, OpenGL 3 y OpenGL 2 (los teléfonos viejos)
+/// los motores: OpenGL 3 y OpenGL 2 (los teléfonos viejos). Vulkan quedó sólo para las pruebas en la compu (en los celulares
+/// fallaba): el que lo tenía elegido pasa a OpenGL 3
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Placa { Vulkan, Gl3, Gl2 }
 impl Placa {
     pub fn nombre(self) -> &'static str { match self { Placa::Vulkan => "Vulkan", Placa::Gl3 => "OpenGL 3", Placa::Gl2 => "OpenGL 2" } }
     pub fn clave(self) -> &'static str { match self { Placa::Vulkan => "vk", Placa::Gl3 => "gl3", Placa::Gl2 => "gl2" } }
-    pub fn de_clave(s: &str) -> Placa { match s.trim() { "vk" => Placa::Vulkan, "gl2" => Placa::Gl2, _ => Placa::Gl3 } }
-    pub fn lista() -> [Placa; 3] { [Placa::Vulkan, Placa::Gl3, Placa::Gl2] }
-    pub fn hecha(self) -> bool { true }
+    pub fn de_clave(s: &str) -> Placa { match s.trim() { "gl2" => Placa::Gl2, _ => Placa::Gl3 } }
+    pub fn lista() -> [Placa; 2] { [Placa::Gl3, Placa::Gl2] }
+    pub fn hecha(self) -> bool { self != Placa::Vulkan }
 }
 
 /// un dedo en la pantalla: para qué es (palanca, mirar o un botón que se mantiene) y dónde
@@ -907,7 +908,7 @@ impl Juego {
         self.jug.noclip = true; self.jug.pos = [ojos[0], ojos[1] - 0.72, ojos[2]]; self.jug.vel = [0.0; 3]; self.jug.yaw = yaw; self.jug.pitch = pitch;
     }
 
-    /// los botones de los motores: Vulkan, OpenGL 3 y OpenGL 2
+    /// los botones de los motores: OpenGL 3 y OpenGL 2
     fn elegir_motor(&mut self, k: usize) {
         {
             let p = Placa::lista()[k];
