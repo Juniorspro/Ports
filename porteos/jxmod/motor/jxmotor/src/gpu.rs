@@ -931,7 +931,8 @@ pub(crate) fn planos_rect(vp: &M4, r0: [f32; 2], r1: [f32; 2]) -> [[f32; 4]; 6] 
 /// mira para su lado; como mucho 0,55
 /// la luz en el aire: cuánto ilumina (por metro) el aire al sol —la bruma— y cuánto más el de los haces (el aire al sol de
 /// un rayo de la vista que también cruza sombra: entre fierros, hojas, ventanas)
-pub(crate) const VOL_DENSIDAD: f32 = 0.0012; pub(crate) const VOL_HACES: f32 = 0.06;
+// (la mitad que antes: encandilaban y tapaban la vista mirando al sol)
+pub(crate) const VOL_DENSIDAD: f32 = 0.0006; pub(crate) const VOL_HACES: f32 = 0.03;
 /// las nubes y el disco del sol de Definitivo (para los dos cielos, el de OpenGL 3 y el de 2: sin texturas ni nada de ES 3):
 /// una capa de nubes en un plano alto —el ruido de valor en 5 octavas, que se mueve con el viento—, con relieve (más claras del
 /// lado del sol), el borde plateado mirando al sol, más finas en el horizonte y del color de la luz del mapa (anaranjadas al
@@ -964,7 +965,7 @@ pub(crate) fn sol_en_pantalla(c: &crate::escena::Cuadro, s: [f32; 3]) -> Option<
     let v = &c.vp; let (x, y, w) = (v[0] * s[0] + v[4] * s[1] + v[8] * s[2], v[1] * s[0] + v[5] * s[1] + v[9] * s[2], v[3] * s[0] + v[7] * s[1] + v[11] * s[2]);
     if w <= 0.0 { return None; }
     let (su, sv) = (x / w * 0.5 + 0.5, y / w * 0.5 + 0.5); let fuera = ((su - 0.5).abs() - 0.5).max((sv - 0.5).abs() - 0.5).max(0.0);
-    let f = mat::norm([v[3], v[7], v[11]]); let rayo = (1.0 - fuera * 2.5).clamp(0.0, 1.0) * (mat::punto(f, s) * 2.0).clamp(0.0, 1.0) * 0.55;
+    let f = mat::norm([v[3], v[7], v[11]]); let rayo = (1.0 - fuera * 2.5).clamp(0.0, 1.0) * (mat::punto(f, s) * 2.0).clamp(0.0, 1.0) * 0.26;
     if rayo <= 0.01 { return None; }
     Some([su, sv, rayo])
 }

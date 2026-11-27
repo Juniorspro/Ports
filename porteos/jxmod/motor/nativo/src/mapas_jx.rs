@@ -159,7 +159,7 @@ impl Juego {
         let luz = jxjuego::mapa::luz_lineal(&base, 1.0);
         let mundo = jxjuego::mundo::Mundo::nuevo(o.choque.clone(), vec![], 1.0);
         let cab = Cabecera { mapa: nombre.to_string(), w: 0, h: 0, cam: None, luz: None, mallas, mats: vec![], texs: vec![], lms: vec![], items: vec![], agua: None, cielo: Some(cielo) };
-        Ok(Mapa { nombre: nombre.to_string(), esc: Escena { c: cab, datos }, items, luz, luces: vec![], spawns: o.spawns, mundo, agua_y: None, aguas: vec![], lejos, base })
+        Ok(Mapa { nombre: nombre.to_string(), esc: Escena { c: cab, datos }, items, luz, luces: vec![], spawns: o.spawns, mundo, agua_y: None, aguas: vec![], lejos, lejos_items: vec![], base })
     }
 }
 

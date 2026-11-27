@@ -1221,7 +1221,11 @@ impl Juego {
                 self.ondas.push([jp[0], jp[2], ahora, 0.25 + (rapidez / 6.0).min(1.0) * 0.55]); self.onda_t = ahora + 0.22;
             }
             if self.ondas.len() > 8 { let sobra = self.ondas.len() - 8; self.ondas.drain(..sobra); }
-            let mut items = mp.items.clone();
+            // (los props de los mapas del Workshop, hasta su distancia de desvanecido —más cerca en las calidades bajas—)
+            let mut items = if mp.lejos_items.len() == mp.items.len() {
+                let k = [0.5f32, 0.6, 0.75, 0.9, 1.0, 1.0][self.aj.calidad.min(5)];
+                mp.items.iter().zip(&mp.lejos_items).filter(|(it, f)| **f <= 0.0 || { let (dx, dy, dz) = (it.esf[0] - cam[0], it.esf[1] - cam[1], it.esf[2] - cam[2]); dx * dx + dy * dy + dz * dz < (**f * k) * (**f * k) }).map(|(it, _)| it.clone()).collect()
+            } else { mp.items.clone() };
             // (el cuerpo con el arma en la mano; sentado, en el asiento)
             if ver_cuerpo { if let Some(pj) = &self.pj { let jp = self.jug.pos; let b = pj.base_sentado().or_else(|| personajes::emotes_juego::base_escena(&self.pjs)).unwrap_or_else(|| personaje::base([jp[0], jp[1] - 0.95, jp[2]], self.jug.yaw)); if !self.gmp_items_jugador(&b, &mut items, cam, dt) { pj.items(&b, &mut items); } } }
             // (en primera persona, el arma delante de la cámara; y el rayo de la Physics Gun, de la boca a lo agarrado)

@@ -319,7 +319,9 @@ impl Pieza {
 pub struct PuertaBsp { pub def: PuertaDef, pub piv: V, pub pieza: Pieza, pub casco: Vec<V>, pub cascos: Vec<Vec<V>>, pub caja: Option<(V, V)>, pub padre: String, pub solida: bool, pub nombre: String }
 /// un prop del mapa: el modelo, dónde (Source), su giro (Angle), si choca, su escala, si es suelto, si es una puerta, su padre
 #[derive(Clone, Debug, Default)]
-pub struct PropBsp { pub modelo: String, pub o: V, pub a: V, pub solido: bool, pub esc: f32, pub fisico: bool, pub puerta: Option<PuertaDef>, pub padre: String }
+pub struct PropBsp { pub modelo: String, pub o: V, pub a: V, pub solido: bool, pub esc: f32, pub fisico: bool, pub puerta: Option<PuertaDef>, pub padre: String,
+    /// hasta dónde se dibuja (FadeMaxDist del mapa, en metros; 0: siempre)
+    pub fade: f32 }
 /// el atlas de la luz horneada (RGBA, en gamma hasta 4 veces el blanco)
 #[derive(Clone, Debug, Default)]
 pub struct Atlas { pub w: u32, pub h: u32, pub f: u32, pub pos: Vec<[u32; 2]>, pub px: Vec<u8>, pub medio: [f32; 3] }
@@ -407,7 +409,9 @@ pub fn props(bsp: &Bsp, ents: &[Ent], lzma: Lzma) -> Vec<PropBsp> {
             let ti = u16a(d, p + 24) as usize; let sol = d[p + 30];
             if let Some(m) = dic.get(ti).filter(|m| !m.is_empty()) {
                 let esc = if con_escala { f32a(d, p + paso - 4) } else { 1.0 };
-                out.push(PropBsp { modelo: m.clone(), o: [f32a(d, p), f32a(d, p + 4), f32a(d, p + 8)], a: [f32a(d, p + 12), f32a(d, p + 16), f32a(d, p + 20)], solido: sol != 0, esc: if esc > 0.01 && esc < 100.0 { esc } else { 1.0 }, ..Default::default() });
+                // (desde la versión 4: FadeMinDist y FadeMaxDist después del skin; Source deja de dibujarlo en FadeMaxDist)
+                let fmax = if paso >= 44 { f32a(d, p + 40) } else { 0.0 }; let fade = if fmax.is_finite() && fmax > 0.0 { fmax * GM_S } else { 0.0 };
+                out.push(PropBsp { modelo: m.clone(), o: [f32a(d, p), f32a(d, p + 4), f32a(d, p + 8)], a: [f32a(d, p + 12), f32a(d, p + 16), f32a(d, p + 20)], solido: sol != 0, esc: if esc > 0.01 && esc < 100.0 { esc } else { 1.0 }, fade, ..Default::default() });
             }
             p += paso;
         }
@@ -417,7 +421,8 @@ pub fn props(bsp: &Bsp, ents: &[Ent], lzma: Lzma) -> Vec<PropBsp> {
         if !matches!(cl, "prop_dynamic" | "prop_dynamic_override" | "prop_physics" | "prop_physics_multiplayer" | "prop_physics_override" | "prop_static" | "prop_door_rotating") { continue; }
         let m = e.s("model"); if !m.to_lowercase().ends_with(".mdl") { continue; } let Some(o) = e.v3("origin") else { continue };
         let puerta = if cl == "prop_door_rotating" { puerta_de(e, cl) } else { None };
-        out.push(PropBsp { esc: escala_prop(e.n("modelscale")), modelo: m.to_lowercase().replace('\\', "/"), o, a: e.v3_0("angles"), solido: e.get("solid") != Some("0"), fisico: cl.starts_with("prop_physics"), puerta, padre: e.s("parentname").to_lowercase() });
+        let fmax = e.n("fademaxdist"); let fade = if fmax.is_finite() && fmax > 0.0 { fmax * GM_S } else { 0.0 };
+        out.push(PropBsp { esc: escala_prop(e.n("modelscale")), modelo: m.to_lowercase().replace('\\', "/"), o, a: e.v3_0("angles"), solido: e.get("solid") != Some("0"), fisico: cl.starts_with("prop_physics"), puerta, padre: e.s("parentname").to_lowercase(), fade });
     }
     out.truncate(4000);
     out

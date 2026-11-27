@@ -26,6 +26,8 @@ pub struct GmModelos {
     pub modelos: HashMap<String, Option<Rc<ModeloGm>>>,
     sig: i64,
     texs: HashMap<String, Option<(i64, u32, u32)>>,
+    /// lo que ocupan en la placa las texturas subidas (bytes): pasado el presupuesto de la calidad, las que siguen van a la mitad
+    bytes: usize,
     mats: HashMap<String, (i64, bool)>,
     /// los materiales de los sprites (con su modo): número del material del motor
     mats_spr: HashMap<String, Option<i64>>,
@@ -67,7 +69,7 @@ impl Juego {
     pub(crate) fn gm_id_pub(&mut self) -> i64 { self.gm_id() }
     /// el motor se vació (otro mapa): los modelos, materiales y texturas armados ya no están en él (los prefabs «gm:» tampoco)
     pub(crate) fn gm_olvidar_motor(&mut self) {
-        let mm = &mut self.gmod.mods; mm.modelos.clear(); mm.texs.clear(); mm.mats.clear(); mm.mats_spr.clear(); mm.quad = false; mm.lote = None;
+        let mm = &mut self.gmod.mods; mm.modelos.clear(); mm.texs.clear(); mm.bytes = 0; mm.mats.clear(); mm.mats_spr.clear(); mm.quad = false; mm.lote = None;
         self.gmod.texs.clear();
     }
     fn gm_id(&mut self) -> i64 { self.gmod.mods.sig += 1; ID_GM - 16 - self.gmod.mods.sig }
@@ -77,7 +79,12 @@ impl Juego {
         if let Some(x) = self.gmod.mods.texs.get(ruta) { return *x; }
         let res = (|| {
             let (w, h, px) = if ruta.ends_with(".png") { let b = self.gm_archivo(ruta)?; png_rgba(b.to_vec())? } else {
-                let b = self.gm_archivo(&format!("materials/{ruta}.vtf"))?; let t = gmf::vtf(&b, 512).ok()?; (t.w as u32, t.h as u32, gmf::vtf_rgba(&t)) };
+                // (el lado mayor: 512, o 256 pasado el presupuesto de la calidad —los mapas grandes del Workshop traen cientos— y
+                // siempre en las calidades bajas; así la placa no se llena: gm_fork pedía 477 MB)
+                let q = self.aj.calidad.min(5); let pres = [48usize, 72, 110, 150, 190, 230][q] << 20;
+                let tope = if q <= 1 || self.gmod.mods.bytes > pres { 256 } else { 512 };
+                let b = self.gm_archivo(&format!("materials/{ruta}.vtf"))?; let t = gmf::vtf(&b, tope).ok()?; (t.w as u32, t.h as u32, gmf::vtf_rgba(&t)) };
+            self.gmod.mods.bytes += px.len() * 4 / 3;
             let id = self.gm_id(); let a = px.chunks_exact(4).any(|c| c[3] < 250) as u8;
             let tex = Tex { id, n: format!("gm:{ruta}"), w, h, a, o: 0 };
             if let Some((ts, _, d)) = self.gmod.mods.lote.as_mut() { ts.push(Tex { o: d.len(), ..tex }); d.extend_from_slice(&px); return Some((id, w, h)); }

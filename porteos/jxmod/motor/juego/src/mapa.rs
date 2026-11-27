@@ -28,6 +28,9 @@ pub struct Mapa {
     pub agua_y: Option<f32>, pub aguas: Vec<[f32; 6]>,
     /// hasta dónde se ve
     pub lejos: f32,
+    /// hasta dónde se dibuja cada cosa de `items` (los props de los mapas del Workshop: su FadeMaxDist, en metros; 0: siempre).
+    /// Vacío: todo siempre
+    pub lejos_items: Vec<f32>,
     /// la luz del mapa en gamma (de donde sale `luz`): la mueve la hora del día (dia.rs)
     pub base: LuzBase,
 }
@@ -494,5 +497,5 @@ pub fn armar(paq: &mut Paquete, nombre: &str, tmax: u32, lejos_cal: f32) -> Resu
     let aguas: Vec<[f32; 6]> = aj["agua"].as_array().map(|vs| vs.iter().map(|v| { let (a, b) = (v3(&v["lo"], [0.0; 3]), v3(&v["hi"], [0.0; 3])); [a[0], a[1], a[2], b[0], b[1], b[2]] }).collect()).unwrap_or_default();
     let (agua, agua_y) = agua_hl2(&aguas, &mundo, &mut datos);
     let cab = Cabecera { mapa: nombre.to_string(), w: 0, h: 0, cam: None, luz: None, mallas, mats, texs, lms: vec![], items: vec![], agua, cielo: Some(cielo) };
-    Ok(Mapa { nombre: nombre.to_string(), esc: Escena { c: cab, datos }, items, luz, luces, spawns, lejos, mundo, agua_y, aguas, base })
+    Ok(Mapa { nombre: nombre.to_string(), esc: Escena { c: cab, datos }, items, luz, luces, spawns, lejos, lejos_items: vec![], mundo, agua_y, aguas, base })
 }

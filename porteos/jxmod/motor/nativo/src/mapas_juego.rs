@@ -220,6 +220,8 @@ impl Juego {
         // modelo y los pegados a una puerta
         let (mut n_props, mut n_falta, mut fisicos) = (0, 0, vec![]); let n_mundo = tris.len() / 9; let n_dib = armado.pedazos.iter().filter(|(_, p)| !p.por.is_empty()).count(); let mut faltan: Vec<String> = vec![];
         let props = std::mem::take(&mut armado.props);
+        // (los props con distancia de desvanecido: dónde quedaron en la lista y hasta dónde se dibujan)
+        let mut rangos: Vec<(usize, usize, f32)> = vec![];
         for pr in &props {
             let Some(md) = self.gm_modelo(m, &pr.modelo) else { n_falta += 1; if faltan.len() < 8 && !faltan.contains(&pr.modelo) { faltan.push(pr.modelo.clone()); } continue };
             let pos = bsp::g(pr.o[0], pr.o[1], pr.o[2]); let q = bsp::ang_quat(pr.a); let es = pr.esc;
@@ -252,7 +254,7 @@ impl Juego {
                 cascos.push(casco); cascos_t.push(vec![]); solida.push(true); hijos.push(1); pj.push(x);
                 continue;
             }
-            poner(&mm, 0, &mut items); n_props += 1;
+            let n0 = items.len(); poner(&mm, 0, &mut items); n_props += 1; if pr.fade > 0.0 { rangos.push((n0, items.len(), pr.fade)); }
             if !pr.solido { continue; }
             // (choque: sus cascos del .phy, ya puestos en su lugar, como triángulos del mapa)
             for (pts, caras) in &fis_pts {
@@ -346,12 +348,13 @@ impl Juego {
         }
         let cab = Cabecera { mapa: nombre.to_string(), w: 0, h: 0, cam: None, luz: None, mallas, mats, texs: vec![], lms, items: vec![], agua, cielo: Some(cielo) };
         let n_items = items.len();
-        self.mj.info = format!("{}: {:.1} MB, {} pedazos ({} con dibujo, {} triángulos del mundo; faltan {:?}), {} puertas, {} botones, {} zonas, {} sonidos, {} props ({} sin modelo, {} sueltos), {} triángulos de choque, {} brochas invisibles, luz {}, cielo {} ({}), cielo 3D {}, {} portales, {} del zip, {} cosas; {:.2} s (geometría {:.2} s)",
-            nombre, b.len() as f64 / 1e6, armado.pedazos.len(), n_dib, n_mundo, faltan, puertas.l.len(), puertas.bot.len(), puertas.zona.len(), puertas.snd.len(), n_props, n_falta, n_fis, n_tris, armado.brochas.0,
+        let mut lejos_items = vec![]; if !rangos.is_empty() { lejos_items = vec![0f32; n_items]; for (a, b, f) in &rangos { for x in &mut lejos_items[*a..*b] { *x = *f; } } }
+        self.mj.info = format!("{}: {:.1} MB, {} pedazos ({} con dibujo, {} triángulos del mundo; faltan {:?}), {} puertas, {} botones, {} zonas, {} sonidos, {} props ({} sin modelo, {} sueltos, {} con desvanecido), {} triángulos de choque, {} brochas invisibles, luz {}, cielo {} ({}), cielo 3D {}, {} portales, {} del zip, {} cosas; {:.2} s (geometría {:.2} s)",
+            nombre, b.len() as f64 / 1e6, armado.pedazos.len(), n_dib, n_mundo, faltan, puertas.l.len(), puertas.bot.len(), puertas.zona.len(), puertas.snd.len(), n_props, n_falta, n_fis, rangos.len(), n_tris, armado.brochas.0,
             armado.atlas.as_ref().map(|a| format!("{}×{} (÷{})", a.w, a.h, a.f)).unwrap_or("no".into()), cielo_n, if pintado { "pintado" } else { "caras" }, if c3.is_some() { "sí" } else { "no" }, armado.portales.len(), n_pak, n_items, t0.elapsed().as_secs_f32(), t_geo);
         let por = Portales::nuevo(&armado.portales);
         self.mj.pend = Some((puertas, pj2, por, armado.sin_sombra, if armado.niebla.is_some() { TipoNiebla::Lineal } else { TipoNiebla::Cielo }));
-        Ok(Mapa { nombre: nombre.to_string(), esc: Escena { c: cab, datos }, items, luz, luces: vec![], spawns: armado.spawns.clone(), mundo, agua_y, aguas, lejos: lejos.max(lejos_cielo.min(6000.0)), base })
+        Ok(Mapa { nombre: nombre.to_string(), esc: Escena { c: cab, datos }, items, luz, luces: vec![], spawns: armado.spawns.clone(), mundo, agua_y, aguas, lejos: lejos.max(lejos_cielo.min(6000.0)), lejos_items, base })
     }
     /// un prop suelto del mapa (prop_physics): un objeto con su forma del .phy, como los de los addons
     fn mapas_suelto(&mut self, m: &mut Motor3d, ruta: &str, pos: [f32; 3], q: [f32; 4]) -> bool {
