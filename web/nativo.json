@@ -1,9 +1,9 @@
 {
- "codigo": 26112709,
- "version": "0.42",
+ "codigo": 26112710,
+ "version": "0.43",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 75749638,
- "sha256": "6a34a83b4a048deda98604c403b771e0c7c1cf2a6fa343e0721f420c91968fe1",
- "notas_es": "Los mods del Workshop (armas, NPCs, herramientas) también reciben los modelos, texturas y sonidos de HL2 y CS:S que usan: se bajan de Steam en el fondo, sin frenar el juego.",
- "notas_en": "Workshop mods (weapons, NPCs, tools) now also get the HL2 and CS:S models, textures and sounds they use, downloaded from Steam in the background without stopping the game."
+ "tam": 75757830,
+ "sha256": "904192ad49cd09438cc8d59fa9130896510ead466388a9e9c94dfdaf0167ca9c",
+ "notas_es": "Al bajar algo de la Workshop también se bajan solos los addons que necesita (sus «Required items»: bases de armas, texturas aparte, etc.).",
+ "notas_en": "Downloading something from the Workshop now also downloads the addons it needs (its Required items: weapon bases, separate textures, etc.)."
 }
