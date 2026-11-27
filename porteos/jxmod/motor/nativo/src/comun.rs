@@ -284,6 +284,8 @@ pub struct Juego {
     pub fis: Fisica, cat_fis: Option<Catalogo>, acum_fis: f32,
     /// las armas (la Physics Gun y la Gravity Gun) y dónde estaban los ojos en el último cuadro (para apuntar)
     pub armas: Armas, ojos_ult: [f32; 3],
+    /// el sonido espacial: lo que midió cada uno de los 14 rayos, cuál toca y hace cuánto se revisaron los bucles
+    acu_d: [f32; 14], acu_i: usize, acu_t: f32,
     /// el cuerpo del jugador (personaje.rs: se ve en tercera persona y de frente), la cámara (0 primera, 1 tercera, 2 de
     /// frente) y las dos capturas de nado (CMU 126_04 y 79_02: las pone la app)
     pub pj: Option<Personaje>, pj_cargados: personaje::Cargados, pub camara: u8, pub nado: Option<(Vec<u8>, Vec<u8>)>, pub skin: String,
@@ -391,7 +393,7 @@ impl Juego {
             dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0, perf: [0.0; 5], drs: 1.0, drs_t: 0.0, turbo_n: 0, turbo_dt: 0.0, turbo_vp: None, turbo_cam: [0.0; 6], ms_real: 0.0, ms_inter: 0.0, fue_inter: false, n_inter: 0, turbo_on: false, placa_inter: 0.0, cpu_real: 0.0, cpu_inter: 0.0, reloj_ok: false, arma_raiz: None, turbo_arma: None, perf_t: Instant::now(),
             recargar: true, partida_t: None, dt_fijo: None, antilag: 0, antilag_ok: 0.0, antilag_mal: 0.0, gfxa: Default::default(), gfx_medir: false, tope_mem: ajustes::CALIDADES.len() - 1, refresco: 60.0, memes: Default::default(), lan: Default::default(), bajas: None, bajada: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
             nombres: HashMap::new(), catalogo: vec![], cat_npc: vec![], cat_veh: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![], por_cargar: vec![],
-            fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
+            fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3], acu_d: [crate::acustica::LEJOS; 14], acu_i: 0, acu_t: 0.0,
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
             npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), ondas: Vec::new(), onda_t: 0.0, gi: Default::default(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
             her: Herramientas::default(), soc: Default::default(), en_red, gmod, gb: Default::default(), vr: Default::default(), grabar_pedido: None, grabando: false, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), banco: Default::default(), musica: Default::default(), ed: hud_web::Editor::default(), tut: Default::default(), gr: Default::default(), cont: Default::default(), poner_congelado: false, pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
@@ -1350,6 +1352,25 @@ impl Juego {
     fn sonidos(&mut self, dt: f32, ojos: [f32; 3], ent: &Entrada) {
         self.sonido.oyente = (ojos, self.jug.yaw);
         if !self.sonido.suena() || self.mapa.is_none() { return; }
+        // el sonido espacial (acustica.rs): dos de los 14 rayos por cuadro miden el lugar y, en cada vuelta, sale el ambiente
+        // (su reverberación y su eco); lo tapado por una pared de los sonidos nuevos (hasta 4 por cuadro) y, cada medio
+        // segundo, el de los bucles; y la cabeza con el oyente de ahora
+        self.sonido.espacial = self.aj.espacial;
+        if self.sonido.espacial { if let Some(mp) = self.mapa.as_ref() {
+            let dirs = crate::acustica::direcciones();
+            for _ in 0..2 {
+                let k = self.acu_i % 14; self.acu_d[k] = mp.mundo.rayo(ojos, dirs[k], crate::acustica::LEJOS).map(|g| g.t).unwrap_or(crate::acustica::LEJOS); self.acu_i += 1;
+                if self.acu_i % 14 == 0 {
+                    let agua = self.jug.aguas.iter().any(|v| ojos[1] < v[4] && ojos[1] > v[1] && ojos[0] >= v[0] && ojos[0] <= v[3] && ojos[2] >= v[2] && ojos[2] <= v[5]);
+                    let (n, s) = crate::acustica::ambiente(&crate::acustica::Medida { d: self.acu_d, agua, auto: self.vehs.jugador.is_some() }); self.sonido.poner_sala(n, s);
+                }
+            }
+            for (id, d) in self.sonido.para_ocluir(4) {
+                let v = [d[0] - ojos[0], d[1] - ojos[1], d[2] - ojos[2]]; let dist = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+                let f = if dist < 0.6 { 0.0 } else { match mp.mundo.rayo(ojos, [v[0] / dist, v[1] / dist, v[2] / dist], dist) { Some(g) if g.t < dist - 0.4 => 1.0, _ => 0.0 } };
+                self.sonido.ocluir(id, f);
+            }
+        } self.acu_t += dt; if self.acu_t > 0.5 { self.acu_t = 0.0; self.sonido.reocluir(); } self.sonido.actualizar(); }
         // el ambiente (sonAmbiente): los mapas de GMod son «campo» —el viento y, cada 4 a 14 s, un pájaro entre 15 y 40 m—;
         // bajo el agua, nada
         let bajo = self.jug.aguas.iter().any(|v| ojos[1] < v[4] && ojos[1] > v[1] && ojos[0] >= v[0] && ojos[0] <= v[3] && ojos[2] >= v[2] && ojos[2] <= v[5]);

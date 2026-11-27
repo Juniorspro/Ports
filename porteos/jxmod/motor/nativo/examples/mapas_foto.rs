@@ -95,6 +95,15 @@ fn main() {
     let p0 = j.jug.pos; let y0 = j.jug.yaw;
     println!("  el jugador quedó en {:?} (en el piso: {})", p0, j.jug.suelo);
     for (k, dy) in [0.0f32, 1.57, 3.14, 4.71].iter().enumerate() { j.poner_ojos([p0[0], p0[1] + 0.7, p0[2]], y0 + dy, -0.05); paso(&mut j, &mut m, 2); foto(&mut m, &format!("ws_{k}")); }
+    if std::env::var_os("JXM_ACUSTICA").is_some() { // (los ambientes del sonido espacial en una grilla del mapa, a la altura de los oídos)
+        let mp = j.mapa.as_ref().unwrap(); let dirs = jxmod::acustica::direcciones(); let mut cuenta: std::collections::BTreeMap<&str, (u32, [f32; 3])> = Default::default();
+        for gx in -20..=20 { for gz in -20..=20 { for alto in [40.0f32, 8.0, 3.0] {
+            let o = [p0[0] + gx as f32 * 6.0, p0[1] + alto, p0[2] + gz as f32 * 6.0];
+            let Some(g) = mp.mundo.rayo(o, [0.0, -1.0, 0.0], 80.0) else { continue }; let ojo = [o[0], o[1] - g.t + 1.6, o[2]];
+            let mut d = [jxmod::acustica::LEJOS; 14]; for k in 0..14 { d[k] = mp.mundo.rayo(ojo, dirs[k], jxmod::acustica::LEJOS).map(|x| x.t).unwrap_or(jxmod::acustica::LEJOS); }
+            let (i, _) = jxmod::acustica::ambiente(&jxmod::acustica::Medida { d, agua: false, auto: false });
+            let e = cuenta.entry(jxmod::acustica::AMBIENTES[i].0).or_insert((0, ojo)); e.0 += 1; } } }
+        println!("ambientes: {:?}", cuenta.iter().map(|(k, v)| format!("{k} {} (p.ej. {:.0},{:.0},{:.0})", v.0, v.1[0], v.1[1], v.1[2])).collect::<Vec<_>>()); return; }
     if std::env::var_os("JXM_RAPIDO").is_some() { j.jug.noclip = true; for (k, (dy, alto, pit)) in [(1.57f32, 6.0f32, -0.6f32), (1.57, 25.0, -1.2), (1.2, 2.0, -0.25)].iter().enumerate() { j.poner_ojos([p0[0], p0[1] + alto, p0[2]], y0 + dy, *pit); paso(&mut j, &mut m, 2); foto(&mut m, &format!("ws_mira{k}")); } for (k, dy) in [0.0f32, 1.57, 3.14, 4.71].iter().enumerate() { j.poner_ojos([p0[0], p0[1] + 20.7, p0[2]], y0 + dy, 0.0); paso(&mut j, &mut m, 2); foto(&mut m, &format!("ws_horizonte{k}")); } return; }
     // (el agua, si hay: desde arriba de su medio, mirándola en cuatro rumbos —el agua de verdad del material del mapa—)
     if let Some(a) = j.mapa.as_ref().and_then(|m| m.esc.c.agua.clone()) { if let Some(pr) = a.prof.as_ref() {

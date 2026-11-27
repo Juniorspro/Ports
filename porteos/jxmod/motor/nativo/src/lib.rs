@@ -17,6 +17,8 @@ pub mod iconos;
 pub mod pincel;
 pub mod motor;
 pub mod sonido;
+/// cómo suena el lugar (el sonido espacial: los 24 ambientes)
+pub mod acustica;
 /// qué estaba haciendo el juego antes de trabarse (cajanegra.js)
 pub mod caja_negra;
 #[cfg(target_os = "android")]
