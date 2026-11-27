@@ -230,6 +230,15 @@ fn main() {
     j.poner_mapa("RB_Flatgrass"); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 60); j.jug.noclip = false; paso(&mut j, &mut m, 30);
     let base = j.jug.pos; let fw = [j.jug.yaw.sin(), 0.0, j.jug.yaw.cos()]; println!("Flatgrass: jugador {:?} yaw {:.2}", base, j.jug.yaw);
     let delante = |k: f32| [base[0] + fw[0] * k, base[1] - 0.95, base[2] + fw[2] * k];
+    // ---------------- el nextbot de la Tool Gun: corre hacia el jugador y le pega ----------------
+    if hace("nextbot") {
+        j.poner_mapa("RB_Flatgrass"); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 60); j.jug.noclip = false; paso(&mut j, &mut m, 30);
+        let b = j.jug.pos; let fw = [j.jug.yaw.sin(), 0.0, j.jug.yaw.cos()];
+        unsafe { j.prueba_nextbot(&mut m, [b[0] + fw[0] * 14.0, b[1], b[2] + fw[2] * 14.0], "#Obunga"); }
+        let v0 = j.jug.vida; paso(&mut j, &mut m, 20); foto(&mut m, "nextbot_lejos");
+        let mut d_min = 1e9f32; for _ in 0..150 { paso(&mut j, &mut m, 1); if let Some(o) = j.objs.last() { let d = ((o.pos[0] - j.jug.pos[0]).powi(2) + (o.pos[2] - j.jug.pos[2]).powi(2)).sqrt(); d_min = d_min.min(d); } }
+        foto(&mut m, "nextbot_cerca"); println!("nextbot: lo más cerca {:.2} m · vida {} → {}", d_min, v0, j.jug.vida);
+    }
     if hace("patada") {
         let _ = j.crear_en(&mut m, "Box2", delante(1.3), 0.0); let id = j.objs.last().and_then(|o| o.cuerpo); paso(&mut j, &mut m, 40);
         boton(&mut j, Boton::Jg(Bj::Patada)); paso(&mut j, &mut m, 14); foto(&mut m, "patada_primera"); paso(&mut j, &mut m, 3);

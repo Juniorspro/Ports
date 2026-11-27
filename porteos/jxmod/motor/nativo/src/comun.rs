@@ -270,6 +270,8 @@ pub struct Juego {
     nombres: HashMap<String, String>, pub catalogo: Vec<(String, Vec<String>)>, pub cat_npc: Vec<(String, Vec<String>)>, pub cat_veh: Vec<(String, Vec<String>)>,
     pub menu: Option<Menu>, prefabs: HashMap<String, Prefab>, cargados: Cargados,
     pub objs: Vec<Obj>, pendientes: Vec<String>,
+    /// lo guardado de este mapa que se está poniendo (Cargar de la pausa: nombre, posición, giro y si quedó congelado)
+    pub por_cargar: Vec<(String, [f32; 3], [f32; 4], bool)>,
     /// la física de los objetos (fisica.rs), las formas de choque de los prefabs y el tiempo que sobra para su paso fijo
     pub fis: Fisica, cat_fis: Option<Catalogo>, acum_fis: f32,
     /// las armas (la Physics Gun y la Gravity Gun) y dónde estaban los ojos en el último cuadro (para apuntar)
@@ -371,7 +373,7 @@ impl Juego {
         let mut j = Juego { paq, mapa: None, mapas: vec!["RB_Flatgrass".into(), "RB_Construct".into()], mapa_i: 0, letras, letras_px, jug: Jugador::nuevo(), acum: 0.0,
             dedos: vec![], placa, aviso: None, datos, t_ant: Instant::now(), t0: Instant::now(), fps: 0.0, ms: 0.0, cuenta: 0, t_med: Instant::now(), n_med: 0, placa_ms: 0.0, perf: [0.0; 5], drs: 1.0, drs_t: 0.0, turbo_n: 0, turbo_dt: 0.0, turbo_vp: None, turbo_cam: [0.0; 6], ms_real: 0.0, ms_inter: 0.0, fue_inter: false, n_inter: 0, turbo_on: false, placa_inter: 0.0, cpu_real: 0.0, cpu_inter: 0.0, reloj_ok: false, arma_raiz: None, turbo_arma: None, perf_t: Instant::now(),
             recargar: true, dt_fijo: None, antilag: 0, antilag_ok: 0.0, antilag_mal: 0.0, gfxa: Default::default(), gfx_medir: false, refresco: 60.0, memes: Default::default(), lan: Default::default(), bajas: None, bajada: None, error, mapa_cartel: false, en_uso: Placa::Gl3, cambiar_motor: false, detalle: String::new(),
-            nombres: HashMap::new(), catalogo: vec![], cat_npc: vec![], cat_veh: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![],
+            nombres: HashMap::new(), catalogo: vec![], cat_npc: vec![], cat_veh: vec![], menu: None, prefabs: HashMap::new(), cargados: Cargados::default(), objs: vec![], pendientes: vec![], por_cargar: vec![],
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
             npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), ondas: Vec::new(), onda_t: 0.0, gi: Default::default(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
@@ -1117,6 +1119,8 @@ impl Juego {
         if self.ajustes.is_none() && !self.ini.pz.abierta { self.grieta_paso(m, dt); }
         let pend = std::mem::take(&mut self.pendientes);
         for n in pend { if let Err(e) = self.poner(m, &n, ojos, fw) { self.avisar(format!("{n}: {e}")); } }
+        // (Cargar: lo guardado de este mapa, en su lugar exacto)
+        for (n, p, q, f) in std::mem::take(&mut self.por_cargar) { if let Ok(Some(i)) = self.crear(m, &n, p, q, true, f) { if let Some(id) = self.objs.get(i).and_then(|o| o.cuerpo) { self.fis.poner(id, [p[0] as f64, p[1] as f64, p[2] as f64], [q[0] as f64, q[1] as f64, q[2] as f64, q[3] as f64]); } } }
         // el arma en la mano: el modelo del arma elegida, su clip (sacar; después quieto o sosteniendo) y el vaivén (armasPaso)
         if self.mapa.is_some() { self.arma_en_mano(m, dt); }
         // el cuerpo, animado (tercera persona y de frente, y en un vehículo si no es desde adentro): el piso bajo la cápsula,

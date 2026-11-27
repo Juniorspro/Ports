@@ -185,10 +185,33 @@ impl Juego {
             Pz::Salir => { self.ini.pz.abierta = false; self.lan_salir(); self.inicio_abrir(); }
             Pz::Arma => { self.ini.pz.abierta = false; self.arma_aj_abrir(); }
             Pz::Tutorial => self.tut_abrir(),
-            Pz::Guardar | Pz::Cargar => self.avisar("Guardar y cargar el mapa todavía no está en la versión nativa".into()),
+            Pz::Guardar => { self.ini.pz.abierta = false; self.pz_guardar(); }
+            Pz::Cargar => { self.ini.pz.abierta = false; self.pz_cargar(); }
             Pz::Vr => self.avisar("El modo VR todavía no está en la versión nativa".into()),
             Pz::Grabar => self.avisar("Grabar todavía no está en la versión nativa".into()),
         }
+    }
+    /// el archivo de lo guardado de este mapa (guardarConstruccion de la web: jx_save_<mapa>)
+    fn pz_archivo_guardado(&self) -> Option<std::path::PathBuf> {
+        let mp = self.mapa.as_ref()?; let n: String = mp.nombre.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' }).collect();
+        self.datos.as_ref().map(|d| d.join(format!("guardado_{n}.json")))
+    }
+    /// Guardar: lo que puso el jugador (los objetos, con su lugar, su giro y si quedó congelado), en la carpeta de la app
+    fn pz_guardar(&mut self) {
+        let Some(f) = self.pz_archivo_guardado() else { self.avisar("No se pudo guardar".into()); return };
+        let r3 = |x: f64, k: f64| (x * k).round() / k;
+        let l: Vec<serde_json::Value> = self.objs.iter().filter_map(|o| { let b = self.fis.cuerpo(o.cuerpo?)?;
+            Some(serde_json::json!({ "n": o.nombre, "p": [r3(b.pos[0], 1000.0), r3(b.pos[1], 1000.0), r3(b.pos[2], 1000.0)], "q": [r3(b.q[0], 1e4), r3(b.q[1], 1e4), r3(b.q[2], 1e4), r3(b.q[3], 1e4)], "f": if b.congelado { 1 } else { 0 } })) }).collect();
+        let n = l.len();
+        match std::fs::write(&f, serde_json::Value::Array(l).to_string()) { Ok(_) => self.avisar(format!("Guardado ({n} cosas)")), Err(_) => self.avisar("No se pudo guardar".into()) }
+    }
+    /// Cargar: lo guardado de este mapa vuelve a su lugar (se pone en el cuadro siguiente, con el motor a mano)
+    fn pz_cargar(&mut self) {
+        let l: Vec<serde_json::Value> = self.pz_archivo_guardado().and_then(|f| std::fs::read(f).ok()).and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+        let num = |v: &serde_json::Value, k: usize| v.get(k).and_then(|x| x.as_f64()).unwrap_or(0.0) as f32;
+        for x in &l { let (Some(n), p, q) = (x["n"].as_str(), &x["p"], &x["q"]) else { continue };
+            self.por_cargar.push((n.to_string(), [num(p, 0), num(p, 1), num(p, 2)], [num(q, 0), num(q, 1), num(q, 2), if q.get(3).is_some() { num(q, 3) } else { 1.0 }], x["f"].as_i64().unwrap_or(0) != 0)); }
+        self.avisar(if l.is_empty() { "No hay nada guardado en este mapa".into() } else { format!("Cargado ({} cosas)", l.len()) });
     }
     /// «Borrar todo» (limpiar el mapa): los objetos, los vehículos y los NPC puestos
     fn pz_borrar_todo(&mut self) {

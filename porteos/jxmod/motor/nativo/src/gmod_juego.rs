@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 /// las texturas de los materiales de los addons (TEX_GMOD - k)
 const TEX_GMOD: i64 = -3000;
-#[path = "gmod_modelos.rs"] mod gmod_modelos;
+#[path = "gmod_modelos.rs"] pub(crate) mod gmod_modelos;
 #[path = "gmod_base.rs"] mod gmod_base;
 #[path = "gmod_menu.rs"] mod gmod_menu;
 // (los modelos de jugador de GMod como personaje: gmod_pm.js)

@@ -15,7 +15,7 @@ use objetos::Parte;
 const ID_GM: i64 = -5_000_000;
 const MAX_HUESOS: usize = 56;
 /// el cuadrado de los sprites (1×1, de las dos caras)
-const QUAD_MALLA: i64 = ID_GM + 1;
+pub(crate) const QUAD_MALLA: i64 = ID_GM + 1;
 const GS: f32 = 0.0254;
 
 /// una malla subida: su número, sus partes (desde, cuántos, material) y, con piel, los huesos del modelo de cada lugar
@@ -406,6 +406,15 @@ impl Juego {
         let mat = Mat { ti: [0.0; 12], pbr: [0.9, 0.0, 0.04], fol: 0, id, t2: -1, terr: None, c: color, st: [1.0, 1.0, 0.0, 0.0], t, blend: (!suma) as u8, cut: 0, unlit: 1, add: suma as u8, agua: 0, em: [0.0; 3] };
         let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas: vec![], mats: vec![mat], texs: vec![], lms: vec![], items: vec![], agua: None, cielo: None };
         unsafe { m.cargar(&Escena { c: cab, datos: vec![] }) }.ok()?; Some(id)
+    }
+    /// una imagen RGBA (filas de abajo para arriba) como material sin luz, con transparencia, para el cuadrado de los sprites
+    pub(crate) fn gm_mat_rgba(&mut self, m: &mut Motor3d, w: u32, h: u32, px: Vec<u8>) -> Option<i64> {
+        if !self.gmod.mods.quad { self.gmod.mods.quad = true; self.gm_subir_quad(m); }
+        let t = self.gm_id(); let id = self.gm_id();
+        let tex = Tex { id: t, n: format!("gm:rgba{t}"), w, h, a: 1, o: 0 };
+        let mat = Mat { ti: [0.0; 12], pbr: [0.9, 0.0, 0.04], fol: 0, id, t2: -1, terr: None, c: [1.0; 4], st: [1.0, 1.0, 0.0, 0.0], t, blend: 0, cut: 1, unlit: 1, add: 0, agua: 0, em: [0.0; 3] };
+        let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas: vec![], mats: vec![mat], texs: vec![tex], lms: vec![], items: vec![], agua: None, cielo: None };
+        unsafe { m.cargar(&Escena { c: cab, datos: px }) }.ok()?; Some(id)
     }
     fn gm_subir_quad(&mut self, m: &mut Motor3d) {
         // (de (0,0) a (1,1) en x, y; UV igual; las dos caras)

@@ -22,8 +22,19 @@ pub struct Herr { pub n: String, pub p: Vec<Param>, /** la herramienta de un add
 pub struct Logica { pub tipo: String, pub params: HashMap<String, Valor>, pub entradas: Vec<u32>, pub salida: bool, pub t: f32, pub luz: bool, pub texto: String, pub color: String }
 /// las herramientas: la lista, la elegida, los parámetros de cada una, el cable empezado, las trazas y lo que tiró un Spawner
 #[derive(Default)]
-pub struct Herramientas { pub lista: Vec<Herr>, pub sel: usize, pub params: HashMap<String, HashMap<String, Valor>>, pub cable: Option<u32>, pub trazas: Vec<([f32; 3], [f32; 3], f32)>, pub tirados: Vec<(u32, f32)>, pub spawn: Option<[f32; 3]> }
+pub struct Herramientas { pub lista: Vec<Herr>, pub sel: usize, pub params: HashMap<String, HashMap<String, Valor>>, pub cable: Option<u32>, pub trazas: Vec<([f32; 3], [f32; 3], f32)>, pub tirados: Vec<(u32, f32)>, pub spawn: Option<[f32; 3]>, pub nb: Nextbots }
 
+/// los nextbots de la Tool Gun (nextbotNuevo/nextbotPaso de la web): una imagen que persigue al jugador. El material de cada
+/// imagen (las del juego —Obunga, Toilet, Scream— o una URL PNG/WebP, bajada en un hilo), la velocidad del golpe de cada uno
+#[derive(Default)]
+pub struct Nextbots { pub mats: HashMap<String, Option<i64>>, pub golpe: HashMap<u32, f32>, pub bajadas: std::sync::Arc<std::sync::Mutex<HashMap<String, Option<(u32, u32, Vec<u8>)>>>> }
+/// la imagen de un nextbot según sus parámetros: la URL o el ícono del juego de su tipo; y su tamaño (m)
+fn nb_imagen(p: &HashMap<String, Valor>) -> (String, f32) {
+    let url = p.get("Image URL").map(|v| v.txt()).unwrap_or_default();
+    let img = if url.starts_with("http") { url } else { format!("i:{}", match p.get("Type").map(|v| v.txt()).as_deref() { Some("#Toilet") => "Toilet", Some("#Scream") => "death-skull", _ => "nextbot" }) };
+    let tam = match p.get("Image size").map(|v| v.txt()).as_deref() { Some("Big") => 4.0, Some("Small") => 1.4, _ => 2.4 };
+    (img, tam)
+}
 /// la herramienta de un nombre de la lista al prefab que pone (PREFAB_HER)
 fn prefab_de(n: &str) -> &str { match n { "SimpleNextbot" | "Nextbot" => "Nextbot", x => x } }
 /// lo que vale un parámetro al elegir la herramienta (equiparHerramienta)
@@ -182,18 +193,27 @@ impl Juego {
             }
             return;
         }
-        if n == "SimpleNextbot" || n == "Nextbot" { self.avisar("Los nextbots todavía no están en la versión nativa".into()); return; }
         let Some(g) = r else { return };
         let q = q_sobre([g.n[0] as f32, g.n[1] as f32, g.n[2] as f32], self.jug.yaw);
         let pre = prefab_de(&n).to_string();
         let params = self.her.params.get(&n).cloned().unwrap_or_default();
         match self.crear(m, &pre, fin, q, false, true) {
-            Ok(Some(k)) => { self.objs[k].logica = Some(Logica { tipo: n, params, entradas: vec![], salida: false, t: 0.0, luz: false, texto: String::new(), color: "Black".into() }); }
+            Ok(Some(k)) => {
+                // (el nextbot no queda congelado: corre)
+                if n == "SimpleNextbot" || n == "Nextbot" { if let Some(c) = self.objs[k].cuerpo.and_then(|id| self.fis.cuerpo_mut(id)) { c.congelado = false; } }
+                self.objs[k].logica = Some(Logica { tipo: n, params, entradas: vec![], salida: false, t: 0.0, luz: false, texto: String::new(), color: "Black".into() }); }
             Ok(None) => {}
             Err(e) => self.avisar(format!("{pre}: {e}")),
         }
     }
 
+    /// (para las pruebas) un nextbot de la Tool Gun en `p`, como si se lo pusiera apuntando ahí
+    pub unsafe fn prueba_nextbot(&mut self, m: &mut Motor3d, p: [f32; 3], tipo: &str) {
+        if let Ok(Some(k)) = self.crear(m, "Nextbot", p, [0.0, 0.0, 0.0, 1.0], false, false) {
+            let mut params = HashMap::new(); params.insert("Type".to_string(), Valor::Txt(tipo.into()));
+            self.objs[k].logica = Some(Logica { tipo: "SimpleNextbot".into(), params, entradas: vec![], salida: false, t: 0.0, luz: false, texto: String::new(), color: "Black".into() });
+        }
+    }
     /// herramientasPaso: lo que hace cada cosa de la Tool Gun este cuadro (con `m`: el Spawner crea objetos)
     pub(super) unsafe fn herramientas_paso(&mut self, m: &mut Motor3d, dt: f32) {
         for t in self.her.trazas.iter_mut() { t.2 -= dt; } self.her.trazas.retain(|t| t.2 > 0.0);
@@ -250,6 +270,25 @@ impl Juego {
                         o.pos = np; o.q = nq; o.ant = (np, nq);
                     } }
                 }
+                "SimpleNextbot" | "Nextbot" => {
+                    // (corre derecho hacia el jugador, sin girar; a menos de 1,4 m le pega 40 y lo empuja; de vez en cuando suena)
+                    let Some(bid) = self.objs[i].cuerpo else { continue };
+                    let jp = self.jug.pos; let vivo = self.jug.vida > 0.0;
+                    let mut pegar = None;
+                    if let Some(c) = self.fis.cuerpo_mut(bid) {
+                        c.congelado = false; c.duerme = false; c.sleep_t = 0.0;
+                        let (dx, dz) = (jp[0] as f64 - c.pos[0], jp[2] as f64 - c.pos[2]); let l = (dx * dx + dz * dz).sqrt();
+                        if l > 0.5 && vivo { let k = (dt as f64 * 3.0).min(1.0); c.vel[0] += (dx / l * 7.5 - c.vel[0]) * k; c.vel[2] += (dz / l * 7.5 - c.vel[2]) * k; }
+                        c.ang = [0.0; 3]; c.q = [0.0, 0.0, 0.0, 1.0];
+                        if l < 1.4 && vivo { pegar = Some(([dx / l.max(1e-3), dz / l.max(1e-3)], [c.pos[0] as f32, c.pos[1] as f32, c.pos[2] as f32])); }
+                    }
+                    let g = self.her.nb.golpe.entry(id).or_insert(0.0); *g -= dt;
+                    if let (Some((d, bp)), true) = (pegar, *g <= 0.0) { *g = 0.8; self.danar_jugador(40.0); self.jug.vel[0] += d[0] as f32 * 10.0; self.jug.vel[2] += d[1] as f32 * 10.0; self.jug.vel[1] += 4.0; self.sonido.tocar("GORE_Splat_Hit_Bubbles_mono", 1.0, 1.0, Some(bp)); }
+                    if self.armas.azar01() < dt * 0.4 { self.sonido.tocar("BODY_Fart_mono", 0.6, 0.6, Some(pos)); }
+                    // (su imagen: el material, una vez por imagen; la de una URL, cuando llegue)
+                    let (img, _) = nb_imagen(&p);
+                    if !self.her.nb.mats.contains_key(&img) { let mat = self.nb_material(m, &img); if mat.is_some() || !img.starts_with("http") { self.her.nb.mats.insert(img, mat); } }
+                }
                 "Spawner" => {
                     if on && lt > 1.0 {
                         if let Some(l) = self.objs[i].logica.as_mut() { l.t = 0.0; }
@@ -295,5 +334,31 @@ impl Juego {
             vista::tramo(c.pos, fin, 0.012, vista::TUBO_AMARILLO, items);
         }
         for t in &self.her.trazas { vista::tramo(t.0, t.1, 0.008 * (t.2 / 0.12).max(0.2), vista::TUBO_AMARILLO, items); }
+        // los nextbots: su imagen parada mirando a la cámara (de costado gira sólo alrededor de la vertical), del piso para arriba
+        let cam = self.ojos_ult;
+        for o in &self.objs {
+            let Some(l) = o.logica.as_ref().filter(|l| l.tipo == "SimpleNextbot" || l.tipo == "Nextbot") else { continue };
+            let (img, tam) = nb_imagen(&l.params); let Some(Some(mat)) = self.her.nb.mats.get(&img) else { continue };
+            let (dx, dz) = (o.pos[0] - cam[0], o.pos[2] - cam[2]); let ln = (dx * dx + dz * dz).sqrt().max(1e-3);
+            let r = [-dz / ln * tam, 0.0, dx / ln * tam]; let a = [o.pos[0] - r[0] / 2.0, o.pos[1] - 0.3, o.pos[2] - r[2] / 2.0];
+            let mm = [r[0], r[1], r[2], 0.0, 0.0, tam, 0.0, 0.0, -dx / ln * 0.01, 0.0, -dz / ln * 0.01, 0.0, a[0], a[1], a[2], 1.0];
+            items.push(jxmotor::escena::ItemDin { m: super::gmod_juego::gmod_modelos::QUAD_MALLA, s0: 0, sn: 12, mat: *mat, mm, esf: [o.pos[0], o.pos[1] + tam / 2.0, o.pos[2], tam], fl: jxmotor::escena::FL_SIN_SOMBRA, h: vec![] });
+        }
+    }
+    /// el material de la imagen de un nextbot: el ícono del juego (del paquete) o la bajada de su URL (se pide en un hilo)
+    unsafe fn nb_material(&mut self, m: &mut Motor3d, img: &str) -> Option<i64> {
+        let rgba = if let Some(n) = img.strip_prefix("i:") {
+            let p = self.paq.as_ref()?; let id = p.d["ico"][n].as_str()?; crate::pincel::decodificar(p.parte(&format!("i:{id}"))?)
+        } else {
+            let mut b = self.her.nb.bajadas.lock().ok()?;
+            match b.get(img) { Some(x) => x.clone(), None => {
+                b.insert(img.to_string(), None); drop(b);
+                if let Some(h) = self.gmod_http_bin() { let (u, dst) = (img.to_string(), self.her.nb.bajadas.clone()); std::thread::spawn(move || { let r = h(&u).ok().filter(|r| r.0 == 200).and_then(|r| crate::pincel::decodificar(&r.1)).map(|(w, h, px)| crate::pincel::achicar(w, h, px, 512)); if let Ok(mut d) = dst.lock() { if r.is_some() { d.insert(u, r); } } }); }
+                None } }
+        }?;
+        let (w, h, px) = rgba;
+        // (las filas dadas vuelta: el cuadrado tiene la v para arriba)
+        let fila = (w * 4) as usize; let mut v = vec![0u8; px.len()]; for y in 0..h as usize { v[y * fila..(y + 1) * fila].copy_from_slice(&px[(h as usize - 1 - y) * fila..(h as usize - y) * fila]); }
+        self.gm_mat_rgba(m, w, h, v)
     }
 }
