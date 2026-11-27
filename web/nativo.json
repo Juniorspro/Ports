@@ -1,9 +1,9 @@
 {
- "codigo": 26112708,
- "version": "0.41",
+ "codigo": 26112709,
+ "version": "0.42",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 75725062,
- "sha256": "e593bc7f7cc748aa6f729ee510f427da858b1f940e6c0967635a6a626863255b",
- "notas_es": "Los botones de volumen del celu andan de nuevo. Paneles al tamaño del celular (la Workshop ya no parece de compu: tarjetas y letras más grandes). Props lejanos con su versión simple (mapas grandes mucho más livianos). Antilag: si el juego se traba (por ejemplo grabando la pantalla), apaga efectos de a uno y los devuelve cuando se estabiliza.",
- "notas_en": "Phone volume buttons work again. Panels sized for phones (the Workshop no longer looks like a PC: bigger cards and text). Far props use their simple version (big maps much lighter). Antilag: if the game stutters (e.g. while screen recording), effects turn off one by one and come back when stable."
+ "tam": 75749638,
+ "sha256": "6a34a83b4a048deda98604c403b771e0c7c1cf2a6fa343e0721f420c91968fe1",
+ "notas_es": "Los mods del Workshop (armas, NPCs, herramientas) también reciben los modelos, texturas y sonidos de HL2 y CS:S que usan: se bajan de Steam en el fondo, sin frenar el juego.",
+ "notas_en": "Workshop mods (weapons, NPCs, tools) now also get the HL2 and CS:S models, textures and sounds they use, downloaded from Steam in the background without stopping the game."
 }
