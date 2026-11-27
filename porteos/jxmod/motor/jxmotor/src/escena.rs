@@ -110,6 +110,8 @@ pub const EF_GI: u32 = 6; pub const EF_GI_DATOS: u32 = 7;
 /// agua (rgba), color del cielo que refleja (rgb) y cuánto refleja, sol (dirección) y brillo] y por partícula [x, y, z,
 /// espuma, nx, ny, nz, cuánto es superficie] (`FLU_POR` números), de lejos a cerca. Se dibujan como esferas (con su profundidad en OpenGL 3) mezcladas: donde hay más, más honda
 pub const EF_FLUIDO: u32 = 8;
+/// las olas simuladas del agua (jxjuego::olas): [x0, z0, lado, N, y, 0, 0, 0] y por celda la pendiente en x y en z (N × N)
+pub const EF_OLAS: u32 = 9;
 /// (los números de la cabecera del bloque de agua de partículas)
 pub const FLU_CAB: usize = 24;
 /// (los números de cada partícula)

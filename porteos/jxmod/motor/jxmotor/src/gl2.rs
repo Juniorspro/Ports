@@ -15,7 +15,7 @@
 //! Lo que tiene huesos (personajes, NPC, el arma en la mano) se deforma en la CPU: una placa de ES 2 suele tener 128
 //! vectores de uniformes para el vértice y los 56 huesos piden 168. Cada malla con su pose una vez por cuadro (todas
 //! sus partes la reusan), con las mismas cuentas que VS_LUZ de gpu.rs, y va a un búfer que se reusa de un cuadro a otro.
-use crate::escena::{FL_ARMA, Cielo, Cuadro, Escena, ItemDin, Mat, FL_CIELO, EF_MARCAS, EF_PART_ALFA, EF_PART_SUMA, EF_FLUIDO, FLU_CAB, FLU_POR};
+use crate::escena::{FL_ARMA, Cielo, Cuadro, Escena, ItemDin, Mat, FL_CIELO, EF_MARCAS, EF_PART_ALFA, EF_PART_SUMA, EF_FLUIDO, FLU_CAB, FLU_POR, EF_OLAS};
 use crate::mat::{self, M4};
 use glow::HasContext;
 use std::collections::HashMap;
@@ -396,6 +396,8 @@ uniform sampler2D uN, uR; uniform vec4 uF, uH, uS, uRP; uniform vec3 uCam, uSol,
 uniform vec4 uOnd[8]; uniform float uOndN;
 // (el agua de Source tal cual su material: uModo 1, uTinte = $refracttint, uEm = $reflecttint)
 uniform float uModo; uniform vec3 uTinte, uEm;
+// (las olas simuladas, como gpu.rs)
+uniform sampler2D uRay; uniform vec4 uRayK;
 varying vec3 vW;
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
 void main() {
@@ -407,6 +409,9 @@ void main() {
     vec2 dd = vW.xz - r.xy; float dist = length(dd) + 1e-3, x = dist - e * 1.4;
     float an = sin(x * 16.0) * exp(-x * x * 5.0) * exp(-e * 1.1) * r.w / (1.0 + dist * 0.6);
     d += dd / dist * (an * 0.9); anillos += abs(an); }
+  if (uRayK.w > 0.5) { vec2 uo = (vW.xz - uRayK.xy) * uRayK.z;
+    if (uo.x > 0.0 && uo.y > 0.0 && uo.x < 1.0 && uo.y < 1.0) { vec2 sl = (texture2D(uRay, uo).rg - 0.5) * 1.275;
+      float bo = clamp(min(min(uo.x, uo.y), min(1.0 - uo.x, 1.0 - uo.y)) * 12.0, 0.0, 1.0); d -= sl * bo * 1.6; } }
   vec3 n = normalize(vec3(d.x, 1.0, d.y));
   if (uModo > 0.5 && uCam.y >= vW.y - 0.005) {
     // el agua de Source como su versión sin refracción en tiempo real: el mapa de normales de su material (el primer cuadro de
@@ -839,7 +844,7 @@ pub struct Motor {
     /// las partículas: el búfer de vértices, el de índices (para cuántas alcanza) y lo armado en la CPU; las marcas: su búfer,
     /// cuántos vértices y las que llegaron y todavía no se subieron
     part_vb: glow::Buffer, part_ib: glow::Buffer, part_cap: usize, part_v: Vec<f32>,
-    p_flu: Prog2, flu_vb: glow::Buffer, flu_ib: glow::Buffer, flu_cap: usize, flu_v: Vec<f32>,
+    p_flu: Prog2, olas_t: Option<glow::Texture>, flu_vb: glow::Buffer, flu_ib: glow::Buffer, flu_cap: usize, flu_v: Vec<f32>,
     marcas_vb: glow::Buffer, marcas_n: i32, marcas_nuevas: Option<Vec<f32>>,
     agua: Option<crate::escena::Agua>, agua_n: Option<glow::Texture>, aguas: Vec<usize>,
     tri: glow::Buffer, ui_buf: glow::Buffer, blanca: glow::Texture,
@@ -914,7 +919,7 @@ impl Motor {
             Some((HashMap::new(), pc, vb, ib))
         } else { None };
         let reloj = crate::reloj::Reloj::nuevo(&gl);
-        Ok(Motor { gi_tex: None, gi_ver: -1.0, p_ao, ao_ahora: false, ao_prof: None, prof24: ext.contains("GL_OES_packed_depth_stencil") && std::env::var_os("JXM_GL2_PROF16").is_none(), escena_prof: None, ao_rt: None, p_adapta, adapta: None, hongos: crate::hongo::Hongos::nuevo(false), alta, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], vol_ahora: false, alfa_d: false, rayos_rt: None, rayos_ahora: None, som: None, som_vp: [mat::id(); 2], som_n: 0, som_on: false, som_off: [[0.0; 2]; 2], som_huella: [0; 2], refl_n: 0, p_som, p_som_c, p_prof_ao, som_ao: false, refl: None, refl_on: false, refl_activo: false, p_luz_r, p_luz_rc, refl_piso: None, refl_px: [0.0; 2], refl_ult: (mat::id(), f32::NAN), oclu, n_cuadro: 0, fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), gl, op, cubo: None, p_luz, p_luz_c, p_cielo, p_ui, p_copia, p_repro, p_pasar, final_rt: None, vp_ult: None, reloj, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), p_flu, flu_vb, flu_ib, flu_cap: 0, flu_v: Vec::new(), marcas_vb, marcas_n: 0, poses: vec![], poses_n: 0, pose_p: vec![], pose_v: vec![], marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
+        Ok(Motor { gi_tex: None, gi_ver: -1.0, p_ao, ao_ahora: false, ao_prof: None, prof24: ext.contains("GL_OES_packed_depth_stencil") && std::env::var_os("JXM_GL2_PROF16").is_none(), escena_prof: None, ao_rt: None, p_adapta, adapta: None, hongos: crate::hongo::Hongos::nuevo(false), alta, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], vol_ahora: false, alfa_d: false, rayos_rt: None, rayos_ahora: None, som: None, som_vp: [mat::id(); 2], som_n: 0, som_on: false, som_off: [[0.0; 2]; 2], som_huella: [0; 2], refl_n: 0, p_som, p_som_c, p_prof_ao, som_ao: false, refl: None, refl_on: false, refl_activo: false, p_luz_r, p_luz_rc, refl_piso: None, refl_px: [0.0; 2], refl_ult: (mat::id(), f32::NAN), oclu, n_cuadro: 0, fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), gl, op, cubo: None, p_luz, p_luz_c, p_cielo, p_ui, p_copia, p_repro, p_pasar, final_rt: None, vp_ult: None, reloj, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), p_flu, olas_t: None, flu_vb, flu_ib, flu_cap: 0, flu_v: Vec::new(), marcas_vb, marcas_n: 0, poses: vec![], poses_n: 0, pose_p: vec![], pose_v: vec![], marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
             c: None, items: vec![], opacos: vec![], opacos_todos: vec![], transp: vec![], uint32, npot, escena_rt: None, dibujos: 0, memoria: 0, mapa: String::new(), puesto: Puesto::default(), llamadas: [0; 2] })
     }
 
@@ -1130,8 +1135,11 @@ impl Motor {
         self.puesto.olvidar(); for i in tr { if self.items[i].fl & FL_CIELO != 0 { continue; } let add = self.mats[&self.items[i].mat].add != 0; let gl = &self.gl; if add { gl.blend_func(glow::SRC_ALPHA, glow::ONE); } else { gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); } self.dibujar_item(i); }
         // el agua (transparente, después de lo demás)
         if !self.aguas.is_empty() { if let (Some(a), Some(nt)) = (self.agua.clone(), self.agua_n) {
+            let olas_k = self.olas_subir();
             let gl = &self.gl; let p = &self.p_agua; let c = self.c.as_ref().unwrap(); let l = &c.luz; let s = self.sol();
             gl.use_program(Some(p.p)); gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA);
+            gl.uniform_4_f32(p.u("uRayK"), olas_k[0], olas_k[1], olas_k[2], olas_k[3]);
+            if let Some(t) = self.olas_t.filter(|_| olas_k[3] > 0.5) { gl.active_texture(glow::TEXTURE2); gl.bind_texture(glow::TEXTURE_2D, Some(t)); gl.uniform_1_i32(p.u("uRay"), 2); gl.active_texture(glow::TEXTURE0); }
             gl.uniform_matrix_4_f32_slice(p.u("uVP"), false, &vp);
             gl.uniform_4_f32(p.u("uF"), a.fog[0], a.fog[1], a.fog[2], a.fog[3]); gl.uniform_4_f32(p.u("uH"), a.esc, a.fuerza, a.dist, 0.0); gl.uniform_4_f32(p.u("uS"), a.s[0], a.s[1], a.s[2], a.s[3]); gl.uniform_1_f32(p.u("uModo"), a.fuente as f32); gl.uniform_3_f32(p.u("uTinte"), a.t_refr[0], a.t_refr[1], a.t_refr[2]); gl.uniform_3_f32(p.u("uEm"), a.t_refl[0], a.t_refl[1], a.t_refl[2]);
             gl.uniform_3_f32(p.u("uCam"), c.pos[0], c.pos[1], c.pos[2]); gl.uniform_3_f32(p.u("uSol"), s[0], s[1], s[2]); gl.uniform_3_f32(p.u("uSolC"), l.sol_c[0], l.sol_c[1], l.sol_c[2]);
@@ -1345,6 +1353,23 @@ impl Motor {
     }
     /// las partículas del cuadro, armadas en la CPU, en el orden de sus bloques (las de alfa de lejos a cerca, las que suman,
     /// las trazas): un solo búfer y un dibujo por bloque; miran la profundidad sin escribirla
+    /// las olas simuladas del cuadro (EF_OLAS) a su textura (como gpu.rs): [x0, z0, 1/lado, 1] o todo 0
+    unsafe fn olas_subir(&mut self) -> [f32; 4] {
+        let Some(b) = self.c.as_ref().and_then(|c| c.efectos.iter().find(|e| e.0 == EF_OLAS)).map(|e| &e.1) else { return [0.0; 4] };
+        let n = b.get(3).copied().unwrap_or(0.0) as usize; if n < 4 || b.len() < 8 + n * n * 2 { return [0.0; 4]; }
+        let mut px = vec![0u8; n * n * 4];
+        for k in 0..n * n { px[k * 4] = (128.0 + b[8 + k * 2] * 200.0).clamp(0.0, 255.0) as u8; px[k * 4 + 1] = (128.0 + b[9 + k * 2] * 200.0).clamp(0.0, 255.0) as u8; px[k * 4 + 2] = 128; px[k * 4 + 3] = 255; }
+        let k = [b[0], b[1], 1.0 / b[2].max(1.0), 1.0];
+        let gl = &self.gl;
+        match self.olas_t {
+            Some(t) => { gl.bind_texture(glow::TEXTURE_2D, Some(t)); gl.tex_sub_image_2d(glow::TEXTURE_2D, 0, 0, 0, n as i32, n as i32, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelUnpackData::Slice(Some(&px))); }
+            None => { let Ok(t) = gl.create_texture() else { return [0.0; 4] }; gl.bind_texture(glow::TEXTURE_2D, Some(t));
+                gl.tex_image_2d(glow::TEXTURE_2D, 0, glow::RGBA as i32, n as i32, n as i32, 0, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelUnpackData::Slice(Some(&px)));
+                for (q, v) in [(glow::TEXTURE_MIN_FILTER, glow::LINEAR), (glow::TEXTURE_MAG_FILTER, glow::LINEAR), (glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE), (glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE)] { gl.tex_parameter_i32(glow::TEXTURE_2D, q, v as i32); }
+                self.olas_t = Some(t); }
+        }
+        k
+    }
     /// el agua de partículas (EF_FLUIDO): esferas mezcladas, de lejos a cerca
     unsafe fn fluido(&mut self, vp: &M4, rw: i32, rh: i32) {
         let Some(c) = self.c.as_ref() else { return };

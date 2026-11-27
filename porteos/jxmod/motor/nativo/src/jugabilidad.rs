@@ -213,8 +213,12 @@ impl Juego {
         // (las Opciones de JXMod, primeras en Props: ui.js, spawnSubs; las de los mods nativos de esta parte)
         if !self.catalogo.iter().any(|c| c.0 == "Opciones") { self.catalogo.insert(0, ("Opciones".into(), ["opc:volar", "opc:ragdoll", "opc:scp", "opc:ciclope", "opc:piano"].iter().map(|s| s.to_string()).collect())); }
         // (el agua de partículas: un balde, un montón, una canilla, la manguera y secar)
-        if !self.catalogo.iter().any(|c| c.0 == "Agua") { let k = self.catalogo.iter().position(|c| c.0 == "Opciones").map_or(0, |i| i + 1);
-            self.catalogo.insert(k, ("Agua".into(), agua_juego::ITEMS.iter().map(|a| a.0.to_string()).collect())); }
+        // (la categoría Agua de los props ya existe —cubeta, tina, bañeras—: las opciones del agua van primero, y la categoría,
+        // al lado de Opciones)
+        { let mut its: Vec<String> = agua_juego::ITEMS.iter().map(|a| a.0.to_string()).collect();
+          if let Some(i) = self.catalogo.iter().position(|c| c.0 == "Agua") { let (_, viejos) = self.catalogo.remove(i); for v in viejos { if !its.contains(&v) { its.push(v); } } }
+          let k = self.catalogo.iter().position(|c| c.0 == "Opciones").map_or(0, |i| i + 1);
+          self.catalogo.insert(k, ("Agua".into(), its)); }
         // (los ajustes del mundo: la hora del día —tocar una la pone ya— y el ciclo de día y noche)
         if !self.catalogo.iter().any(|c| c.0 == "Mundo") { let k = self.catalogo.iter().position(|c| c.0 == "Opciones").map_or(0, |i| i + 1);
             self.catalogo.insert(k, ("Mundo".into(), MUNDO.iter().map(|m| m.0.to_string()).collect())); }
@@ -515,6 +519,18 @@ impl Juego {
                 let tt = p.celda * if g.chars().count() > 1 { 0.18 } else { 0.32 }; let an = l.ancho(tt, g);
                 l.texto(u, x + (p.celda - an) / 2.0, y + p.celda * 0.25, tt, if on { [0.55, 1.0, 0.5, 1.0] } else { [1.0, 1.0, 1.0, 0.8] }, g);
                 l.disco(u, x + p.celda - p.celda * 0.14, y + p.celda * 0.14, p.celda * 0.05, if on { [0.35, 1.0, 0.35, 1.0] } else { [0.4, 0.4, 0.4, 0.8] });
+            }
+        } }
+        // (el Agua en este menú —sin el kit Aero—: el nombre corto de cada opción del agua)
+        if let (Some(mm), None) = (&self.menu, self.ini.rec.atlas.as_ref()) { if mm.pestana == 0 && self.catalogo.get(mm.sub).map_or(false, |c| c.0 == "Agua") {
+            let p = panel(wf, hf, self.catalogo.len());
+            for (k, it) in self.catalogo[mm.sub].1.iter().enumerate() {
+                let Some(g) = it.strip_prefix("agua:").map(|x| match x { "balde" => "Balde", "pileta" => "Montón", "canilla" => "Canilla", "manguera" => "Manguera", _ => "Secar" }) else { continue };
+                let (col, fila) = (k % p.cols, k / p.cols); let (x, y) = (p.gx + col as f32 * p.celda, p.gy + fila as f32 * p.celda - mm.scroll);
+                if y + p.celda < p.gy || y > p.gy + p.gh { continue; }
+                let on = it == "agua:manguera" && self.jg.agua.manguera;
+                let tt = p.celda * 0.17; let an = l.ancho(tt, g);
+                l.texto(u, x + (p.celda - an) / 2.0, y + p.celda * 0.3, tt, if on { [0.55, 1.0, 0.5, 1.0] } else { [0.6, 0.85, 1.0, 0.95] }, g);
             }
         } }
         // (el Mundo en este menú —sin el kit Aero—: la hora escrita y la luz de puesta)

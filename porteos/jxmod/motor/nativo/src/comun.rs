@@ -1039,6 +1039,11 @@ impl Juego {
             self.fis.sub = SUB_FIS[self.aj.calidad.min(4)];
             self.acum_fis = (self.acum_fis + dt).min(PASO_FIS * 3.0);
             let caps_agua = self.agua_capsulas(); self.jg.agua.flu.calidad(self.aj.calidad as usize);
+            // (lo que empuja las olas además de los cuerpos: el jugador y los NPC, con lo hundido de cada uno)
+            let mut extra_olas: Vec<(u32, f32, f32, f32, f32)> = vec![];
+            { let mut poner = |id: u32, p: [f32; 3], pie: f32, alto: f32, vol: f32, r: f32| if let Some(v) = self.aguas.en(p[0] as f64, p[1] as f64, p[2] as f64, 2.5) { let f = ((v.y1 as f32 - pie) / alto).clamp(0.0, 1.0); extra_olas.push((id, p[0], p[2], r, vol * f)); };
+              if !self.jug.noclip { poner(u32::MAX - 1, self.jug.pos, self.jug.pos[1] - self.jug.medio - self.jug.radio, 1.8, 0.075, 0.35); }
+              for (k, n) in self.npcs.lista.iter().filter(|n| n.vivo).take(16).enumerate() { let q = n.pos(); let q = [q[0] as f32, q[1] as f32, q[2] as f32]; poner(u32::MAX - 2 - k as u32, q, q[1] - 0.9, 1.8, 0.075, 0.35); } }
             while self.acum_fis >= PASO_FIS {
                 for o in self.objs.iter_mut() { o.ant = (o.pos, o.q); }
                 let (yaw, pitch) = (self.jug.yaw, self.jug.pitch); let fwd = [yaw.sin() * pitch.cos(), pitch.sin(), yaw.cos() * pitch.cos()];
@@ -1049,6 +1054,7 @@ impl Juego {
                 // (el agua de partículas y los huecos: antes de flotar —su densidad depende de cuánta agua tienen—)
                 jugabilidad::agua_juego::agua_paso(&mut self.jg.agua, &mut self.fis, &mut self.aguas, &mut self.ef, &mp.mundo, &caps_agua, ([self.ojos_ult[0], self.ojos_ult[1] - 0.25, self.ojos_ult[2]], fwd), self.ojos_ult, mp.mundo.gravedad, PASO_FIS);
                 self.aguas.paso(&mut self.fis, PASO_FIS as f64);
+                self.aguas.olas_paso(&self.fis, self.ojos_ult, &extra_olas, PASO_FIS as f64);
                 self.fis.paso(&mp.mundo, PASO_FIS as f64); self.acum_fis -= PASO_FIS;
                 self.jg.des.golpes.extend(self.fis.golpes.iter().cloned());
                 for o in self.objs.iter_mut() { if let Some(b) = o.cuerpo.and_then(|id| self.fis.cuerpo(id)) { o.pos = [b.pos[0] as f32, b.pos[1] as f32, b.pos[2] as f32]; o.q = [b.q[0] as f32, b.q[1] as f32, b.q[2] as f32, b.q[3] as f32]; } }
@@ -1236,7 +1242,7 @@ impl Juego {
             self.npcs.animar(dt, cam, Some(&vpm), &self.fis); self.npcs.items(&mut items); self.gmp_items_npcs(&mut items, cam, dt); self.red_items(&mut items); self.mapas_items(&mut items); self.grieta_items(&mut items, cam, mira); self.jg_items(&mut items, cam); personajes::celu_juego::antes_items(&mut self.pjs.celu, self.ojos_ult, qcam(self.jug.yaw, self.jug.pitch), self.fov_b, wf / hf.max(1.0), self.sway); self.pjs_items(&mut items, cam, ver_cuerpo); self.gmod_items(ojos, yaw, pitch, &mut items);
             // los efectos: avanzan, y sus bloques (partículas, trazas, marcas) y sus luces —primero: GL2 usa 4—
             self.ef.calidad(self.aj.calidad.min(4)); self.ef.alto_px = hf; self.ef.paso(dt, efx::GRAV);
-            self.jg.nuk.vol = m.hongo_listo(); let mut efectos = self.ef.bloques(&vpm, cam); self.jg_efectos(&mut efectos, &vpm, cam); self.agua_bloque(&mut efectos, &vpm, cam, &luz);
+            self.jg.nuk.vol = m.hongo_listo(); let mut efectos = self.ef.bloques(&vpm, cam); self.jg_efectos(&mut efectos, &vpm, cam); self.agua_bloque(&mut efectos, &vpm, cam, &luz); if let Some(o) = &self.aguas.olas { efectos.push((jxmotor::escena::EF_OLAS, o.bloque())); }
             { let mut b = vec![if bajo_agua { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0]; for o in &self.ondas { b.extend_from_slice(o); } efectos.push((jxmotor::escena::EF_ONDAS, b)); }
             // (Definitivo, en los mapas sin luz horneada: la luz global de las sondas —las de Source ya la traen horneada—)
             if self.aj.calidad == 5 && mp.esc.c.lms.is_empty() && !mp.mundo.t.is_empty() && std::env::var_os("JXM_SIN_GI").is_none() {

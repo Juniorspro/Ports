@@ -16,6 +16,7 @@ pub mod idiomas;
 pub mod gfxauto;
 pub mod flotar;
 pub mod fluido;
+pub mod olas;
 pub mod forma;
 pub mod jugador;
 pub mod mapa;

@@ -102,6 +102,7 @@ impl Juego {
         if d[1] < -0.02 { if let Some(v) = self.aguas.vols.iter().find(|v| { let t = (o[1] - v.y1 as f32) / -d[1]; t > 0.0 && t < dist && v.pisa((o[0] + d[0] * t) as f64, (o[2] + d[2] * t) as f64) }).cloned() {
             let t = (o[1] - v.y1 as f32) / -d[1]; let p = [o[0] + d[0] * t, v.y1 as f32, o[2] + d[2] * t];
             self.jg.agua.flu.salpicar(p, 0.1);
+            if let Some(o) = self.aguas.olas.as_mut() { o.empujar(p[0], p[2], 0.12, 0.0008); }
             for k in 1..6 { let q = [p[0] + d[0] * k as f32 * 0.25, p[1] + d[1] * k as f32 * 0.25, p[2] + d[2] * k as f32 * 0.25]; let r = 0.004 + 0.002 * k as f32; self.jg.agua.burbuja(&mut self.ef, &self.aguas, q, r); }
             let n = format!("AG_Salpica{}", 1 + (self.armas.azar01() * 3.0) as u32); self.sonido.tocar(&n, 0.25, 1.3, Some(p));
         } }

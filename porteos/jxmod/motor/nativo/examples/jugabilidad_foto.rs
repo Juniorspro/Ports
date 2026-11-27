@@ -105,6 +105,34 @@ fn main() {
         paso(&mut j, &mut m, 3); println!("puesta en {:?}", j.jg.agua.src.puesta);
         for (k, (o, p)) in vistas.iter().enumerate() { mirar(&mut j, *o, *p); paso(&mut j, &mut m, 3); foto(&mut m, &format!("agua_source_{k}")); }
     }
+    // ---------------- dónde está el agua en el menú de objetos ----------------
+    if hace("menu_agua") {
+        boton(&mut j, Boton::Objetos); paso(&mut j, &mut m, 20); foto(&mut m, "menu_objetos");
+        let k = j.catalogo.iter().position(|c| c.0 == "Agua").unwrap_or(0); if let Some(mm) = j.menu.as_mut() { mm.sub = k; } paso(&mut j, &mut m, 20); foto(&mut m, "menu_agua");
+        if let Some(mm) = j.menu.as_mut() { mm.sub = 0; } paso(&mut j, &mut m, 20); foto(&mut m, "menu_opciones");
+        println!("categorías: {:?}", j.catalogo.iter().map(|c| format!("{} ({})", c.0, c.1.len())).collect::<Vec<_>>());
+        if let Some(a) = j.catalogo.iter().find(|c| c.0 == "Agua") { println!("Agua: {:?}", a.1.iter().take(12).collect::<Vec<_>>()); }
+    }
+    // ---------------- las olas simuladas y lo que se llena de agua (olas.rs, flotar.rs) ----------------
+    if hace("olas") {
+        let v = j.aguas.vols.iter().max_by(|a, b| (a.hx * a.hz).partial_cmp(&(b.hx * b.hz)).unwrap()).cloned().unwrap();
+        let (cx, cz, y1) = (v.cx as f32 - 10.0, v.cz as f32 + 10.0, v.y1 as f32);
+        mirar(&mut j, [cx - 7.0, y1 + 4.5, cz + 7.0], [cx, y1, cz]); paso(&mut j, &mut m, 30); foto(&mut m, "olas_quieta");
+        for q in [[-1.0f32, -1.0], [1.5, 0.0], [0.0, 1.5]] { let _ = j.crear_en(&mut m, "Box2", [cx + q[0], y1 + 3.0, cz + q[1]], 0.0); }
+        let mut hmax = 0.0f32;
+        for k in 0..150 { paso(&mut j, &mut m, 1); if let Some(o) = &j.aguas.olas { hmax = hmax.max(o.h.iter().map(|x| x.abs()).fold(0.0, f32::max)); }
+            if k == 48 { foto(&mut m, "olas_1"); } if k == 70 { foto(&mut m, "olas_2"); } if k == 110 { foto(&mut m, "olas_3"); } }
+        let movidas = j.aguas.olas.as_ref().map_or(0, |o| o.h.iter().filter(|x| x.abs() > 0.005).count());
+        println!("olas: hasta {:.1} cm · celdas con más de 5 mm al final: {movidas} · grilla en {:?}", hmax * 100.0, j.aguas.olas.as_ref().map(|o| (o.x0, o.z0, o.y)));
+        // un auto que cae al agua: flota un rato, se llena por las rendijas largando aire y se va al fondo
+        let _ = j.crear_en(&mut m, "Sedan", [cx + 5.0, y1 + 2.5, cz - 5.0], 0.0); let auto = j.objs.last().and_then(|o| o.cuerpo);
+        if let Some(id) = auto { if let Some(h) = j.aguas.cuerpos.get(&id).and_then(|f| f.hueco.as_ref()) { println!("auto: hueco {:.1} m³, entra {:.2} m³/s", h.v_cav, h.fuga); } else { println!("auto: NO es hueco"); } }
+        mirar(&mut j, [cx + 1.0, y1 + 3.0, cz - 1.0], [cx + 5.0, y1, cz - 5.0]);
+        for k in 0..2400 { paso(&mut j, &mut m, 1);
+            if k % 300 == 299 { if let Some(b) = auto.and_then(|id| j.fis.cuerpo(id)) { println!("  t {:.0} s · auto a {:.2} m de la superficie · lleno {:.0} %", (k + 1) as f32 / 60.0, b.pos[1] as f32 - y1, auto.and_then(|id| j.aguas.lleno(id)).unwrap_or(-1.0) * 100.0); } }
+            if k == 120 { foto(&mut m, "auto_flota"); } if k == 900 { foto(&mut m, "auto_llenandose"); } }
+        if let Some(b) = auto.and_then(|id| j.fis.cuerpo(id)) { let p = b.pos; mirar(&mut j, [p[0] as f32 + 3.0, (p[1] as f32 + 1.5).min(y1 - 0.5), p[2] as f32 + 3.0], [p[0] as f32, p[1] as f32, p[2] as f32]); paso(&mut j, &mut m, 3); foto(&mut m, "auto_fondo"); }
+    }
     // ---------------- el agua de partículas (agua_juego.rs) ----------------
     if hace("agua") {
         { let k = ["bottle", "botella", "bucket", "balde", "bathtub", "tub", "trash", "can", "lata", "mug", "taza", "cup", "vaso", "pot", "olla", "bowl", "vase", "kettle", "jar", "barrel", "barril", "carton", "jug", "pail", "sink"];

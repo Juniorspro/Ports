@@ -103,6 +103,8 @@ pub fn agua_paso(a: &mut Agua, fis: &mut Fisica, aguas: &mut Aguas, ef: &mut Efe
     let bocas = aguas.bocas(fis);
     a.flu.paso(dt, grav, mundo, fis, Some(aguas), caps, &bocas);
     for (id, v) in std::mem::take(&mut a.flu.llenados) { aguas.llenar(id, v); }
+    // (cada partícula que cae al agua del mapa la empuja: un litro)
+    if let Some(o) = aguas.olas.as_mut() { for &(p, _) in &a.flu.absorbidas { o.empujar(p[0], p[2], 0.15, 0.001); } }
     // lo que cayó al agua del mapa: ondas (las más fuertes) y ruido (no más de uno cada 0,12 s)
     a.ruido_t -= dt;
     let mut mejor: Option<(V, f32)> = None;

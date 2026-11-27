@@ -551,7 +551,7 @@ impl Vehiculos {
         let mut v = Vehiculo::de_arbol(&paq.d, arb, &pf.nombre, pf.c, cuerpo); v.clave = pf.clave.clone();
         if let Some(b) = cuerpo_mut(fis, cuerpo) { if v.tipo != Tipo::Asiento { b.ang_damp = 0.6; b.fric = 0.4; } }
         // (un bote flota con un tercio del casco bajo el agua: densidad 380)
-        if v.bote { if let Some(a) = aguas { let mut f = a.cuerpos.get(&cuerpo).cloned().unwrap_or_else(|| Flota::de_prefab(pf)); f.dens = Some(380.0); f.bote = true; a.registrar(cuerpo, f); } }
+        if v.bote { if let Some(a) = aguas { let mut f = a.cuerpos.get(&cuerpo).cloned().unwrap_or_else(|| Flota::de_prefab(pf)); f.dens = Some(380.0); f.bote = true; f.hueco = None; a.registrar(cuerpo, f); } }
         self.lista.push(v); Some(self.lista.len() - 1)
     }
     /// vehiculoBorrar (antes de sacar el cuerpo de la física): si el jugador estaba adentro, sale

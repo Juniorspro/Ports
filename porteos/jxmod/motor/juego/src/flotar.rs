@@ -68,7 +68,10 @@ impl Flota {
 /// material; el eje de la cavidad (en el marco del cuerpo, hacia la boca), su medio largo, su centro y su radio; la boca
 /// (en el marco del cuerpo) y su radio; el volumen de la cavidad (m³)
 #[derive(Clone, Debug)]
-pub struct Hueco { pub cav: f64, pub lleno: f64, pub rho_casco: f64, pub eje: V, pub l: f64, pub centro: V, pub r: f64, pub boca: V, pub boca_r: f64, pub v_cav: f64, aire: f64, agua: f64, sem: u32 }
+pub struct Hueco { pub cav: f64, pub lleno: f64, pub rho_casco: f64, pub eje: V, pub l: f64, pub centro: V, pub r: f64, pub boca: V, pub boca_r: f64, pub v_cav: f64, aire: f64, agua: f64, sem: u32,
+    /// lo que entra por las rendijas (m³/s con todo el cuerpo bajo el agua; 0: sólo por la boca): los autos —por las puertas, el
+    /// piso— y lo que se empapa (cartón, colchones, sillones). Sale por abajo al sacarlo del agua
+    pub fuga: f64 }
 /// lo que sale de un hueco en un paso: una burbuja (dónde y su radio), una gota que se ve (el chorro) o una partícula de
 /// agua de verdad (cada litro que sale)
 #[derive(Clone, Copy, Debug)]
@@ -84,9 +87,27 @@ impl Hueco {
     /// y bañeras (abiertos arriba). El arriba del modelo es la boca
     pub fn de_prefab(pf: &PrefabFisica) -> Option<Hueco> {
         let n = format!("{} {}", pf.nombre, pf.clave).to_lowercase();
-        let tiene = |l: &[&str]| l.iter().any(|k| n.contains(k));
+        // (las palabras cortas, enteras o al principio de una palabra —«plataforma» no es una lata, «bollard» no es una olla,
+        // «cortina» no es una tina—; las largas, en cualquier lado)
+        let palabras: Vec<&str> = n.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).collect();
+        let corta = |w: &str, k: &str| w == k || (w.starts_with(k) && { let r = &w[k.len()..]; r == "s" || r.chars().all(|c| c.is_ascii_digit() || c == 'a' || c == 'b') });
+        let tiene = |l: &[&str]| l.iter().any(|k| if k.chars().count() <= 5 { palabras.iter().any(|w| corta(w, k)) } else { n.contains(k) });
         let metal = tiene(&["metal", "steel", "iron", "fierro", "chapa"]);
         // (cavidad, boca abierta —parte del radio— o chica —m—, densidad del material)
+        // (los autos —no los botes— se llenan por las rendijas y se hunden; el cartón, los colchones y los sillones se empapan)
+        let bote = tiene(&["boat", "bote", "airboat", "jetski", "jet_ski", "lancha", "kayak", "canoe", "canoa", "balsa", "raft", "barco", "ship", "flotador"]);
+        let veh = pf.tipo == "vehiculo" && !bote;
+        let poroso = tiene(&["carton", "cardboard", "mattress", "colchon", "colchón", "sofa", "couch", "sillon", "sillón"]);
+        if veh || poroso {
+            let up = pf.cap_q.map(|c| rot_inv(c, [0.0, 1.0, 0.0])).unwrap_or([0.0, 1.0, 0.0]);
+            let pts = puntos_forma(&pf.forma); if pts.is_empty() { return None; }
+            let (mut mn, mut mx, mut rl) = (f64::MAX, f64::MIN, 0.0f64);
+            for p in &pts { let a = dot(*p, up); mn = mn.min(a); mx = mx.max(a); rl = rl.max((dot(*p, *p) - a * a).max(0.0).sqrt()); }
+            let (cav, rho, seg) = if veh { (0.7, 1300.0, 35.0) } else { (0.9, 1200.0, 20.0) };
+            let l = ((mx - mn) / 2.0).max(0.01); let c = (mx + mn) / 2.0; let v_cav = (cav * forma_volumen(&pf.forma)).max(1e-4);
+            return Some(Hueco { cav, lleno: 0.0, rho_casco: rho, eje: up, l: l * 0.9, centro: [up[0] * c, up[1] * c, up[2] * c], r: rl, boca: [up[0] * mx, up[1] * mx, up[2] * mx], boca_r: 0.03,
+                v_cav, aire: 0.0, agua: 0.0, sem: 0x5ead ^ (n.len() as u32), fuga: v_cav / seg });
+        }
         let (cav, boca_k, boca_m, rho): (f64, f64, f64, f64) = if tiene(&["bottle", "botella", "flask", "jug0", "bidon", "bidón"]) { (0.86, 0.0, 0.014, if tiene(&["plastic", "plástic"]) { 950.0 } else { 2500.0 }) }
             else if tiene(&["milkcarton", "milk_carton", "carton0", "juicebox"]) { (0.9, 0.0, 0.016, 700.0) }
             else if tiene(&["popcan", "sodacan", "soda_can", "beercan", "metalcan", "lata", "garbage_can0"]) { (0.92, 0.0, 0.011, 2700.0) }
@@ -101,7 +122,7 @@ impl Hueco {
         let l = ((mx - mn) / 2.0).max(0.01); let c = (mx + mn) / 2.0;
         let boca_r = if boca_k > 0.0 { boca_k * rl } else { boca_m.min(rl * 0.8) };
         Some(Hueco { cav, lleno: 0.0, rho_casco: rho, eje: up, l: l * 0.92, centro: [up[0] * c, up[1] * c, up[2] * c], r: rl, boca: [up[0] * mx, up[1] * mx, up[2] * mx], boca_r: boca_r.max(0.004),
-            v_cav: (cav * forma_volumen(&pf.forma)).max(1e-5), aire: 0.0, agua: 0.0, sem: 0x0b0_7e11 ^ (n.len() as u32) })
+            v_cav: (cav * forma_volumen(&pf.forma)).max(1e-5), aire: 0.0, agua: 0.0, sem: 0x0b0_7e11 ^ (n.len() as u32), fuga: 0.0 })
     }
     /// la densidad de todo (material + agua adentro; el aire no pesa)
     pub fn rho(&self) -> f64 { self.rho_casco * (1.0 - self.cav) + AGUA_RHO * self.cav * self.lleno }
@@ -132,6 +153,8 @@ pub struct Aguas {
     puntos: HashMap<u32, Puntos>,
     /// los chapuzones desde la última vez que se miró (los saca quien juega)
     pub salpicones: Vec<Salpicon>,
+    /// las olas simuladas alrededor de la cámara (olas.rs), en el agua que está cerca
+    pub olas: Option<crate::olas::Olas>,
 }
 
 /// formaVolumen
@@ -214,6 +237,26 @@ impl Aguas {
     /// el reloj de las olas: una vez por cuadro, con el tiempo del cuadro (aguaPaso)
     pub fn avanzar(&mut self, dt: f64) { self.t += dt; }
 
+    /// las olas: la grilla sigue a la cámara cuando hay agua cerca (en el volumen más cerca, a menos de 25 m); lo que está en
+    /// el agua las empuja —los cuerpos (lo hundido de cada uno) y lo de `extra` (el jugador, los NPC: id, x, z, radio y
+    /// volumen hundido)— y avanzan un paso
+    pub fn olas_paso(&mut self, fis: &Fisica, cam: [f32; 3], extra: &[(u32, f32, f32, f32, f32)], dt: f64) {
+        let cerca = self.vols.iter().enumerate().filter(|(_, v)| v.hx * v.hz > 4.0).map(|(i, v)| {
+            let dx = ((cam[0] as f64 - v.cx).abs() - v.hx).max(0.0); let dz = ((cam[2] as f64 - v.cz).abs() - v.hz).max(0.0); (i, (dx * dx + dz * dz).sqrt() + (cam[1] as f64 - v.y1).abs() * 0.5)
+        }).filter(|x| x.1 < 25.0).min_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        let Some((vi, _)) = cerca else { self.olas = None; return };
+        match self.olas.as_mut() { Some(o) if o.vol == vi => o.centrar(&self.vols, cam[0], cam[2], false), _ => self.olas = Some(crate::olas::Olas::nueva(&self.vols, vi, cam[0], cam[2])) }
+        let Some(o) = self.olas.as_mut() else { return };
+        for (id, fl) in &self.cuerpos {
+            let Some(b) = fis.cuerpo(*id) else { continue };
+            let v = self.puntos.get(id).map_or(0.0, |p| p.v);
+            let a = b.geo.aabb; let r = (((a[3] - a[0]) + (a[5] - a[2])) * 0.25) as f32;
+            o.cuerpo(*id, b.pos[0] as f32, b.pos[2] as f32, r, (fl.agua_k * v) as f32);
+        }
+        for &(id, x, z, r, h) in extra { o.cuerpo(id, x, z, r, h); }
+        o.paso(dt as f32);
+    }
+
     /// los huecos, una vez por paso de la física (antes de `Fisica::paso`): se llenan con la boca bajo el agua (el aire sale
     /// en burbujas), vuelcan el agua con la boca para abajo fuera del agua y el agua de adentro los gira (pesa de su lado)
     pub fn huecos(&mut self, fis: &mut Fisica, dt: f64, ev: &mut Vec<EventoHueco>) {
@@ -227,6 +270,29 @@ impl Aguas {
             let a = rot(b.q, h.eje); let ob = rot(b.q, h.boca); let o = [b.pos[0] + ob[0], b.pos[1] + ob[1], b.pos[2] + ob[2]];
             let sup = vols.iter().find(|v| v.pisa(o[0], o[2]) && o[1] > v.y0 - 0.05 && o[1] < v.y1 + v.ola + 0.02).map(|v| v.y1 + v.ola_en(t, o[0], o[2]));
             let area = std::f64::consts::PI * h.boca_r * h.boca_r; let antes = h.lleno;
+            if h.fuga > 0.0 {
+                // (por las rendijas: entra lo que está bajo el agua; el aire sale por arriba en burbujas; afuera del agua, gotea)
+                let k = fl.agua_k; let a = b.geo.aabb;
+                if k > 0.03 {
+                    // (lo que se empapa —sin aire que salga: rho_casco < 1300— chupa el agua entera aunque flote alto)
+                    let kk = if h.rho_casco < 1250.0 { k.max(0.6) } else { k };
+                    let dv = (h.fuga * kk * dt).min((1.0 - h.lleno) * h.v_cav);
+                    if dv > 0.0 {
+                        h.lleno = (h.lleno + dv / h.v_cav).min(1.0); h.aire += dv;
+                        for _ in 0..2 {
+                            let r = 0.006 + 0.012 * h.azar(); let vb = 4.18879 * r * r * r * 150.0; if h.aire < vb { break; } h.aire -= vb;
+                            let p = [a[0] + (a[3] - a[0]) * (0.2 + 0.6 * h.azar()), a[4] - 0.08, a[2] + (a[5] - a[2]) * (0.2 + 0.6 * h.azar())];
+                            ev.push(EventoHueco::Burbuja { p, r });
+                        }
+                        h.aire = h.aire.min(0.05);
+                    }
+                } else if k < 0.01 && h.lleno > 0.0 {
+                    let dv = (h.fuga * 0.6 * dt).min(h.lleno * h.v_cav); h.lleno -= dv / h.v_cav; if h.lleno < 1e-4 { h.lleno = 0.0; } h.agua += dv;
+                    let p = [a[0] + (a[3] - a[0]) * (0.2 + 0.6 * h.azar()), a[1] + 0.02, a[2] + (a[5] - a[2]) * (0.2 + 0.6 * h.azar())];
+                    ev.push(EventoHueco::Gota { p, v: [b.vel[0], b.vel[1] - 0.5, b.vel[2]] });
+                    while h.agua >= LITRO { h.agua -= LITRO; ev.push(EventoHueco::Agua { p, v: [b.vel[0], b.vel[1] - 0.5, b.vel[2]] }); }
+                }
+            } else {
             match sup {
                 Some(y) if o[1] < y => {
                     // la boca bajo el agua: entra agua y sale el aire (si la boca no mira para abajo: si no, el aire queda atrapado)
@@ -259,6 +325,7 @@ impl Aguas {
                         while h.agua >= LITRO { h.agua -= LITRO; ev.push(EventoHueco::Agua { p, v: vb }); }
                     }
                 }
+            }
             }
             if (h.lleno - antes).abs() > 1e-4 && b.duerme { b.despertar(); }
             // el agua de adentro pesa de su lado: un giro (la fuerza neta no cambia: es el mismo peso, en otro lugar)
@@ -298,7 +365,8 @@ impl Aguas {
     pub fn paso(&mut self, fis: &mut Fisica, dt: f64) {
         if self.vols.is_empty() { return; }
         let t = self.t;
-        let Aguas { vols, cuerpos, puntos, salpicones, .. } = self;
+        let Aguas { vols, cuerpos, puntos, salpicones, olas, .. } = self;
+        let olas = olas.as_ref();
         for b in fis.cuerpos.iter_mut() {
             if !b.dinamico() || b.duerme || b.sin_fisica || b.agarrado { continue; }
             let a = b.geo.aabb;
@@ -307,7 +375,7 @@ impl Aguas {
             let antes = fl.agua_k;
             let Some(toca) = toca else { fl.agua_k = 0.0; continue };
             let s = puntos.entry(b.id).or_insert_with(|| agua_puntos(&b.forma));
-            if let Some((k, sub)) = empujar(b, fl, s, toca, vols, t, dt) {
+            if let Some((k, sub)) = empujar(b, fl, s, toca, vols, t, dt, olas) {
                 fl.agua_k = k;
                 if sub <= 0.0 { continue; }
                 // al entrar con velocidad, salpica (más cuanto más pesado y más rápido)
@@ -318,7 +386,7 @@ impl Aguas {
 }
 
 /// el empuje de un cuerpo que toca el volumen `toca` (devuelve aguaK y la suma de lo sumergido)
-fn empujar(b: &mut Cuerpo, fl: &Flota, s: &Puntos, toca: &Volumen, vols: &[Volumen], t: f64, dt: f64) -> Option<(f64, f64)> {
+fn empujar(b: &mut Cuerpo, fl: &Flota, s: &Puntos, toca: &Volumen, vols: &[Volumen], t: f64, dt: f64, olas: Option<&crate::olas::Olas>) -> Option<(f64, f64)> {
     let (q, m) = (b.q, b.masa);
     // (los muñecos flotan como una persona: con el 85 % del cuerpo bajo el agua, sea cual sea la masa de cada parte)
     // (la madera flota: los props livianos, que suenan a madera, como mucho a 700 kg/m³, como en GMod)
@@ -333,7 +401,8 @@ fn empujar(b: &mut Cuerpo, fl: &Flota, s: &Puntos, toca: &Volumen, vols: &[Volum
         };
         let Some(v) = v else { continue };
         // (la celda del punto, sumergida en parte —sin saltos en la superficie—, con la ola de ese punto)
-        let f = clamp((v.y1 + v.ola_en(t, x, z) - y) / s.cel + 0.5, 0.0, 1.0);
+        let ol = olas.map_or(0.0, |o| o.altura(x as f32, z as f32) as f64);
+        let f = clamp((v.y1 + v.ola_en(t, x, z) + ol - y) / s.cel + 0.5, 0.0, 1.0);
         if f <= 0.0 { continue; }
         sub += f;
         let vx = b.vel[0] + b.ang[1] * r[2] - b.ang[2] * r[1]; let vy = b.vel[1] + b.ang[2] * r[0] - b.ang[0] * r[2]; let vz = b.vel[2] + b.ang[0] * r[1] - b.ang[1] * r[0];
@@ -425,5 +494,39 @@ mod medir_huecos {
         let (_, ll, _, lit) = correr(&mut fis, &piso, &mut ag, id, 4.0);
         eprintln!("balde lleno parado: {:.0} % (salieron {l0} L) → dado vuelta: {:.0} %, salieron {lit} L de {:.1} L", ll0 * 100.0, ll * 100.0, cap * 1000.0);
         assert!(ll0 > 0.95 && l0 == 0 && ll < 0.05 && lit as f64 >= cap * 1000.0 * 0.9);
+        // 5) un auto cae al agua: flota un rato mientras se llena por las rendijas (largando aire) y se va al fondo
+        let mut auto = prefab("Sedan", 0.0, 0.0, 1200.0); auto.forma = Arc::new(crate::fisica::forma_caja(2.0, 0.7, 0.9)); auto.tipo = "vehiculo";
+        let (m, mut ag) = pileta(); let mut fis = Fisica::nueva(); let id = poner(&mut fis, &mut ag, &auto, [0.0, 0.8, 0.0], parado);
+        let mut t_fondo = None; let mut y_flota = 0.0; let mut bur = 0;
+        for k in 0..120 { let (y, _, b, _) = correr(&mut fis, &m, &mut ag, id, 0.5); bur += b; if k == 4 { y_flota = y; } if y < -1.2 && t_fondo.is_none() { t_fondo = Some(0.5 * (k + 1) as f64); } }
+        let (y, ll, _, _) = correr(&mut fis, &m, &mut ag, id, 0.1);
+        eprintln!("auto: a los 2,5 s flota con el centro en {y_flota:.2} · se llena al {:.0} % · burbujas {bur} · llegó al fondo a los {:?} s (centro {y:.2})", ll * 100.0, t_fondo);
+        assert!(y_flota > -0.7 && t_fondo.is_some() && bur > 10);
+        // 6) una caja de cartón: flota, se empapa y se hunde
+        let mut carton = prefab("CajaCarton", 0.0, 0.0, 3.0); carton.forma = Arc::new(crate::fisica::forma_caja(0.3, 0.3, 0.3));
+        let (m, mut ag) = pileta(); let mut fis = Fisica::nueva(); let id = poner(&mut fis, &mut ag, &carton, [0.0, 0.4, 0.0], parado);
+        let (y1, _, _, _) = correr(&mut fis, &m, &mut ag, id, 3.0); let (y2, ll, _, _) = correr(&mut fis, &m, &mut ag, id, 60.0);
+        eprintln!("caja de cartón: a los 3 s centro {y1:.2} · al minuto {y2:.2} (fondo −2), empapada {:.0} %", ll * 100.0);
+        assert!(y1 > -0.3 && y2 < -1.5);
+    }
+}
+
+#[cfg(test)]
+mod nombres_huecos {
+    use super::*;
+    use crate::fisica::forma_prisma;
+    use std::sync::Arc;
+    fn pf(nombre: &str, tipo: &'static str) -> PrefabFisica {
+        PrefabFisica { nombre: nombre.into(), clave: format!("{nombre}#x"), forma: Arc::new(forma_prisma(0.3, 0.3, 0.3, 8)), c: [0.0; 3], eje_cap: None, cap_q: None, partes: 0, masa: 5.0, fric: 0.6, rest: 0.1, tipo, sin_fisica: false, congelado: false, salta: false, snd: "metal".into(), dens: None }
+    }
+    #[test]
+    fn cuales_son_huecos() {
+        for n in ["Cubeta", "Tina", "Banera", "BaneraPatas", "bottle3", "bottleDanger", "Vase", "props_junk/metalbucket01a", "props_junk/PopCan01a", "CajaCarton", "props_interiors/BathTub01a", "garbage_glassbottle001a"] {
+            assert!(Hueco::de_prefab(&pf(n, "prop")).is_some(), "{n} tendría que ser hueco");
+        }
+        for n in ["Plataforma", "props_c17/bollard01", "Cortina", "Box2", "props_junk/wood_crate001a", "Barril", "BarrilExplosivo", "Bowling_pin", "Mesa", "Silla"] {
+            assert!(Hueco::de_prefab(&pf(n, "prop")).is_none(), "{n} no tendría que ser hueco");
+        }
+        assert!(Hueco::de_prefab(&pf("Sedan", "vehiculo")).is_some() && Hueco::de_prefab(&pf("Airboat", "vehiculo")).is_none());
     }
 }

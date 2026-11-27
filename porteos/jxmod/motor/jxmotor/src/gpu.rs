@@ -8,7 +8,7 @@
 //!  - recorte por lo que ve la cámara (y por lo que ve el sol para la sombra) con la esfera de cada cosa;
 //!  - resolución dinámica: la escena a una fracción del tamaño de la pantalla y estirada al final (lo que más pesa en una
 //!    placa floja son los píxeles), y la sombra y el reflejo rehechos cada tantos cuadros.
-use crate::escena::{FL_ARMA, Agua, Cielo, Cuadro, Escena, ItemDin, Mat, FL_CIELO, FL_SIN_SOMBRA, EF_GI, EF_GI_DATOS, EF_MARCAS, EF_ONDAS, EF_PART_ALFA, EF_PART_SUMA, EF_FLUIDO, FLU_CAB, FLU_POR};
+use crate::escena::{FL_ARMA, Agua, Cielo, Cuadro, Escena, ItemDin, Mat, FL_CIELO, FL_SIN_SOMBRA, EF_GI, EF_GI_DATOS, EF_MARCAS, EF_ONDAS, EF_PART_ALFA, EF_PART_SUMA, EF_FLUIDO, FLU_CAB, FLU_POR, EF_OLAS};
 use crate::mat::{self, M4};
 use glow::HasContext;
 use std::collections::HashMap;
@@ -389,6 +389,8 @@ uniform vec4 uF, uH, uS, uBq; uniform vec2 uD, uRefInv; uniform float uTiempo, u
 uniform vec3 uSol, uSolC, uAmbS, uAmbG, uCam, uNieC, uNie;
 // (el agua de Source tal cual su material: uModo 1, uTinte = $refracttint, uEm = $reflecttint)
 uniform float uModo; uniform vec3 uTinte, uEm;
+// (las olas simuladas: la pendiente del agua cerca de la cámara, olas.rs; uRayK = x0, z0, 1/lado, prendida)
+uniform sampler2D uRay; uniform vec4 uRayK;
 // (las ondas que dejan el jugador y lo que cae: x, z, cuándo y la fuerza)
 uniform vec4 uOnd[8]; uniform float uOndN;
 in vec3 vW; in vec3 vN; in vec2 vU; in vec2 vL; in vec3 vS; in float vMz; out vec4 o;
@@ -415,6 +417,9 @@ void main() {
     vec2 dd = vW.xz - r.xy; float dist = length(dd) + 1e-3, x = dist - e * 1.4;
     float an = sin(x * 16.0) * exp(-x * x * 5.0) * exp(-e * 1.1) * r.w / (1.0 + dist * 0.6);
     d += dd / dist * (an * 0.9); anillos += abs(an); }
+  if (uRayK.w > 0.5) { vec2 uo = (vW.xz - uRayK.xy) * uRayK.z;
+    if (uo.x > 0.0 && uo.y > 0.0 && uo.x < 1.0 && uo.y < 1.0) { vec2 sl = (texture(uRay, uo).rg - 0.5) * 1.275;
+      float bo = clamp(min(min(uo.x, uo.y), min(1.0 - uo.x, 1.0 - uo.y)) * 12.0, 0.0, 1.0); d -= sl * bo * 1.6; } }
   vec3 n = normalize(vec3(d.x, 1.0, d.y));
   if (uModo > 0.5 && uCam.y >= vW.y - 0.005 && uRefrOn > 0.5 && uNC > 0.5) {
     // el agua de Source, como su sombreador de agua con reflejo y refracción en tiempo real: el mapa de normales de su
@@ -1013,6 +1018,8 @@ pub struct Motor {
     ao_rt: Option<Destino>,
     /// la copia de la escena antes del agua (para ver el fondo corrido por las olas)
     refr_rt: Option<Destino>,
+    /// la textura de las olas simuladas (EF_OLAS: la pendiente del agua en cada celda)
+    olas_t: Option<glow::Texture>,
     /// el agua de partículas: la profundidad y el grosor, y dos para suavizar (a media resolución)
     flu_rt: [Option<Destino>; 3],
     sombra: Option<(glow::Framebuffer, glow::Texture, i32)>,
@@ -1130,7 +1137,7 @@ impl Motor {
         let blanca = textura(&gl, 1, 1, &[255, 255, 255, 255], true, false);
         let reloj = crate::reloj::Reloj::nuevo(&gl);
         Ok(Motor { gi_tex: None, gi_ver: -1.0, refl_agua: false, refl_piso: None, refl_piso_ult: (mat::id(), f32::NAN), p_adapta, adapta: None, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], rayos_rt: None, hongos: crate::hongo::Hongos::nuevo(true), gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
-            p_luz, p_luz_piel, p_luz_c, p_luz_piel_c, p_luz_inst_c, p_pre, p_pre_piel, p_pre_inst, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_flu, p_flu_g, p_flu_bl, p_flu_c, flu_rt: [None, None, None], p_lin, p_ui, ui, p_luz_inst, p_sombra_inst, inst_buf, part, flu, marcas, ao_rt: None, refr_rt: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], svp2: mat::id(), sesgo2: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
+            p_luz, p_luz_piel, p_luz_c, p_luz_piel_c, p_luz_inst_c, p_pre, p_pre_piel, p_pre_inst, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_flu, p_flu_g, p_flu_bl, p_flu_c, flu_rt: [None, None, None], p_lin, p_ui, ui, p_luz_inst, p_sombra_inst, inst_buf, part, flu, marcas, ao_rt: None, refr_rt: None, olas_t: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], svp2: mat::id(), sesgo2: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
             opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new(), ranuras: Vec::new(), instancias: std::env::var("JXM_SIN_INST").is_err(),
             ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), vp_ult: None, corte_ult: 0.0, final_rt: None, p_repro, p_copia, reloj, puesto: std::cell::RefCell::new(None), llamadas: std::cell::Cell::new([0; 2]), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), fases_b: vec![], luz_b, perfil: std::env::var_os("JXM_PERFIL").map(|_| std::cell::RefCell::new(vec![])) })
     }
@@ -1740,6 +1747,24 @@ impl Motor {
         Some(par[1 - i].1)
     }
 
+    /// las olas simuladas del cuadro (EF_OLAS) a su textura: [x0, z0, 1/lado, 1] para el sombreador del agua (o todo 0)
+    unsafe fn olas_subir(&mut self) -> [f32; 4] {
+        let Some(b) = self.c.as_ref().and_then(|c| c.efectos.iter().find(|e| e.0 == EF_OLAS)).map(|e| &e.1) else { return [0.0; 4] };
+        let n = b.get(3).copied().unwrap_or(0.0) as usize; if n < 4 || b.len() < 8 + n * n * 2 { return [0.0; 4]; }
+        let mut px = vec![0u8; n * n * 4];
+        for k in 0..n * n { px[k * 4] = (128.0 + b[8 + k * 2] * 200.0).clamp(0.0, 255.0) as u8; px[k * 4 + 1] = (128.0 + b[9 + k * 2] * 200.0).clamp(0.0, 255.0) as u8; px[k * 4 + 2] = 128; px[k * 4 + 3] = 255; }
+        let k = [b[0], b[1], 1.0 / b[2].max(1.0), 1.0];
+        let gl = &self.gl;
+        match self.olas_t {
+            Some(t) => { gl.bind_texture(glow::TEXTURE_2D, Some(t)); gl.tex_sub_image_2d(glow::TEXTURE_2D, 0, 0, 0, n as i32, n as i32, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelUnpackData::Slice(Some(&px))); }
+            None => { let Ok(t) = gl.create_texture() else { return [0.0; 4] }; gl.bind_texture(glow::TEXTURE_2D, Some(t));
+                gl.tex_image_2d(glow::TEXTURE_2D, 0, glow::RGBA8 as i32, n as i32, n as i32, 0, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelUnpackData::Slice(Some(&px)));
+                for (q, v) in [(glow::TEXTURE_MIN_FILTER, glow::LINEAR), (glow::TEXTURE_MAG_FILTER, glow::LINEAR), (glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE), (glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE)] { gl.tex_parameter_i32(glow::TEXTURE_2D, q, v as i32); }
+                self.olas_t = Some(t); }
+        }
+        k
+    }
+
     /// el agua de partículas (EF_FLUIDO) como superficie: profundidad y grosor a media resolución, la profundidad suavizada
     /// y el agua sobre la escena (con la escena copiada para verla a través)
     unsafe fn fluido(&mut self, vp: &M4, ew: i32, eh: i32) {
@@ -2008,9 +2033,12 @@ impl Motor {
               gl.bind_framebuffer(glow::READ_FRAMEBUFFER, Some(fb)); gl.bind_framebuffer(glow::DRAW_FRAMEBUFFER, Some(r.fb));
               gl.blit_framebuffer(0, 0, ew, eh, 0, 0, ew, eh, glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT, glow::NEAREST);
               gl.bind_framebuffer(glow::FRAMEBUFFER, Some(fb)); }
+            let olas_k = self.olas_subir();
             let a = self.agua.as_ref().unwrap(); let p = &self.p_agua;
             self.luces(p, &vp, -1e9);
             let gl = &self.gl;
+            gl.uniform_4_f32(p.u(U::RayK), olas_k[0], olas_k[1], olas_k[2], olas_k[3]);
+            if let Some(t) = self.olas_t.filter(|_| olas_k[3] > 0.5) { gl.active_texture(glow::TEXTURE15); gl.bind_texture(glow::TEXTURE_2D, Some(t)); gl.active_texture(glow::TEXTURE0); }
             gl.uniform_4_f32(p.u(U::F), a.fog[0], a.fog[1], a.fog[2], a.fog[3]);
             let refl_on = self.op.reflejo && cam_arriba && self.reflejo.is_some() && self.refl_agua;
             gl.uniform_4_f32(p.u(U::H), a.esc, a.fuerza, a.dist, if refl_on { 1.0 } else { 0.0 });
