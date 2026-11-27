@@ -88,6 +88,23 @@ fn main() {
         let p2 = j.fis.cuerpo(id2).unwrap().pos; mirar(&mut j, [p2[0] as f32 + 4.0, p2[1] as f32 + 1.0, p2[2] as f32 - 1.0], [p2[0] as f32, p2[1] as f32, p2[2] as f32]); paso(&mut j, &mut m, 3);
         let (autos, _) = j.jg_des_info(); println!("explosión al costado: {:?} · vida {:.0}", autos, j.vehs.de(id2).map(|v| v.vida).unwrap_or(0.0)); foto(&mut m, "des_explosion_lado");
     }
+    // ---------------- el agua de Source (dev/water_normal de HL2 bajada de archive.org, y el material del mapa) ----------------
+    if hace("agua_src") {
+        let arch = std::env::temp_dir().join("jxm_jug_datos/hl2_water_normal.vtf"); if std::env::var_os("JXM_BAJAR_DE_NUEVO").is_some() { let _ = std::fs::remove_file(&arch); }
+        j.gmod.http_bin = Some(std::sync::Arc::new(|u: &str| {
+            let o = std::process::Command::new("curl").args(["-sL", "--max-time", "240", "-w", "\n%{http_code}", u]).output().map_err(|e| e.to_string())?;
+            let mut b = o.stdout; let i = b.iter().rposition(|c| *c == b'\n').unwrap_or(0); let cod: u16 = String::from_utf8_lossy(&b[i + 1..]).trim().parse().unwrap_or(0); b.truncate(i); Ok((cod, b))
+        }));
+        let v = j.aguas.vols.iter().max_by(|a, b| (a.hx * a.hz).partial_cmp(&(b.hx * b.hz)).unwrap()).cloned().unwrap();
+        let (cx, cz, y1) = (v.cx as f32, v.cz as f32, v.y1 as f32);
+        let vistas = [([cx - 22.0, y1 + 2.0, cz + 34.0], [cx + 6.0, y1 - 1.0, cz - 6.0]), ([cx + 3.0, y1 + 3.5, cz + 8.0], [cx, y1, cz + 2.0]), ([cx - 10.0, y1 + 0.6, cz + 20.0], [cx + 10.0, y1 + 0.6, cz - 20.0])];
+        for (k, (o, p)) in vistas.iter().enumerate() { mirar(&mut j, *o, *p); paso(&mut j, &mut m, 3); foto(&mut m, &format!("agua_propia_{k}")); }
+        let t0 = std::time::Instant::now();
+        while j.jg.agua.src.cuadros.is_none() && j.jg.agua.src.error.is_none() && t0.elapsed().as_secs() < 250 { paso(&mut j, &mut m, 1); std::thread::sleep(std::time::Duration::from_millis(100)); }
+        println!("agua de Source: textura {:?} en {:.1} s · error {:?} · archivo {} bytes", j.jg.agua.src.cuadros.as_ref().map(|c| (c.0, c.1, c.2)), t0.elapsed().as_secs_f32(), j.jg.agua.src.error, std::fs::metadata(&arch).map(|m| m.len()).unwrap_or(0));
+        paso(&mut j, &mut m, 3); println!("puesta en {:?}", j.jg.agua.src.puesta);
+        for (k, (o, p)) in vistas.iter().enumerate() { mirar(&mut j, *o, *p); paso(&mut j, &mut m, 3); foto(&mut m, &format!("agua_source_{k}")); }
+    }
     // ---------------- el agua de partículas (agua_juego.rs) ----------------
     if hace("agua") {
         { let k = ["bottle", "botella", "bucket", "balde", "bathtub", "tub", "trash", "can", "lata", "mug", "taza", "cup", "vaso", "pot", "olla", "bowl", "vase", "kettle", "jar", "barrel", "barril", "carton", "jug", "pail", "sink"];

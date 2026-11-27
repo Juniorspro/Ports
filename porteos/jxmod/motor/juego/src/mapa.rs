@@ -202,6 +202,32 @@ pub fn cielo_painted(l: u32) -> [Vec<u8>; 6] {
     [lado.clone(), lado.clone(), azul.clone(), azul, lado.clone(), lado]
 }
 
+/// el material de agua de Source de un mapa (lo que dice su .vmt): el color de la niebla (sRGB, 0 a 1) y hasta dónde llega
+/// (unidades), $refractamount y $refracttint, $reflectamount y $reflecttint, cuánto mide un mosaico del mapa de normales
+/// (m, de la escala de la textura en la cara del agua) y su $bumptransform (lo que corre por segundo, en mosaicos)
+#[derive(Clone, Debug)]
+pub struct MatAguaSrc { pub niebla: [f32; 3], pub niebla_fin: f32, pub refract: f32, pub t_refr: [f32; 3], pub reflect: f32, pub t_refl: [f32; 3], pub mosaico: f32, pub corre: [f32; 2] }
+/// el agua de cada mapa, de su material de Source: gm_construct usa nature/water_canals03 (con la escala de su cara: 4
+/// píxeles por unidad, un mosaico de 64 unidades); los demás, la de la costa de HL2 (nature/water_wasteland002a)
+pub fn mat_agua_source(mapa: &str) -> MatAguaSrc {
+    // ($bumptransform: TextureScroll a 0,05 por segundo, a 45°)
+    let corre = [0.05 * std::f32::consts::FRAC_1_SQRT_2, 0.05 * std::f32::consts::FRAC_1_SQRT_2];
+    if mapa.to_lowercase().contains("construct") {
+        MatAguaSrc { niebla: [20.0 / 255.0, 42.0 / 255.0, 39.0 / 255.0], niebla_fin: 330.0, refract: 4.0, t_refr: [0.68, 0.76, 0.76], reflect: 2.5, t_refl: [1.0, 0.95, 0.85], mosaico: 64.0 * 0.0254, corre }
+    } else {
+        MatAguaSrc { niebla: [23.0 / 255.0, 37.0 / 255.0, 47.0 / 255.0], niebla_fin: 800.0, refract: 3.0, t_refr: [1.0, 1.0, 1.0], reflect: 1.0, t_refl: [1.0, 1.0, 1.0], mosaico: 64.0 * 0.0254, corre }
+    }
+}
+/// el agua de Source sobre la de un mapa: su mapa de normales de verdad (los cuadros RGBA, `n` de w × h, en `o` de los datos)
+/// y lo de su material
+pub fn agua_source(a: &mut jxmotor::escena::Agua, m: &MatAguaSrc, w: u32, h: u32, n: u32, o: usize) {
+    a.fuente = 1; a.normal = Some(jxmotor::escena::TexAgua { w, h, o, n });
+    a.esc = 1.0 / m.mosaico.max(0.05); a.s = [m.corre[0], m.corre[1], 0.0, 0.0];
+    a.fog = [srgb(m.niebla[0]), srgb(m.niebla[1]), srgb(m.niebla[2]), a.fog[3]]; a.largo = (m.niebla_fin * 0.0254).max(0.5);
+    // (cuánto corre la imagen: lo del material, a la escala de la pantalla del motor —medido mirando el mapa—)
+    a.dist = m.reflect * 0.16; a.refr = m.refract * 0.16; a.t_refr = m.t_refr; a.t_refl = m.t_refl;
+}
+
 /// el agua (el volumen más grande del mapa): como el agua de HL2 de la versión personal (jxpAguaHL2), con un mapa de
 /// normales propio y lo hondo medido con rayos (jxpAguaFondo); sus datos se suman a `datos`. Devuelve el agua y su altura
 pub fn agua_hl2(aguas: &[[f32; 6]], mundo: &crate::mundo::Mundo, datos: &mut Vec<u8>) -> (Option<jxmotor::escena::Agua>, Option<f32>) {
@@ -221,7 +247,7 @@ pub fn agua_hl2(aguas: &[[f32; 6]], mundo: &crate::mundo::Mundo, datos: &mut Vec
     let fs = [0.08f32, 0.19, 0.2]; let fin = 400.0f32; let turbia = (1.05 - fin / 1500.0).clamp(0.55, 0.92);
     (Some(jxmotor::escena::Agua { fog: [srgb(fs[0]), srgb(fs[1]), srgb(fs[2]), turbia], esc: 0.38, fuerza: 0.55, dist: 0.4 * 0.5, refr: 0.5, s: [0.021, 0.016, -0.018, 0.024],
         largo: (fin * 0.0254 / 2.5).max(1.5), normal: Some(jxmotor::escena::TexAgua { w: n, h: n, o, n: cuadros }),
-        prof: Some(jxmotor::escena::Prof { x0: lo[0], z0: lo[2], w, h, d: dd, tex: Some(jxmotor::escena::TexAgua { w: pn as u32, h: pn as u32, o: op, n: 1 }) }), y: hi[1] }), Some(hi[1]))
+        prof: Some(jxmotor::escena::Prof { x0: lo[0], z0: lo[2], w, h, d: dd, tex: Some(jxmotor::escena::TexAgua { w: pn as u32, h: pn as u32, o: op, n: 1 }) }), y: hi[1], fuente: 0, t_refr: [1.0; 3], t_refl: [1.0; 3] }), Some(hi[1]))
 }
 
 impl Mapa {

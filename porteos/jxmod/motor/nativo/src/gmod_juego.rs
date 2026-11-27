@@ -948,7 +948,7 @@ impl Juego {
 
 // ---------------- la tienda (gmod_tienda.js: buscar los populares y bajar el .gma) ----------------
 impl Juego {
-    fn gmod_http_bin(&self) -> Option<HttpBin> {
+    pub(crate) fn gmod_http_bin(&self) -> Option<HttpBin> {
         if let Some(h) = &self.gmod.http_bin { return Some(h.clone()); }
         // (sin el binario, el de texto de la red: sirve para la lista, no para los .gma)
         let h = self.en_red.puente.as_ref().and_then(|p| p.http.clone())?;

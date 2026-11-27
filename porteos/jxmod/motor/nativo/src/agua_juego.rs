@@ -27,6 +27,30 @@ pub struct Agua {
     respira_t: f32, ruido_t: f32, sem: u32,
     /// las ondas nuevas (x, z, fuerza) y los ruidos (dónde, volumen) del último paso: los pone quien juega
     pub ondas: Vec<[f32; 3]>, pub ruidos: Vec<(V, f32)>,
+    /// el agua de Source de los mapas
+    pub src: AguaSrc,
+}
+
+/// el mapa de normales del agua de Source (dev/water_normal de Half-Life 2: 256 × 256, 29 cuadros), del archivo de Garry's
+/// Mod 10 en archive.org (el mismo de donde salió gm_construct): se baja una vez, se guarda y desde ahí el agua de los mapas
+/// es la de Source (su material: canales para gm_construct, la costa para los demás)
+pub const URL_NORMAL_SRC: &str = "https://archive.org/download/garrys-mod-10/Garrys_Mod_10.rar/Garrys_Mod_10%2Fhl2%2Fmaterials%2Fdev%2Fwater_normal.vtf";
+const TAM_NORMAL_SRC: usize = 10_136_388;
+#[derive(Default)]
+pub struct AguaSrc {
+    /// los cuadros (ancho, alto, cuántos, RGBA uno abajo del otro)
+    pub cuadros: Option<std::rc::Rc<(u32, u32, u32, Vec<u8>)>>,
+    rx: Option<std::sync::mpsc::Receiver<Result<Vec<u8>, String>>>, pedida: bool, mirado: bool,
+    /// el mapa al que ya se le puso
+    pub puesta: Option<String>,
+    pub error: Option<String>,
+}
+fn normal_src_de(b: &[u8]) -> Option<(u32, u32, u32, Vec<u8>)> {
+    let cs = jxgmod::formatos::vtf_cuadros(b, 256).ok()?; let c0 = cs.first()?;
+    if c0.w != c0.h || c0.w < 16 { return None; }
+    let (w, h) = (c0.w as u32, c0.h as u32); let mut px = Vec::with_capacity(c0.w * c0.h * 4 * cs.len());
+    for c in cs.iter().take(64) { px.extend_from_slice(&jxgmod::formatos::vtf_rgba(c)); }
+    Some((w, h, cs.len().min(64) as u32, px))
 }
 
 impl Agua {
@@ -99,6 +123,45 @@ pub fn agua_paso(a: &mut Agua, fis: &mut Fisica, aguas: &mut Aguas, ef: &mut Efe
 }
 
 impl Juego {
+    /// el agua de Source: la textura (del archivo guardado o bajándola una vez) y, cuando está, el agua del mapa con su
+    /// material de Source (una vez por mapa). Cada cuadro, con el mapa puesto
+    pub(crate) fn agua_src_paso(&mut self, m: &mut Motor3d) {
+        if std::env::var_os("JXM_SIN_AGUA_SRC").is_some() { return; }
+        let archivo = self.datos.as_ref().map(|d| d.join("hl2_water_normal.vtf"));
+        let src = &mut self.jg.agua.src;
+        if src.cuadros.is_none() {
+            if !src.mirado { src.mirado = true; if let Some(b) = archivo.as_ref().and_then(|f| std::fs::read(f).ok()).filter(|b| b.len() == TAM_NORMAL_SRC) { src.cuadros = normal_src_de(&b).map(std::rc::Rc::new); } }
+            if src.cuadros.is_none() && !src.pedida && self.mapa.as_ref().map_or(false, |mp| mp.esc.c.agua.is_some()) {
+                if let Some(h) = self.gmod_http_bin() {
+                    let src = &mut self.jg.agua.src; src.pedida = true;
+                    let (tx, rx) = std::sync::mpsc::channel(); src.rx = Some(rx);
+                    std::thread::spawn(move || { let r = h(URL_NORMAL_SRC).and_then(|(c, b)| if c == 200 && b.len() == TAM_NORMAL_SRC { Ok(b) } else { Err(format!("HTTP {c}, {} bytes", b.len())) }); let _ = tx.send(r); });
+                }
+            }
+            let src = &mut self.jg.agua.src;
+            if let Some(r) = src.rx.as_ref().and_then(|rx| rx.try_recv().ok()) {
+                src.rx = None;
+                match r { Ok(b) => { if let Some(f) = &archivo { let _ = std::fs::write(f, &b); } src.cuadros = normal_src_de(&b).map(std::rc::Rc::new); if src.cuadros.is_none() { src.error = Some("la textura no se pudo leer".into()); } }
+                    Err(e) => src.error = Some(e) }
+            }
+        }
+        // (ponerla en el agua del mapa: los cuadros y lo hondo —de los datos del mapa— en una escena con sólo el agua)
+        let Some(cs) = self.jg.agua.src.cuadros.clone() else { return };
+        let Some(mp) = self.mapa.as_ref() else { return };
+        if self.jg.agua.src.puesta.as_deref() == Some(mp.nombre.as_str()) { return; }
+        // (los mapas de Source de los addons ya traen el agua de su material: queda la suya)
+        let Some(mut a) = mp.esc.c.agua.clone().filter(|a| a.fuente == 0) else { self.jg.agua.src.puesta = Some(mp.nombre.clone()); return };
+        let mut datos = Vec::with_capacity(cs.3.len() + 64 * 64 * 4);
+        datos.extend_from_slice(&cs.3);
+        if let Some(t) = a.prof.as_mut().and_then(|p| p.tex.as_mut()) {
+            let n = (t.w * t.h * 4) as usize; let Some(px) = mp.esc.datos.get(t.o..t.o + n) else { return };
+            while datos.len() % 4 != 0 { datos.push(0); } t.o = datos.len(); datos.extend_from_slice(px);
+        }
+        jxjuego::mapa::agua_source(&mut a, &jxjuego::mapa::mat_agua_source(&mp.nombre), cs.0, cs.1, cs.2, 0);
+        let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas: vec![], mats: vec![], texs: vec![], lms: vec![], items: vec![], agua: Some(a), cielo: None };
+        let nombre = mp.nombre.clone();
+        match unsafe { m.cargar(&Escena { c: cab, datos }) } { Ok(()) => self.jg.agua.src.puesta = Some(nombre), Err(e) => { self.jg.agua.src.error = Some(e); self.jg.agua.src.puesta = Some(nombre); } }
+    }
     /// Props → Agua: poner agua donde se mira (sobre la superficie), una canilla, la manguera o secar todo
     pub fn agua_poner(&mut self, k: &str) -> bool {
         let Some(mp) = self.mapa.as_ref() else { return true };

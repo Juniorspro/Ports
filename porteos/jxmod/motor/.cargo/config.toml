@@ -1,0 +1,6 @@
+# (las bibliotecas de Android con los segmentos alineados a 16 KB: los celulares con páginas de 16 KB —Android 15 en
+# adelante, algunos— no cargan las alineadas a 4 KB)
+[target.aarch64-linux-android]
+rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]
+[target.armv7-linux-androideabi]
+rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]

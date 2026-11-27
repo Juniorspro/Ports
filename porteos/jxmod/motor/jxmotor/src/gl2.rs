@@ -394,18 +394,34 @@ precision mediump float;
 uniform sampler2D uN, uR; uniform vec4 uF, uH, uS, uRP; uniform vec3 uCam, uSol, uSolC, uAmbS, uAmbG, uTop, uMid, uNieC, uNie; uniform float uTiempo, uExpo;
 // (las ondas que dejan el jugador y lo que cae, como gpu.rs)
 uniform vec4 uOnd[8]; uniform float uOndN;
+// (el agua de Source tal cual su material: uModo 1, uTinte = $refracttint, uEm = $reflecttint)
+uniform float uModo; uniform vec3 uTinte, uEm;
 varying vec3 vW;
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
 void main() {
   float dCam = distance(vW, uCam); vec3 v = normalize(uCam - vW); vec2 q = vW.xz * uH.x;
   vec3 n1 = texture2D(uN, q + uTiempo * uS.xy).rgb * 2.0 - 1.0, n2 = texture2D(uN, q * 0.71 + vec2(0.37, 0.61) + uTiempo * uS.zw).rgb * 2.0 - 1.0;
-  float lejos = 1.0 / (1.0 + dCam * 0.012); vec2 d = (n1.xy + n2.xy) * uH.y * lejos;
+  float lejos = 1.0 / (1.0 + dCam * 0.012); vec2 d = uModo > 0.5 ? vec2(0.0) : (n1.xy + n2.xy) * uH.y * lejos;
   float anillos = 0.0;
   for (int i = 0; i < 8; i++) { if (float(i) >= uOndN) break; vec4 r = uOnd[i]; float e = uTiempo - r.z; if (e < 0.0 || e > 3.5) continue;
     vec2 dd = vW.xz - r.xy; float dist = length(dd) + 1e-3, x = dist - e * 1.4;
     float an = sin(x * 16.0) * exp(-x * x * 5.0) * exp(-e * 1.1) * r.w / (1.0 + dist * 0.6);
     d += dd / dist * (an * 0.9); anillos += abs(an); }
   vec3 n = normalize(vec3(d.x, 1.0, d.y));
+  if (uModo > 0.5 && uCam.y >= vW.y - 0.005) {
+    // el agua de Source como su versión sin refracción en tiempo real: el mapa de normales de su material (el primer cuadro de
+    // dev/water_normal, corrido por su $bumptransform), el reflejo de la escena corrido por $reflectamount y teñido por
+    // $reflecttint sobre el color de su niebla ($fogcolor: lo que Source pone de fondo cuando no refracta), por Fresnel;
+    // un poco transparente para que se vea el fondo cerca
+    vec3 tn = n1; tn.xy += d; vec3 ns = normalize(vec3(tn.x, max(tn.z, 0.2), tn.y));
+    float nvs = clamp(dot(ns, v), 0.0, 1.0); float frs = 0.02 + 0.98 * pow(1.0 - nvs, 5.0);
+    vec3 fogc = pow(uF.rgb, vec3(1.0 / 2.2)) * uTinte;
+    vec3 rfs = reflect(-v, ns); vec3 refls = mix(uMid, uTop, pow(clamp(rfs.y, 0.0, 1.0), 0.5));
+    if (uRP.z > 0.5) refls = texture2D(uR, clamp(gl_FragCoord.xy * uRP.xy + tn.xy * uH.z / max(dCam * 0.25, 1.0), 0.002, 0.998)).rgb;
+    refls *= uEm;
+    float sps = pow(max(dot(rfs, uSol), 0.0), 600.0) * 0.8 * step(0.0, uSol.y);
+    gl_FragColor = vec4(mix(fogc, refls, frs) + uSolC * sps, mix(0.82, 1.0, frs)); return;
+  }
   if (uCam.y < vW.y - 0.005) {
     // desde abajo (como gpu.rs): adentro de la ventana de Snell, transparente —se ve lo de arriba, ya dibujado— con el cielo y el
     // sol; afuera, el agua se refleja a sí misma (su color, más oscuro); entre el ojo y la superficie, la niebla del agua
@@ -1117,7 +1133,7 @@ impl Motor {
             let gl = &self.gl; let p = &self.p_agua; let c = self.c.as_ref().unwrap(); let l = &c.luz; let s = self.sol();
             gl.use_program(Some(p.p)); gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA);
             gl.uniform_matrix_4_f32_slice(p.u("uVP"), false, &vp);
-            gl.uniform_4_f32(p.u("uF"), a.fog[0], a.fog[1], a.fog[2], a.fog[3]); gl.uniform_4_f32(p.u("uH"), a.esc, a.fuerza, a.dist, 0.0); gl.uniform_4_f32(p.u("uS"), a.s[0], a.s[1], a.s[2], a.s[3]);
+            gl.uniform_4_f32(p.u("uF"), a.fog[0], a.fog[1], a.fog[2], a.fog[3]); gl.uniform_4_f32(p.u("uH"), a.esc, a.fuerza, a.dist, 0.0); gl.uniform_4_f32(p.u("uS"), a.s[0], a.s[1], a.s[2], a.s[3]); gl.uniform_1_f32(p.u("uModo"), a.fuente as f32); gl.uniform_3_f32(p.u("uTinte"), a.t_refr[0], a.t_refr[1], a.t_refr[2]); gl.uniform_3_f32(p.u("uEm"), a.t_refl[0], a.t_refl[1], a.t_refl[2]);
             gl.uniform_3_f32(p.u("uCam"), c.pos[0], c.pos[1], c.pos[2]); gl.uniform_3_f32(p.u("uSol"), s[0], s[1], s[2]); gl.uniform_3_f32(p.u("uSolC"), l.sol_c[0], l.sol_c[1], l.sol_c[2]);
             gl.uniform_3_f32(p.u("uAmbS"), l.amb_s[0], l.amb_s[1], l.amb_s[2]); gl.uniform_3_f32(p.u("uAmbG"), l.amb_g[0], l.amb_g[1], l.amb_g[2]); gl.uniform_1_f32(p.u("uExpo"), l.expo);
             let (top, mid) = self.cielo.as_ref().map(|k| (k.top, k.mid)).unwrap_or(([0.28, 0.64, 1.0], [0.92, 0.92, 0.92]));

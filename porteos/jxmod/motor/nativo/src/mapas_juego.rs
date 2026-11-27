@@ -334,11 +334,15 @@ impl Juego {
                         while datos.len() % 4 != 0 { datos.push(0); } let o = datos.len();
                         for c in &cs { datos.extend_from_slice(&gmf::vtf_rgba(c)); }
                         a.normal = Some(jxmotor::escena::TexAgua { w: c0.w as u32, h: c0.h as u32, o, n: cs.len() as u32 });
+                        // (el agua de Source con lo de su material: lo que corre la imagen —$reflectamount, $refractamount— y el
+                        // mosaico de 64 unidades)
+                        if cs.len() > 1 { a.fuente = 1; a.esc = 1.0 / (64.0 * 0.0254); a.s = [0.0354, 0.0354, 0.0, 0.0];
+                            if av.reflejo > 0.0 { a.dist = av.reflejo.min(4.0) * 0.16; } if av.refraccion > 0.0 { a.refr = av.refraccion.min(5.0) * 0.16; } }
                     } }
                 }
             }
             if let Some(c) = av.niebla { let lin = |x: f32| if x <= 0.04045 { x / 12.92 } else { ((x + 0.055) / 1.055).powf(2.4) }; a.fog[0] = lin(c[0]); a.fog[1] = lin(c[1]); a.fog[2] = lin(c[2]); }
-            if let Some(fin) = av.niebla_fin.filter(|f| *f > 1.0) { a.fog[3] = (1.05 - fin / 1500.0).clamp(0.55, 0.92); a.largo = (fin * 0.0254 / 2.5).max(1.5); }
+            if let Some(fin) = av.niebla_fin.filter(|f| *f > 1.0) { a.fog[3] = (1.05 - fin / 1500.0).clamp(0.55, 0.92); a.largo = if a.fuente == 1 { (fin * 0.0254).max(0.5) } else { (fin * 0.0254 / 2.5).max(1.5) }; }
         }
         let cab = Cabecera { mapa: nombre.to_string(), w: 0, h: 0, cam: None, luz: None, mallas, mats, texs: vec![], lms, items: vec![], agua, cielo: Some(cielo) };
         let n_items = items.len();

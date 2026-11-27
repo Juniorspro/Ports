@@ -244,6 +244,8 @@ impl Juego {
     pub(super) unsafe fn jg_cuadro(&mut self, m: &mut Motor3d, dt: f32) {
         if self.mapa.is_none() { return; }
         self.jg_preparar(m);
+        // (el agua de Source del mapa: la textura de Valve y su material)
+        self.agua_src_paso(m);
         let dt = if self.ajustes.is_some() { 0.0 } else { dt };
         self.jg.t += dt; self.jg.dt = dt; self.jg.cam = None;
         self.des_paso(m, dt);

@@ -34,7 +34,11 @@ pub struct TexAgua { pub w: u32, pub h: u32, pub o: usize, /** los cuadros de la
 #[derive(Deserialize, Debug, Clone)]
 pub struct Prof { pub x0: f32, pub z0: f32, pub w: f32, pub h: f32, #[serde(rename = "D")] pub d: f32, pub tex: Option<TexAgua> }
 #[derive(Deserialize, Debug, Clone)]
-pub struct Agua { pub fog: [f32; 4], pub esc: f32, pub fuerza: f32, pub dist: f32, #[serde(default = "medio")] pub refr: f32, pub s: [f32; 4], pub largo: f32, pub normal: Option<TexAgua>, pub prof: Option<Prof>, #[serde(default)] pub y: f32 }
+pub struct Agua { pub fog: [f32; 4], pub esc: f32, pub fuerza: f32, pub dist: f32, #[serde(default = "medio")] pub refr: f32, pub s: [f32; 4], pub largo: f32, pub normal: Option<TexAgua>, pub prof: Option<Prof>, #[serde(default)] pub y: f32,
+    /// 1: el agua de Source tal cual su material (el mapa de normales de Valve, $refracttint, $reflecttint, la niebla hasta $fogend);
+    /// los tintes del fondo y del reflejo
+    #[serde(default)] pub fuente: u8, #[serde(default = "blanco3")] pub t_refr: [f32; 3], #[serde(default = "blanco3")] pub t_refl: [f32; 3] }
+fn blanco3() -> [f32; 3] { [1.0; 3] }
 /// el cielo: el degradé del mapa (colores en gamma) y, si tiene, la caja de seis caras (L×L RGBA cada una) con su tinte
 /// y cuánto se ve (de noche, el degradé)
 #[derive(Deserialize, Debug, Clone)]

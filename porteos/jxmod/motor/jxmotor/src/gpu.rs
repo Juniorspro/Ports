@@ -387,6 +387,8 @@ precision highp float;
 uniform sampler2D uN, uRef, uP, uRefr; uniform highp sampler2D uRefrP; uniform highp sampler2DArray uNA;
 uniform vec4 uF, uH, uS, uBq; uniform vec2 uD, uRefInv; uniform float uTiempo, uExpo, uRefrOn, uRefrK, uNC;
 uniform vec3 uSol, uSolC, uAmbS, uAmbG, uCam, uNieC, uNie;
+// (el agua de Source tal cual su material: uModo 1, uTinte = $refracttint, uEm = $reflecttint)
+uniform float uModo; uniform vec3 uTinte, uEm;
 // (las ondas que dejan el jugador y lo que cae: x, z, cuándo y la fuerza)
 uniform vec4 uOnd[8]; uniform float uOndN;
 in vec3 vW; in vec3 vN; in vec2 vU; in vec2 vL; in vec3 vS; in float vMz; out vec4 o;
@@ -395,7 +397,7 @@ void main() {
   float dCam = distance(vW, uCam); vec3 v = normalize(uCam - vW);
   vec2 q = vW.xz * uH.x;
   float lejos = 1.0 / (1.0 + dCam * 0.012), alfa = 1.0; vec2 d;
-  if (uNC > 0.5) {
+  if (uModo > 0.5) { d = vec2(0.0); } else if (uNC > 0.5) {
     // (como dev/water_normal de HL2: los cuadros a 30 por segundo —mezclados de a dos, sin saltos— y corridos despacio, como su
     // TextureScroll; otra lectura más grande y en otro cuadro para que no se note la repetición; el alfa, cuánto corre)
     float fa = uTiempo * 30.0, k = fract(fa), f0 = mod(floor(fa), uNC), f1 = mod(f0 + 1.0, uNC), g0 = mod(f0 + floor(uNC * 0.5), uNC), g1 = mod(g0 + 1.0, uNC);
@@ -414,6 +416,30 @@ void main() {
     float an = sin(x * 16.0) * exp(-x * x * 5.0) * exp(-e * 1.1) * r.w / (1.0 + dist * 0.6);
     d += dd / dist * (an * 0.9); anillos += abs(an); }
   vec3 n = normalize(vec3(d.x, 1.0, d.y));
+  if (uModo > 0.5 && uCam.y >= vW.y - 0.005 && uRefrOn > 0.5 && uNC > 0.5) {
+    // el agua de Source, como su sombreador de agua con reflejo y refracción en tiempo real: el mapa de normales de su
+    // material (dev/water_normal de Valve: 29 cuadros a 30 por segundo, corrido por su $bumptransform, un mosaico del tamaño
+    // que le da la cara del mapa), el fondo corrido por $refractamount, teñido por $refracttint y con la niebla del agua
+    // ($fogcolor, de 0 a $fogend por lo que la mirada cruza abajo del agua), el reflejo de la escena corrido por
+    // $reflectamount y teñido por $reflecttint, mezclados por Fresnel
+    float fa = uTiempo * 30.0, kf = fract(fa), f0 = mod(floor(fa), uNC), f1 = mod(f0 + 1.0, uNC);
+    vec2 qs = vW.xz * uH.x + uTiempo * uS.xy;
+    vec3 tn = mix(texture(uNA, vec3(qs, f0)), texture(uNA, vec3(qs, f1)), kf).rgb * 2.0 - 1.0;
+    tn.xy += d;   // (las ondas que dejan el jugador y lo que cae)
+    vec3 ns = normalize(vec3(tn.x, max(tn.z, 0.2), tn.y));
+    float nvs = clamp(dot(ns, v), 0.0, 1.0); float frs = 0.02 + 0.98 * pow(1.0 - nvs, 5.0);
+    vec2 pans = gl_FragCoord.xy * uRefInv; float lej = 1.0 / max(dCam * 0.25, 1.0);
+    vec3 refls = texture(uRef, clamp(pans + tn.xy * uH.z * lej, 0.002, 0.998)).rgb * uEm;
+    vec2 uvf = clamp(pans + tn.xy * uRefrK * lej, 0.002, 0.998);
+    if (texture(uRefrP, uvf).r < gl_FragCoord.z) uvf = pans;   // (lo que está delante del agua no se corre)
+    vec2 pbs = (vW.xz - uBq.xy) * uBq.zw;
+    float profs = (pbs.x >= 0.0 && pbs.y >= 0.0 && pbs.x <= 1.0 && pbs.y <= 1.0) ? texture(uP, pbs).r * uD.x : uD.x;
+    float nieb = clamp(profs / max(abs(v.y), 0.12) / max(uD.y, 0.1), 0.0, 1.0);
+    vec3 fogc = pow(uF.rgb, vec3(1.0 / 2.2));
+    vec3 abajo = mix(texture(uRefr, uvf).rgb * uTinte, fogc, nieb);
+    float rvs = max(dot(reflect(-v, ns), uSol), 0.0);
+    o = vec4(mix(abajo, refls, frs) + uSolC * pow(rvs, 600.0) * 0.8 * step(0.0, uSol.y), 1.0); return;
+  }
   if (uCam.y < vW.y - 0.005) {
     // desde abajo (como HL2 mirando para arriba estando en el agua): adentro de la ventana de Snell —el cono de 48,6° alrededor
     // de la vertical— se ve lo de arriba, corrido por las olas y con el sol; afuera, el agua se refleja a sí misma (reflexión
@@ -2005,6 +2031,7 @@ impl Motor {
             gl.active_texture(glow::TEXTURE4); gl.bind_texture(glow::TEXTURE_2D, Some(self.agua_p.unwrap_or(self.blanca)));
             gl.uniform_1_f32(p.u(U::RefrOn), if cam_arriba { 1.0 } else { 0.0 });
             gl.uniform_1_f32(p.u(U::RefrK), a.refr);
+            gl.uniform_1_f32(p.u(U::Modo), a.fuente as f32); gl.uniform_3_f32(p.u(U::Tinte), a.t_refr[0], a.t_refr[1], a.t_refr[2]); gl.uniform_3_f32(p.u(U::Em), a.t_refl[0], a.t_refl[1], a.t_refl[2]);
             if let Some(r) = &self.refr_rt { gl.active_texture(glow::TEXTURE12); gl.bind_texture(glow::TEXTURE_2D, Some(r.color)); gl.active_texture(glow::TEXTURE13); gl.bind_texture(glow::TEXTURE_2D, r.prof_t); }
             for &i in &self.aguas {
                 let it = &self.items[i]; let m = &self.mallas[&it.m];

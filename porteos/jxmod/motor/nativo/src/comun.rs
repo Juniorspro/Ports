@@ -959,7 +959,7 @@ impl Juego {
                 let noclip = self.jug.noclip;
                 self.jug = Jugador::nuevo(); self.jug.noclip = noclip; self.acum = 0.0;
                 self.jug.aparecer(&mp.mundo, sp, Some(yaw)); self.jug.aguas = mp.aguas.clone();
-                self.aguas = Aguas::de_cajas(&mp.aguas); self.ef.limpiar(); self.jg.agua.flu.limpiar(); self.jg.agua.manguera = false; self.ef.luz_de(&mp.luz);
+                self.aguas = Aguas::de_cajas(&mp.aguas); self.ef.limpiar(); self.jg.agua.flu.limpiar(); self.jg.agua.manguera = false; self.jg.agua.src.puesta = None; self.ef.luz_de(&mp.luz);
                 self.mapa = Some(mp); self.npcs.piso = self.piso().into();
                 self.pjs_mapa(m);
             }
