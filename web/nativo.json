@@ -1,9 +1,9 @@
 {
- "codigo": 26112718,
- "version": "0.51",
+ "codigo": 26112719,
+ "version": "0.52",
  "apk": "jxmod/JXModNativo.apk",
  "tam": 76704006,
- "sha256": "7298b280068842b8106bb5eba152188fa4431fe3e21267e78b17a690da67e523",
- "notas_es": "Bugs y sugerencias: ahora con Celulares, y se publica sin cuenta (sólo un nombre) con título, descripción y video. Multijugador: ves las puertas, nucleares, bocinas, el Cíclope, la catapulta y el piano y la radio de los demás. Arreglo para celulares Mali (la resolución se iba al piso).",
- "notas_en": "Bugs and suggestions: now with Phones, and you can post without an account (just a name) with title, description and video. Multiplayer: you see other players' doors, nukes, horns, Cyclops, catapult, piano and radio. Fix for Mali phones (resolution dropping to the minimum)."
+ "sha256": "f213958488665892aa4813d7e87b244b8ff454c0256f0b7c9379a0d32f408ceb",
+ "notas_es": "Celulares con Mali: arranca con OpenGL 2 (en algunos OpenGL 3 dejaba la pantalla negra). Arreglo del cielo lleno de rayos en OpenGL 2. Vuelve el Límite de NPC en Opciones → Gráficos.",
+ "notas_en": "Phones with Mali GPUs start with OpenGL 2 (OpenGL 3 left a black screen on some). Fixed the sky full of light rays in OpenGL 2. NPC limit is back in Options → Graphics."
 }
