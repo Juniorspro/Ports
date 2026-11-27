@@ -1,9 +1,9 @@
 {
- "codigo": 26112621,
- "version": "0.34",
+ "codigo": 26112701,
+ "version": "0.35",
  "apk": "jxmod/JXModNativo.apk",
  "tam": 74660102,
- "sha256": "6a52cce9d308b9ac0a4292857b81bdb7a2697fffae690f26ba664730e4799e1f",
- "notas_es": "JXMod Nativo 0.34 — Sin el fantasma del arma con JX Turbo: el arma se marca aparte y en los cuadros intermedios se mueve con su propio movimiento (el vaivén, apuntar), así ya no se duplica ni se corre con el mundo al girar (medido: queda a menos de 1 píxel de donde la pone el cuadro de verdad; antes, 27 a 37). Y donde el arma tapaba el fondo no queda su copia. De yapa, el arma ya no se mete en las paredes.",
- "notas_en": "JXMod Native 0.34 — No more weapon ghost with JX Turbo: the weapon is marked separately and in-between frames move it with its own motion (sway, aiming), so it no longer doubles or slides with the world when turning (measured: within 1 pixel of where the real frame puts it; before, 27 to 37). Where the weapon covered the background, no copy of it is left. Bonus: the weapon no longer clips into walls."
+ "sha256": "7b6837349d01822464f74fce18d1f2ee16a3bd269fa98e5c1e16bb4ec18f1365",
+ "notas_es": "JXMod Nativo 0.35 — La Workshop en el nativo: la tienda baja los addons directo. Y los addons andan mucho más completos: la API de GMod pasó del 76 % al 90 % (medido contra la wiki y 554 addons populares). Los menús que arman los mods ahora se ven como en GMod y se usan con el dedo: ventanas, pestañas, casillas, deslizadores, listas, desplegables y el teclado para escribir. La tecla Usar activa las cosas de los mods en vez de tirar un prop, andan las cámaras de los mods (vista desde una entidad, tercera persona) y las herramientas de la Tool Gun de los addons aparecen y se usan. Arreglados el sable láser que se veía punteado y un cuelgue con Stop Motion Helper.",
+ "notas_en": "JXMod Native 0.35 — The Workshop in the native app: the store downloads addons directly. Addons work much more completely: GMod API coverage went from 76% to 90% (measured against the wiki and 554 popular addons). Menus built by mods now look like GMod's and work by touch: windows, tabs, checkboxes, sliders, lists, dropdowns and the keyboard for typing. The Use key activates mod things instead of throwing a prop, mod cameras work (view from an entity, third person), and addon Tool Gun tools show up and can be used. Fixed the dotted-looking lightsaber and a hang with Stop Motion Helper."
 }
