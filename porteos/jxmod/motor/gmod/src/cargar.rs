@@ -106,13 +106,27 @@ impl Gmod {
         self.activar();
         if !g(|g| g.activo) { return; }
         paso(&mut self.lua, dt, choques);
+        crate::herramientas::paso(&mut self.lua);
     }
+    /// las herramientas de la Tool Gun de los addons (para el Tool Gun del juego)
+    pub fn herramientas_cuenta(&self) -> usize { self.activar(); g(|g| g.tools_addon.len()) }
+    pub fn herramientas(&mut self) -> Vec<crate::HerrAddon> { self.activar(); crate::herramientas::lista(&mut self.lua) }
+    /// elegir la herramienta de un addon en el Tool Gun (None: otra del juego)
+    pub fn herramienta_activa(&mut self, modo: Option<&str>) { self.activar(); crate::herramientas::activar(&mut self.lua, modo) }
+    /// usar la herramienta de un addon: «LeftClick», «RightClick» o «Reload» (con el mundo prestado: traza)
+    pub fn herramienta_usar(&mut self, modo: &str, met: &str) -> bool { self.activar(); crate::herramientas::usar(&mut self.lua, modo, met) }
+    /// poner una ConVar (los ajustes de las herramientas de los addons: «<modo>_<nombre>»)
+    pub fn cvar_poner(&mut self, n: &str, v: &str) { self.activar(); crate::motor::cvar_poner(&mut self.lua, n, v) }
     /// la HUD de los addons (gmaHUDPaso): HUDPaint y el DrawHUD del arma, como órdenes de dibujo al juego
     pub fn hud(&mut self) { self.activar(); hud(&mut self.lua); }
     /// lo 3D del cuadro (gmrAntes): los Draw de las entidades, los modelos de los addons que se ven (con su pose), los
     /// objetos que no se ven, los sprites de render.* y la vista del arma del addon. `dt`: lo que avanza la vista
     /// la cámara que piden los addons (hook CalcView y el CalcView del arma: la tercera persona del sable); None si nadie
     /// la toca
+    /// ¿el jugador mira algo de un addon que se puede usar (la tecla E de GMod)? Con el mundo prestado
+    pub fn mirando_usable(&mut self) -> bool { self.activar(); g(|g| g.activo) && crate::motor::usable_mirado().is_some() }
+    /// la tecla E (1 al apretar, 2 apretada, 3 al soltar): ENT:Use de lo que mira, con su tipo de uso; si usó algo
+    pub fn usar_tecla(&mut self, estado: u8) -> bool { self.activar(); if !g(|g| g.activo) { return false; } crate::motor::usar_tecla(&mut self.lua, estado) }
     pub fn calc_vista(&mut self) -> Option<crate::modelos::CalcVista> { self.activar(); if !g(|g| g.activo) { return None; } crate::modelos::calc_vista(&mut self.lua) }
     pub fn dibujar3d(&mut self, dt: f64) -> crate::modelos::Dib { self.activar(); if !g(|g| g.activo) { return Default::default(); } crate::modelos::dibujar(&mut self.lua, dt) }
     /// un modelo de los addons montados (leído una vez)
@@ -434,6 +448,7 @@ fn montar_lua(e: &mut Estado, a: &Rc<RefCell<Addon>>) {
             correr(e, Lado::S, r, &mut corrido);
             let ht = e.globales().borrow().get_str("TOOL");
             e.globales().borrow_mut().set_str("TOOL", Valor::Nil);
+            if let Valor::Tabla(_) = &ht { crate::herramientas::guardar(e, n, Lado::S, ht.clone()); }
             if let Valor::Tabla(ht) = ht {
                 for k in ["ClientConVar", "ServerConVar"] {
                     if let Valor::Tabla(cv) = tget(&ht, k) {
@@ -448,6 +463,8 @@ fn montar_lua(e: &mut Estado, a: &Rc<RefCell<Addon>>) {
             let tt = tool_tabla(e, n);
             e.globales().borrow_mut().set_str("TOOL", Valor::Tabla(tt));
             correr(e, Lado::C, r, &mut corrido);
+            let ht = e.globales().borrow().get_str("TOOL");
+            if let Valor::Tabla(_) = &ht { crate::herramientas::guardar(e, n, Lado::C, ht); }
             e.globales().borrow_mut().set_str("TOOL", Valor::Nil);
         });
     }
@@ -729,7 +746,7 @@ fn hud(e: &mut Estado) {
     let hay_arma = w.as_ref().map(|w| ce(w, |x| (x.vivo, x.clase.clone())).map(|(v, c)| v && clase_tabla(&c, Lado::C).is_some()).unwrap_or(false)).unwrap_or(false);
     let hay = |ev: &str| g(|g| g.hooks.get(ev).map(|hs| hs.iter().any(|x| x.1.c.is_some())).unwrap_or(false));
     let hay_ef = hay("RenderScreenspaceEffects");
-    let hay_hooks = hay_ef || hay("HUDPaint") || hay("HUDPaintBackground") || hay("PostDrawHUD") || hay("DrawOverlay");
+    let hay_hooks = hay_ef || hay("HUDPaint") || hay("HUDPaintBackground") || hay("PostDrawHUD") || hay("DrawOverlay") || crate::herramientas::hay_activa();
     g(|g| g.pp = None);
     if !hay_hooks && !hay_arma && !g(|g| g.hud_sucio) { return; }
     g(|g| g.hud_sucio = false);
@@ -744,6 +761,7 @@ fn hud(e: &mut Estado) {
         hook(e, "PostDrawHUD", C, &[]);
     }
     if hay_arma && h(|h| h.jug().vivo) { if let Some(w) = &w { metodo(e, w, "DrawHUD", Lado::C, &[]); } }
+    if h(|h| h.jug().vivo) { crate::herramientas::hud(e); }
     if hay_hooks { hook(e, "DrawOverlay", C, &[]); }
     g(|g| g.dibujo_hud = false);
 }

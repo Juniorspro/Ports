@@ -292,6 +292,8 @@ pub struct EnGmod {
     pub ms_3d: f32,
     /// lo que pidió el CalcView de los addons en este cuadro (la cámara del sable: tercera persona)
     pub calc: Option<jxgmod::modelos::CalcVista>,
+    /// el jugador mira una entidad de un addon que se puede usar (aparece el botón Usar) y si lo tenía apretado
+    pub usable: bool, pub usar_ant: bool,
     /// cómo leer rb/ (la biblioteca gm_lib y rb/jxp: en la APK o en una carpeta; lo pone la app), lo leído y el menú de GMod
     pub lector_rb: Option<LectorRb>, pub(crate) lib: Option<Rc<gmod_base::Biblioteca>>, pub jxp: Option<gmod_base::MenuJxp>, pub menu: gmod_menu::MenuGm,
     /// los modelos de jugador puestos (el jugador y los NPC con uno: gmod_pm.rs)
@@ -308,7 +310,7 @@ impl EnGmod {
     pub fn nueva(datos: Option<&Path>) -> EnGmod {
         let (tx, rx) = channel();
         EnGmod { gm: None, addons: vec![], pendientes: vec![], arma: None, base: 0, teclas: vec![], teclas_de: String::new(), carpeta_externa: None, datos: datos.map(|d| d.to_path_buf()), panel: false, scroll: 0.0, texs: vec![], hud_px: vec![], escala: 1.0,
-            http_bin: None, tienda: vec![], tx, rx, tienda_pedida: false, ms: 0.0, ms_prom: 0.0, pantalla: (1280.0, 720.0), buscado: false, cuenta: BTreeMap::new(), mods: Default::default(), ms_3d: 0.0, calc: None, lector_rb: None, lib: None, jxp: None, menu: Default::default(), pm: Default::default(), veh_fis: HashMap::new(), bucles: HashMap::new(), t_snd: 0.0, pill: Default::default() }
+            http_bin: None, tienda: vec![], tx, rx, tienda_pedida: false, ms: 0.0, ms_prom: 0.0, pantalla: (1280.0, 720.0), buscado: false, cuenta: BTreeMap::new(), mods: Default::default(), ms_3d: 0.0, calc: None, usable: false, usar_ant: false, lector_rb: None, lib: None, jxp: None, menu: Default::default(), pm: Default::default(), veh_fis: HashMap::new(), bucles: HashMap::new(), t_snd: 0.0, pill: Default::default() }
     }
     fn apagados_ruta(&self) -> Option<PathBuf> { self.datos.as_ref().map(|d| d.join("gmod_apagados.txt")) }
     /// los addons de las carpetas (.gma y carpetas con lua/), en orden de nombre; los apagados quedan anotados
@@ -462,7 +464,7 @@ impl Juego {
         self.gmod.menu.hecho = false;
     }
     /// presta (o devuelve) el mapa, la física y las letras al puente mientras corre el Lua
-    fn gmod_prestar(&mut self, prestar: bool) {
+    pub(crate) fn gmod_prestar(&mut self, prestar: bool) {
         let Some(gm) = self.gmod.gm.as_ref() else { return };
         if prestar {
             let (mp, fis, l) = (self.mapa.take(), std::mem::replace(&mut self.fis, Fisica::nueva()), self.letras.take());
@@ -471,6 +473,27 @@ impl Juego {
             let (mp, fis, l) = gm.anfitrion(|h| { let p = h.como_any().and_then(|a| a.downcast_mut::<Puente>()).unwrap(); (p.mapa.take(), p.fis.take(), p.letras.take()) });
             self.mapa = mp; if let Some(f) = fis { self.fis = f; } self.letras = l;
         }
+    }
+    /// las herramientas de la Tool Gun de los addons en la lista del Tool Gun del juego (al montar o desmontar uno), con
+    /// sus ConVars como ajustes; y la elegida activa en el Lua sólo con la Tool Gun en la mano
+    fn gmod_herramientas_sync(&mut self) {
+        let Some(g) = self.gmod.gm.as_mut() else { return };
+        let n = self.her.lista.iter().filter(|h| h.gm.is_some()).count();
+        let lista = if g.herramientas_cuenta() != n { Some(g.herramientas()) } else { None };
+        if let Some(l) = lista {
+            let sel = self.her.lista.get(self.her.sel).map(|h| h.n.clone());
+            self.her.lista.retain(|h| h.gm.is_none());
+            for t in l {
+                let p = t.convars.iter().map(|(k, d)| {
+                    let tipo = if d == "0" || d == "1" { "Boolean" } else if d.parse::<f32>().is_ok() { "Single" } else { "String" };
+                    herramientas::Param { n: k.clone(), t: tipo.into(), o: vec![], d: Some(d.clone()) }
+                }).collect();
+                self.her.lista.push(herramientas::Herr { n: t.nombre.clone(), p, gm: Some(t.modo.clone()) });
+            }
+            if let Some(s) = sel { if let Some(i) = self.her.lista.iter().position(|h| h.n == s) { self.her.sel = i; } }
+        }
+        let quiero = if self.armas.def().n == "ToolBaton" { self.her.lista.get(self.her.sel).and_then(|h| h.gm.clone()) } else { None };
+        if let Some(g) = self.gmod.gm.as_mut() { g.herramienta_activa(quiero.as_deref()); }
     }
     /// el cuadro de los addons: montar lo pendiente, copiar el juego al Lua, su cuadro (y su HUD), y lo que pidió
     pub fn gmod_cuadro(&mut self, m: &mut Motor3d, dt: f32) {
@@ -486,9 +509,14 @@ impl Juego {
         if self.gmod.arma.is_some() && self.armas.i != self.gmod.base { self.gmod.arma = None; }
         self.gmod_copiar(dt);
         let pausa = self.ajustes.is_some();
+        // (la tecla E de GMod: apretar, mantener, soltar el botón Usar mirando una entidad de un addon)
+        let usar_ap = self.apretado(Boton::Usar) && self.menu.is_none() && !pausa;
+        let usar_est = match (usar_ap, self.gmod.usar_ant) { (true, false) => 1u8, (true, true) => 2, (false, true) => 3, _ => 0 };
+        self.gmod.usar_ant = usar_ap;
         self.gmod_prestar(true);
-        if !pausa { if let Some(gm) = self.gmod.gm.as_mut() { gm.paso(dt as f64, &[]); gm.hud(); let t3 = Instant::now(); self.gmod.calc = gm.calc_vista(); self.gmod.mods.dib = gm.dibujar3d(dt as f64); self.gmod.ms_3d = t3.elapsed().as_secs_f32() * 1000.0; } }
+        if !pausa { if let Some(gm) = self.gmod.gm.as_mut() { gm.paso(dt as f64, &[]); gm.hud(); let t3 = Instant::now(); self.gmod.usable = gm.mirando_usable(); if usar_est != 0 { gm.usar_tecla(usar_est); } self.gmod.calc = gm.calc_vista(); self.gmod.mods.dib = gm.dibujar3d(dt as f64); self.gmod.ms_3d = t3.elapsed().as_secs_f32() * 1000.0; } }
         self.gmod_prestar(false);
+        self.gmod_herramientas_sync();
         self.gmod_aplicar(m);
         self.gm_bucles_paso(dt, pausa);
         let t3 = Instant::now(); self.gm_modelos_paso(m); self.gmp_paso(m); self.gmod.ms_3d += t3.elapsed().as_secs_f32() * 1000.0;

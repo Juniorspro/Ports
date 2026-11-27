@@ -16,8 +16,8 @@ impl Valor {
     pub fn si(&self) -> bool { match self { Valor::Si(b) => *b, Valor::Num(x) => *x != 0.0, Valor::Txt(t) => !t.is_empty() } }
 }
 /// un parámetro de una herramienta: el nombre, el tipo (String, String[], Boolean, Single, Int32) y las opciones
-pub struct Param { pub n: String, pub t: String, pub o: Vec<String> }
-pub struct Herr { pub n: String, pub p: Vec<Param> }
+pub struct Param { pub n: String, pub t: String, pub o: Vec<String>, /** el valor de entrada (las ConVars de las herramientas de los addons) */ pub d: Option<String> }
+pub struct Herr { pub n: String, pub p: Vec<Param>, /** la herramienta de un addon: su modo (LeftClick/RightClick en el Lua) */ pub gm: Option<String> }
 /// lo que hace una cosa de la Tool Gun puesta en el mundo (o.logica)
 pub struct Logica { pub tipo: String, pub params: HashMap<String, Valor>, pub entradas: Vec<u32>, pub salida: bool, pub t: f32, pub luz: bool, pub texto: String, pub color: String }
 /// las herramientas: la lista, la elegida, los parámetros de cada una, el cable empezado, las trazas y lo que tiró un Spawner
@@ -28,6 +28,7 @@ pub struct Herramientas { pub lista: Vec<Herr>, pub sel: usize, pub params: Hash
 fn prefab_de(n: &str) -> &str { match n { "SimpleNextbot" | "Nextbot" => "Nextbot", x => x } }
 /// lo que vale un parámetro al elegir la herramienta (equiparHerramienta)
 fn por_defecto(p: &Param) -> Valor {
+    if let Some(d) = &p.d { return match p.t.as_str() { "Boolean" => Valor::Si(d != "0" && !d.is_empty()), "Single" | "Int32" => Valor::Num(d.parse().unwrap_or(0.0)), _ => Valor::Txt(d.clone()) }; }
     match p.t.as_str() {
         "String[]" => Valor::Txt(p.o.first().cloned().unwrap_or_default()),
         "Boolean" => Valor::Si(false),
@@ -39,13 +40,13 @@ fn por_defecto(p: &Param) -> Valor {
 /// DATA.herr, y la Actitud de los NPC al final (datos.js la agrega)
 pub fn lista(d: &Value) -> Vec<Herr> {
     let mut v = lista_datos(d);
-    if !v.iter().any(|h| h.n == "Actitud") { v.push(Herr { n: "Actitud".into(), p: vec![] }); }
+    if !v.iter().any(|h| h.n == "Actitud") { v.push(Herr { n: "Actitud".into(), p: vec![], gm: None }); }
     v
 }
 fn lista_datos(d: &Value) -> Vec<Herr> {
     d["herr"].as_array().map(|a| a.iter().map(|h| Herr { n: h["n"].as_str().unwrap_or("").to_string(),
         p: h["p"].as_array().map(|ps| ps.iter().map(|p| Param { n: p["n"].as_str().unwrap_or("").to_string(), t: p["t"].as_str().unwrap_or("").to_string(),
-            o: p["o"].as_array().map(|o| o.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect()).unwrap_or_default() }).collect()).unwrap_or_default() }).collect()).unwrap_or_default()
+            o: p["o"].as_array().map(|o| o.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect()).unwrap_or_default(), d: None }).collect()).unwrap_or_default(), gm: None }).collect()).unwrap_or_default()
 }
 /// la ayuda de cada una (inspectorHerramienta)
 pub fn ayuda(n: &str) -> &'static str {
@@ -81,6 +82,8 @@ impl Juego {
         self.her.sel = i; let n = h.n.clone();
         if !self.her.params.contains_key(&n) { let p: HashMap<String, Valor> = h.p.iter().map(|p| (p.n.clone(), por_defecto(p))).collect(); self.her.params.insert(n.clone(), p); }
         self.her.cable = None;
+        let gm_modo = h.gm.clone();
+        if let Some(g) = self.gmod.gm.as_mut() { g.herramienta_activa(gm_modo.as_deref()); }
         if let Some(k) = ARMAS.iter().position(|a| a.n == "ToolBaton") { if self.armas.i != k { self.armas.elegir(&mut self.fis, k); } }
         self.avisar(format!("Tool Gun: {n}"));
     }
@@ -111,6 +114,14 @@ impl Juego {
         self.sonido.tocar("Click", 0.5, 1.4, None);
         if let Some(pj) = self.pj.as_mut() { pj.accion(personaje::Gesto::Tiro); }
         let o = r.as_ref().and_then(|g| g.cuerpo).and_then(|id| self.obj_de_cuerpo(id));
+        // (una herramienta de un addon: sus ajustes van a sus ConVars y el Lua hace el clic —LeftClick o RightClick—)
+        if let Some(modo) = h.gm.clone() {
+            let vals: Vec<(String, String)> = self.her.params.get(&n).map(|m| m.iter().map(|(k, v)| (format!("{}_{}", modo, k), match v { Valor::Si(b) => if *b { "1".into() } else { "0".into() }, x => x.txt() })).collect()).unwrap_or_default();
+            self.gmod_prestar(true);
+            if let Some(g) = self.gmod.gm.as_mut() { for (k, v) in &vals { g.cvar_poner(k, v); } g.herramienta_usar(&modo, if alt { "RightClick" } else { "LeftClick" }); }
+            self.gmod_prestar(false);
+            return;
+        }
         match n.as_str() {
             // (actitudUsar: sobre un NPC, su panel; en el piso, uno nuevo con el personaje y la actitud elegidos; «2», el panel de los nuevos)
             "Actitud" => {

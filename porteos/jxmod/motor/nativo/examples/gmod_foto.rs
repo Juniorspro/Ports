@@ -91,6 +91,35 @@ fn main() {
         if let Some(o) = j.objs.last() { println!("  objeto {} en {:?}", o.nombre, o.pos); }
         paso(&mut j, &mut m, 90); foto(&mut m, "4_entidad_1s5");
         if let Some(o) = j.objs.last() { println!("  1,5 s después: {:?}", o.pos); }
+        // (JXM_USAR: mirarla y apretar Usar —la tecla E de GMod—)
+        if std::env::var_os("JXM_USAR").is_some() {
+            if let Some(o) = j.objs.last() { let p = o.pos; let (dx, dz) = (p[0] - j.jug.pos[0], p[2] - j.jug.pos[2]); let l = (dx * dx + dz * dz).sqrt().max(0.01); j.jug.pos[0] = p[0] - dx / l * 1.4; j.jug.pos[2] = p[2] - dz / l * 1.4; }
+            if let Some(o) = j.objs.last() { let p = o.pos; let oj = [j.jug.pos[0], j.jug.pos[1] + 0.7, j.jug.pos[2]]; let d = [p[0] - oj[0], p[1] - oj[1], p[2] - oj[2]]; j.jug.yaw = d[0].atan2(d[2]); j.jug.pitch = (d[1] / (d[0] * d[0] + d[2] * d[2]).sqrt()).atan(); }
+            paso(&mut j, &mut m, 3);
+            let us = j.gmod.usable; println!("usable {} · mira: {}", us, j.gmod_lua_texto("local tr = LocalPlayer():GetEyeTrace() return tostring(tr.Entity) .. ' a ' .. math.Round(tr.HitPos:Distance(EyePos())) .. ' u · Use propio: ' .. tostring(IsValid(tr.Entity) and tr.Entity.Use ~= nil)"));
+            let (bx, by) = pos_boton(wf, hf, Boton::Usar);
+            println!("botón Usar en ({bx:.0}, {by:.0})");
+            j.dedo_abajo(9, bx, by, wf, hf); paso(&mut j, &mut m, 3); j.dedo_arriba(9); paso(&mut j, &mut m, 8); foto(&mut m, "4b_usado");
+            println!("vista después de usar: {}", j.gmod_lua_texto("return tostring(LocalPlayer():GetViewEntity())"));
+            println!("calc: {:?} · barril en {:?}", j.gmod.calc, j.objs.last().map(|o| o.pos));
+            j.jug.yaw += 1.2; paso(&mut j, &mut m, 4); foto(&mut m, "4c_usado_girando");
+        }
+    }
+    // (JXM_HERR=<modo>: una herramienta de la Tool Gun de un addon —STOOL—: elegirla, apuntar al piso y disparar)
+    if let Ok(modo) = std::env::var("JXM_HERR") {
+        println!("herramientas de addons: {:?}", j.her.lista.iter().filter_map(|h| h.gm.as_ref().map(|m| format!("{m}={}", h.n))).collect::<Vec<_>>());
+        if let Some(i) = j.her.lista.iter().position(|h| h.gm.as_deref() == Some(modo.as_str())) {
+            j.equipar_herramienta(i); paso(&mut j, &mut m, 60);
+            let antes = j.gmod_lua_texto("return tostring(#ents.GetAll())");
+            j.jug.pitch = -0.6; paso(&mut j, &mut m, 3);
+            let (bx, by) = pos_boton(wf, hf, Boton::Disparo);
+            j.dedo_abajo(11, bx, by, wf, hf); paso(&mut j, &mut m, 2); j.dedo_arriba(11); paso(&mut j, &mut m, 15); foto(&mut m, "8b_herramienta");
+            println!("herramienta {}: entidades {} → {} · {}", modo, antes, j.gmod_lua_texto("return tostring(#ents.GetAll())"), j.gmod_lua_texto("local l = {} for _, e in ipairs(ents.GetAll()) do local c = e:GetClass() if c ~= 'info_player_start' then l[#l + 1] = c end end return table.concat(l, ',')"));
+            // (y el clic derecho)
+            let (bx, by) = pos_boton(wf, hf, Boton::Disparo2);
+            j.dedo_abajo(12, bx, by, wf, hf); paso(&mut j, &mut m, 2); j.dedo_arriba(12); paso(&mut j, &mut m, 10); foto(&mut m, "8c_herramienta_der");
+            println!("después del clic derecho: vista {}", j.gmod_lua_texto("return tostring(LocalPlayer():GetViewEntity())"));
+        } else { println!("no está la herramienta {}", modo); }
     }
     // (un arma en la mano, disparando)
     let arma = std::env::var("JXM_ARMA").ok().or_else(|| j.gmod.addons.iter().flat_map(|a| a.sweps.iter()).next().map(|x| x.0.clone()));

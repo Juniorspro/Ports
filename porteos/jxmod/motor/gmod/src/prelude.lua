@@ -1654,6 +1654,8 @@ do
     return false
   end
   forzar(E, "Input", function(s, nombre, act, llama, p) return entrada(s, nombre, act, llama, p) end)
+  -- (el tipo de uso: lo lee la tecla E del juego —SIMPLE_USE una vez, CONTINUOUS_USE mientras se aprieta, ONOFF_USE al apretar y soltar—)
+  forzar(E, "SetUseType", function(s, t) s.__jx_usetype = t end)
   forzar(E, "Fire", function(s, nombre, p, demora, act, llama)
     demora = tonumber(demora) or 0
     if demora > 0 then timer.Simple(demora, function() entrada(s, nombre, act, llama, p) end) else entrada(s, nombre, act, llama, p) end
@@ -1694,7 +1696,7 @@ do
 
   -- (lo que se guarda y se devuelve tal cual: banderas, controladores, flags, la sombra, etc.)
   for k, d in pairs({ SolidFlags = 0, EFlagsJX = 0, CustomCollisionCheck = false, Persistent = false, UnFreezable = false, RenderFX = 0, LightingOriginEntity = NULL,
-    ParentPhysNum = 0, ManipulateBoneJiggleJX = 0, NetworkAnglesJX = false, ShouldServerRagdollJX = false, AnimTime = 0, Predictable = false }) do
+    ParentPhysNum = 0, ManipulateBoneJiggleJX = 0, NetworkAnglesJX = false, ShouldServerRagdoll = false, AnimTime = 0, Predictable = false }) do
     def(E, "Get" .. k, dato(k, d)) def(E, "Set" .. k, poner(k))
   end
   def(E, "AddSolidFlags", function(s, f) s.__jx_SolidFlags = bit.bor(s:GetSolidFlags(), f) end)

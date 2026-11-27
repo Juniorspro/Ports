@@ -371,12 +371,49 @@ pub(crate) fn vel_jugador(v: V3, poner: bool) {
     });
 }
 /// gmaUsar
-pub(crate) fn usar(e: &mut Estado, ent: &Valor, act: &Valor) {
+pub(crate) fn usar(e: &mut Estado, ent: &Valor, act: &Valor) { usar_con(e, ent, act, 1.0, 1.0); }
+/// Use con el tipo de uso (USE_OFF 0, USE_ON 1, USE_SET 2, USE_TOGGLE 3) y su valor
+pub(crate) fn usar_con(e: &mut Estado, ent: &Valor, act: &Valor, tipo: f64, valor: f64) {
     if !es_ent(ent) { return; }
     let p = if es_ent(act) { act.clone() } else { g(|g| g.jug.clone()) };
     let r = hook(e, "PlayerUse", S, &[p.clone(), ent.clone()]);
     if matches!(r.first(), Some(Valor::Bool(false))) { return; }
-    metodo(e, ent, "Use", Lado::S, &[p.clone(), p, Valor::Num(1.0), Valor::Num(1.0)]);
+    let f = tabla_de(ent).map(|t| t.borrow().get_str("Use")).filter(|f| matches!(f, Valor::Func(_)));
+    match f { Some(f) => { llamar(e, &f, Lado::S, &[ent.clone(), p.clone(), p, Valor::Num(tipo), Valor::Num(valor)]); } None => { metodo(e, ent, "Use", Lado::S, &[p.clone(), p, Valor::Num(tipo), Valor::Num(valor)]); } }
+}
+/// lo que mira el jugador para usarlo con la tecla E de GMod: la entidad de un addon a menos de 2,2 m que tiene su
+/// propio Use (el de la clase base no hace nada: con ése, el botón no aparece)
+pub(crate) fn usable_mirado() -> Option<Valor> {
+    let (o, d) = (ojo(), apunta());
+    let hit = h(|h| h.raycast(o, d, 2.2, &[]))?;
+    let ent = ent_de_obj(hit.obj?);
+    if !es_ent(&ent) || !ce(&ent, |x| x.vivo).unwrap_or(false) { return None; }
+    let propio = tabla_de(&ent).map(|t| matches!(t.borrow().get_str("Use"), Valor::Func(_))).unwrap_or(false);
+    if propio { return Some(ent); }
+    let clase = ce(&ent, |x| x.clase.clone())?;
+    let t = clase_tabla(&clase, Lado::S)?;
+    let f = buscar_en_clase(&t, "Use");
+    let base = g(|g| g.clases.get("base_anim").or_else(|| g.clases.get("base_entity")).and_then(|c| c.s.clone().or_else(|| c.c.clone()))).map(|b| buscar_en_clase(&b, "Use")).unwrap_or(Valor::Nil);
+    if matches!(f, Valor::Func(_)) && !f.crudo_igual(&base) { Some(ent) } else { None }
+}
+thread_local! { static USANDO: std::cell::RefCell<Option<Valor>> = const { std::cell::RefCell::new(None) }; }
+/// la tecla E: 1 al apretar, 2 mientras sigue apretada, 3 al soltar. Con el tipo de uso de la entidad (SetUseType):
+/// CONTINUOUS_USE (0, el de siempre) en cada cuadro, ONOFF_USE (1) al apretar y al soltar, SIMPLE_USE (3) una vez
+pub(crate) fn usar_tecla(e: &mut Estado, estado: u8) -> bool {
+    let jug = g(|g| g.jug.clone());
+    let ent = match estado {
+        1 => { let x = usable_mirado(); USANDO.with(|u| *u.borrow_mut() = x.clone()); x }
+        _ => USANDO.with(|u| if estado == 3 { u.borrow_mut().take() } else { u.borrow().clone() }),
+    };
+    let Some(ent) = ent.filter(|x| ent_valida(x)) else { return false };
+    let tipo = tabla_de(&ent).map(|t| num(&t.borrow().get_str("__jx_usetype"), 0.0)).unwrap_or(0.0) as i32;
+    match (estado, tipo) {
+        (1, _) => usar_con(e, &ent, &jug, 1.0, 1.0),
+        (2, 0) => usar_con(e, &ent, &jug, 1.0, 1.0),
+        (3, 1) => usar_con(e, &ent, &jug, 0.0, 0.0),
+        _ => {}
+    }
+    true
 }
 
 // ---------------- trazas ----------------

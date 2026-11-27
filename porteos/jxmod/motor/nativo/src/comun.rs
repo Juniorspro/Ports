@@ -710,6 +710,8 @@ impl Juego {
     }
     /// Usar (la E): subir al vehículo que se mira o bajar del que se maneja
     fn usar(&mut self) {
+        // (una entidad de un addon: la usa el Lua con la tecla E —gmod_cuadro—)
+        if self.gmod.usable { return; }
         if self.mapas_usar() { return; }
         if self.jg_usar() { return; }
         let Some(mp) = self.mapa.as_ref() else { return };
@@ -802,7 +804,7 @@ impl Juego {
             // (usar, a pie —#busar—; arriba de algo, bajarse —#bbajar, donde va borrar—)
             Boton::Usar if self.vehs.jugador.is_some() => false,
             Boton::Usar if self.mj.usar.is_some() => true,
-            Boton::Usar => self.usar_ve || self.jg.usar_txt.is_some(),
+            Boton::Usar => self.usar_ve || self.jg.usar_txt.is_some() || self.gmod.usable,
             Boton::Bajar => self.vehs.jugador.is_some(),
             Boton::Deshacer => self.vehs.jugador.is_none(),
             // (manejando: sin armas ni objetos)

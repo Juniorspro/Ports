@@ -914,10 +914,14 @@ pub struct CalcVista { pub pos: Option<V3>, pub fwd: Option<V3>, pub fov: Option
 pub(crate) fn calc_vista(e: &mut Estado) -> Option<CalcVista> {
     let swep = g(|g| g.swep.clone()).filter(|w| ce(w, |x| x.vivo).unwrap_or(false));
     let cv_arma = swep.as_ref().and_then(|w| ce(w, |x| x.clase.clone())).and_then(|c| clase_tabla(&c, Lado::C)).map(|t| buscar_en_clase(&t, "CalcView")).filter(|f| matches!(f, Valor::Func(_)));
-    if !hay_hook("CalcView") && !hay_hook("ShouldDrawLocalPlayer") && cv_arma.is_none() { return None; }
+    // (la entidad de vista —SetViewEntity: una cámara del Tool Gun, la de un addon—: la vista sale de ella y se ve al jugador)
+    let jug0 = g(|g| g.jug.clone());
+    let ve = ce(&jug0, |x| x.vista_ent.clone()).flatten().filter(|v| ent_valida(v) && !mismo(v, &jug0));
+    if ve.is_none() && !hay_hook("CalcView") && !hay_hook("ShouldDrawLocalPlayer") && cv_arma.is_none() { return None; }
     if h(|h| h.jug().vehiculo.is_some() || !h.jug().vivo) { return None; }
-    let (jug, c) = (g(|g| g.jug.clone()), h(|h| h.cam().clone()));
-    let ang = dir_ang(ds(c.fwd));
+    let (jug, mut c) = (jug0, h(|h| h.cam().clone()));
+    let desde = c.pos;
+    let ang = match &ve { Some(v) => { c.pos = ent_pos(v); quat_ang(ent_q(v)) } None => dir_ang(ds(c.fwd)) };
     let mut v = CalcVista::default();
     let (mut p, mut a, mut f) = (None, None, None);
     let r = hook(e, "CalcView", C, &[jug.clone(), vv(c.pos), naa(ang), Valor::Num(c.fov), Valor::Num(3.0), Valor::Num(28377.92)]);
@@ -930,11 +934,12 @@ pub(crate) fn calc_vista(e: &mut Estado) -> Option<CalcVista> {
         p = r.first().and_then(vec_de); a = r.get(1).and_then(ang_de); if let Some(Valor::Num(x)) = r.get(2) { f = Some(*x); }
     }
     if !v.ver_jug { v.ver_jug = hook(e, "ShouldDrawLocalPlayer", C, &[jug]).first().map(|x| x.es_verdad()).unwrap_or(false); }
-    v.pos = p.map(a_juego).filter(|q| q.sub(c.pos).len() > 1e-4);
+    v.pos = p.map(a_juego).filter(|q| q.sub(desde).len() > 1e-4);
     v.fwd = a.filter(|x| x.iter().zip(ang.iter()).any(|(u, w)| ((u - w + 540.0).rem_euclid(360.0) - 180.0).abs() > 0.01)).map(|x| dg(ang_mat(x)[0]));
+    if ve.is_some() { if v.pos.is_none() { v.pos = Some(c.pos); } if v.fwd.is_none() { v.fwd = Some(dg(ang_mat(ang)[0])); } v.ver_jug = true; }
     v.fov = f.filter(|x| (x - c.fov).abs() > 0.01 && *x > 1.0 && *x < 179.0);
     if v.ver_jug { h(|h| h.jug().tercera = true); }
-    if v == CalcVista::default() { None } else { v.desde = c.pos; Some(v) }
+    if v == CalcVista::default() { None } else { v.desde = desde; Some(v) }
 }
 /// gmrAntes: lo que dibuja el Lua en 3D y qué modelos se ven
 pub(crate) fn dibujar(e: &mut Estado, dt: f64) -> Dib {

@@ -17,6 +17,8 @@ pub mod traza;
 mod cargar;
 mod dibujo;
 mod entidades;
+mod herramientas;
+pub use herramientas::HerrAddon;
 pub mod jugadores;
 mod libs;
 mod matriz;

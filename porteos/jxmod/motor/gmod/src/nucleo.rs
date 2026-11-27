@@ -274,6 +274,8 @@ pub(crate) struct Gma {
     pub pmodels: Vec<(String, String)>, pub pmanos: Vec<(String, ManosPm)>, pub pm_v: u32,
     /// el modelo que tiene puesto el jugador (lo pone el juego: Player:GetModel, sus manos)
     pub modelo_jug: String,
+    /// las herramientas de la Tool Gun de los addons (sus modos, en el orden en que se montaron)
+    pub tools_addon: Vec<String>,
 }
 
 /// las metatablas de los valores de Source
@@ -333,7 +335,7 @@ impl Gma {
             part_cola: Vec::new(), umsg_h: HashMap::new(), pts: Vec::new(), dls: Orden::default(), pp: None,
             dib: Dib { col: [255.0; 4], tcol: [255.0; 4], mat: Valor::Nil, fuente: "13px Tahoma, sans-serif".into(), tx: 0.0, ty: 0.0, alfa: None },
             dibujo_hud: false, en_hud_paint: false, hud_n: 0, mov_lua: 0.0, activo: false, cb_n: 0, snd_n: 0, saliente: None, lectura: None, um: None,
-            ancho_cache: HashMap::new(), cargado_prelude: false, herencias: Vec::new(), luz_pedida: HashMap::new(), obj_prefab: HashMap::new(), muerte_muda: false, hud_sucio: false, mov_n: 0, modelos_faltan: Default::default(), fantasmas: HashMap::new(), dos_lados: HashMap::new(), listas_addon: HashMap::new(), pmodels: Vec::new(), pmanos: Vec::new(), pm_v: 0, modelo_jug: String::new(),
+            ancho_cache: HashMap::new(), tools_addon: Vec::new(), cargado_prelude: false, herencias: Vec::new(), luz_pedida: HashMap::new(), obj_prefab: HashMap::new(), muerte_muda: false, hud_sucio: false, mov_n: 0, modelos_faltan: Default::default(), fantasmas: HashMap::new(), dos_lados: HashMap::new(), listas_addon: HashMap::new(), pmodels: Vec::new(), pmanos: Vec::new(), pm_v: 0, modelo_jug: String::new(),
         }
     }
     pub fn ent_get(&self, id: i64) -> Option<Valor> { self.ents_idx.get(&id).and_then(|&i| self.ents[i].as_ref().map(|x| x.1.clone())) }
