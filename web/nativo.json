@@ -1,9 +1,9 @@
 {
- "codigo": 26112702,
- "version": "0.35",
+ "codigo": 26112703,
+ "version": "0.36",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 75274502,
- "sha256": "d2a4d488587726de15ceabbe16e35a2df53d17a846b100fee3c220238e11bfa4",
- "notas_es": "JXMod Nativo 0.35 — La Workshop en el nativo: la tienda baja los addons directo. Y los addons andan mucho más completos: la API de GMod pasó del 76 % al 90 % (medido contra la wiki y 554 addons populares). Los menús que arman los mods ahora se ven como en GMod y se usan con el dedo: ventanas, pestañas, casillas, deslizadores, listas, desplegables y el teclado para escribir. La tecla Usar activa las cosas de los mods en vez de tirar un prop, andan las cámaras de los mods (vista desde una entidad, tercera persona) y las herramientas de la Tool Gun de los addons aparecen y se usan. Arreglados el sable láser que se veía punteado y un cuelgue con Stop Motion Helper.",
- "notas_en": "JXMod Native 0.35 — The Workshop in the native app: the store downloads addons directly. Addons work much more completely: GMod API coverage went from 76% to 90% (measured against the wiki and 554 popular addons). Menus built by mods now look like GMod's and work by touch: windows, tabs, checkboxes, sliders, lists, dropdowns and the keyboard for typing. The Use key activates mod things instead of throwing a prop, mod cameras work (view from an entity, third person), and addon Tool Gun tools show up and can be used. Fixed the dotted-looking lightsaber and a hang with Stop Motion Helper."
+ "tam": 75458822,
+ "sha256": "d8a1ea2db9d52d2f4b457403074ed9ef2f16e246ec28a6ff35886e16eaf6ed03",
+ "notas_es": "JXMod Nativo 0.36 — Agua de partículas de verdad, como GWater: tirala desde Props → Agua (un balde, un montón, una canilla, la manguera o secar todo) sobre cualquier superficie. Es simulada, no animada: se desparrama, la corrés al caminar, empuja y hace flotar los objetos (la madera flota, el fierro se hunde), las explosiones y los tiros la mueven, y en los mapas con agua lo que cae salpica de verdad y larga burbujas. Los objetos huecos (botellas, baldes, latas, bañeras) se llenan, se hunden largando burbujas, guardan el aire boca abajo y vuelcan el agua. Vulkan se sacó (fallaba en muchos celulares): quedan OpenGL 3 y OpenGL 2.",
+ "notas_en": "JXMod Native 0.36 — Real particle water, like GWater: spawn it from Props → Water (a bucket, a pile, a faucet, the hose or dry everything) on any surface. It is simulated, not animated: it spreads, you push it when walking, it pushes and floats objects (wood floats, iron sinks), explosions and shots move it, and in maps with water whatever falls in really splashes and releases bubbles. Hollow objects (bottles, buckets, cans, bathtubs) fill up, sink releasing bubbles, keep air trapped upside down and pour their water out. Vulkan was removed (it failed on many phones): OpenGL 3 and OpenGL 2 remain."
 }
