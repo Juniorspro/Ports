@@ -242,6 +242,8 @@ impl Gmod {
     pub fn nombre_modelo_jugador(&self, ruta: &str) -> String { self.activar(); crate::jugadores::pm_nombre(ruta) }
     /// un archivo de los addons montados
     pub fn archivo(&self, ruta: &str) -> Option<Rc<[u8]>> { self.activar(); archivo(ruta) }
+    /// ¿está ese archivo? (sin leerlo)
+    pub fn existe(&self, ruta: &str) -> bool { self.activar(); crate::nucleo::existe(ruta) }
     /// las entradas de una lista de GMod (list.Set: "NPC", "Vehicles", "Weapon"…): (clave, [(campo, texto)]) con los campos
     /// de texto o número (y los de KeyValues con «kv.» adelante)
     pub fn lista(&mut self, nombre: &str) -> Vec<(String, Vec<(String, String)>)> {

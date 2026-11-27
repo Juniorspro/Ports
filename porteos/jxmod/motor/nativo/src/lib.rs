@@ -10,6 +10,7 @@ pub mod lan;
 pub mod bajas;
 pub mod firma;
 pub mod steampipe;
+pub mod steambase;
 pub mod zstd;
 // (el dibujo 2D de los menús y los íconos de la web)
 pub mod iconos;

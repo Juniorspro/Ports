@@ -141,7 +141,8 @@ impl Juego {
         let midiendo = self.gfxa.midiendo();
         // (si se está bajando el paquete del mapa: cuánto va, en MB, y la barra con eso)
         let mb = |x: u64| format!("{:.1}", x as f64 / 1048576.0).replace('.', ",");
-        let (txt, lleno) = match self.bajada { Some((va, tot, _)) if !midiendo => (if tot > 0 { format!("BAJANDO EL MAPA… {} DE {} MB", mb(va), mb(tot)) } else { "BAJANDO EL MAPA…".to_string() }, if tot > 0 { (va as f32 / tot as f32).clamp(0.02, 1.0) } else { 0.05 }),
+        let (txt, lleno) = match self.bajada { Some((va, tot, _)) if !midiendo && self.base_bajando() => (if tot > 0 { format!("BAJANDO TEXTURAS Y MODELOS DE HL2… {va} DE {tot}") } else { "CONECTANDO CON STEAM…".to_string() }, if tot > 0 { (va as f32 / tot as f32).clamp(0.02, 1.0) } else { 0.03 }),
+            Some((va, tot, _)) if !midiendo => (if tot > 0 { format!("BAJANDO EL MAPA… {} DE {} MB", mb(va), mb(tot)) } else { "BAJANDO EL MAPA…".to_string() }, if tot > 0 { (va as f32 / tot as f32).clamp(0.02, 1.0) } else { 0.05 }),
             _ => ((if midiendo { "AJUSTANDO LOS GRÁFICOS…" } else { "CARGANDO EL MAPA…" }).to_string(), if midiendo { 0.9 } else { 0.35 }) };
         p.texto(Cara::O5, fb, m, by - fb * 0.9, con_a(TX, 0.85), 0.06, &txt); p.texto_d(Cara::O5, fb, w - m, by - fb * 0.9, con_a(TX, 0.6), 0.1, "JXSTUDIOS");
         p.rect(m, by, w - 2.0 * m, 4.0, rgba(0xefede7, 0.15)); p.rect(m, by, (w - 2.0 * m) * lleno, 4.0, AMA);

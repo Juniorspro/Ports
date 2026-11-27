@@ -78,6 +78,8 @@ struct Puente {
     de_fis: HashMap<u32, ObjId>, a_fis: HashMap<ObjId, u32>,
     /// los archivos de los addons montados (sonidos y materiales)
     archivos: HashMap<String, Rc<[u8]>>,
+    /// la carpeta de lo bajado del contenido base de Steam (steambase.rs: HL2 y CS:S), la tercera fuente después de la biblioteca
+    steam: Option<PathBuf>,
     /// los materiales con imagen: ruta → (textura, ancho, alto, ya en el motor)
     mats: HashMap<String, (i64, u32, u32, bool)>,
     /// los prefabs del juego (minúsculas → nombre) y la caja que hace de modelo que no hay
@@ -255,8 +257,8 @@ impl Anfitrion for Puente {
             }
         }
     }
-    fn archivo(&mut self, r: &str) -> Option<Vec<u8>> { self.archivos.get(r).map(|b| b.to_vec()).or_else(|| self.lib.as_ref().and_then(|l| l.leer(r)).map(|b| b.to_vec())) }
-    fn existe(&mut self, r: &str) -> bool { self.archivos.contains_key(r) || self.lib.as_ref().map(|l| l.tiene(r)).unwrap_or(false) }
+    fn archivo(&mut self, r: &str) -> Option<Vec<u8>> { self.archivos.get(r).map(|b| b.to_vec()).or_else(|| self.lib.as_ref().and_then(|l| l.leer(r)).map(|b| b.to_vec())).or_else(|| self.steam.as_ref().and_then(|d| crate::steambase::leer_cache(d, r))) }
+    fn existe(&mut self, r: &str) -> bool { self.archivos.contains_key(r) || self.lib.as_ref().map(|l| l.tiene(r)).unwrap_or(false) || self.steam.as_ref().map(|d| crate::steambase::en_cache(d, r)).unwrap_or(false) }
     fn dato(&mut self, k: &str) -> Option<String> { self.datos.get(k).cloned() }
     fn poner_dato(&mut self, k: &str, v: Option<&str>) { match v { Some(v) => { self.datos.insert(k.into(), v.into()); } None => { self.datos.remove(k); } } self.datos_sucio = true; }
     fn como_any(&mut self) -> Option<&mut dyn std::any::Any> { Some(self) }
@@ -431,7 +433,7 @@ impl Juego {
             t: 0.0, dt: 1.0 / 60.0, t0: Instant::now(), pantalla: (1280.0, 720.0), escala: 1.0,
             jug: jxgmod::Jugador::default(), cam: jxgmod::Camara::default(), ent: jxgmod::Entrada::default(), armas: jxgmod::Armas::default(), huesos_jug: Vec::new(), arma_mundo: None,
             cuerpos: BTreeMap::new(), sig: 0, pedidos: vec![], cmds: vec![], gm_armas: vec![], mapa: None, fis: None, letras: None,
-            de_fis: HashMap::new(), a_fis: HashMap::new(), archivos: HashMap::new(), mats: HashMap::new(), prefabs: nombres, caja, datos, datos_sucio: false,
+            de_fis: HashMap::new(), a_fis: HashMap::new(), archivos: HashMap::new(), steam: self.gmod.datos.as_ref().map(|d| d.join("gbs")), mats: HashMap::new(), prefabs: nombres, caja, datos, datos_sucio: false,
             nombre: "Jugador".into(), mapa_nombre: self.mapas.get(self.mapa_i).cloned().unwrap_or_default(), spawns, cajas: HashMap::new(), lib: self.gmod.lib.clone(),
         };
         self.gmod.gm = Some(Gmod::nuevo(Box::new(p)));

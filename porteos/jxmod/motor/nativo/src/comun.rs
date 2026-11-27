@@ -25,6 +25,7 @@ use herramientas::{Herramientas, Logica, Valor};
 #[path = "gmod_juego.rs"] pub mod gmod_juego;
 // (los mapas del Workshop —sus puertas, botones, zonas, sonidos, trenes y puertas portal— y la hora del día)
 #[path = "mapas_juego.rs"] pub mod mapas_juego;
+#[path = "base_juego.rs"] pub mod base_juego;
 // (lo de jugabilidad: destrucción, nucleares, artefactos, patada, linterna, cámara libre, mods nativos, Cíclope y Pepe)
 #[path = "jugabilidad.rs"] pub mod jugabilidad;
 #[path = "luz_global.rs"] pub mod luz_global;
@@ -306,6 +307,8 @@ pub struct Juego {
     pub en_red: red_juego::EnRed,
     /// los addons de GMod (gmod_juego.rs)
     pub gmod: gmod_juego::EnGmod,
+    /// el contenido de HL2 y CS:S de Steam que piden los mapas del Workshop (base_juego.rs)
+    pub gb: base_juego::EnBase,
     /// los mapas del Workshop y la hora del día (mapas_juego.rs)
     pub mj: mapas_juego::EnMapas,
     /// lo de jugabilidad.rs
@@ -370,7 +373,7 @@ impl Juego {
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
             npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), ondas: Vec::new(), onda_t: 0.0, gi: Default::default(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
-            her: Herramientas::default(), en_red, gmod, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), banco: Default::default(), musica: Default::default(), ed: hud_web::Editor::default(), tut: Default::default(), gr: Default::default(), cont: Default::default(), poner_congelado: false, pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
+            her: Herramientas::default(), en_red, gmod, gb: Default::default(), mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), banco: Default::default(), musica: Default::default(), ed: hud_web::Editor::default(), tut: Default::default(), gr: Default::default(), cont: Default::default(), poner_congelado: false, pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
             armas_ico: false, armas_ico_h: 256, hud_ico: false, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         // los mapas: todos los de la web (DATA.esc), primero los RB (los de la versión personal); empieza en el último elegido
@@ -1015,6 +1018,8 @@ impl Juego {
                 if b.2 { self.bajada = None; self.recargar = false; self.mapa_cartel = false; self.avisar("No se pudo bajar el mapa: revisá la conexión".into()); self.inicio_abrir(); }
                 else { self.bajada = Some(b); }
             }
+            // (los mapas del Workshop: lo de HL2 y CS:S que piden y no está, de Steam; si no se puede, se arma igual)
+            else if let Some(b) = self.base_falta_carga() { self.bajada = Some(b); }
             else { self.bajada = None; self.recargar = false; self.mapa_cartel = false; if self.paq.is_some() { self.cargar_mapa(m); } else { m.vaciar(); self.cargar_letras(m); } }
         }
         let ahora = Instant::now(); let dt = self.dt_fijo.unwrap_or((ahora - self.t_ant).as_secs_f32().min(0.1)); self.t_ant = ahora; self.perf_t = ahora;

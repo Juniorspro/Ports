@@ -77,7 +77,16 @@ fn main() {
     println!("mapas del Workshop en la lista: {:?} (de {} mapas)", ws, j.mapas.len());
     let elegido = std::env::var("JXM_MAPA").ok().filter(|x| ws.contains(x)).or_else(|| ws.first().cloned()).expect("ningún mapa del Workshop");
     // (como Ajustes → Mapa)
+    // (JXM_STEAM: con red —curl—, lo de HL2 y CS:S que pide el mapa se baja de Steam antes de armarlo: base_juego.rs)
+    if std::env::var_os("JXM_STEAM").is_some() {
+        j.gmod.http_bin = Some(std::sync::Arc::new(|u: &str| {
+            let o = std::process::Command::new("curl").args(["-sL", "--max-time", "120", "-w", "\n%{http_code}", u]).output().map_err(|e| e.to_string())?;
+            let mut b = o.stdout; let i = b.iter().rposition(|c| *c == b'\n').unwrap_or(0); let cod: u16 = String::from_utf8_lossy(&b[i + 1..]).trim().parse().unwrap_or(0); b.truncate(i); Ok((cod, b))
+        }));
+    }
     let t = Instant::now(); j.poner_mapa(&elegido); paso(&mut j, &mut m, 3);
+    while j.mapa.as_ref().map(|mp| mp.nombre != elegido).unwrap_or(true) && j.error.is_none() && t.elapsed().as_secs() < 540 { paso(&mut j, &mut m, 1); std::thread::sleep(std::time::Duration::from_millis(40)); }
+    if !j.gb.info.is_empty() { println!("Steam: {}", j.gb.info); }
     println!("{} cargado en {:.1} s: {}", elegido, t.elapsed().as_secs_f32(), j.mj.info);
     if let Some(e) = &j.error { println!("ERROR: {e}"); }
     let Some(mp) = j.mapa.as_ref() else { panic!("sin mapa") };
