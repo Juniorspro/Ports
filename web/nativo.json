@@ -1,9 +1,9 @@
 {
- "codigo": 26112713,
- "version": "0.46",
+ "codigo": 26112714,
+ "version": "0.47",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 76011782,
- "sha256": "c77b015b7892c9e7c7286e7dad87b4671bd540ad73cd1a9b5a07b8490987e488",
- "notas_es": "Las opciones de los mods (deslizarse, el cuerpo en primera persona y todos los que traen su panel de opciones) aparecen en Herramientas, abajo de todo («Opciones de los mods»): casillas Sí/No, deslizadores, listas y botones. Lo que elegís queda guardado para la próxima partida.",
- "notas_en": "Mod options (sliding, first person body and every mod that ships an options panel) show up in Tools, at the bottom (Mod options): Yes/No checkboxes, sliders, lists and buttons. Your choices are saved for the next game."
+ "tam": 76101894,
+ "sha256": "6bd2dfd3297f1bd45b4552856d728838deff5f4503bc05d3acfe5077b83442e4",
+ "notas_es": "gm_construct Win 7 es el mapa de inicio (se baja solo la primera vez) y reemplaza al gm_construct viejo. Bugs y sugerencias abre los posts publicados. En el mapa: texturas que faltaban, cielo sin la cuña blanca, pasto sin la franja negra y sin la pared invisible del polvo; carga en menos pedazos. Las armas siguen como antes.",
+ "notas_en": "gm_construct Win 7 is now the starting map (downloads automatically the first time) and replaces the old gm_construct. Bugs and suggestions shows the published posts. Map fixes: missing textures, no white wedge in the sky, no black strip on the grass, no invisible wall from the dust; loads in fewer chunks. Weapons stay as before."
 }
