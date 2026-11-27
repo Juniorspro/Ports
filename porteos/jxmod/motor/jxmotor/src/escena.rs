@@ -102,6 +102,14 @@ pub const EF_ONDAS: u32 = 5;
 /// la luz global de Definitivo (nativo/luz_global.rs): [origen x, y, z, paso, nx, ny, nz, versión] cada cuadro y, cuando
 /// cambia, sus datos (EF_GI_DATOS: RGBA por sonda, de 0 a 255)
 pub const EF_GI: u32 = 6; pub const EF_GI_DATOS: u32 = 7;
+/// el agua de partículas (jxjuego::fluido): [radio, cuántas, 0, 0, derecha de la cámara (3), 0, arriba (3), 0, color del
+/// agua (rgba), color del cielo que refleja (rgb) y cuánto refleja, sol (dirección) y brillo] y por partícula [x, y, z,
+/// espuma, nx, ny, nz, cuánto es superficie] (`FLU_POR` números), de lejos a cerca. Se dibujan como esferas (con su profundidad en OpenGL 3) mezcladas: donde hay más, más honda
+pub const EF_FLUIDO: u32 = 8;
+/// (los números de la cabecera del bloque de agua de partículas)
+pub const FLU_CAB: usize = 24;
+/// (los números de cada partícula)
+pub const FLU_POR: usize = 8;
 
 pub const CAB_CUADRO: usize = 47;
 pub const POR_ITEM: usize = 26;

@@ -18,7 +18,7 @@ fn main() {
     let www = std::env::var("JXM_WWW").unwrap_or("/tmp/claude-0/jxm/www_todo".into());
     let let_ = std::env::var("JXM_LETRAS").unwrap_or("/tmp/claude-0/jxm/letras".into());
     let solo = std::env::var("JXM_SOLO").unwrap_or_default(); let hace = |k: &str| solo.is_empty() || solo.split(',').any(|s| s == k);
-    let vk = std::env::var("JXM_MOTOR").unwrap_or_default() == "vk";
+    let vk = std::env::var("JXM_MOTOR").unwrap_or_default() == "vk"; let g2 = std::env::var("JXM_MOTOR").unwrap_or_default() == "gl2";
     let datos = std::env::temp_dir().join("jxm_jug_datos"); let _ = std::fs::create_dir_all(&datos); let _ = std::fs::remove_file(datos.join("mapa.txt")); let _ = std::fs::remove_file(datos.join("ajustes.txt"));
     let lt = (std::fs::read_to_string(Path::new(&let_).join("letras.json")).ok(), std::fs::read(Path::new(&let_).join("letras.png")).ok());
     let mut j = Juego::nuevo(Paquete::abrir(Path::new(&www)), lt.0, lt.1, Some(datos));
@@ -38,7 +38,8 @@ fn main() {
         let fb = unsafe { let t = gl.create_renderbuffer().unwrap(); gl.bind_renderbuffer(glow::RENDERBUFFER, Some(t)); gl.renderbuffer_storage(glow::RENDERBUFFER, glow::RGBA8, w, h);
             let f = gl.create_framebuffer().unwrap(); gl.bind_framebuffer(glow::FRAMEBUFFER, Some(f)); gl.framebuffer_renderbuffer(glow::FRAMEBUFFER, glow::COLOR_ATTACHMENT0, glow::RENDERBUFFER, Some(t)); f };
         std::mem::forget(e);
-        (Motor3d::Gl(unsafe { Motor::nuevo(gl, Opciones::default()) }.expect("motor"), Some(fb)), placa)
+        if g2 { j.en_uso = Placa::Gl2; (Motor3d::Gl2(unsafe { jxmotor::gl2::Motor::nuevo(gl, jxmotor::gl2::Opciones2::default()) }.expect("motor"), Some(fb)), placa) }
+        else { (Motor3d::Gl(unsafe { Motor::nuevo(gl, Opciones::default()) }.expect("motor"), Some(fb)), placa) }
     };
     let (wf, hf) = (w as f32, h as f32);
     let paso = |j: &mut Juego, m: &mut Motor3d, n: usize| { for _ in 0..n { unsafe { j.cuadro(m, w, h, &placa).expect("cuadro"); } } };
@@ -86,6 +87,50 @@ fn main() {
         j.jg_prueba("explosion", pe, ""); paso(&mut j, &mut m, 2); foto(&mut m, "des_explosion_0"); paso(&mut j, &mut m, 150);
         let p2 = j.fis.cuerpo(id2).unwrap().pos; mirar(&mut j, [p2[0] as f32 + 4.0, p2[1] as f32 + 1.0, p2[2] as f32 - 1.0], [p2[0] as f32, p2[1] as f32, p2[2] as f32]); paso(&mut j, &mut m, 3);
         let (autos, _) = j.jg_des_info(); println!("explosión al costado: {:?} · vida {:.0}", autos, j.vehs.de(id2).map(|v| v.vida).unwrap_or(0.0)); foto(&mut m, "des_explosion_lado");
+    }
+    // ---------------- el agua de partículas (agua_juego.rs) ----------------
+    if hace("agua") {
+        for v in &j.aguas.vols { println!("agua del mapa: centro ({:.1}, {:.1}) medio ({:.1}, {:.1}) de {:.2} a {:.2}", v.cx, v.cz, v.hx, v.hz, v.y0, v.y1); }
+        j.jug.noclip = false; paso(&mut j, &mut m, 30);
+        let b0 = j.jug.pos; let fw = [j.jug.yaw.sin(), 0.0, j.jug.yaw.cos()]; let pie = b0[1] - 0.95;
+        let frente = [b0[0] + fw[0] * 3.5, pie, b0[2] + fw[2] * 3.5];
+        let ojo = [b0[0] - fw[0] * 1.5 + 1.2, pie + 2.2, b0[2] - fw[2] * 1.5];
+        // 1) un montón de agua en el piso (1000 L): cae, se desparrama y se queda quieta
+        mirar(&mut j, [b0[0], b0[1] + 0.7, b0[2]], frente); paso(&mut j, &mut m, 2);
+        j.agua_poner("pileta"); let n0 = j.jg.agua.flu.cuantas();
+        let mut ms = vec![]; let mut cuadro = vec![];
+        mirar(&mut j, ojo, [frente[0], pie + 0.4, frente[2]]);
+        for k in 0..300 { let t = std::time::Instant::now(); paso(&mut j, &mut m, 1); cuadro.push(t.elapsed().as_secs_f32() * 1000.0); ms.push(j.jg.agua.flu.ms);
+            if k == 20 { foto(&mut m, "agua_cae"); } if k == 90 { foto(&mut m, "agua_desparrama"); } }
+        foto(&mut m, "agua_quieta");
+        let vm = j.jg.agua.flu.v.iter().map(|v| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt()).sum::<f32>() / j.jg.agua.flu.cuantas().max(1) as f32;
+        let bajo = j.jg.agua.flu.x.iter().filter(|p| p[1] < pie - 0.3).count();
+        ms.sort_by(|a, b| a.partial_cmp(b).unwrap()); cuadro.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        println!("agua en el piso: {n0} → {} partículas · se fueron por debajo del piso {bajo} · velocidad media al final {vm:.3} m/s · fluido {:.2} ms (p95 {:.2}) · cuadro {:.1} ms (p95 {:.1})", j.jg.agua.flu.cuantas(), ms[ms.len() / 2], ms[ms.len() * 95 / 100], cuadro[cuadro.len() / 2], cuadro[cuadro.len() * 95 / 100]);
+        // 2) una caja que cae en el agua de partículas: la salpica y la corre
+        let _ = j.crear_en(&mut m, "Box2", [frente[0], pie + 2.5, frente[2]], 0.0); let caja = j.objs.last().and_then(|o| o.cuerpo);
+        let mut toco = 0; for k in 0..60 { paso(&mut j, &mut m, 1); toco = toco.max(j.jg.agua.flu.objetos); if k == 14 { foto(&mut m, "agua_caja_cae"); } }
+        let pc = caja.and_then(|c| j.fis.cuerpo(c)).map(|b| b.pos).unwrap_or_default(); println!("caja en el agua de partículas: {:?} · el agua la tocó (objetos a la vez: {toco})", pc);
+        // 3) el jugador camina por el agua: la corre
+        j.jug.noclip = false; j.jug.pos = [frente[0] - fw[0] * 2.5, b0[1], frente[2] - fw[2] * 2.5]; j.jug.vel = [0.0; 3]; j.jug.yaw = fw[0].atan2(fw[2]); j.jug.pitch = 0.45; paso(&mut j, &mut m, 5);
+        caminar(&mut j, true); let mut toques = 0; for k in 0..70 { paso(&mut j, &mut m, 1); toques = toques.max(j.jg.agua.flu.toques_jug); if k == 40 { foto(&mut m, "agua_caminar"); } } caminar(&mut j, false);
+        println!("caminando por el agua: hasta {toques} partículas tocándolo a la vez");
+        // 4) la manguera contra el piso y una canilla
+        j.jug.pos = b0; j.jug.vel = [0.0; 3]; mirar(&mut j, [b0[0], b0[1] + 0.7, b0[2]], [frente[0] + fw[2] * 4.0, pie, frente[2] - fw[0] * 4.0]); paso(&mut j, &mut m, 2);
+        j.agua_poner("manguera"); for k in 0..90 { paso(&mut j, &mut m, 1); if k == 60 { foto(&mut m, "agua_manguera"); } } j.agua_poner("manguera");
+        println!("manguera: {} partículas", j.jg.agua.flu.cuantas());
+        // 5) el agua del mapa: una caja que cae adentro (salpicón de verdad y burbujas)
+        if let Some(v) = j.aguas.vols.iter().max_by(|a, b| (a.hx * a.hz).partial_cmp(&(b.hx * b.hz)).unwrap()).cloned() {
+            j.agua_poner("secar"); let (cx, cz, y1) = (v.cx as f32, v.cz as f32, v.y1 as f32);
+            mirar(&mut j, [cx + 4.0, y1 + 2.2, cz + 4.0], [cx, y1, cz]); paso(&mut j, &mut m, 3);
+            let _ = j.crear_en(&mut m, "Box2", [cx, y1 + 3.0, cz], 0.0);
+            let mut maxp = 0; for k in 0..90 { paso(&mut j, &mut m, 1); maxp = maxp.max(j.jg.agua.flu.cuantas()); if k == 46 { foto(&mut m, "agua_mapa_salpica"); } if k == 60 { foto(&mut m, "agua_mapa_salpica2"); } }
+            println!("salpicón en el agua del mapa: hasta {maxp} partículas · quedan {} · burbujas/gotas vivas {}", j.jg.agua.flu.cuantas(), j.ef.cuantas());
+            // abajo del agua: las burbujas
+            mirar(&mut j, [cx + 1.5, (y1 - 0.8).max(v.y0 as f32 + 0.3), cz + 1.5], [cx, y1 - 0.6, cz]); let _ = j.crear_en(&mut m, "Box2", [cx + 0.3, y1 + 2.0, cz], 0.0);
+            for k in 0..90 { paso(&mut j, &mut m, 1); if k == 62 { foto(&mut m, "agua_burbujas"); } if k == 80 { foto(&mut m, "agua_burbujas2"); } }
+        }
+        j.agua_poner("secar");
     }
     // ---------------- la Comunidad: Mega rampa (entidades.js) ----------------
     if hace("entidades") {

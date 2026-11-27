@@ -15,6 +15,7 @@ use jxmotor::escena::{ItemDin, LuzP, Mat, Malla, FL_SIN_SOMBRA};
 #[path = "cic_juego.rs"] pub mod cic_juego;
 #[path = "pepe_juego.rs"] pub mod pepe_juego;
 #[path = "ent_juego.rs"] pub mod ent_juego;
+#[path = "agua_juego.rs"] pub mod agua_juego;
 pub use nat_juego::{estado, pose_jugador};
 /// los ajustes del Mundo en el menú de objetos (Props → Mundo): el ítem, su nombre y su ícono (propios, iconos.rs)
 pub const MUNDO: [(&str, &str, &str); 9] = [("mundo:hora:6.5", "Amanecer", "ico_amanecer"), ("mundo:hora:9", "Mañana", "ico_manana"), ("mundo:hora:12", "Mediodía", "ico_dia"),
@@ -133,6 +134,8 @@ pub struct Jugabilidad {
     pub pat: Pat, pub clib: Clib,
     /// las entidades del mapa y de los mods (entidades.js: piano, mega rampa, botón de autos, teletransporte…)
     pub ents: ent_juego::Ents,
+    /// el agua de partículas, los huecos y la manguera (agua_juego.rs)
+    pub agua: agua_juego::Agua,
     /// la linterna prendida (LINT.on)
     pub lint: bool,
     /// las Opciones prendidas (los mods nativos de esta parte: volar, ragdoll, scp, ciclope)
@@ -170,6 +173,7 @@ impl Jugabilidad {
     /// el nombre de una cosa del menú (las nucleares con su nombre de verdad; las Opciones)
     pub fn nombre_item<'a>(&'a self, it: &'a str) -> &'a str {
         if let Some(m) = MUNDO.iter().find(|m| m.0 == it) { return m.1; }
+        if let Some(a) = agua_juego::ITEMS.iter().find(|a| a.0 == it) { return a.1; }
         match it { "opc:piano" => "Piano gigante", "opc:volar" => "Volar", "opc:ragdoll" => "Muñeco de trapo", "opc:scp" => "SCP en cuatro patas", "opc:ciclope" => "Cíclope", _ => self.nombres.get(it).map(|s| s.as_str()).unwrap_or(it) }
     }
     pub fn activo(&self, k: &str) -> bool { self.mods.contains(&k) }
@@ -208,6 +212,9 @@ impl Juego {
         let _ = m.cargar(&Escena { c: cab, datos });
         // (las Opciones de JXMod, primeras en Props: ui.js, spawnSubs; las de los mods nativos de esta parte)
         if !self.catalogo.iter().any(|c| c.0 == "Opciones") { self.catalogo.insert(0, ("Opciones".into(), ["opc:volar", "opc:ragdoll", "opc:scp", "opc:ciclope", "opc:piano"].iter().map(|s| s.to_string()).collect())); }
+        // (el agua de partículas: un balde, un montón, una canilla, la manguera y secar)
+        if !self.catalogo.iter().any(|c| c.0 == "Agua") { let k = self.catalogo.iter().position(|c| c.0 == "Opciones").map_or(0, |i| i + 1);
+            self.catalogo.insert(k, ("Agua".into(), agua_juego::ITEMS.iter().map(|a| a.0.to_string()).collect())); }
         // (los ajustes del mundo: la hora del día —tocar una la pone ya— y el ciclo de día y noche)
         if !self.catalogo.iter().any(|c| c.0 == "Mundo") { let k = self.catalogo.iter().position(|c| c.0 == "Opciones").map_or(0, |i| i + 1);
             self.catalogo.insert(k, ("Mundo".into(), MUNDO.iter().map(|m| m.0.to_string()).collect())); }
@@ -333,6 +340,7 @@ impl Juego {
     /// poner algo del menú: las Opciones se prenden y apagan (ui.js: modAlternar)
     pub(super) fn jg_poner(&mut self, nombre: &str) -> bool {
         if let Some(k) = nombre.strip_prefix("mundo:") { self.mundo_poner(k); return true; }
+        if let Some(k) = nombre.strip_prefix("agua:") { return self.agua_poner(k); }
         let Some(k) = nombre.strip_prefix("opc:") else { return false };
         // (el piano gigante: se pone delante —o se trae, si ya está—; entidadPonerMod)
         if k == "piano" { self.jg.ents.poner = Some("piano"); self.avisar("Piano: pisá las teclas (también con un auto o tirándoles cosas)".into()); return true; }

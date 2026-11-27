@@ -8,7 +8,7 @@
 //!  - recorte por lo que ve la cámara (y por lo que ve el sol para la sombra) con la esfera de cada cosa;
 //!  - resolución dinámica: la escena a una fracción del tamaño de la pantalla y estirada al final (lo que más pesa en una
 //!    placa floja son los píxeles), y la sombra y el reflejo rehechos cada tantos cuadros.
-use crate::escena::{FL_ARMA, Agua, Cielo, Cuadro, Escena, ItemDin, Mat, FL_CIELO, FL_SIN_SOMBRA, EF_GI, EF_GI_DATOS, EF_MARCAS, EF_ONDAS, EF_PART_ALFA, EF_PART_SUMA};
+use crate::escena::{FL_ARMA, Agua, Cielo, Cuadro, Escena, ItemDin, Mat, FL_CIELO, FL_SIN_SOMBRA, EF_GI, EF_GI_DATOS, EF_MARCAS, EF_ONDAS, EF_PART_ALFA, EF_PART_SUMA, EF_FLUIDO, FLU_CAB, FLU_POR};
 use crate::mat::{self, M4};
 use glow::HasContext;
 use std::collections::HashMap;
@@ -728,6 +728,68 @@ const FS_PART: &str = r#"#version 300 es
 precision highp float; in vec4 vC; in vec2 vU; in vec2 vF; uniform sampler2D uT; out vec4 o;
 void main(){ vec4 t = texture(uT, vU); o = vec4(vC.rgb * t.rgb, vC.a * t.a * clamp(vF.x / vF.y, 0.0, 1.0)); }"#;
 // las marcas de frenada (marcas.js: color por vértice, 7 floats)
+// el agua de partículas (EF_FLUIDO), como superficie (la técnica pública de «screen-space fluid rendering»): (1) la
+// profundidad de cada partícula como esfera, a media resolución; (2) el grosor del agua (todas sumadas); (3) la
+// profundidad suavizada (bilateral, 2 vueltas: las esferas se funden en una superficie); (4) el agua sobre la escena: la
+// normal sale de la superficie suavizada, el fondo se ve corrido (refracción) y teñido según el grosor, más el reflejo
+// del cielo (Fresnel), el brillo del sol y la espuma
+const VS_FLU: &str = r#"#version 300 es
+layout(location=0) in vec4 aP; uniform mat4 uVP; uniform vec3 uDer, uArr; uniform float uRadio; out vec2 vU; out vec3 vC; out float vE;
+const vec2 ESQ[6] = vec2[6](vec2(-1.0, -1.0), vec2(1.0, -1.0), vec2(1.0, 1.0), vec2(-1.0, -1.0), vec2(1.0, 1.0), vec2(-1.0, 1.0));
+void main(){ vec2 e = ESQ[gl_VertexID % 6]; vU = e; vC = aP.xyz; vE = aP.w; gl_Position = uVP * vec4(aP.xyz + (uDer * e.x + uArr * e.y) * uRadio, 1.0); }"#;
+const FS_FLU_Z: &str = r#"#version 300 es
+precision highp float; in vec2 vU; in vec3 vC; in float vE; uniform mat4 uVP; uniform vec3 uDer, uArr, uCam; uniform float uRadio; out vec4 o;
+void main(){ float d2 = dot(vU, vU); if (d2 > 1.0) discard; vec3 f = normalize(uCam - vC);
+  vec3 p = vC + (uDer * vU.x + uArr * vU.y + f * sqrt(1.0 - d2)) * uRadio; vec4 c = uVP * vec4(p, 1.0);
+  gl_FragDepth = clamp(c.z / c.w * 0.5 + 0.5, 0.0, 1.0); o = vec4(0.0); }"#;
+const FS_FLU_G: &str = r#"#version 300 es
+precision highp float; in vec2 vU; in vec3 vC; in float vE; uniform float uFuerza; out vec4 o;
+void main(){ float d2 = dot(vU, vU); if (d2 > 1.0) discard; float k = 1.0 - d2; o = vec4(uFuerza * k, vE * 0.3 * k, 0.0, 1.0); }"#;
+const FS_FLU_BL: &str = r#"#version 300 es
+precision highp float; uniform highp sampler2D uProf; uniform vec2 uInv, uD, uZl; uniform float uFuerza; in vec2 vP; out vec4 o;
+float hondo(float z) { return uZl.x / (z * 2.0 - 1.0 - uZl.y); }
+float prof(float w) { return (uZl.x / w + 1.0 + uZl.y) * 0.5; }
+void main(){
+  vec2 uv = vP * 0.5 + 0.5; float z0 = texture(uProf, uv).r; o = vec4(0.0);
+  if (z0 >= 0.99999) { gl_FragDepth = 1.0; return; }
+  float w0 = hondo(z0); float paso = clamp(uFuerza / w0, 1.0, 16.0) / 7.0;
+  float s = 0.0, ws = 0.0;
+  for (int i = -7; i <= 7; i++) {
+    float z = texture(uProf, uv + uD * uInv * (float(i) * paso)).r; if (z >= 0.99999) continue;
+    float w = hondo(z); float dz = (w - w0) * 14.0; float g = exp(-float(i * i) * 0.045 - dz * dz);
+    s += w * g; ws += g;
+  }
+  gl_FragDepth = clamp(prof(s / max(ws, 1e-6)), 0.0, 0.99998); }"#;
+const FS_FLU_C: &str = r#"#version 300 es
+precision highp float; uniform highp sampler2D uProf; uniform sampler2D uAO; uniform sampler2D uRefr; uniform highp sampler2D uRefrP;
+uniform vec3 uCam, uRay0, uRayX, uRayY, uDer, uArr; uniform vec2 uZl, uInv; uniform vec4 uC, uS, uSol; in vec2 vP; out vec4 o;
+vec3 rayo(vec2 uv) { return uRay0 + uv.x * uRayX + uv.y * uRayY; }
+float hondo(float z) { return uZl.x / (z * 2.0 - 1.0 - uZl.y); }
+vec3 punto(vec2 uv, float z) { return uCam + rayo(uv) * hondo(z); }
+void main(){
+  vec2 uv = vP * 0.5 + 0.5; vec4 g = texture(uAO, uv); if (g.r < 0.004) discard;
+  vec2 ex = vec2(uInv.x, 0.0), ey = vec2(0.0, uInv.y);
+  float z = texture(uProf, uv).r;
+  float zr = texture(uProf, uv + ex).r, zl = texture(uProf, uv - ex).r, zu = texture(uProf, uv + ey).r, zd = texture(uProf, uv - ey).r;
+  // (en el borde, donde la media resolución no llegó: la vecina más cerca; el borde se funde con el grosor)
+  if (z >= 0.99999) { z = min(min(zr, zl), min(zu, zd)); if (z >= 0.99999) discard; }
+  float w = hondo(z); if (hondo(texture(uRefrP, uv).r) < w - 0.03) discard;
+  vec3 P = punto(uv, z);
+  vec3 dx = (zl >= 0.99999 || (zr < 0.99999 && abs(zr - z) < abs(z - zl))) ? punto(uv + ex, zr) - P : P - punto(uv - ex, zl);
+  vec3 dy = (zd >= 0.99999 || (zu < 0.99999 && abs(zu - z) < abs(z - zd))) ? punto(uv + ey, zu) - P : P - punto(uv - ey, zd);
+  vec3 V = normalize(uCam - P); vec3 n = normalize(cross(dx, dy)); if (dot(n, V) < 0.0) n = -n;
+  float T = g.r * 0.9; float F = g.g;
+  float nv = max(dot(n, V), 0.0); float fr = 0.02 + 0.98 * pow(1.0 - nv, 5.0);
+  // (el fondo, corrido por la superficie —más cuanto más agua— y teñido: el rojo se apaga primero)
+  vec2 off = vec2(dot(n, uDer), dot(n, uArr)) * (0.015 + 0.045 * min(T, 1.0));
+  vec3 fondo = texture(uRefr, clamp(uv - off, vec2(0.001), vec2(0.999))).rgb;
+  vec3 tr = exp(-T * vec3(1.15, 0.36, 0.24));
+  vec3 refr = fondo * tr + uC.rgb * (1.0 - tr);
+  vec3 R = reflect(-V, n); vec3 refl = uS.rgb * (0.72 + 0.38 * clamp(R.y, -1.0, 1.0));
+  float sp = pow(max(dot(R, uSol.xyz), 0.0), 380.0) * uSol.w * 3.0 + pow(max(dot(R, uSol.xyz), 0.0), 40.0) * uSol.w * 0.12;
+  vec3 col = mix(refr, refl, fr * uS.a) + sp;
+  col = mix(col, uS.rgb * 0.55 + 0.45, clamp(F * 0.9, 0.0, 0.55));
+  o = vec4(col, smoothstep(0.004, 0.06, g.r)); gl_FragDepth = z; }"#;
 const VS_LIN: &str = r#"#version 300 es
 layout(location=0) in vec3 aP; layout(location=1) in vec4 aC; uniform mat4 uVP; out vec4 vC; void main(){ vC = aC; gl_Position = uVP * vec4(aP, 1.0); }"#;
 const FS_LIN: &str = r#"#version 300 es
@@ -919,12 +981,14 @@ pub struct Motor {
     agua: Option<Agua>, agua_n: Option<glow::Texture>, agua_p: Option<glow::Texture>, /** la animación del agua (capas) y cuántos cuadros */ agua_na: Option<(glow::Texture, u32)>,
     cielo: Option<Cielo>, cubo: Option<glow::Texture>,
     blanca: glow::Texture,
-    p_luz: Prog, p_luz_piel: Prog, p_luz_c: Prog, p_luz_piel_c: Prog, p_luz_inst_c: Prog, p_pre: Prog, p_pre_piel: Prog, p_pre_inst: Prog, p_sombra: Prog, p_sombra_piel: Prog, p_agua: Prog, p_cielo: Prog, p_ao: Prog, p_ao_poner: Prog, p_final: Prog, p_part: Prog, p_lin: Prog, p_luz_inst: Prog, p_sombra_inst: Prog, inst_buf: glow::Buffer,
-    part: (glow::VertexArray, glow::Buffer), marcas: (glow::VertexArray, glow::Buffer, i32),
+    p_luz: Prog, p_luz_piel: Prog, p_luz_c: Prog, p_luz_piel_c: Prog, p_luz_inst_c: Prog, p_pre: Prog, p_pre_piel: Prog, p_pre_inst: Prog, p_sombra: Prog, p_sombra_piel: Prog, p_agua: Prog, p_cielo: Prog, p_ao: Prog, p_ao_poner: Prog, p_final: Prog, p_part: Prog, p_flu: Prog, p_flu_g: Prog, p_flu_bl: Prog, p_flu_c: Prog, p_lin: Prog, p_luz_inst: Prog, p_sombra_inst: Prog, inst_buf: glow::Buffer,
+    part: (glow::VertexArray, glow::Buffer), flu: (glow::VertexArray, glow::Buffer), marcas: (glow::VertexArray, glow::Buffer, i32),
     p_ui: Prog, ui: (glow::VertexArray, glow::Buffer),
     ao_rt: Option<Destino>,
     /// la copia de la escena antes del agua (para ver el fondo corrido por las olas)
     refr_rt: Option<Destino>,
+    /// el agua de partículas: la profundidad y el grosor, y dos para suavizar (a media resolución)
+    flu_rt: [Option<Destino>; 3],
     sombra: Option<(glow::Framebuffer, glow::Texture, i32)>,
     reflejo: Option<Destino>,
     escena_rt: Option<Destino>,
@@ -1023,6 +1087,8 @@ impl Motor {
         let p_rayos = programa(&gl, VS_CIELO, FS_RAYMASK, "")?; let p_rayos2 = programa(&gl, VS_CIELO, FS_RAYOS, "")?; let p_vol = programa(&gl, VS_CIELO, FS_VOL, "")?; let p_vol_aaa = programa(&gl, VS_CIELO, FS_VOL, "#define PASOS 24\n")?;
         let p_brillo = programa(&gl, VS_CIELO, FS_BRILLO, "")?; let p_baja = programa(&gl, VS_CIELO, FS_BAJA, "")?; let p_sube = programa(&gl, VS_CIELO, FS_SUBE, "")?;
         let p_part = programa(&gl, VS_PART, FS_PART, "")?;
+        let p_flu = programa(&gl, VS_FLU, FS_FLU_Z, "")?; let p_flu_g = programa(&gl, VS_FLU, FS_FLU_G, "")?;
+        let p_flu_bl = programa(&gl, VS_CIELO, FS_FLU_BL, "")?; let p_flu_c = programa(&gl, VS_CIELO, FS_FLU_C, "")?;
         let p_lin = programa(&gl, VS_LIN, FS_LIN, "")?;
         let p_ui = programa(&gl, VS_UI, FS_UI, "")?;
         let vbo = |atr: &[(u32, i32, i32)], paso: i32| -> Result<(glow::VertexArray, glow::Buffer), String> {
@@ -1032,12 +1098,13 @@ impl Motor {
         };
         let part = vbo(&[(0, 3, 0), (1, 4, 12), (2, 3, 28), (3, 3, 40), (4, 3, 52)], 64)?;
         gl.bind_vertex_array(Some(part.0)); for l in 0..5 { gl.vertex_attrib_divisor(l, 1); } gl.bind_vertex_array(None);
+        let flu = vbo(&[(0, 4, 0)], (FLU_POR * 4) as i32)?; gl.bind_vertex_array(Some(flu.0)); gl.vertex_attrib_divisor(0, 1); gl.bind_vertex_array(None);
         let mv = vbo(&[(0, 3, 0), (1, 4, 12)], 28)?; let marcas = (mv.0, mv.1, 0);
         let ui = vbo(&[(0, 2, 0), (1, 2, 8), (2, 4, 16)], 32)?;
         let blanca = textura(&gl, 1, 1, &[255, 255, 255, 255], true, false);
         let reloj = crate::reloj::Reloj::nuevo(&gl);
         Ok(Motor { gi_tex: None, gi_ver: -1.0, refl_agua: false, refl_piso: None, refl_piso_ult: (mat::id(), f32::NAN), p_adapta, adapta: None, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], rayos_rt: None, hongos: crate::hongo::Hongos::nuevo(true), gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
-            p_luz, p_luz_piel, p_luz_c, p_luz_piel_c, p_luz_inst_c, p_pre, p_pre_piel, p_pre_inst, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_lin, p_ui, ui, p_luz_inst, p_sombra_inst, inst_buf, part, marcas, ao_rt: None, refr_rt: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], svp2: mat::id(), sesgo2: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
+            p_luz, p_luz_piel, p_luz_c, p_luz_piel_c, p_luz_inst_c, p_pre, p_pre_piel, p_pre_inst, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_flu, p_flu_g, p_flu_bl, p_flu_c, flu_rt: [None, None, None], p_lin, p_ui, ui, p_luz_inst, p_sombra_inst, inst_buf, part, flu, marcas, ao_rt: None, refr_rt: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], svp2: mat::id(), sesgo2: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
             opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new(), ranuras: Vec::new(), instancias: std::env::var("JXM_SIN_INST").is_err(),
             ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), vp_ult: None, corte_ult: 0.0, final_rt: None, p_repro, p_copia, reloj, puesto: std::cell::RefCell::new(None), llamadas: std::cell::Cell::new([0; 2]), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), fases_b: vec![], luz_b, perfil: std::env::var_os("JXM_PERFIL").map(|_| std::cell::RefCell::new(vec![])) })
     }
@@ -1647,6 +1714,71 @@ impl Motor {
         Some(par[1 - i].1)
     }
 
+    /// el agua de partículas (EF_FLUIDO) como superficie: profundidad y grosor a media resolución, la profundidad suavizada
+    /// y el agua sobre la escena (con la escena copiada para verla a través)
+    unsafe fn fluido(&mut self, vp: &M4, ew: i32, eh: i32) {
+        let Some(c) = self.c.as_ref() else { return };
+        let Some((_, d)) = c.efectos.iter().find(|e| e.0 == EF_FLUIDO && e.1.len() > FLU_CAB) else { return };
+        let n = ((d.len() - FLU_CAB) / FLU_POR).min(d[1] as usize); if n == 0 { return; }
+        let d = d.clone(); let cp = c.pos;
+        let Some(fb) = self.escena_rt.as_ref().map(|e| e.fb) else { return };
+        let (fw, fh) = ((ew / 2).max(8), (eh / 2).max(8));
+        for k in 0..3 { if self.flu_rt[k].as_ref().map_or(true, |r| r.w != fw || r.h != fh) { if let Some(r) = self.flu_rt[k].take() { borrar_destino(&self.gl, r); } self.flu_rt[k] = Some(destino_con(&self.gl, fw, fh, true)); } }
+        // (la escena hasta acá, copiada: se ve a través del agua y dice qué la tapa)
+        if self.refr_rt.as_ref().map(|r| r.w != ew || r.h != eh).unwrap_or(true) { if let Some(r) = self.refr_rt.take() { borrar_destino(&self.gl, r); } self.refr_rt = Some(destino_con(&self.gl, ew, eh, true)); }
+        let gl = &self.gl;
+        { let r = self.refr_rt.as_ref().unwrap(); gl.bind_framebuffer(glow::READ_FRAMEBUFFER, Some(fb)); gl.bind_framebuffer(glow::DRAW_FRAMEBUFFER, Some(r.fb));
+          gl.blit_framebuffer(0, 0, ew, eh, 0, 0, ew, eh, glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT, glow::NEAREST); }
+        let (a, b, cc) = (self.flu_rt[0].as_ref().unwrap(), self.flu_rt[1].as_ref().unwrap(), self.flu_rt[2].as_ref().unwrap());
+        let (ojo, r0, rx, ry, zl) = rayos(vp);
+        // (lo que mide 1 m a 1 m de la cámara, en píxeles de media resolución: para el radio del suavizado)
+        let f = (vp[1] * vp[1] + vp[5] * vp[5] + vp[9] * vp[9]).sqrt(); let px_m = f * fh as f32 * 0.5;
+        // 1) la profundidad de las esferas
+        gl.bind_framebuffer(glow::FRAMEBUFFER, Some(a.fb)); gl.viewport(0, 0, fw, fh);
+        gl.depth_mask(true); gl.color_mask(true, true, true, true); gl.clear_color(0.0, 0.0, 0.0, 0.0); gl.clear_depth_f32(1.0); gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
+        gl.enable(glow::DEPTH_TEST); gl.depth_func(glow::LESS); gl.disable(glow::BLEND); gl.color_mask(false, false, false, false);
+        gl.bind_vertex_array(Some(self.flu.0)); gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.flu.1));
+        gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, f32_bytes(&d[FLU_CAB..FLU_CAB + n * FLU_POR]), glow::STREAM_DRAW);
+        for (p, radio) in [(&self.p_flu, d[0]), (&self.p_flu_g, d[0])] {
+            gl.use_program(Some(p.p)); gl.uniform_matrix_4_f32_slice(p.u(U::VP), false, vp); gl.uniform_3_f32(p.u(U::Cam), cp[0], cp[1], cp[2]);
+            gl.uniform_3_f32(p.u(U::Der), d[4], d[5], d[6]); gl.uniform_3_f32(p.u(U::Arr), d[8], d[9], d[10]); gl.uniform_1_f32(p.u(U::Radio), radio);
+            gl.uniform_1_f32(p.u(U::Fuerza), 0.075);
+            if std::ptr::eq(p, &self.p_flu_g) {
+                // 2) el grosor: todas, sumadas, sin mirar la profundidad
+                gl.color_mask(true, true, true, true); gl.disable(glow::DEPTH_TEST); gl.depth_mask(false); gl.enable(glow::BLEND); gl.blend_func(glow::ONE, glow::ONE);
+            }
+            gl.draw_arrays_instanced(glow::TRIANGLES, 0, 6, n as i32);
+        }
+        gl.disable(glow::BLEND); gl.bind_vertex_array(None);
+        // 3) suavizar la profundidad (de a un eje, dos vueltas): las esferas se vuelven una superficie
+        gl.enable(glow::DEPTH_TEST); gl.depth_func(glow::ALWAYS); gl.depth_mask(true); gl.color_mask(false, false, false, false);
+        let p = &self.p_flu_bl; gl.use_program(Some(p.p));
+        gl.uniform_2_f32(p.u(U::Inv), 1.0 / fw as f32, 1.0 / fh as f32); gl.uniform_2_f32(p.u(U::Zl), zl[0], zl[1]); gl.uniform_1_f32(p.u(U::Fuerza), 0.11 * px_m);
+        for (de, a_, dir) in [(a, b, (1.0, 0.0)), (b, cc, (0.0, 1.0)), (cc, b, (1.0, 0.0)), (b, cc, (0.0, 1.0))] {
+            gl.bind_framebuffer(glow::FRAMEBUFFER, Some(a_.fb)); gl.uniform_2_f32(p.u(U::D), dir.0, dir.1);
+            gl.active_texture(glow::TEXTURE9); gl.bind_texture(glow::TEXTURE_2D, de.prof_t); gl.draw_arrays(glow::TRIANGLES, 0, 3);
+        }
+        gl.color_mask(true, true, true, true);
+        // 4) el agua sobre la escena
+        gl.bind_framebuffer(glow::FRAMEBUFFER, Some(fb)); gl.viewport(0, 0, ew, eh);
+        gl.enable(glow::BLEND); gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA);
+        let p = &self.p_flu_c; gl.use_program(Some(p.p));
+        gl.uniform_3_f32(p.u(U::Cam), ojo[0], ojo[1], ojo[2]); gl.uniform_3_f32(p.u(U::Ray0), r0[0], r0[1], r0[2]); gl.uniform_3_f32(p.u(U::RayX), rx[0], rx[1], rx[2]); gl.uniform_3_f32(p.u(U::RayY), ry[0], ry[1], ry[2]);
+        gl.uniform_2_f32(p.u(U::Zl), zl[0], zl[1]); gl.uniform_2_f32(p.u(U::Inv), 1.0 / fw as f32, 1.0 / fh as f32);
+        gl.uniform_3_f32(p.u(U::Der), d[4], d[5], d[6]); gl.uniform_3_f32(p.u(U::Arr), d[8], d[9], d[10]);
+        gl.uniform_4_f32(p.u(U::C), d[12], d[13], d[14], d[15]); gl.uniform_4_f32(p.u(U::S), d[16], d[17], d[18], d[19]); gl.uniform_4_f32(p.u(U::Sol), d[20], d[21], d[22], d[23]);
+        let r = self.refr_rt.as_ref().unwrap();
+        gl.active_texture(glow::TEXTURE9); gl.bind_texture(glow::TEXTURE_2D, cc.prof_t);
+        gl.active_texture(glow::TEXTURE10); gl.bind_texture(glow::TEXTURE_2D, Some(a.color));
+        gl.active_texture(glow::TEXTURE12); gl.bind_texture(glow::TEXTURE_2D, Some(r.color));
+        gl.active_texture(glow::TEXTURE13); gl.bind_texture(glow::TEXTURE_2D, r.prof_t);
+        gl.draw_arrays(glow::TRIANGLES, 0, 3);
+        for u in [glow::TEXTURE9, glow::TEXTURE10, glow::TEXTURE12, glow::TEXTURE13] { gl.active_texture(u); gl.bind_texture(glow::TEXTURE_2D, None); }
+        gl.active_texture(glow::TEXTURE0);
+        gl.disable(glow::BLEND); gl.depth_func(glow::LEQUAL);
+        self.dibujos += 7;
+    }
+
     /// las partículas del cuadro: primero las de alfa (de lejos a cerca, ya ordenadas por el juego) y después las que suman
     unsafe fn particulas(&mut self, vp: &M4) {
         let Some(c) = self.c.as_ref() else { return };
@@ -1882,6 +2014,7 @@ impl Motor {
                 self.dibujos += 1;
             }
         }
+        self.fluido(&vp, ew, eh);
         self.particulas(&vp);
         self.marca("transparente_agua");
         // (los hongos de las nucleares, con la profundidad de la escena)

@@ -180,6 +180,8 @@ impl Juego {
         self.sonido.tocar("GrenadeExplode", 1.4, 1.0, Some(p));
         // (el fuego, el humo, las chispas, la luz y la quemadura en el piso: efectoExplosion)
         let esc = (radio / 6.0).clamp(0.6, 3.0); let piso = self.mapa.as_ref().and_then(|mp| efx::piso_bajo(&mp.mundo, p, esc)); self.ef.explosion(p, esc, piso);
+        // (el agua de partículas cerca vuela)
+        self.jg.agua.flu.explosion(p, radio * 1.3, 9.0 + dan.min(200.0) * 0.06);
         let ids: Vec<u32> = self.fis.cuerpos.iter().filter(|b| b.dinamico() || b.congelado).map(|b| b.id).collect();
         let mut danos = vec![];
         for id in ids {

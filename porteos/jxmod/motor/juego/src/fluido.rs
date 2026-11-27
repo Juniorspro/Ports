@@ -36,7 +36,7 @@ const EPS: f32 = 6.0;
 /// la presión artificial (s_corr: k, Δq = 0,2·h, n = 4)
 const SCORR_K: f32 = 0.0015;
 /// la viscosidad (XSPH) y el roce contra el mapa
-const VISC: f32 = 0.04;
+const VISC: f32 = 0.12;
 const ROCE: f32 = 0.06;
 /// cuánto del empuje de cada choque pasa a los objetos y cuánto pueden cambiar de velocidad en un paso
 const ACOPLE: f32 = 0.85;
@@ -105,6 +105,9 @@ pub struct Fluido {
     pub x: Vec<V>, pub v: Vec<V>, pub edad: Vec<f32>, seco: Vec<f32>,
     /// cuántas vecinas tuvo en el último paso
     pub nn: Vec<u16>,
+    /// la normal de la superficie en cada una (hacia afuera del agua, con la del piso o la pared que toca) y cuánto es
+    /// superficie (0 adentro del agua, 1 en el borde): para dibujarla lisa
+    pub sup: Vec<[f32; 4]>, cn: Vec<V>,
     p: Vec<V>, p2: Vec<V>, lam: Vec<f32>, nb: Vec<u32>, vt: Vec<V>, cel: Vec<[i32; 3]>, col_de: Vec<(u32, u32)>,
     tabla: Vec<u32>, cursor: Vec<u32>, orden: Vec<u32>, llaves: Vec<u32>,
     col: Celdas,
@@ -133,9 +136,9 @@ impl Fluido {
     pub fn nuevo() -> Fluido {
         let w_k = 315.0 / (64.0 * std::f32::consts::PI * H.powi(9));
         let g_k = -45.0 / (std::f32::consts::PI * H.powi(6));
-        let mut f = Fluido { x: vec![], v: vec![], edad: vec![], seco: vec![], nn: vec![], p: vec![], p2: vec![], lam: vec![], nb: vec![], vt: vec![], cel: vec![], col_de: vec![],
-            tabla: vec![], cursor: vec![], orden: vec![], llaves: vec![], col: Celdas::default(), eq: None, tope: 6000, iter: 3, fuentes: vec![], absorbidas: vec![], llenados: vec![], toques_jug: 0,
-            ms: 0.0, objetos: 0, visc: VISC, eps: EPS, scorr: SCORR_K, tension: 0.04, rho0: 1.0, w_k, g_k, w_dq: 1.0, caja: [0.0; 6], sem: 0x5eed_a6a };
+        let mut f = Fluido { x: vec![], v: vec![], edad: vec![], seco: vec![], nn: vec![], sup: vec![], cn: vec![], p: vec![], p2: vec![], lam: vec![], nb: vec![], vt: vec![], cel: vec![], col_de: vec![],
+            tabla: vec![], cursor: vec![], orden: vec![], llaves: vec![], col: Celdas::default(), eq: None, tope: 6000, iter: 4, fuentes: vec![], absorbidas: vec![], llenados: vec![], toques_jug: 0,
+            ms: 0.0, objetos: 0, visc: VISC, eps: EPS, scorr: SCORR_K, tension: 0.0, rho0: 1.0, w_k, g_k, w_dq: 1.0, caja: [0.0; 6], sem: 0x5eed_a6a };
         // la densidad del reposo: la de una partícula en una grilla cúbica de lado ESPACIO
         let mut r0 = 0.0;
         for i in -2i32..=2 { for j in -2i32..=2 { for k in -2i32..=2 {
@@ -148,8 +151,9 @@ impl Fluido {
     pub fn cuantas(&self) -> usize { self.x.len() }
     /// la calidad de Ajustes (0 Patata … 4 Ultra, 5 Definitivo): cuántas partículas como mucho
     pub fn calidad(&mut self, nivel: usize) {
-        const TOPES: [usize; 6] = [1200, 2000, 3500, 5000, 7000, 10000];
-        self.tope = TOPES[nivel.min(5)];
+        // (medido: ~1,1 ms cada 1000 partículas en 3 hilos de una compu; un celular de gama baja, 2 a 3 veces más)
+        const TOPES: [usize; 6] = [800, 1200, 2000, 3000, 4500, 7000];
+        self.tope = TOPES[nivel.min(5)]; self.iter = if nivel <= 1 { 3 } else { 4 };
         if self.x.len() > self.tope { let k = self.x.len() - self.tope; self.sacar_viejas(k); }
     }
     /// borra todo (cambio de mapa)
@@ -242,7 +246,7 @@ impl Fluido {
         let firma = (mundo.t.len(), mundo.cuerpos.len(), mundo.t.as_ptr() as usize);
         if self.col.firma != firma || self.col.mapa.len() > 60_000 { self.col.limpiar(); self.col.firma = firma; }
         self.p.resize(n, [0.0; 3]); self.p2.resize(n, [0.0; 3]); self.lam.resize(n, 0.0); self.vt.resize(n, [0.0; 3]); self.nn.resize(n, 0);
-        self.nb.resize(n * MAXV, 0); self.cel.resize(n, [0; 3]); self.col_de.resize(n, (0, 0));
+        self.nb.resize(n * MAXV, 0); self.cel.resize(n, [0; 3]); self.col_de.resize(n, (0, 0)); self.cn.resize(n, [0.0; 3]); self.sup.resize(n, [0.0, 1.0, 0.0, 0.0]);
         // 1) a dónde va cada una con su velocidad y la gravedad
         let g = 9.81 * grav * dt;
         let mut caja = [f32::MAX, f32::MAX, f32::MAX, f32::MIN, f32::MIN, f32::MIN];
@@ -303,7 +307,7 @@ impl Fluido {
                 });
             }
             {
-                let (p, x, nb, nn, lam, col_de) = (&self.p[..], &self.x[..], &self.nb[..], &self.nn[..], &self.lam[..], &self.col_de[..]); let p2 = Ptr(self.p2.as_mut_ptr());
+                let (p, x, nb, nn, lam, col_de) = (&self.p[..], &self.x[..], &self.nb[..], &self.nn[..], &self.lam[..], &self.col_de[..]); let p2 = Ptr(self.p2.as_mut_ptr()); let cn = Ptr(self.cn.as_mut_ptr());
                 let w = |r2: f32| -> f32 { let d = H2 - r2; if d <= 0.0 { 0.0 } else { wk * d * d * d } };
                 repartir(eq, n, &|i0, i1| {
                     for i in i0..i1 {
@@ -316,8 +320,8 @@ impl Fluido {
                         }
                         let l = largo(dp); if l > 0.5 * ESPACIO { dp = esc(dp, 0.5 * ESPACIO / l); }
                         let mut q = add(pi, dp);
-                        chocar_mundo(&mut q, x[i], tris, tn, cuerpos_m, &items[col_de[i].0 as usize..(col_de[i].0 + col_de[i].1) as usize]);
-                        unsafe { *p2.en(i) = q; }
+                        let c = chocar_mundo(&mut q, x[i], tris, tn, cuerpos_m, &items[col_de[i].0 as usize..(col_de[i].0 + col_de[i].1) as usize]);
+                        unsafe { *p2.en(i) = q; *cn.en(i) = c; }
                     }
                 });
             }
@@ -329,17 +333,22 @@ impl Fluido {
         self.con_capsulas(caps, dt);
         // 7) la velocidad nueva (lo que se movió), suavizada con las vecinas
         {
-            let (p, x, nb, nn) = (&self.p[..], &self.x[..], &self.nb[..], &self.nn[..]); let vt = Ptr(self.vt.as_mut_ptr());
+            let (p, x, nb, nn, cn) = (&self.p[..], &self.x[..], &self.nb[..], &self.nn[..], &self.cn[..]); let vt = Ptr(self.vt.as_mut_ptr()); let sup = Ptr(self.sup.as_mut_ptr());
             let w = |r2: f32| -> f32 { let d = H2 - r2; if d <= 0.0 { 0.0 } else { wk * d * d * d } };
             let inv = 1.0 / dt;
             repartir(eq, n, &|i0, i1| {
                 for i in i0..i1 {
-                    let vi = esc(sub(p[i], x[i]), inv); let mut s = [0.0f32; 3];
+                    let vi = esc(sub(p[i], x[i]), inv); let mut s = [0.0f32; 3]; let mut g = [0.0f32; 3];
                     for &j in &nb[i * MAXV..i * MAXV + nn[i] as usize] {
                         let j = j as usize; let d = sub(p[i], p[j]); let vj = esc(sub(p[j], x[j]), inv);
-                        s = add(s, esc(sub(vj, vi), w(dot(d, d)) / rho0));
+                        let r2 = dot(d, d); s = add(s, esc(sub(vj, vi), w(r2) / rho0));
+                        // (la normal de la superficie: hacia donde faltan vecinas)
+                        let r = r2.sqrt(); if r > 1e-6 { g = add(g, esc(d, (H - r) * (H - r) / r)); }
                     }
                     unsafe { *vt.en(i) = add(vi, esc(s, visc)); }
+                    let c = cn[i]; let lc = largo(c); let gg = esc(g, 1.0 / 0.04); let t = add(gg, if lc > 1e-6 { esc(c, 1.0 / lc) } else { [0.0; 3] });
+                    let lt = largo(t); let peso = (largo(gg) + lc.min(1.0)).min(1.0);
+                    unsafe { *sup.en(i) = if lt > 1e-6 { [t[0] / lt, t[1] / lt, t[2] / lt, peso] } else { [0.0, 1.0, 0.0, 0.0] }; }
                 }
             });
         }
@@ -363,7 +372,7 @@ impl Fluido {
                 let rad = largo(sub(w, esc(b.d, a))); if rad > b.r + RADIO * 0.6 { continue; }
                 libre[k] -= LITRO as f32; self.llenados.push((b.id, LITRO)); entra = true; break;
             }
-            if entra || en_agua || p[1] < piso || self.seco[i] > 9.0 { self.quitar(i); self.nn.swap_remove(i); continue; }
+            if entra || en_agua || p[1] < piso || self.seco[i] > 9.0 { self.quitar(i); self.nn.swap_remove(i); self.sup.swap_remove(i); continue; }
             i += 1;
         }
         self.ms = t0.elapsed().as_secs_f32() * 1000.0;
@@ -433,28 +442,36 @@ impl Fluido {
         }
     }
 
-    /// lo que se dibuja (EF_FLUIDO): [radio, cuántas, 0, 0] y por partícula [x, y, z, espuma] (de 0 a 1: blanca si va
-    /// rápido o está sola), las que están a menos de `lejos` de la cámara
-    pub fn bloque_dibujo(&self, cam: V, lejos: f32) -> Vec<f32> {
-        let mut o = Vec::with_capacity(4 + self.x.len() * 4); o.extend_from_slice(&[RADIO * 1.9, 0.0, 0.0, 0.0]);
-        let l2 = lejos * lejos; let mut k = 0;
-        for i in 0..self.x.len() {
-            let p = self.x[i]; let d = sub(p, cam); if dot(d, d) > l2 { continue; }
+    /// lo que se dibuja (EF_FLUIDO, ver jxmotor::escena): la cabecera (radio, cuántas, la derecha y el arriba de la cámara,
+    /// los colores del agua y del cielo y el sol) y por partícula [x, y, z, espuma] (de 0 a 1: blanca si va rápido o está
+    /// sola) y su superficie [nx, ny, nz, cuánto es borde], las que están a menos de `lejos` de la cámara, de lejos a cerca
+    #[allow(clippy::too_many_arguments)]
+    pub fn bloque_dibujo(&self, cam: V, der: V, arr: V, lejos: f32, agua: [f32; 4], cielo: [f32; 4], sol: [f32; 4]) -> Vec<f32> {
+        let l2 = lejos * lejos;
+        let mut ix: Vec<(f32, u32)> = Vec::with_capacity(self.x.len());
+        for (i, p) in self.x.iter().enumerate() { let d = sub(*p, cam); let d2 = dot(d, d); if d2 <= l2 { ix.push((d2, i as u32)); } }
+        ix.sort_unstable_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+        let mut o = Vec::with_capacity(24 + ix.len() * 8);
+        o.extend_from_slice(&[RADIO * 1.9, ix.len() as f32, 0.0, 0.0, der[0], der[1], der[2], 0.0, arr[0], arr[1], arr[2], 0.0]);
+        o.extend_from_slice(&agua); o.extend_from_slice(&cielo); o.extend_from_slice(&sol);
+        for &(_, i) in &ix {
+            let i = i as usize; let p = self.x[i];
             let rap = largo(self.v[i]); let sola = 1.0 - (self.nn.get(i).copied().unwrap_or(10) as f32 / 10.0).min(1.0);
-            let espuma = ((rap - 2.5) / 6.0).clamp(0.0, 1.0).max(sola * 0.5);
-            o.extend_from_slice(&[p[0], p[1], p[2], espuma]); k += 1;
+            let espuma = ((rap - 4.0) / 8.0).clamp(0.0, 1.0).max(sola * 0.35);
+            let s = self.sup.get(i).copied().unwrap_or([0.0, 1.0, 0.0, 0.0]);
+            o.extend_from_slice(&[p[0], p[1], p[2], espuma, s[0], s[1], s[2], s[3]]);
         }
-        o[1] = k as f32; o
+        o
     }
 }
 
 /// saca la partícula (que estaba en x y quiere ir a q) de los triángulos y los cuerpos fijos de su celda: del lado del
 /// que venía; si cruzó un triángulo, la deja delante
-fn chocar_mundo(q: &mut V, x: V, tris: &[f32], tn: &[f32], cuerpos: &[mu::Cuerpo], items: &[u32]) {
-    let r = RADIO;
+fn chocar_mundo(q: &mut V, x: V, tris: &[f32], tn: &[f32], cuerpos: &[mu::Cuerpo], items: &[u32]) -> V {
+    let r = RADIO; let mut sn = [0.0f32; 3];
     for &it in items {
         if it & CUERPO != 0 {
-            if let Some((n, d)) = mu::fuera_de(&cuerpos[(it & !CUERPO) as usize], *q, r) { let antes = *q; *q = add(*q, esc(n, d)); rozar(q, x, antes, n); }
+            if let Some((n, d)) = mu::fuera_de(&cuerpos[(it & !CUERPO) as usize], *q, r) { let antes = *q; *q = add(*q, esc(n, d)); rozar(q, x, antes, n); sn = add(sn, n); }
             continue;
         }
         let t = it as usize; let o = t * 9;
@@ -468,15 +485,16 @@ fn chocar_mundo(q: &mut V, x: V, tris: &[f32], tn: &[f32], cuerpos: &[mu::Cuerpo
             // (cruzó el plano: ¿por adentro del triángulo?)
             if dx > 2.0 * r && dx - dp > 1e-6 {
                 let k = dx / (dx - dp); let cr = add(x, esc(sub(*q, x), k));
-                if dentro_tri(a, b, c, n0, cr) { let antes = *q; *q = add(*q, esc(n, r - dp)); rozar(q, x, antes, n); continue; }
+                if dentro_tri(a, b, c, n0, cr) { let antes = *q; *q = add(*q, esc(n, r - dp)); rozar(q, x, antes, n); sn = add(sn, n); continue; }
             }
             if dp < -r { continue; }
         }
         let cp = mu::punto_tri(a, b, c, *q); let d = sub(*q, cp); let l = largo(d);
         if l >= r { continue; }
         let nn = if l > 1e-6 && dp >= 0.0 { esc(d, 1.0 / l) } else { n };
-        let antes = *q; *q = add(cp, esc(nn, r)); rozar(q, x, antes, nn);
+        let antes = *q; *q = add(cp, esc(nn, r)); rozar(q, x, antes, nn); sn = add(sn, nn);
     }
+    sn
 }
 #[inline] fn dentro_tri(a: V, b: V, c: V, n: V, p: V) -> bool {
     let e = |u: V, w: V| dot(mu::cruz(sub(w, u), sub(p, u)), n);
@@ -563,5 +581,28 @@ mod medir {
             res.push(hundido);
         }
         assert!(res[0] < 0.85 && res[2] > 0.95);
+    }
+}
+
+#[cfg(test)]
+mod carga {
+    use super::*;
+    /// cuánto tarda un paso con muchas partículas (una pileta de 4 × 4 m con un bloque que cae)
+    #[test]
+    #[ignore]
+    fn carga() {
+        let h = 2.0f32; let mut t = vec![];
+        let mut quad = |p: [V; 4]| { for k in [0, 1, 2, 0, 2, 3] { t.extend_from_slice(&p[k]); } };
+        quad([[-h, 0.0, -h], [h, 0.0, -h], [h, 0.0, h], [-h, 0.0, h]]);
+        quad([[-h, 0.0, -h], [-h, 2.0, -h], [h, 2.0, -h], [h, 0.0, -h]]); quad([[-h, 0.0, h], [h, 0.0, h], [h, 2.0, h], [-h, 2.0, h]]);
+        quad([[-h, 0.0, -h], [-h, 0.0, h], [-h, 2.0, h], [-h, 2.0, -h]]); quad([[h, 0.0, -h], [h, 2.0, -h], [h, 2.0, h], [h, 0.0, h]]);
+        let m = Mundo::nuevo(t, vec![], 1.0); let mut fis = Fisica::nueva();
+        for n in [2000usize, 3500, 5000, 7000, 10000] {
+            let mut f = Fluido::nuevo(); f.tope = n;
+            let lado = ((n as f32 / 12.0).sqrt()) as usize; f.bloque([0.0, 0.0, 0.0], lado, 12, lado, [0.0; 3]);
+            let mut ms = vec![]; for _ in 0..240 { f.paso(1.0 / 60.0, 1.0, &m, &mut fis, None, &[], &[]); ms.push(f.ms); }
+            ms.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            eprintln!("{} partículas: mediana {:.2} ms, p95 {:.2} ms (hilos: {})", f.cuantas(), ms[ms.len() / 2], ms[ms.len() * 95 / 100], crate::fisica::hilos_por_defecto());
+        }
     }
 }
