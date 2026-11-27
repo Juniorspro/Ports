@@ -1,9 +1,9 @@
 {
- "codigo": 26112701,
+ "codigo": 26112702,
  "version": "0.35",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 74660102,
- "sha256": "7b6837349d01822464f74fce18d1f2ee16a3bd269fa98e5c1e16bb4ec18f1365",
+ "tam": 75274502,
+ "sha256": "d2a4d488587726de15ceabbe16e35a2df53d17a846b100fee3c220238e11bfa4",
  "notas_es": "JXMod Nativo 0.35 — La Workshop en el nativo: la tienda baja los addons directo. Y los addons andan mucho más completos: la API de GMod pasó del 76 % al 90 % (medido contra la wiki y 554 addons populares). Los menús que arman los mods ahora se ven como en GMod y se usan con el dedo: ventanas, pestañas, casillas, deslizadores, listas, desplegables y el teclado para escribir. La tecla Usar activa las cosas de los mods en vez de tirar un prop, andan las cámaras de los mods (vista desde una entidad, tercera persona) y las herramientas de la Tool Gun de los addons aparecen y se usan. Arreglados el sable láser que se veía punteado y un cuelgue con Stop Motion Helper.",
  "notas_en": "JXMod Native 0.35 — The Workshop in the native app: the store downloads addons directly. Addons work much more completely: GMod API coverage went from 76% to 90% (measured against the wiki and 554 popular addons). Menus built by mods now look like GMod's and work by touch: windows, tabs, checkboxes, sliders, lists, dropdowns and the keyboard for typing. The Use key activates mod things instead of throwing a prop, mod cameras work (view from an entity, third person), and addon Tool Gun tools show up and can be used. Fixed the dotted-looking lightsaber and a hang with Stop Motion Helper."
 }
