@@ -1047,6 +1047,8 @@ pub struct Motor {
     items: Vec<ItemDin>,
     pub cuadro: u64,
     pub dibujos: u32,
+    /// el modo VR: dónde empieza en x la mitad de la pantalla de este ojo (la pasada final va ahí; el otro ojo queda)
+    pub vx: i32,
     opacos: Vec<usize>, transp: Vec<usize>, aguas: Vec<usize>,
     /// lo que ocupa en la placa (mallas, texturas y luces horneadas), en bytes
     pub memoria: usize,
@@ -1137,7 +1139,7 @@ impl Motor {
         let ui = vbo(&[(0, 2, 0), (1, 2, 8), (2, 4, 16)], 32)?;
         let blanca = textura(&gl, 1, 1, &[255, 255, 255, 255], true, false);
         let reloj = crate::reloj::Reloj::nuevo(&gl);
-        Ok(Motor { gi_tex: None, gi_ver: -1.0, refl_agua: false, refl_piso: None, refl_piso_ult: (mat::id(), f32::NAN), p_adapta, adapta: None, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], rayos_rt: None, hongos: crate::hongo::Hongos::nuevo(true), gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
+        Ok(Motor { vx: 0, gi_tex: None, gi_ver: -1.0, refl_agua: false, refl_piso: None, refl_piso_ult: (mat::id(), f32::NAN), p_adapta, adapta: None, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], rayos_rt: None, hongos: crate::hongo::Hongos::nuevo(true), gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
             p_luz, p_luz_piel, p_luz_c, p_luz_piel_c, p_luz_inst_c, p_pre, p_pre_piel, p_pre_inst, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_flu, p_flu_g, p_flu_bl, p_flu_c, flu_rt: [None, None, None], p_lin, p_ui, ui, p_luz_inst, p_sombra_inst, inst_buf, part, flu, marcas, ao_rt: None, refr_rt: None, olas_t: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], svp2: mat::id(), sesgo2: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
             opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new(), ranuras: Vec::new(), instancias: std::env::var("JXM_SIN_INST").is_err(),
             ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), vp_ult: None, corte_ult: 0.0, final_rt: None, p_repro, p_copia, reloj, puesto: std::cell::RefCell::new(None), llamadas: std::cell::Cell::new([0; 2]), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), fases_b: vec![], luz_b, perfil: std::env::var_os("JXM_PERFIL").map(|_| std::cell::RefCell::new(vec![])) })
@@ -2112,9 +2114,10 @@ impl Motor {
     /// vista que se acostumbra; lo de antes en la pantalla no se lee (se pinta entera) y su profundidad no se usa
     unsafe fn pasada_final(&mut self, salida: Option<glow::Framebuffer>, w: i32, h: i32, ew: i32, eh: i32, col: glow::Texture, rayos: Option<(glow::Texture, f32)>, brillo: Option<glow::Texture>, adapta: Option<glow::Texture>) {
         let gl = &self.gl;
-        gl.bind_framebuffer(glow::FRAMEBUFFER, salida); gl.viewport(0, 0, w, h);
+        gl.bind_framebuffer(glow::FRAMEBUFFER, salida); gl.viewport(self.vx, 0, w, h);
         let todo: &[u32] = if salida.is_none() { &[glow::COLOR, glow::DEPTH, glow::STENCIL] } else { &[glow::COLOR_ATTACHMENT0, glow::DEPTH_ATTACHMENT] };
-        gl.invalidate_framebuffer(glow::FRAMEBUFFER, todo);
+        // (el segundo ojo del VR no borra lo del primero)
+        if self.vx == 0 { gl.invalidate_framebuffer(glow::FRAMEBUFFER, todo); }
         gl.disable(glow::DEPTH_TEST); gl.depth_mask(false);
         let p = &self.p_final; gl.use_program(Some(p.p)); gl.uniform_1_f32(p.u(U::Retoque), if self.op.retoque { 1.0 } else { 0.0 });
         let nit = if self.op.escala < 0.97 { ((1.0 - self.op.escala) * 1.4).min(0.6) } else { 0.0 };
@@ -2143,9 +2146,10 @@ impl Motor {
         if !self.turbo_listo(w, h) { return false; }
         let (Some(vieja), Some(prof), Some(f)) = (self.vp_ult, self.escena_rt.as_ref().and_then(|e| e.prof_t), self.final_rt.as_ref()) else { return false };
         let gl = &self.gl;
-        gl.bind_framebuffer(glow::FRAMEBUFFER, salida); gl.viewport(0, 0, w, h);
+        gl.bind_framebuffer(glow::FRAMEBUFFER, salida); gl.viewport(self.vx, 0, w, h);
         let todo: &[u32] = if salida.is_none() { &[glow::COLOR, glow::DEPTH, glow::STENCIL] } else { &[glow::COLOR_ATTACHMENT0, glow::DEPTH_ATTACHMENT] };
-        gl.invalidate_framebuffer(glow::FRAMEBUFFER, todo);
+        // (el segundo ojo del VR no borra lo del primero)
+        if self.vx == 0 { gl.invalidate_framebuffer(glow::FRAMEBUFFER, todo); }
         gl.disable(glow::DEPTH_TEST); gl.depth_mask(false); gl.disable(glow::BLEND);
         let p = &self.p_repro; gl.use_program(Some(p.p));
         let vi = mat::inv(&vieja); let mm = mat::mul(vp, &vi); let ma = arma.map(|a| mat::mul(&mat::mul(vp, a), &vi)).unwrap_or(mm);

@@ -84,6 +84,28 @@ impl Motor3d {
             }
         }
     }
+    /// el modo VR: la escena dos veces, una por ojo (su cámara y su lugar), cada una en su mitad de la pantalla, y la interfaz
+    /// encima de las dos (OpenGL 3 y 2; Vulkan dibuja la imagen común)
+    pub unsafe fn dibujar_vr(&mut self, w: i32, h: i32, ojos: &[([f32; 16], [f32; 3]); 2], ui: &[(i64, Vec<f32>)]) -> Result<(), String> {
+        let mitad = (w / 2).max(16);
+        match self {
+            Motor3d::Gl(m, salida) => {
+                use glow::HasContext;
+                m.gl.bind_framebuffer(glow::FRAMEBUFFER, *salida); m.gl.viewport(0, 0, w, h); m.gl.clear_color(0.0, 0.0, 0.0, 1.0); m.gl.clear(glow::COLOR_BUFFER_BIT);
+                for (k, (vp, pos)) in ojos.iter().enumerate() { if let Some(c) = m.c.as_mut() { c.vp = *vp; c.pos = *pos; } m.vx = k as i32 * mitad; m.dibujar(*salida, mitad, h); }
+                m.vx = 0; if !sin_ui() { for (t, v) in ui { m.ui(*salida, w, h, *t, v); } }
+                Ok(())
+            }
+            Motor3d::Gl2(m, salida) => {
+                use glow::HasContext;
+                m.gl.bind_framebuffer(glow::FRAMEBUFFER, *salida); m.gl.viewport(0, 0, w, h); m.gl.clear_color(0.0, 0.0, 0.0, 1.0); m.gl.clear(glow::COLOR_BUFFER_BIT);
+                m.vr = true; for (k, (vp, pos)) in ojos.iter().enumerate() { if let Some(c) = m.c.as_mut() { c.vp = *vp; c.pos = *pos; } m.vx = k as i32 * mitad; m.dibujar(*salida, mitad, h); }
+                m.vr = false; m.vx = 0; if !sin_ui() { for (t, v) in ui { m.ui(*salida, w, h, *t, v); } }
+                Ok(())
+            }
+            #[allow(unreachable_patterns)] _ => self.dibujar(w, h, true, ui),
+        }
+    }
     /// espera a que la placa termine todo (para medirla: sólo en OpenGL; Vulkan tiene sus marcas de tiempo)
     pub unsafe fn esperar(&self) { use glow::HasContext; match self { Motor3d::Gl(m, _) => m.gl.finish(), Motor3d::Gl2(m, _) => m.gl.finish(), _ => {} } }
     /// lo que tardó la placa en el último cuadro medido (Vulkan: por pasada)

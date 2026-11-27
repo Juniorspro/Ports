@@ -239,6 +239,12 @@ fn main() {
         let mut d_min = 1e9f32; for _ in 0..150 { paso(&mut j, &mut m, 1); if let Some(o) = j.objs.last() { let d = ((o.pos[0] - j.jug.pos[0]).powi(2) + (o.pos[2] - j.jug.pos[2]).powi(2)).sqrt(); d_min = d_min.min(d); } }
         foto(&mut m, "nextbot_cerca"); println!("nextbot: lo más cerca {:.2} m · vida {} → {}", d_min, v0, j.jug.vida);
     }
+    // ---------------- el modo VR: la escena dos veces, una por ojo ----------------
+    if hace("vr") {
+        j.poner_mapa("RB_Flatgrass"); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 60);
+        j.vr_alternar(); paso(&mut j, &mut m, 10); foto(&mut m, "vr"); println!("VR: ojos {:?}", j.vr.ojos.map(|o| (o[0].1, o[1].1)));
+        j.vr_alternar(); paso(&mut j, &mut m, 3);
+    }
     if hace("patada") {
         let _ = j.crear_en(&mut m, "Box2", delante(1.3), 0.0); let id = j.objs.last().and_then(|o| o.cuerpo); paso(&mut j, &mut m, 40);
         boton(&mut j, Boton::Jg(Bj::Patada)); paso(&mut j, &mut m, 14); foto(&mut m, "patada_primera"); paso(&mut j, &mut m, 3);

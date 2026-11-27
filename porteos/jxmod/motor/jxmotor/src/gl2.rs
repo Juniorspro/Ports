@@ -856,6 +856,8 @@ pub struct Motor {
     uint32: bool, npot: bool,
     escena_rt: Option<(glow::Framebuffer, glow::Texture, glow::Renderbuffer, i32, i32)>,
     pub dibujos: u32, pub memoria: usize, pub mapa: String,
+    /// el modo VR: la escena va a su textura y la copia a la mitad de la pantalla de este ojo, que empieza en `vx`
+    pub vr: bool, pub vx: i32,
     /// lo puesto en la placa y las llamadas del cuadro (hechas y las que se ahorraron)
     puesto: Puesto, pub llamadas: [u32; 2],
     /// (JXM_FASES: lo que tardó cada parte del cuadro, sumado)
@@ -919,7 +921,7 @@ impl Motor {
             Some((HashMap::new(), pc, vb, ib))
         } else { None };
         let reloj = crate::reloj::Reloj::nuevo(&gl);
-        Ok(Motor { gi_tex: None, gi_ver: -1.0, p_ao, ao_ahora: false, ao_prof: None, prof24: ext.contains("GL_OES_packed_depth_stencil") && std::env::var_os("JXM_GL2_PROF16").is_none(), escena_prof: None, ao_rt: None, p_adapta, adapta: None, hongos: crate::hongo::Hongos::nuevo(false), alta, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], vol_ahora: false, alfa_d: false, rayos_rt: None, rayos_ahora: None, som: None, som_vp: [mat::id(); 2], som_n: 0, som_on: false, som_off: [[0.0; 2]; 2], som_huella: [0; 2], refl_n: 0, p_som, p_som_c, p_prof_ao, som_ao: false, refl: None, refl_on: false, refl_activo: false, p_luz_r, p_luz_rc, refl_piso: None, refl_px: [0.0; 2], refl_ult: (mat::id(), f32::NAN), oclu, n_cuadro: 0, fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), gl, op, cubo: None, p_luz, p_luz_c, p_cielo, p_ui, p_copia, p_repro, p_pasar, final_rt: None, vp_ult: None, reloj, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), p_flu, olas_t: None, flu_vb, flu_ib, flu_cap: 0, flu_v: Vec::new(), marcas_vb, marcas_n: 0, poses: vec![], poses_n: 0, pose_p: vec![], pose_v: vec![], marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
+        Ok(Motor { vr: false, vx: 0, gi_tex: None, gi_ver: -1.0, p_ao, ao_ahora: false, ao_prof: None, prof24: ext.contains("GL_OES_packed_depth_stencil") && std::env::var_os("JXM_GL2_PROF16").is_none(), escena_prof: None, ao_rt: None, p_adapta, adapta: None, hongos: crate::hongo::Hongos::nuevo(false), alta, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], vol_ahora: false, alfa_d: false, rayos_rt: None, rayos_ahora: None, som: None, som_vp: [mat::id(); 2], som_n: 0, som_on: false, som_off: [[0.0; 2]; 2], som_huella: [0; 2], refl_n: 0, p_som, p_som_c, p_prof_ao, som_ao: false, refl: None, refl_on: false, refl_activo: false, p_luz_r, p_luz_rc, refl_piso: None, refl_px: [0.0; 2], refl_ult: (mat::id(), f32::NAN), oclu, n_cuadro: 0, fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), gl, op, cubo: None, p_luz, p_luz_c, p_cielo, p_ui, p_copia, p_repro, p_pasar, final_rt: None, vp_ult: None, reloj, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), p_flu, olas_t: None, flu_vb, flu_ib, flu_cap: 0, flu_v: Vec::new(), marcas_vb, marcas_n: 0, poses: vec![], poses_n: 0, pose_p: vec![], pose_v: vec![], marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
             c: None, items: vec![], opacos: vec![], opacos_todos: vec![], transp: vec![], uint32, npot, escena_rt: None, dibujos: 0, memoria: 0, mapa: String::new(), puesto: Puesto::default(), llamadas: [0; 2] })
     }
 
@@ -1056,7 +1058,7 @@ impl Motor {
         self.vol_ahora = self.op.rayos && self.op.aaa && self.op.sombras && self.p_vol.is_some() && self.c.as_ref().map_or(false, |c| { let l = &c.luz; self.sol()[1] > 0.03 && l.sol_c[0] * 0.2126 + l.sol_c[1] * 0.7152 + l.sol_c[2] * 0.0722 > 0.05 });
         let bajo = self.c.as_ref().and_then(|c| c.efectos.iter().find(|e| e.0 == crate::escena::EF_ONDAS)).map_or(false, |e| e.1.first().copied().unwrap_or(0.0) > 0.5);
         // (con JX Turbo también: la distancia queda en el alfa de la escena para armar los intermedios)
-        let escalada = self.op.escala < 0.999 || self.rayos_ahora.is_some() || self.vol_ahora || self.op.aaa || self.op.adapta || (bajo && self.op.retoque) || self.op.turbo;
+        let escalada = self.op.escala < 0.999 || self.rayos_ahora.is_some() || self.vol_ahora || self.op.aaa || self.op.adapta || (bajo && self.op.retoque) || self.op.turbo || self.vr;
         // (si la escena va a su textura, el alfa lleva la distancia —y el cielo, 0—)
         self.alfa_d = escalada;
         let con_ao = false;
@@ -1184,7 +1186,7 @@ impl Motor {
             // (JX Turbo: la imagen terminada va a su textura —para los intermedios— y de ahí a la pantalla)
             let fin = if self.op.turbo { Some(self.final_rt(w, h)) } else { None };
             let gl = &self.gl;
-            gl.bind_framebuffer(glow::FRAMEBUFFER, fin.map(|f| f.0).or(salida)); gl.viewport(0, 0, w, h); gl.disable(glow::DEPTH_TEST); gl.disable(glow::BLEND);
+            gl.bind_framebuffer(glow::FRAMEBUFFER, fin.map(|f| f.0).or(salida)); gl.viewport(if fin.is_some() { 0 } else { self.vx }, 0, w, h); gl.disable(glow::DEPTH_TEST); gl.disable(glow::BLEND);
             gl.use_program(Some(self.p_copia.p)); gl.active_texture(glow::TEXTURE0); gl.bind_texture(glow::TEXTURE_2D, Some(t));
             gl.uniform_1_i32(self.p_copia.u("uT"), 0); gl.uniform_1_i32(self.p_copia.u("uRay"), 1);
             gl.active_texture(glow::TEXTURE1); gl.bind_texture(glow::TEXTURE_2D, Some(rayos.map_or(self.blanca, |r| r.0))); gl.active_texture(glow::TEXTURE0);

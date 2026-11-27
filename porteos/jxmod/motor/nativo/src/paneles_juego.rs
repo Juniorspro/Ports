@@ -147,7 +147,7 @@ impl Juego {
             (_, Acc::Empezar) => { let m = self.ini.pn.mapa.clone().unwrap_or_default(); self.ini_empezar(&m); }
             (_, Acc::Hora) => self.ini.pn.hora = (self.ini.pn.hora + 1) % HORAS.len(),
             (_, Acc::Mods) => self.pn_abrir(PanelIni::Tienda { tab: 0, cat: 0 }),
-            (_, Acc::Vr) => self.avisar("El modo VR todavía no está en la versión nativa".into()),
+            (_, Acc::Vr) => { if !self.vr.on { self.vr_alternar(); } }
             (_, Acc::Entrar(id)) => { let salas = self.salas_inicio(); if let Some((s, _)) = salas.iter().find(|x| x.0.id == id) { let s = s.clone();
                 if s.pw && self.en_red.red.entrar(&s, None).is_err() { let t = format!("Contraseña de {}", s.n); self.pedir_texto(Escribir::Clave(s), &t, "", 40, true); return; }
                 self.ini_entrar_sala(&s); } }

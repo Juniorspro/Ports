@@ -187,7 +187,7 @@ impl Juego {
             Pz::Tutorial => self.tut_abrir(),
             Pz::Guardar => { self.ini.pz.abierta = false; self.pz_guardar(); }
             Pz::Cargar => { self.ini.pz.abierta = false; self.pz_cargar(); }
-            Pz::Vr => self.avisar("El modo VR todavía no está en la versión nativa".into()),
+            Pz::Vr => { self.ini.pz.abierta = false; self.vr_alternar(); }
             Pz::Grabar => self.avisar("Grabar todavía no está en la versión nativa".into()),
         }
     }

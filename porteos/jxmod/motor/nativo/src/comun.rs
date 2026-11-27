@@ -26,6 +26,7 @@ use herramientas::{Herramientas, Logica, Valor};
 // (los mapas del Workshop —sus puertas, botones, zonas, sonidos, trenes y puertas portal— y la hora del día)
 #[path = "mapas_juego.rs"] pub mod mapas_juego;
 #[path = "base_juego.rs"] pub mod base_juego;
+#[path = "vr_juego.rs"] pub mod vr_juego;
 // (lo de jugabilidad: destrucción, nucleares, artefactos, patada, linterna, cámara libre, mods nativos, Cíclope y Pepe)
 #[path = "jugabilidad.rs"] pub mod jugabilidad;
 #[path = "luz_global.rs"] pub mod luz_global;
@@ -313,6 +314,8 @@ pub struct Juego {
     pub gmod: gmod_juego::EnGmod,
     /// el contenido de HL2 y CS:S de Steam que piden los mapas del Workshop (base_juego.rs)
     pub gb: base_juego::EnBase,
+    /// el modo VR (vr_juego.rs)
+    pub vr: vr_juego::EnVr,
     /// los mapas del Workshop y la hora del día (mapas_juego.rs)
     pub mj: mapas_juego::EnMapas,
     /// lo de jugabilidad.rs
@@ -377,7 +380,7 @@ impl Juego {
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3],
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
             npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), ondas: Vec::new(), onda_t: 0.0, gi: Default::default(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
-            her: Herramientas::default(), en_red, gmod, gb: Default::default(), mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), banco: Default::default(), musica: Default::default(), ed: hud_web::Editor::default(), tut: Default::default(), gr: Default::default(), cont: Default::default(), poner_congelado: false, pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
+            her: Herramientas::default(), en_red, gmod, gb: Default::default(), vr: Default::default(), mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), banco: Default::default(), musica: Default::default(), ed: hud_web::Editor::default(), tut: Default::default(), gr: Default::default(), cont: Default::default(), poner_congelado: false, pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
             armas_ico: false, armas_ico_h: 256, hud_ico: false, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         // los mapas: todos los de la web (DATA.esc), primero los RB (los de la versión personal); empieza en el último elegido
@@ -1153,12 +1156,13 @@ impl Juego {
             }
         }
         let tj = [self.azar() - 0.5, self.azar() - 0.5, self.azar() - 0.5];
-        let turbo = self.mapa.is_some() && self.turbo_n < self.turbo_max() && m.turbo_listo(w, h);
+        let turbo = self.mapa.is_some() && !self.vr.on && self.turbo_n < self.turbo_max() && m.turbo_listo(w, h);
+        self.vr_paso();
         if let Some(mp) = &self.mapa { 'escena: {
             // (el campo de visión: el de Ajustes, más cerrado apuntando y 18° con la mira del francotirador; va de a poco)
-            let z = if self.armas.zoom { 18.0 } else if let Some(f) = self.gmod.calc.as_ref().and_then(|c| c.fov) { f as f32 } else { self.aj.fov as f32 * (1.0 - 0.27 * self.armas.ap_k) };
+            let z = if self.vr.on { (self.aj.fov as f32).max(80.0) } else if self.armas.zoom { 18.0 } else if let Some(f) = self.gmod.calc.as_ref().and_then(|c| c.fov) { f as f32 } else { self.aj.fov as f32 * (1.0 - 0.27 * self.armas.ap_k) };
             if self.fov_b == 0.0 { self.fov_b = z; } self.fov_b += (z - self.fov_b) * (dt * if (z - self.fov_b).abs() > 10.0 { 12.0 } else { 4.0 }).min(1.0);
-            let p = persp(self.fov_b.to_radians(), wf / hf.max(1.0), 0.08, mp.lejos * 1.05);
+            let p = persp(self.fov_b.to_radians(), if self.vr.on { wf * 0.5 } else { wf } / hf.max(1.0), 0.08, mp.lejos * 1.05);
             // (la cámara: en primera, los ojos; en tercera, 3,1 m atrás; de frente, 2,6 m adelante mirándote —jugadorCamara—;
             // si hay una pared en el medio, se acerca)
             let tam = self.pj.as_ref().map(|p| p.tam).unwrap_or(1.0); let kt = (0.45 + 0.55 * tam).clamp(0.6, 1.0);
@@ -1188,6 +1192,7 @@ impl Juego {
             let cam = if self.temblor > 0.001 { let k = self.temblor * 0.06; [cam[0] + tj[0] * k, cam[1] + tj[1] * k, cam[2] + tj[2] * k] } else { cam };
             self.temblor = (self.temblor - dt * 1.5).max(0.0); if self.golpe_t > 0.0 { self.golpe_t -= dt; }
             let vista = m4::mirar(cam, [cam[0] + mira[0], cam[1] + mira[1], cam[2] + mira[2]], [0.0, 1.0, 0.0]);
+            self.vr.ojos = vr_juego::ojos(&self.vr, &p, cam, mira);
             // (JX Turbo: en un cuadro intermedio no se arma la escena —el motor corre el último cuadro a esta cámara—; lo que avanza
             // con el tiempo y se salta —los NPC, los efectos— lo recupera el próximo real. Después de un salto de la cámara —más de
             // 75 cm o 25°: un cambio de vista, subir a un auto— va uno real)
@@ -1279,7 +1284,7 @@ impl Juego {
         unsafe { self.ini_hud(m, w, h, &mut u); }
         self.tut_hud(&mut u, w, h);
         let inter = match self.turbo_vp.take() { Some(vp) => m.intermedio(w, h, &vp, self.turbo_arma.take().as_ref(), &u), None => false };
-        let r = if inter { Ok(()) } else { m.dibujar(w, h, self.mapa.is_some(), &u) };
+        let r = if inter { Ok(()) } else if let (Some(o), true) = (self.vr.ojos, self.mapa.is_some() && self.vr.on) { m.dibujar_vr(w, h, &o, &u) } else { m.dibujar(w, h, self.mapa.is_some(), &u) };
         self.turbo_n = if inter { self.turbo_n + 1 } else { 0 }; self.fue_inter = inter; if inter { self.n_inter += 1; }
         marca(&mut self.perf, &mut self.perf_t, 4);
         r
