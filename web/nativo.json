@@ -1,9 +1,9 @@
 {
- "codigo": 26112715,
- "version": "0.48",
+ "codigo": 26112716,
+ "version": "0.49",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 76302598,
- "sha256": "14d23f156a2a2bdf66e3642db8c48c0b76b8c3d160c647d0f146f973026871e9",
- "notas_es": "Social: entrá con tu cuenta de Google y chateá con tus amigos (grupos, tildes de leído, invitar a tu partida y Unirse), agregá amigos por su ID, solicitudes y bloqueados, y tu perfil con tu ID. Se sacó la pizzería de FNAF. La actualización dentro de la app ya no falla con «más grande de lo que debía».",
- "notas_en": "Social: sign in with Google and chat with your friends (groups, read ticks, invite to your game and Join), add friends by ID, requests and blocked, and your profile with your ID. The FNAF pizzeria map was removed. The in-app update no longer fails with a size error."
+ "tam": 76478726,
+ "sha256": "478ec40a040a0460395ab33f6fe06f092b2bbead9a416fa2a5eaae7b751e72e6",
+ "notas_es": "Sonido espacial: 24 ambientes (cuevas, pasillos, galpones, calles...), eco, reverberación y paredes que tapan el sonido. Radio: Props → Opciones → Radio, con emisoras por género o búsqueda. Tele: usá el objeto TV y poné videos de YouTube.",
+ "notas_en": "Spatial sound: 24 ambiences (caves, hallways, warehouses, streets...), echo, reverb and walls that muffle sound. Radio: Props → Options → Radio, with stations by genre or search. TV: use the TV prop and play YouTube videos."
 }
