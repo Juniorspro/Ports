@@ -1,9 +1,9 @@
 {
- "codigo": 26112705,
- "version": "0.38",
+ "codigo": 26112706,
+ "version": "0.39",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 75544838,
- "sha256": "86b81acb836300a957b73442a55fc7d050759d50ac13a6048f1dbd60d475d90e",
- "notas_es": "JXMod Nativo 0.38 — El agua de los mapas ahora tiene olas de verdad, simuladas: lo que cae, entra o se mueve en el agua hace olas que viajan, rebotan en la orilla y mueven lo que flota. Los autos que caen al agua flotan un rato, se llenan por las rendijas largando burbujas y se hunden; el cartón, los colchones y los sillones se empapan y se hunden; al sacarlos, chorrean. Arreglado: la categoría Agua del menú de Props (al lado de Opciones) ahora tiene el balde, el montón, la canilla, la manguera y secar, además de la cubeta, la tina y las bañeras, que se llenan de agua.",
- "notas_en": "JXMod Native 0.38 — Map water now has real, simulated waves: whatever falls, enters or moves in the water makes waves that travel, bounce off the shore and move floating things. Cars that fall in the water float for a while, fill up through the gaps releasing bubbles and sink; cardboard, mattresses and sofas soak and sink; when pulled out, they drip. Fixed: the Water category in the Props menu (next to Options) now has the bucket, the pile, the faucet, the hose and dry, plus the bucket, tub and bathtubs, which fill with water."
+ "tam": 75700486,
+ "sha256": "0a8ad12e9774c2bc47c3a96787618dc78f904e0b9757e62d1efd8d1de49372da",
+ "notas_es": "Mapas del Workshop con las texturas y modelos de HL2 y CS:S (se bajan de Steam la primera vez, con la barra de carga). Los props se dejan de dibujar a la distancia que eligió el mapa (mucho más liviano en mapas grandes como gm_fork). Texturas con tope según la calidad. Rayos de sol a la mitad.",
+ "notas_en": "Workshop maps now get their HL2 and CS:S textures and models (downloaded from Steam the first time, with a loading bar). Props stop drawing at the map's own fade distance (much lighter on big maps like gm_fork). Texture budget per quality. Sun rays halved."
 }
