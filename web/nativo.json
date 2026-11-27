@@ -1,9 +1,9 @@
 {
- "codigo": 26112716,
- "version": "0.49",
+ "codigo": 26112717,
+ "version": "0.50",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 76478726,
- "sha256": "478ec40a040a0460395ab33f6fe06f092b2bbead9a416fa2a5eaae7b751e72e6",
- "notas_es": "Sonido espacial: 24 ambientes (cuevas, pasillos, galpones, calles...), eco, reverberación y paredes que tapan el sonido. Radio: Props → Opciones → Radio, con emisoras por género o búsqueda. Tele: usá el objeto TV y poné videos de YouTube.",
- "notas_en": "Spatial sound: 24 ambiences (caves, hallways, warehouses, streets...), echo, reverb and walls that muffle sound. Radio: Props → Options → Radio, with stations by genre or search. TV: use the TV prop and play YouTube videos."
+ "tam": 76536070,
+ "sha256": "067c0561d232f9a623b67920a355f93b2e4f78f6da8059a11b2d45a308de916a",
+ "notas_es": "Voz por cercanía: en una sala, tocá el micrófono (al lado del chat) y te escuchan los que están cerca, desde donde estás, con eco y paredes. Arriba se ve quién habla. Se apaga en Ajustes → Escuchar la voz de los demás. La radio y la tele se pausan al salir de la app.",
+ "notas_en": "Proximity voice: in a room, tap the microphone (next to chat) and nearby players hear you from where you are, with echo and walls. Who is talking shows at the top. Turn it off in Settings → Hear other players' voices. Radio and TV pause when you leave the app."
 }
