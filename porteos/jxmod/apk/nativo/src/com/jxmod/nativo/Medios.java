@@ -42,6 +42,15 @@ public class Medios {
     /** el volumen de cada oído (0..1) */
     public static synchronized void radioVol(int id, float l, float r) { MediaPlayer m = radios.get(id); if (m != null) try { m.setVolume(Math.max(0f, Math.min(1f, l)), Math.max(0f, Math.min(1f, r))); } catch (Throwable t) { } }
     public static synchronized void radioParar(int id) { MediaPlayer m = radios.remove(id); estado.remove(id); if (m != null) try { m.release(); } catch (Throwable t) { } }
+    /** la app se fue a segundo plano: pausar las radios y las teles (al volver, siguen) */
+    public static synchronized void pausar() {
+        for (MediaPlayer m : radios.values()) try { if (m.isPlaying()) m.pause(); } catch (Throwable t) { }
+        for (WebView w : webs.values()) try { w.evaluateJavascript("if(pl&&pl.pauseVideo)pl.pauseVideo()", null); w.onPause(); } catch (Throwable t) { }
+    }
+    public static synchronized void volver() {
+        for (java.util.Map.Entry<Integer, MediaPlayer> e : radios.entrySet()) try { if ("sonando".equals(estado.get(e.getKey()))) e.getValue().start(); } catch (Throwable t) { }
+        for (WebView w : webs.values()) try { w.onResume(); w.evaluateJavascript("if(pl&&pl.playVideo)pl.playVideo()", null); } catch (Throwable t) { }
+    }
     /** «cargando», «sonando», «error» o "" */
     public static synchronized String radioEstado(int id) { String s = estado.get(id); return s == null ? "" : s; }
 

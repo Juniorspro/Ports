@@ -77,12 +77,17 @@ impl Reverb {
 /// el coeficiente de un filtro de un polo para el corte `hz`
 #[inline] pub fn coef(hz: f32, rate: u32) -> f32 { 1.0 - (-2.0 * std::f32::consts::PI * hz.min(rate as f32 * 0.45) / rate as f32).exp() }
 
-pub struct Mezcla { voces: Vec<Voz>, pub rate: u32, /** grabando: lo que sale (estéreo intercalado), hasta que el juego lo lleve */ pub grab: Option<Vec<f32>>,
+/// la voz de otro jugador (la voz por cercanía): llega de a pedazos por la red, a `rate` Hz, y suena desde su cabeza.
+/// Un colchón de 140 ms antes de empezar (y de nuevo si se vacía: la red se atrasó); si se juntan más de 600 ms (llegó de
+/// golpe), salta para no quedar atrasada
+struct Charla { id: u64, buf: std::collections::VecDeque<f32>, pos: f64, rate: u32, listo: bool, esp: Esp, /** cuánto se oye (0..1, para el que habla) */ pub nivel: f32 }
+pub struct Mezcla { voces: Vec<Voz>, charlas: Vec<Charla>, pub rate: u32, /** grabando: lo que sale (estéreo intercalado), hasta que el juego lo lleve */ pub grab: Option<Vec<f32>>,
     /// la reverberación del lugar y lo del mundo de este bloque (lo seco estéreo y lo enviado a la cola), con el filtro de
     /// bajo el agua
     pub rev: Option<Reverb>, mundo: Vec<f32>, envio: Vec<f32>, lp: [f32; 2] }
 impl Mezcla {
-    pub fn nueva(rate: u32) -> Mezcla { Mezcla { voces: vec![], rate, grab: None, rev: None, mundo: vec![], envio: vec![], lp: [0.0; 2] } }
+    pub fn nueva(rate: u32) -> Mezcla { Mezcla { voces: vec![], charlas: vec![], rate, grab: None, rev: None, mundo: vec![], envio: vec![], lp: [0.0; 2] } }
+    #[cfg(test)] pub fn charlas_vacias(&self) -> bool { self.charlas.iter().all(|c| !c.listo) }
     /// mezcla `n` cuadros estéreo en float (la salida los pide)
     pub fn llenar(&mut self, out: &mut [f32], n: usize) {
         let n = n.min(out.len() / 2);
@@ -120,6 +125,30 @@ impl Mezcla {
             if let Some(e) = v.esp.as_mut() { e.g = e.g_t; e.envio = e.envio_t; }
             true
         });
+        // (las voces de los demás: como un sonido con lugar, leyendo de lo que llegó)
+        let rate = self.rate as f64;
+        for c in self.charlas.iter_mut() {
+            let paso = c.rate as f64 / rate; let pre = c.rate as f64 * 0.14;
+            if !c.listo { if (c.buf.len() as f64 - c.pos) >= pre { c.listo = true; } else { continue; } }
+            if c.buf.len() as f64 - c.pos > c.rate as f64 * 0.6 { c.pos = c.buf.len() as f64 - c.rate as f64 * 0.2; }
+            let e = &mut c.esp; let nf = n.max(1) as f32; let largo = c.buf.len();
+            let leer = |b: &std::collections::VecDeque<f32>, x: f64| -> f32 { if x < 0.0 { return 0.0; } let i = x as usize; if i + 1 >= largo { return 0.0; } let f = (x - i as f64) as f32; b[i] * (1.0 - f) + b[i + 1] * f };
+            let mut pico = 0f32;
+            for k in 0..n {
+                if c.pos + 2.0 >= largo as f64 { c.listo = false; break; }
+                let t = k as f32 / nf;
+                let (sl, sr) = (leer(&c.buf, c.pos - e.itd[0] as f64), leer(&c.buf, c.pos - e.itd[1] as f64));
+                e.z[0] = cero(e.z[0] + e.a[0] * (sl - e.z[0])); e.z[1] = cero(e.z[1] + e.a[1] * (sr - e.z[1]));
+                let gl = e.g[0] + (e.g_t[0] - e.g[0]) * t; let gr = e.g[1] + (e.g_t[1] - e.g[1]) * t;
+                mundo[k * 2] += e.z[0] * gl; mundo[k * 2 + 1] += e.z[1] * gr;
+                envio[k] += (e.z[0] + e.z[1]) * 0.5 * (e.envio + (e.envio_t - e.envio) * t);
+                pico = pico.max(sl.abs() * gl.max(gr));
+                c.pos += paso;
+            }
+            e.g = e.g_t; e.envio = e.envio_t; c.nivel = c.nivel.max(pico);
+            // (lo ya leído se va: quedan 64 muestras para la demora del otro oído)
+            let fuera = (c.pos as usize).saturating_sub(64).min(c.buf.len()); c.buf.drain(..fuera); c.pos -= fuera as f64;
+        }
         // (lo del mundo: bajo el agua se apaga —el corte de la sala—; después, la cola y el eco del lugar)
         let rev = self.rev.as_mut().unwrap();
         let corte = rev.ahora.corte_hz; let a = coef(corte, self.rate);
@@ -321,6 +350,28 @@ impl Sonido {
             m.voces.push(Voz { pcm, pos, paso, vi: vol, vd: vol, lazo: id, ini: 0.0, id, mundo: false, envio: 0.0, esp: None }); }
         id
     }
+    /// la voz de otro (`id`: su número para la mezcla): suma lo que llegó (`rate` Hz, mono, -1..1)
+    pub fn charla(&mut self, id: u64, muestras: &[f32], rate: u32) {
+        let Ok(mut m) = self.mezcla.lock() else { return };
+        if let Some(c) = m.charlas.iter_mut().find(|c| c.id == id) { if c.buf.len() < rate as usize * 3 { c.buf.extend(muestras.iter().copied()); } return; }
+        if m.charlas.len() >= 16 { return; }
+        let esp = Esp { donde: [0.0; 3], g: [0.0; 2], g_t: [0.0; 2], a: [1.0; 2], z: [0.0; 2], itd: [0.0; 2], envio: 0.0, envio_t: 0.0, oclu: 0.0, revisada: true };
+        m.charlas.push(Charla { id, buf: muestras.iter().copied().collect(), pos: 0.0, rate, listo: false, esp, nivel: 0.0 });
+    }
+    /// dónde está el que habla (su boca), si una pared lo tapa (0..1) y cuánto se oye: lo espacial para el oyente de
+    /// ahora; devuelve cuánto se oyó desde la vez anterior (0..1: para mostrar que habla)
+    pub fn charla_lugar(&mut self, id: u64, donde: [f32; 3], oclu: f32, vol: f32) -> f32 {
+        let o = self.oyente; let espacial = self.espacial; let vol = vol * self.volumen;
+        let Ok(mut m) = self.mezcla.lock() else { return 0.0 }; let rate = m.rate;
+        let mez = m.rev.as_ref().map(|r| r.meta.mezcla).unwrap_or(0.1);
+        let Some(c) = m.charlas.iter_mut().find(|c| c.id == id) else { return 0.0 };
+        let (g, cc, itd, env) = espacio(o, donde, vol, if espacial { oclu } else { 0.0 }, mez);
+        let e = &mut c.esp; e.donde = donde; e.oclu = oclu; e.g_t = g; e.envio_t = if espacial { env } else { 0.0 };
+        if espacial { e.a = [coef(cc[0], rate), coef(cc[1], rate)]; e.itd = [itd[0] * rate as f32, itd[1] * rate as f32]; } else { e.a = [1.0; 2]; e.itd = [0.0; 2]; }
+        std::mem::take(&mut c.nivel)
+    }
+    /// ya no habla (se fue o no manda nada hace rato)
+    pub fn charla_fin(&mut self, id: u64) { if let Ok(mut m) = self.mezcla.lock() { m.charlas.retain(|c| c.id != id); } }
     pub fn voz_vol(&self, id: u64, vol: f32) { if let Ok(mut m) = self.mezcla.lock() { if let Some(v) = m.voces.iter_mut().find(|v| v.lazo == id) { v.vi = vol; v.vd = vol; } } }
     /// por dónde va (segundos) o None si ya no está
     pub fn voz_pos(&self, id: u64) -> Option<f32> { self.mezcla.lock().ok()?.voces.iter().find(|v| v.lazo == id).map(|v| (v.pos / v.pcm.rate as f64) as f32) }

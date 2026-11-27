@@ -166,7 +166,7 @@ impl Juego {
         let mut l = std::mem::take(&mut self.en_red.local);
         l.jug = red::Jugador { skin: self.skin.clone(), gorro: self.pjs.prefs.gorro.clone(), gorro_aj: self.pjs.prefs.gorro_aj.as_ref().map(|g| g.json().to_string()).unwrap_or_default(), acc: self.pjs.prefs.acc.as_ref().map(|a| a.json().to_string()).unwrap_or_default(), pos: p64(j.pos), yaw: j.yaw as f64, pitch: -j.pitch as f64, vel: p64(j.vel),
             suelo: j.suelo, agachado: j.agachado, vivo: !self.muerto, bits: if j.noclip { 16 } else { 0 }, arma: Some(self.armas.def().n.to_string()), emote: self.emote.clone(), vida: j.vida as f64,
-            vehiculo: veh, reloj: self.en_red.reloj, ..Default::default() };
+            vehiculo: veh, reloj: self.en_red.reloj, voz: self.aj.voces, ..Default::default() };
         l.objs.clear(); l.simulo.clear();
         let (mut n, mut cong) = (0, 0);
         for o in &self.objs {
@@ -273,6 +273,7 @@ impl Juego {
             Evento::NpcAct { n, a, .. } => { let act = npc::Actitud::normal(&a, None); self.npcs.aplicar(n as u32, act); }
             Evento::NpcFin { clave } => { self.en_red.cuerpos.remove(&format!("npc:{clave}")); }
             Evento::Hecho { de, k, d } => self.pjs_hecho(&de, &k, &d),
+            Evento::Voz { de, datos } => self.vz_llego(&de, &datos),
             Evento::SalaCreada { sala } => { let s = sala.clone();
                 // (creada desde el formulario del inicio: se cierra el menú y se entra, como al tocar Entrar)
                 if self.ini.abierto || self.ini.panel.is_some() { self.recargar = true; self.ini.abierto = false; self.ini.panel = None; }

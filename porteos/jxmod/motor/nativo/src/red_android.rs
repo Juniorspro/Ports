@@ -326,3 +326,20 @@ impl crate::comun::paneles_juego::medios::MediosApp for Teclado {
     fn tele_vol(&self, id: i32, v: i32) { self.medios(|env, c, a| { env.call_static_method(c, jni_str!("teleVol"), jni_sig!("(Landroid/app/Activity;II)V"), &[JValue::Object(a), JValue::Int(id), JValue::Int(v)])?; Ok(()) }); }
     fn tele_parar(&self, id: i32) { self.medios(|env, c, a| { env.call_static_method(c, jni_str!("teleParar"), jni_sig!("(Landroid/app/Activity;I)V"), &[JValue::Object(a), JValue::Int(id)])?; Ok(()) }); }
 }
+/// el micrófono de la voz por cercanía (Voz.java)
+impl crate::comun::vozcerca::Micro for Teclado {
+    fn prender(&self) -> i32 {
+        let a = self.act.clone();
+        con_java(&self.vm, |env| { let c = env.find_class(jni_str!("com/jxmod/nativo/Voz"))?; env.call_static_method(&c, jni_str!("prender"), jni_sig!("(Landroid/app/Activity;)I"), &[JValue::Object(a.as_obj())])?.i() }).unwrap_or(-1)
+    }
+    fn apagar(&self) { let _ = con_java(&self.vm, |env| { let c = env.find_class(jni_str!("com/jxmod/nativo/Voz"))?; env.call_static_method(&c, jni_str!("soltar"), jni_sig!("()V"), &[])?; Ok(()) }); }
+    fn leer(&self) -> Vec<i16> {
+        con_java(&self.vm, |env| {
+            let c = env.find_class(jni_str!("com/jxmod/nativo/Voz"))?;
+            let r = env.call_static_method(&c, jni_str!("leer"), jni_sig!("()[S"), &[])?.l()?;
+            if r.is_null() { return Ok(vec![]); }
+            let arr = env.cast_local::<jni::objects::JShortArray>(r)?; let n = arr.len(env)?;
+            let mut v = vec![0i16; n]; arr.get_region(env, 0, &mut v)?; Ok(v)
+        }).unwrap_or_default()
+    }
+}

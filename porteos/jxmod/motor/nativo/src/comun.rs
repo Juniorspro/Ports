@@ -22,6 +22,7 @@ use herramientas::{Herramientas, Logica, Valor};
 #[path = "combate.rs"] mod combate;
 // (el multijugador: las salas, los demás jugadores y sus cosas)
 #[path = "red_juego.rs"] pub mod red_juego;
+#[path = "vozcerca.rs"] pub mod vozcerca;
 #[path = "gmod_juego.rs"] pub mod gmod_juego;
 // (los mapas del Workshop —sus puertas, botones, zonas, sonidos, trenes y puertas portal— y la hora del día)
 #[path = "mapas_juego.rs"] pub mod mapas_juego;
@@ -136,7 +137,7 @@ fn marca(perf: &mut [f32; 5], t: &mut Instant, k: usize) { let x = t.elapsed().a
 
 /// los botones de la pantalla
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Boton { Ajustes, Camara, Recargar, Usar, Bajar, Saltar, Agachar, Volar, Objetos, Deshacer, Disparo, Disparo2, Arma, ArmaN(usize), Girar, Lejos, Cerca, Bocina, Turbo, Salas, Chat, Emotes, Jg(jugabilidad::Bj), Pj(personajes::Bp) }
+pub enum Boton { Ajustes, Camara, Recargar, Usar, Bajar, Saltar, Agachar, Volar, Objetos, Deshacer, Disparo, Disparo2, Arma, ArmaN(usize), Girar, Lejos, Cerca, Bocina, Turbo, Salas, Chat, Micro, Emotes, Jg(jugabilidad::Bj), Pj(personajes::Bp) }
 /// un botón: qué es, el centro, el tamaño (ancho y alto; los redondos con el mismo) y si es redondo
 struct Btn { b: Boton, x: f32, y: f32, w: f32, h: f32, redondo: bool }
 /// dónde va cada botón con la pantalla de w × h: como la web (hud_web.rs). Ajustes y Salas no van en el HUD —como en la
@@ -352,6 +353,8 @@ pub struct Juego {
     pub soc: paneles_juego::social::Social,
     /// la radio y la tele (medios_juego.rs)
     pub med: paneles_juego::medios::Medios,
+    /// la voz por cercanía (vozcerca.rs)
+    pub vz: vozcerca::VozCerca,
     /// escribir (sin teclado —en la compu—, no se puede) y lo que se está esperando
     pub teclado: Option<Teclado>, escribir: Option<(i32, Escribir)>, escribir_n: i32,
     /// el emote que hace el jugador (P.emote) y el panel para elegirlo
@@ -398,7 +401,7 @@ impl Juego {
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3], acu_d: [crate::acustica::LEJOS; 14], acu_i: 0, acu_t: 0.0,
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
             npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), ondas: Vec::new(), onda_t: 0.0, gi: Default::default(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
-            her: Herramientas::default(), soc: Default::default(), med: Default::default(), en_red, gmod, gb: Default::default(), vr: Default::default(), grabar_pedido: None, grabando: false, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), banco: Default::default(), musica: Default::default(), ed: hud_web::Editor::default(), tut: Default::default(), gr: Default::default(), cont: Default::default(), poner_congelado: false, pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
+            her: Herramientas::default(), soc: Default::default(), med: Default::default(), vz: Default::default(), en_red, gmod, gb: Default::default(), vr: Default::default(), grabar_pedido: None, grabando: false, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), banco: Default::default(), musica: Default::default(), ed: hud_web::Editor::default(), tut: Default::default(), gr: Default::default(), cont: Default::default(), poner_congelado: false, pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
             armas_ico: false, armas_ico_h: 256, hud_ico: false, aero: None, aero_tiro: 9.0, aero_abre: 0.0, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         // los mapas: todos los de la web (DATA.esc), primero los RB (los de la versión personal); empieza en el último elegido
@@ -476,6 +479,7 @@ impl Juego {
                 Boton::Ajustes => { self.menu = None; self.ajustes = Some(0); }
                 Boton::Salas => self.abrir_salas(),
                 Boton::Chat => self.pedir_texto(Escribir::Chat, "Decir en la sala", "", 120, false),
+                Boton::Micro => self.vz_boton(),
                 Boton::Emotes => self.emo_apretar(id, x, y),
                 // (manejando, la cámara del vehículo: adentro o afuera; en primera mira adelante, como la web)
                 Boton::Camara if self.vehs.jugador.is_some() => { self.vehs.primera = !self.vehs.primera; if self.vehs.primera { self.jug.yaw = 0.0; self.jug.pitch = 0.0; } }
@@ -878,7 +882,7 @@ impl Juego {
             Boton::ArmaN(_) => self.armas.barra_t > 0.0,
             // (la bocina, al volante de algo que tenga y no esté roto; el turbo, en la bici con cohete: hud.js)
             Boton::Bocina => self.vehs.jugador.filter(|j| j.1 == 0).and_then(|j| self.vehs.de(j.0)).map_or(false, |v| !v.roto && v.bocina_tipo().is_some()),
-            Boton::Chat => self.en_red.en_sala(),
+            Boton::Chat | Boton::Micro => self.en_red.en_sala(),
             Boton::Jg(b) => self.jg_visible(b),
             Boton::Pj(b) => self.pj_visible(b),
             Boton::Emotes => self.vehs.jugador.is_none() && self.pj.is_some(),
@@ -1355,6 +1359,8 @@ impl Juego {
     fn sonidos(&mut self, dt: f32, ojos: [f32; 3], ent: &Entrada) {
         self.sonido.oyente = (ojos, self.jug.yaw);
         self.med_paso(dt);
+        // (la voz por cercanía: el micrófono, las voces de los demás desde su lugar)
+        self.vz_paso(dt);
         if !self.sonido.suena() || self.mapa.is_none() { return; }
         // el sonido espacial (acustica.rs): dos de los 14 rayos por cuadro miden el lugar y, en cada vuelta, sale el ambiente
         // (su reverberación y su eco); lo tapado por una pared de los sonidos nuevos (hasta 4 por cuadro) y, cada medio
@@ -1540,7 +1546,7 @@ impl Juego {
             l.texto(&mut u, sx - an / 2.0, sy - tt * 1.35, tt, [0.0, 0.0, 0.0, 1.0], txt);
         } }
         // (los demás jugadores: su nombre y lo que escriben)
-        if !abierto { self.red_hud(l, &mut u, wf, hf, t); }
+        if !abierto { self.red_hud(l, &mut u, wf, hf, t); self.vz_hud(l, &mut u, wf, t); }
         // (la vida, abajo a la izquierda como la de la web —#vida—: la barra roja sobre el fondo oscuro, el corazón y el
         // número; 150 × 18 px a 1080 de alto)
         if !abierto && self.mapa.is_some() && !self.jg.sin_hud() {

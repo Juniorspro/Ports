@@ -219,6 +219,22 @@ fn main() {
         paso(&mut j, &mut m, 40); println!("tele: {} videos · error {:?}", j.med.res.len(), j.med.error); foto(&mut m, "tele_panel");
         j.ini.panel = None; j.ini.desde_juego = false;
     }
+    if hace("voz") {
+        // (la voz por cercanía en una sala: el botón del micrófono al lado del chat, prendido, y la ficha de «vos» hablando con
+        // un micrófono de mentira que da sílabas)
+        struct MicroFalso(std::sync::atomic::AtomicUsize);
+        impl jxmod::comun::vozcerca::Micro for MicroFalso {
+            fn prender(&self) -> i32 { 1 } fn apagar(&self) {}
+            fn leer(&self) -> Vec<i16> { let k = self.0.fetch_add(533, std::sync::atomic::Ordering::Relaxed); (k..k + 533).map(|i| { let t = i as f32 / 16000.0; ((t * 1100.0).sin() * (t * 9.0).sin().abs() * 9000.0) as i16 }).collect() }
+        }
+        j.vz.micro = Some(Box::new(MicroFalso(Default::default())));
+        j.poner_mapa("RB_Flatgrass"); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 60);
+        j.en_red.red.sala = Some(jxjuego::red::Sala::oficial("RB_Flatgrass")); j.en_red.red.room = "prueba".into(); paso(&mut j, &mut m, 3);
+        boton(&mut j, Boton::Micro); paso(&mut j, &mut m, 30);
+        println!("micrófono: {} · hablando {:.2} · mandado {} B (nadie cerca)", j.vz.on, j.vz.yo_habla, j.vz.mandado); foto(&mut m, "voz_hud");
+        boton(&mut j, Boton::Micro); paso(&mut j, &mut m, 30); println!("micrófono: {}", j.vz.on); foto(&mut m, "voz_apagado");
+        j.en_red.red.sala = None; j.en_red.red.room.clear();
+    }
     if hace("entidades") {
         j.jg.ents.pend = Some("megarampa".into()); j.poner_mapa("FlatGrass"); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 90);
         let e = &j.jg.ents; println!("mega rampa: {} rampa, {} botones, {} carteles, {} teletransportes, {} luz · jugador {:?}", e.cuantas("rampa"), e.cuantas("boton_autos"), e.cuantas("cartel"), e.cuantas("teleport"), e.cuantas("luz"), j.jug.pos);

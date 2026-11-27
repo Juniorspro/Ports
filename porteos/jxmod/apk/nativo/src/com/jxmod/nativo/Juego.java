@@ -47,7 +47,9 @@ public class Juego extends NativeActivity {
         } catch (Throwable t) { }
     }
 
-    @Override protected void onResume() { super.onResume(); Actualizar.alVolver(this); }
+    @Override protected void onResume() { super.onResume(); Actualizar.alVolver(this); Voz.volver(this); Medios.volver(); }
+    // (en segundo plano: el micrófono se suelta y la radio y la tele se pausan; al volver, siguen)
+    @Override protected void onPause() { Voz.pausar(); Medios.pausar(); super.onPause(); }
     @Override protected void onDestroy() { Actualizar.soltar(this); super.onDestroy(); }
 
     /** (Rust: Ajustes → «Buscar actualización») */

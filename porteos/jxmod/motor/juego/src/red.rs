@@ -242,6 +242,8 @@ pub enum Orden {
     Conectar(Con, Opciones),
     Suscribir(Con, String), Desuscribir(Con, String),
     Publicar { con: Con, topic: String, payload: String, retain: bool },
+    /// lo mismo en binario (la voz por cercanía de la nativa: ROOM/v/ID)
+    PublicarBin { con: Con, topic: String, payload: Vec<u8> },
     /// despedirse (DISCONNECT) después de mandar lo pendiente
     Cerrar(Con),
     /// un pedido HTTPS (la tienda); la respuesta vuelve con `Red::http_respuesta(id, …)`
@@ -285,6 +287,8 @@ pub enum Evento {
     Gmod { sub: String, de: String, d: Value },
     /// otro hecho (ROOM/a) que esto no maneja: voz, Verity, maquinitas, memes, juntos, puertas…
     Hecho { de: String, k: String, d: Value },
+    /// un pedazo de la voz de otro (ROOM/v/ID, la de la nativa: ADPCM en binario)
+    Voz { de: String, datos: Vec<u8> },
     /// la lista de salas cambió (presencia o tienda)
     Lista,
     /// las salas mías cambiaron (guardarlas: `mias_json`)
@@ -317,6 +321,8 @@ pub struct Jugador {
     pub vehiculo: Option<(String, i32)>,
     /// el ID de Social (8 números) y el reloj de su física (J.reloj: segundos de física, para que lo dibujen entre muestras)
     pub social: Option<String>, pub reloj: f64,
+    /// manda y escucha la voz por cercanía de la nativa (ROOM/v/ID): «vz»
+    pub voz: bool,
 }
 /// una cosa mía (de OBJS)
 #[derive(Clone, Debug, Default)]
@@ -375,6 +381,8 @@ pub struct Remoto {
     /// en un vehículo: la clave de la cosa y el asiento (el cuerpo va al asiento)
     pub veh: Option<(String, i32)>, pub arriba: Option<[f64; 3]>,
     pub musica: Option<Value>, pub verity: Option<Value>, pub pill: Option<Value>, pub social: Option<String>,
+    /// escucha la voz por cercanía de la nativa («vz»)
+    pub voz: bool,
     /// el globito del chat y hasta cuándo (tiempo del juego)
     pub globo: Option<String>, pub globo_hasta: f64,
     /// cuándo llegó (los primeros 3 s no empuja a nadie) y su último estado
@@ -386,7 +394,7 @@ impl Remoto {
     fn nuevo(id: &str, t: f64) -> Remoto {
         Remoto { id: id.into(), nombre: String::new(), skin: "Hero".into(), skin_wid: String::new(), gorro: "HatEmpty".into(), gorro_aj: Value::Null, acc: Value::Null, color: String::new(),
             pos: [0.0; 3], yaw: 0.0, mira: 0.0, vel: [0.0; 3], suelo: false, agachado: false, sentado: false, vivo: true, rag: false, visible: true, f: 0, hp: 100.0, arma: None, emote: None,
-            veh: None, arriba: None, musica: None, verity: None, pill: None, social: None, globo: None, globo_hasta: 0.0, nace: t, t,
+            veh: None, arriba: None, musica: None, verity: None, pill: None, social: None, voz: false, globo: None, globo_hasta: 0.0, nace: t, t,
             meta: [0.0; 3], vel_red: [0.0; 3], yaw_m: 0.0, mm: None, mm_h: None, rr: None, rr_err: 0.0, mm_t: 0.0, mm_rit: 0.0, mm_rit_s: 0.0, mm_int: 0.0, mm_jit: 0.0, mm_v: [0.0; 3], mm_f: 0 }
     }
     /// la cápsula de choque recién llegado no empuja (3 s)
@@ -516,6 +524,8 @@ impl Red {
     pub fn soy_anfitrion(&self) -> bool { match &self.sala { None => true, Some(s) => !s.of && ((!s.du.is_empty() && s.du == self.id) || self.mias.contains_key(&s.id)) } }
 
     fn pub_(&mut self, con: Con, topic: String, payload: String, retain: bool) { self.ordenes.push(Orden::Publicar { con, topic, payload, retain }); }
+    /// un pedazo de mi voz (ROOM/v/ID, binario; sin retener)
+    pub fn publicar_voz(&mut self, datos: Vec<u8>) { if !self.on || datos.is_empty() { return; } let topic = format!("{}/v/{}", self.room, self.id); self.ordenes.push(Orden::PublicarBin { con: Con::Sala, topic, payload: datos }); }
     /// publicar() de red.js: en ROOM/canal, con mi número al final; `cuerpo` es un objeto JSON
     pub fn publicar(&mut self, canal: &str, cuerpo: &str, retain: bool) {
         if !self.on { return; }
@@ -767,7 +777,13 @@ impl Red {
 
     // ---------------- lo que llega ----------------
     fn red_mensaje(&mut self, topic: &str, payload: &[u8]) {
-        let sub = topic.get(self.room.len() + 1..).unwrap_or(""); let s = String::from_utf8_lossy(payload);
+        let sub = topic.get(self.room.len() + 1..).unwrap_or("");
+        // (la voz de la nativa: binario, de uno que está en la sala)
+        if let Some(id) = sub.strip_prefix("v/") {
+            if id != self.id && largo16(id) <= 20 && payload.len() <= 8192 && self.remotos.iter().any(|r| r.id == id) { self.eventos.push(Evento::Voz { de: id.into(), datos: payload.to_vec() }); }
+            return;
+        }
+        let s = String::from_utf8_lossy(payload);
         if let Some(id) = sub.strip_prefix("w/") {
             if id == self.id { return; }
             let d = if s.is_empty() { None } else { match serde_json::from_str::<Value>(&s) { Ok(d) => Some(d), Err(_) => return } };
@@ -836,6 +852,7 @@ impl Red {
         r.yaw_m = num(d.get("y"), -1e3, 1e3, 0.0); r.mira = num(d.get("t"), -2.0, 2.0, 0.0); r.f = int32(d.get("f")); r.t = t; r.hp = num(d.get("hp"), 0.0, 1e5, 100.0);
         r.nombre = nombre;
         r.social = d.get("sp").and_then(|v| v.as_str()).filter(|s| digitos(s, 8, 8)).map(String::from);
+        r.voz = d.get("vz").map(|v| verdad(Some(v))).unwrap_or(false);
         r.arma = d.get("a").and_then(|v| v.as_str()).filter(|a| !a.is_empty()).map(String::from);
         r.musica = d.get("mu").filter(|m| verdad(Some(m))).cloned();
         r.emote = d.get("e").and_then(|v| v.as_str()).filter(|e| !e.is_empty()).map(String::from);
@@ -1089,6 +1106,7 @@ impl Red {
         if !j.pill.is_empty() && j.pill != "0" { e += &format!(",\"pl\":{}", j.pill); }
         if let (Some(a), Some(l)) = (&self.antes, &self.lugar) { if t - l.t0 < 20.0 { e += &format!(",\"an\":{}", js_str(a)); } }
         if let Some(s) = j.social.as_deref().filter(|s| digitos(s, 8, 8)) { e += &format!(",\"sp\":{}", js_str(s)); }
+        if j.voz { e += ",\"vz\":1"; }
         e + "}"
     }
     fn npc_paso(&mut self, dt: f64, npcs: &[NpcLocal]) {
@@ -1276,6 +1294,7 @@ impl Puente {
                 Orden::Suscribir(c, t) => { if let Some(x) = self.con(c) { x.suscribir(&t); } }
                 Orden::Desuscribir(c, t) => { if let Some(x) = self.con(c) { x.desuscribir(&t); } }
                 Orden::Publicar { con, topic, payload, retain } => { if let Some(x) = self.con(con) { x.publicar(&topic, payload.as_bytes(), 0, retain); } }
+                Orden::PublicarBin { con, topic, payload } => { if let Some(x) = self.con(con) { x.publicar(&topic, &payload, 0, false); } }
                 Orden::Cerrar(c) => { let v = match c { Con::Sala => self.sala.take(), Con::Lista => self.lista.take() }; if let Some(mut v) = v { v.cerrar(); } }
                 Orden::Http { id, metodo, url, cabeceras, cuerpo } => {
                     let tx = self.tx.clone();
@@ -1305,5 +1324,22 @@ mod pruebas {
         assert_eq!(int32(Some(&Value::from(4294967297.0))), 1); assert_eq!(int32(Some(&Value::from("12"))), 12); assert_eq!(int32(Some(&Value::from(-3.7))), -3);
         assert_eq!(to_fixed3(0.0625), 0.063); assert_eq!(to_fixed3(12.3456), 12.346); assert_eq!(to_fixed3(-0.0625), -0.063);
         let s = Sala::oficial("RB_Flatgrass"); assert_eq!(s.topico(), "jxmod_v1_f_RB_Flatgrass_1"); assert_eq!(s.n, "JXMod Flatgrass");
+    }
+    /// la voz de la nativa: «vz» en el estado, el binario por ROOM/v/ID y del otro lado llega sólo de uno que está en la sala
+    #[test]
+    fn voz_de_ida_y_vuelta() {
+        let mut a = Red::nueva(Some("aaaa"), "A"); let mut b = Red::nueva(Some("bbbb"), "B");
+        for r in [&mut a, &mut b] { r.on = true; r.sala_abierta = true; r.room = "sala_x".into(); }
+        let j = Jugador { voz: true, vivo: true, ..Default::default() }; let e = a.json_estado(&j, 0.0); assert!(e.contains("\"vz\":1"), "{e}");
+        assert!(!a.json_estado(&Jugador::default(), 0.0).contains("vz"));
+        b.red_mensaje("sala_x/e", format!("{},\"i\":\"aaaa\"}}", &e[..e.len() - 1]).as_bytes());
+        assert!(b.remoto("aaaa").map(|r| r.voz).unwrap_or(false), "B sabe que A escucha la voz");
+        let datos = vec![b'J', 1, 0, 1, 0, 0, 0]; a.publicar_voz(datos.clone());
+        let (topic, payload) = a.ordenes().into_iter().find_map(|o| match o { Orden::PublicarBin { topic, payload, .. } => Some((topic, payload)), _ => None }).expect("publicó");
+        assert_eq!(topic, "sala_x/v/aaaa");
+        b.eventos.clear(); b.red_mensaje(&topic, &payload);
+        assert!(b.eventos().contains(&Evento::Voz { de: "aaaa".into(), datos }), "B recibió la voz");
+        // (de uno que no está en la sala, o la mía, no)
+        b.red_mensaje("sala_x/v/cccc", b"J"); b.red_mensaje("sala_x/v/bbbb", b"J"); assert!(b.eventos().is_empty());
     }
 }

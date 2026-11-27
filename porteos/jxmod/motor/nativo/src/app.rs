@@ -92,6 +92,8 @@ fn android_main(app: AndroidApp) {
         { let t7 = t.clone(); j.soc.abrir = Some(Box::new(move |u: &str| t7.abrir_url(u))); }
         // (la radio y la tele: Medios.java)
         j.med.app = Some(Box::new(t.clone()));
+        // (el micrófono de la voz por cercanía: Voz.java)
+        j.vz.micro = Some(Box::new(t.clone()));
         java = Some(t.clone());
         let (t1, t2) = (t.clone(), t);
         j.teclado = Some(crate::comun::Teclado { pedir: Box::new(move |id, ti, ini, max, cl| t1.pedir(id, ti, ini, max, cl)), tomar: Box::new(move || t2.tomar()) });

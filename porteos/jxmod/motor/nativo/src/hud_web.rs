@@ -48,10 +48,11 @@ pub const VE_CHAT: u32 = 1;
 pub const VE_CELU: u32 = 2;
 pub const VE_OBJ: u32 = 4;
 pub const VE_MOD: u32 = 8;
+pub const VE_MICRO: u32 = 16;
 pub static ZONA_VE: AtomicU32 = AtomicU32::new(VE_CELU | VE_OBJ | VE_MOD);
 #[derive(Clone, Copy)]
 enum Iz { Pausa, B(Boton, u32) }
-const SIS: [Iz; 3] = [Iz::Pausa, Iz::B(Boton::Chat, VE_CHAT), Iz::B(Boton::Pj(Bp::Celular), VE_CELU)];
+const SIS: [Iz; 4] = [Iz::Pausa, Iz::B(Boton::Chat, VE_CHAT), Iz::B(Boton::Micro, VE_MICRO), Iz::B(Boton::Pj(Bp::Celular), VE_CELU)];
 const CREAR: [Iz; 2] = [Iz::B(Boton::Objetos, VE_OBJ), Iz::B(Boton::Jg(Bj::Mod), VE_MOD)];
 /// las medidas de la zona (HUD_V2.zona): tamaño, margen, hueco entre botones y entre grupos
 const ZS: f32 = 96.0;
@@ -130,7 +131,8 @@ pub fn palanca(w: f32, h: f32) -> (f32, f32, f32) {
 
 // ---- los íconos ----
 /// los de HUD_SVG (hud.js, viewBox 0 0 24 24), con «volar» propio (las alas y la flecha para arriba)
-pub const ICONOS: [(&str, &str); 32] = [
+pub const ICONOS: [(&str, &str); 33] = [
+    ("micro", r##"<rect x="8.6" y="2.8" width="6.8" height="11.4" rx="3.4" fill="none" stroke="#fff" stroke-width="2"/><path d="M5.4 11.2a6.6 6.6 0 0 0 13.2 0M12 17.8v3.4M8.6 21.2h6.8" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/><path d="M10.6 6.6h2.8M10.6 9.4h2.8" stroke="#fff" stroke-width="1.3" stroke-linecap="round" opacity=".75"/>"##),
     ("pausa", r##"<rect x="6.5" y="5" width="4" height="14" rx="1.2" fill="#fff"/><rect x="13.5" y="5" width="4" height="14" rx="1.2" fill="#fff"/>"##),
     ("props", r##"<path d="M12 2.8l8 4.2v9.8l-8 4.4-8-4.4V7z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M4.3 7.2L12 11.4l7.7-4.2M12 11.4v9.4" fill="none" stroke="#fff" stroke-width="1.6" opacity=".8"/>"##),
     ("chat", r##"<path d="M4 5.5h16a1.5 1.5 0 0 1 1.5 1.5v8.5A1.5 1.5 0 0 1 20 17h-8.5L7 20.5V17H4a1.5 1.5 0 0 1-1.5-1.5V7A1.5 1.5 0 0 1 4 5.5z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><circle cx="8" cy="11.3" r="1.3" fill="#fff"/><circle cx="12" cy="11.3" r="1.3" fill="#fff"/><circle cx="16" cy="11.3" r="1.3" fill="#fff"/>"##),
@@ -257,6 +259,16 @@ mod pruebas {
         assert!((ce.x - p[0]).abs() < 0.5 && (ce.y - p[1] - p[2] - 18.0 * p[2] / 96.0).abs() < 1.0);
         // (la barra de armas entra en el ancho)
         assert!(v.iter().filter(|b| matches!(b.b, Boton::ArmaN(_))).all(|b| b.x - b.w / 2.0 >= 9.0 && b.x + b.w / 2.0 <= 864.0));
+        // (en una sala: el chat y el micrófono de la voz; nada se pisa y todo queda arriba, lejos de la palanca)
+        ZONA_VE.store(VE_CHAT | VE_MICRO | VE_CELU | VE_OBJ | VE_MOD, Ordering::Relaxed);
+        for (w, h) in [(873.0, 393.0), (1280.0, 720.0), (2400.0, 1080.0), (800.0, 360.0)] {
+            let (v, p) = disposicion(w, h, 15);
+            let mut cajas: Vec<(Boton, [f32; 4])> = v.iter().filter(|b| matches!(b.b, Boton::Chat | Boton::Micro | Boton::Pj(Bp::Celular) | Boton::Objetos | Boton::Jg(Bj::Mod))).map(|b| (b.b, [b.x - b.w / 2.0, b.y - b.h / 2.0, b.x + b.w / 2.0, b.y + b.h / 2.0])).collect();
+            cajas.push((Boton::Ajustes, [p[0] - p[2] / 2.0, p[1] - p[2] / 2.0, p[0] + p[2] / 2.0, p[1] + p[2] / 2.0]));
+            assert_eq!(cajas.len(), 6);
+            for (i, (a, x)) in cajas.iter().enumerate() { assert!(x[3] <= h * 0.45 + 1.0, "{a:?} baja demasiado en {w}×{h}: {x:?}");
+                for (b, y) in &cajas[i + 1..] { assert!(x[2] <= y[0] + 0.5 || y[2] <= x[0] + 0.5 || x[3] <= y[1] + 0.5 || y[3] <= x[1] + 0.5, "{a:?} pisa a {b:?} en {w}×{h}"); } }
+        }
     }
     #[test]
     fn movidos() {
@@ -316,6 +328,7 @@ impl super::Juego {
         if self.ed.activo { return VE_CHAT | VE_CELU | VE_OBJ | VE_MOD; }
         let mut z = 0;
         if self.boton_visible(Boton::Chat) { z |= VE_CHAT; }
+        if self.boton_visible(Boton::Micro) { z |= VE_MICRO; }
         if self.boton_visible(Boton::Pj(Bp::Celular)) { z |= VE_CELU; }
         if self.boton_visible(Boton::Objetos) { z |= VE_OBJ; }
         if self.boton_visible(Boton::Jg(Bj::Mod)) { z |= VE_MOD; }
@@ -367,6 +380,7 @@ impl super::Juego {
                 Boton::Bocina => (Some("bocina"), "", false),
                 Boton::Turbo => (Some("turbo"), "", self.vehs.jugador.and_then(|j| self.vehs.de(j.0)).map_or(false, |v| v.turbo)),
                 Boton::Chat => (Some("chat"), "", false),
+                Boton::Micro => (Some("micro"), "", self.vz.on || self.vz.esperando > 0.0),
                 Boton::Emotes => (Some("emote"), "", self.emote.is_some() || self.emotes_panel),
                 Boton::Jg(Bj::Mod) => (None, "MOD", self.jg_etiqueta(Bj::Mod).1),
                 Boton::Jg(Bj::Linterna) => (Some("linterna"), "", self.jg_etiqueta(Bj::Linterna).1),

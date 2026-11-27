@@ -29,7 +29,7 @@ fn local(p: &Value) -> Local {
         arriba: j["arriba"].as_array().map(|_| a3(&j["arriba"])), color: so(&j["color"]), pos: a3(&j["pos"]), yaw: f(&j["yaw"]), pitch: f(&j["pitch"]), vel: a3(&j["vel"]),
         suelo: j["suelo"] == true, agachado: j["agachado"] == true, vivo: j["vivo"] == true, bits: j["bits"].as_i64().unwrap_or(0) as i32,
         arma: so(&j["arma"]), emote: so(&j["emote"]), vida: f(&j["vida"]), musica: s(&j["musica"]), verity: s(&j["verity"]), pill: s(&j["pill"]),
-        vehiculo: j["vehiculo"].as_array().map(|v| (s(&v[0]), v[1].as_i64().unwrap_or(0) as i32)), social: so(&j["social"]), reloj: f(&j["reloj"]),
+        vehiculo: j["vehiculo"].as_array().map(|v| (s(&v[0]), v[1].as_i64().unwrap_or(0) as i32)), social: so(&j["social"]), reloj: f(&j["reloj"]), voz: false,
     };
     let objs = p["objs"].as_array().map(|l| l.iter().map(|o| ObjLocal { id: o["id"].as_u64().unwrap() as u32, nombre: s(&o["nombre"]), pos: a3(&o["pos"]), q: a4(&o["q"]), duerme: o["duerme"] == true, congelado: o["congelado"] == true, maq: s(&o["maq"]), no_mundo: o["no_mundo"] == true }).collect()).unwrap_or_default();
     let simulo = p["simulo"].as_array().map(|l| l.iter().map(|o| SimRemoto { clave: s(&o["clave"]), pos: a3(&o["pos"]), q: a4(&o["q"]), duerme: o["duerme"] == true }).collect()).unwrap_or_default();
@@ -49,6 +49,7 @@ fn op_json(o: &Orden) -> Value {
         Orden::Conectar(c, op) => { let w = op.will.as_ref().unwrap(); json!(["conn", con_txt(*c), op.url, op.client_id, op.keepalive, op.reconectar_ms, op.espera_ms, op.clean, w.topic, String::from_utf8_lossy(&w.payload), w.retain]) }
         Orden::Suscribir(c, t) => json!(["sub", con_txt(*c), t]), Orden::Desuscribir(c, t) => json!(["unsub", con_txt(*c), t]),
         Orden::Publicar { con, topic, payload, retain } => json!(["pub", con_txt(*con), topic, payload, retain]),
+        Orden::PublicarBin { con, topic, payload } => json!(["pubbin", con_txt(*con), topic, payload.len()]),
         Orden::Cerrar(c) => json!(["end", con_txt(*c)]),
         Orden::Http { id, metodo, url, cabeceras, cuerpo } => json!(["http", id, metodo, url, cuerpo, cabeceras.iter().map(|(k, v)| json!([k, v])).collect::<Vec<_>>()]),
     }

@@ -56,7 +56,7 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | red.js, anfitrion.js | ✔ | juego/red.rs, mqtt.rs, nativo/red_juego.rs |
 | censura.js | ✔ (la parte local; la IA no) | juego/censura.rs (58 de 58 mensajes iguales) |
 | lan.js | ✔ (anfitrión: broker MQTT 3.1.1 por WebSocket en el 8765 y /lan.json; anuncio «JXMODLAN1» por UDP en el 8766; la lista de Buscar partida, entrar por ws://IP:8765/mqtt; el candado de multicast de Android. Compatible con las partidas de la web. No sirve la página del juego por HTTP como la web) | nativo/lan.rs, lan_juego.rs, tests/lan.rs |
-| voz.js | ✘ | |
+| voz.js | ◐ | nativo/vozcerca.rs + Voz.java: voz por cercanía entre nativas por la red del juego (ADPCM 16 kHz, sólo mientras hablás y con alguien a menos de 70 m), sale desde la boca del que habla con el sonido espacial; botón al lado del chat, ficha de quién habla, Ajustes → Escuchar la voz de los demás. Con la web todavía no (la web usa WebRTC) |
 | social.js, cuenta.js, tiendared.js | ◐ (la cuenta con Google en el navegador o con Gmail y el código; Chats con grupos, tildes, «escribiendo…» e invitaciones con Unirse; Amigos, solicitudes y bloqueados; Buscar por ID con recientes; Perfil; el latido y el aviso de mensaje nuevo; el freno de la tienda saturada. Falta copiar el progreso a la cuenta) | nativo/src/social_juego.rs |
 
 ## Addons de GMod
