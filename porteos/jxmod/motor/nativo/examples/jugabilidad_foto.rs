@@ -87,6 +87,36 @@ fn main() {
         let p2 = j.fis.cuerpo(id2).unwrap().pos; mirar(&mut j, [p2[0] as f32 + 4.0, p2[1] as f32 + 1.0, p2[2] as f32 - 1.0], [p2[0] as f32, p2[1] as f32, p2[2] as f32]); paso(&mut j, &mut m, 3);
         let (autos, _) = j.jg_des_info(); println!("explosión al costado: {:?} · vida {:.0}", autos, j.vehs.de(id2).map(|v| v.vida).unwrap_or(0.0)); foto(&mut m, "des_explosion_lado");
     }
+    // ---------------- la Comunidad: Mega rampa (entidades.js) ----------------
+    if hace("entidades") {
+        j.jg.ents.pend = Some("megarampa".into()); j.poner_mapa("FlatGrass"); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 90);
+        let e = &j.jg.ents; println!("mega rampa: {} rampa, {} botones, {} carteles, {} teletransportes, {} luz · jugador {:?}", e.cuantas("rampa"), e.cuantas("boton_autos"), e.cuantas("cartel"), e.cuantas("teleport"), e.cuantas("luz"), j.jug.pos);
+        let autos: Vec<String> = j.objs.iter().map(|o| o.nombre.clone()).collect(); println!("autos puestos por los botones: {:?}", autos);
+        // (arriba, mirando la bajada; de costado, lejos, toda la rampa)
+        let (rp, _) = j.jg.ents.lugar("rampa").unwrap();
+        mirar(&mut j, [rp[0] + 10.0, rp[1] + 146.0, rp[2] - 28.0], [rp[0], rp[1] + 120.0, rp[2] + 60.0]); paso(&mut j, &mut m, 3); foto(&mut m, "ent_rampa_arriba");
+        mirar(&mut j, [rp[0] + 230.0, rp[1] + 60.0, rp[2] + 140.0], [rp[0], rp[1] + 50.0, rp[2] + 140.0]); paso(&mut j, &mut m, 3); foto(&mut m, "ent_rampa_costado");
+        // un Sedan desde la punta de arriba: que baje apoyado (sin despegarse de la cresta) y salga por el salto
+        let _ = j.crear_en(&mut m, "Sedan", [rp[0], rp[1] + 140.5, rp[2] + 4.0], 0.0); let id = j.objs.last().and_then(|o| o.cuerpo).unwrap();
+        if let Some(b) = j.fis.cuerpo_mut(id) { b.vel = [0.0, 0.0, 12.0]; b.despertar(); }
+        let mut vmax = 0.0f64; let mut ymin = 1e9f64; let mut despegue = 0.0f64;
+        for k in 0..900 { paso(&mut j, &mut m, 1); let Some(b) = j.fis.cuerpo(id) else { break }; let v = (b.vel[0] * b.vel[0] + b.vel[1] * b.vel[1] + b.vel[2] * b.vel[2]).sqrt(); vmax = vmax.max(v); ymin = ymin.min(b.pos[1]);
+            // (lo que se separa del piso de la rampa mientras baja: altura del auto menos la del piso debajo)
+            if k % 30 == 0 { let p = b.pos; let piso = j.mapa.as_ref().and_then(|mp| mp.mundo.rayo([p[0] as f32, p[1] as f32 + 0.5, p[2] as f32], [0.0, -1.0, 0.0], 50.0)).map(|g| g.t as f64 - 0.5).unwrap_or(-1.0); despegue = despegue.max(piso);
+                println!("  t={:.1}s auto en ({:.1}, {:.1}, {:.1}) a {:.1} m/s · al piso {:.2} m", k as f32 / 60.0, p[0], p[1], p[2], v, piso); }
+            if k == 240 { let p = b.pos; mirar(&mut j, [p[0] as f32 + 14.0, p[1] as f32 + 6.0, p[2] as f32 - 6.0], [p[0] as f32, p[1] as f32, p[2] as f32]); foto(&mut m, "ent_rampa_auto"); } }
+        println!("rampa: velocidad máxima {:.1} m/s ({:.0} km/h) · lo más bajo {:.1} m · lo más separado del piso {:.2} m", vmax, vmax * 3.6, ymin, despegue);
+        // el teletransporte de abajo lleva a la plataforma de arriba
+        let tp = j.jg.ents.lista.iter().find(|e| e.t == "teleport").map(|e| e.p).unwrap();
+        j.jug.pos = [tp[0], tp[1] + 1.0, tp[2]]; j.jug.vel = [0.0; 3]; paso(&mut j, &mut m, 20); println!("teletransporte: de {:?} a {:?}", tp, j.jug.pos);
+        // el piano de las Opciones: delante, y caminar por arriba de las teclas
+        j.jug.pos = [40.0, 1.6, 40.0]; j.jug.yaw = 0.0; paso(&mut j, &mut m, 30); j.jg.ents.poner = Some("piano"); paso(&mut j, &mut m, 3);
+        let (pp, pq) = j.jg.ents.lugar("piano").unwrap(); println!("piano en {:?}", pp);
+        mirar(&mut j, [pp[0] + 8.0, pp[1] + 7.0, pp[2] - 4.0], [pp[0], pp[1], pp[2] + 2.5]); paso(&mut j, &mut m, 3); foto(&mut m, "ent_piano");
+        let mut maxon = 0; let rot = |q: [f32; 4], v: [f32; 3]| { let u = [q[0], q[1], q[2]]; let c = |a: [f32; 3], b: [f32; 3]| [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; let t = c(u, v); let t = [t[0] * 2.0, t[1] * 2.0, t[2] * 2.0]; let c2 = c(u, t); [v[0] + t[0] * q[3] + c2[0], v[1] + t[1] * q[3] + c2[1], v[2] + t[2] * q[3] + c2[2]] };
+        for k in 0..60 { let x = 8.0 - k as f32 * 0.27; let l = rot(pq, [x, 0.0, 2.0]); j.jug.pos = [pp[0] + l[0], pp[1] + 0.3 + 0.98, pp[2] + l[2]]; j.jug.vel = [0.0; 3]; paso(&mut j, &mut m, 2); maxon = maxon.max(j.jg.ents.teclas_sonando()); if k == 30 { foto(&mut m, "ent_piano_pisando"); } }
+        println!("piano: {} notas distintas sonaron al cruzarlo (a lo sumo {} teclas a la vez)", j.jg.ents.notas_distintas(), maxon);
+    }
     // ---------------- RB_Flatgrass: lo demás ----------------
     j.poner_mapa("RB_Flatgrass"); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 60); j.jug.noclip = false; paso(&mut j, &mut m, 30);
     let base = j.jug.pos; let fw = [j.jug.yaw.sin(), 0.0, j.jug.yaw.cos()]; println!("Flatgrass: jugador {:?} yaw {:.2}", base, j.jug.yaw);

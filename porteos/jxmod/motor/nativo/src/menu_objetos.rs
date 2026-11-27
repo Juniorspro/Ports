@@ -21,7 +21,7 @@ const NEG: Col = rgba(0xffffff, 1.0);
 
 const PESTANAS: [(&str, &str); 5] = [("Props", "ico_props"), ("NPCs", "ico_ragdoll"), ("Vehículos", "ico_auto"), ("Herramientas", "ico_herr"), ("Mods", "ico_mod")];
 /// el ícono de color de cada Opción (las de la web: volar, muñeco de trapo, SCP, Cíclope)
-fn ico_opcion(it: &str) -> &'static str { match it { "opc:volar" => "ico_volar", "opc:ragdoll" => "ico_ragdoll", "opc:scp" => "ico_scp", "opc:ciclope" => "ico_ciclope", _ => "ico_mod" } }
+fn ico_opcion(it: &str) -> &'static str { match it { "opc:volar" => "ico_volar", "opc:ragdoll" => "ico_ragdoll", "opc:scp" => "ico_scp", "opc:ciclope" => "ico_ciclope", "opc:piano" => "ico_piano", _ => "ico_mod" } }
 
 /// las pestañas que se ven en la ventana de objetos (las herramientas tienen su ventana)
 const VISIBLES: [usize; 4] = [0, 1, 2, PESTANA_MODS];

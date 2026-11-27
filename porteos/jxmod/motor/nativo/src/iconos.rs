@@ -277,6 +277,7 @@ pub const COLOR: &[(&str, &str)] = &[
     ("ico_scp", include_str!("../../../juego/iconos/scp.svg")),
     ("ico_ciclope", include_str!("../../../juego/iconos/ciclope.svg")),
     ("ico_auto", include_str!("../../../juego/iconos/auto.svg")),
+    ("ico_piano", include_str!("../../../juego/iconos/piano.svg")),
     // (los del Mundo, propios: las horas del día y el ciclo)
     ("ico_amanecer", r##"<svg viewBox="0 0 64 64"><rect x="1" y="1" width="62" height="62" rx="14" fill="#e98a4f"/><rect x="1" y="38" width="62" height="25" rx="0" fill="#7a4a8c"/><circle cx="32" cy="40" r="11" fill="#ffe08a"/><rect x="1" y="40" width="62" height="23" fill="#5b3a78"/><path fill="#ffe08a" d="M30 16h4v8h-4zM14 24l3-3 6 6-3 3zM47 21l3 3-6 6-3-3z"/></svg>"##),
     ("ico_manana", r##"<svg viewBox="0 0 64 64"><rect x="1" y="1" width="62" height="62" rx="14" fill="#6fb6ec"/><circle cx="24" cy="26" r="10" fill="#ffd54a"/><path fill="#ffffff" d="M30 46a8 8 0 0 1 8-8 10 10 0 0 1 19 3 6 6 0 0 1-1 12H34a6 6 0 0 1-4-7z"/></svg>"##),

@@ -14,6 +14,7 @@ use jxmotor::escena::{ItemDin, LuzP, Mat, Malla, FL_SIN_SOMBRA};
 #[path = "nat_juego.rs"] pub mod nat_juego;
 #[path = "cic_juego.rs"] pub mod cic_juego;
 #[path = "pepe_juego.rs"] pub mod pepe_juego;
+#[path = "ent_juego.rs"] pub mod ent_juego;
 pub use nat_juego::{estado, pose_jugador};
 /// los ajustes del Mundo en el menú de objetos (Props → Mundo): el ítem, su nombre y su ícono (propios, iconos.rs)
 pub const MUNDO: [(&str, &str, &str); 9] = [("mundo:hora:6.5", "Amanecer", "ico_amanecer"), ("mundo:hora:9", "Mañana", "ico_manana"), ("mundo:hora:12", "Mediodía", "ico_dia"),
@@ -130,6 +131,8 @@ pub struct Clib { pub menu: bool, pub modo: Option<char>, pub pos: V, pub yaw: f
 pub struct Jugabilidad {
     pub des: des_juego::Des, pub nuk: nuk_juego::Nuk, pub art: nuk_juego::Art, pub nat: nat_juego::Nat, pub cic: cic_juego::Cic, pub pv: pepe_juego::Pv,
     pub pat: Pat, pub clib: Clib,
+    /// las entidades del mapa y de los mods (entidades.js: piano, mega rampa, botón de autos, teletransporte…)
+    pub ents: ent_juego::Ents,
     /// la linterna prendida (LINT.on)
     pub lint: bool,
     /// las Opciones prendidas (los mods nativos de esta parte: volar, ragdoll, scp, ciclope)
@@ -167,7 +170,7 @@ impl Jugabilidad {
     /// el nombre de una cosa del menú (las nucleares con su nombre de verdad; las Opciones)
     pub fn nombre_item<'a>(&'a self, it: &'a str) -> &'a str {
         if let Some(m) = MUNDO.iter().find(|m| m.0 == it) { return m.1; }
-        match it { "opc:volar" => "Volar", "opc:ragdoll" => "Muñeco de trapo", "opc:scp" => "SCP en cuatro patas", "opc:ciclope" => "Cíclope", _ => self.nombres.get(it).map(|s| s.as_str()).unwrap_or(it) }
+        match it { "opc:piano" => "Piano gigante", "opc:volar" => "Volar", "opc:ragdoll" => "Muñeco de trapo", "opc:scp" => "SCP en cuatro patas", "opc:ciclope" => "Cíclope", _ => self.nombres.get(it).map(|s| s.as_str()).unwrap_or(it) }
     }
     pub fn activo(&self, k: &str) -> bool { self.mods.contains(&k) }
 }
@@ -204,7 +207,7 @@ impl Juego {
         let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas: vec![malla], mats, texs: vec![], lms: vec![], items: vec![], agua: None, cielo: None };
         let _ = m.cargar(&Escena { c: cab, datos });
         // (las Opciones de JXMod, primeras en Props: ui.js, spawnSubs; las de los mods nativos de esta parte)
-        if !self.catalogo.iter().any(|c| c.0 == "Opciones") { self.catalogo.insert(0, ("Opciones".into(), ["opc:volar", "opc:ragdoll", "opc:scp", "opc:ciclope"].iter().map(|s| s.to_string()).collect())); }
+        if !self.catalogo.iter().any(|c| c.0 == "Opciones") { self.catalogo.insert(0, ("Opciones".into(), ["opc:volar", "opc:ragdoll", "opc:scp", "opc:ciclope", "opc:piano"].iter().map(|s| s.to_string()).collect())); }
         // (los ajustes del mundo: la hora del día —tocar una la pone ya— y el ciclo de día y noche)
         if !self.catalogo.iter().any(|c| c.0 == "Mundo") { let k = self.catalogo.iter().position(|c| c.0 == "Opciones").map_or(0, |i| i + 1);
             self.catalogo.insert(k, ("Mundo".into(), MUNDO.iter().map(|m| m.0.to_string()).collect())); }
@@ -237,6 +240,7 @@ impl Juego {
         let dt = if self.ajustes.is_some() { 0.0 } else { dt };
         self.jg.t += dt; self.jg.dt = dt; self.jg.cam = None;
         self.des_paso(m, dt);
+        self.ent_cuadro(m, dt);
         self.nuk_paso(m, dt); self.art_paso(m, dt);
         if self.jg.lint && self.jug.vida <= 0.0 { self.jg.lint = false; }
         self.pat_paso();
@@ -330,6 +334,8 @@ impl Juego {
     pub(super) fn jg_poner(&mut self, nombre: &str) -> bool {
         if let Some(k) = nombre.strip_prefix("mundo:") { self.mundo_poner(k); return true; }
         let Some(k) = nombre.strip_prefix("opc:") else { return false };
+        // (el piano gigante: se pone delante —o se trae, si ya está—; entidadPonerMod)
+        if k == "piano" { self.jg.ents.poner = Some("piano"); self.avisar("Piano: pisá las teclas (también con un auto o tirándoles cosas)".into()); return true; }
         let k: &'static str = match k { "volar" => "volar", "ragdoll" => "ragdoll", "scp" => "scp", "ciclope" => "ciclope", _ => return true };
         if let Some(i) = self.jg.mods.iter().position(|x| *x == k) {
             self.jg.mods.remove(i);
@@ -371,7 +377,7 @@ impl Juego {
     /// las luces puntuales de acá (los ojos y el rayo del Cíclope, la catapulta…): adelante, para que no las corte el tope;
     /// en OpenGL 2 (sin luces especiales) la linterna va como una luz donde pega
     pub(super) fn jg_luces(&self, luces: &mut Vec<LuzP>) {
-        let mut mias = self.cic_luces();
+        let mut mias = self.cic_luces(); mias.extend(self.ent_luces());
         if self.en_uso == Placa::Gl2 && self.jg.lint && self.jug.vida > 0.0 {
             if let Some(mp) = &self.mapa { let (o, f) = (self.jg.cam_ult, self.jg.mira_ult);
                 let t = mp.mundo.rayo(o, f, 30.0).map(|g| g.t).unwrap_or(30.0); let p = add(o, esc(f, (t - 0.6).max(0.3)));
@@ -463,7 +469,7 @@ impl Juego {
     // ---------------- lo que se dibuja ----------------
     /// las cosas de acá: las ruedas sueltas, el brazo de la catapulta, los lentes y los rayos del Cíclope, Pepe
     pub(super) fn jg_items(&self, items: &mut Vec<ItemDin>, cam: V) {
-        self.des_items(items); self.art_items(items); self.cic_items(items, cam); self.pv_items(items); self.nat_items(items);
+        self.des_items(items); self.ent_items(items); self.art_items(items); self.cic_items(items, cam); self.pv_items(items); self.nat_items(items);
     }
     /// los carteles de las nucleares (bola de fuego, polvo y hongo), como bloques de partículas del motor
     pub(super) fn jg_efectos(&self, ef: &mut Vec<(u32, Vec<f32>)>, vp: &M4, cam: V) { self.nuk_bloques(ef, vp, cam); }
@@ -473,6 +479,7 @@ impl Juego {
     /// Prime, el rojo del Cíclope y la cinta de Pepe
     pub(super) fn jg_hud_fondo(&self, l: &Letras, u: &mut Vec<f32>, wf: f32, hf: f32) {
         if self.mapa.is_none() { return; }
+        self.ent_hud(l, u, wf, hf);
         self.pv_hud_fondo(l, u, wf, hf);
         self.cic_hud_fondo(l, u, wf, hf);
         let rad = self.jg.nuk.rad; if rad > 0.0 { borde(l, u, wf, hf, [90.0 / 255.0, 1.0, 60.0 / 255.0], rad * 0.55 * 0.55); }
@@ -563,7 +570,10 @@ impl Juego {
     pub(super) fn jg_limpiar(&mut self) {
         // (las Opciones siguen prendidas; el personaje del mapa nuevo es el de siempre: el del Cíclope se vuelve a pedir)
         let mods = std::mem::take(&mut self.jg.mods); let antes = self.jg.skin_antes.take();
+        // (el mapa de la Comunidad que se pidió sigue: se arma sobre el mapa base nuevo)
+        let pend = self.jg.ents.pend.take();
         self.jg = Jugabilidad { mods, skin_antes: antes, ..Jugabilidad::default() };
+        self.jg.ents.pend = pend;
         self.jg.pv.nuevo_mapa = true;
     }
 }
