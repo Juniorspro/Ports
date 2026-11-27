@@ -151,6 +151,8 @@ impl Teclado {
             env.cast_local::<JString>(r)?.try_to_string(env)
         }).unwrap_or_default()
     }
+    /// abre una dirección en el navegador del celular (Juego.abrirUrl: la cuenta con Google)
+    pub fn abrir_url(&self, u: &str) { let a = self.act.clone(); let _ = con_java(&self.vm, |env| { let s = env.new_string(u)?; env.call_method(a.as_obj(), jni_str!("abrirUrl"), jni_sig!("(Ljava/lang/String;)V"), &[JValue::Object(&s)])?; Ok(()) }); }
     /// baja la versión nueva y la instala encima (Juego.actualizarAhora)
     pub fn actualizar_ahora(&self) { let a = self.act.clone(); let _ = con_java(&self.vm, |env| { env.call_method(a.as_obj(), jni_str!("actualizarAhora"), jni_sig!("()V"), &[])?; Ok(()) }); }
     /// el refresco de la pantalla (Hz: 60, 90, 120…), para los gráficos automáticos

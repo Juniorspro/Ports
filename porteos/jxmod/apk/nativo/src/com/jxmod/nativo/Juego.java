@@ -70,6 +70,13 @@ public class Juego extends NativeActivity {
     /** (Rust, cada cuadro mientras espera) lo escrito, una vez */
     public static synchronized String tomarEscrito() { String t = escrito; escrito = null; return t; }
 
+    /** (Rust) abre una dirección en el navegador del celular (la cuenta con Google: Google no deja entrar dentro de la app) */
+    public void abrirUrl(final String u) {
+        runOnUiThread(new Runnable() { @Override public void run() {
+            try { startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(u))); } catch (Throwable t) { }
+        } });
+    }
+
     /** (Rust) el cuadro para escribir: título, lo que ya hay, hasta cuántas letras y si es una contraseña */
     public void pedirTexto(final int id, final String titulo, final String inicial, final int max, final boolean clave) {
         runOnUiThread(new Runnable() { @Override public void run() {

@@ -452,7 +452,7 @@ impl Juego {
             Pieza::Op(i) => match CL_K[i] {
                 "nueva" => self.pn_abrir(P::Nueva { cat: 0, scroll: 0.0 }),
                 "multi" => self.pn_abrir(P::Multi { scroll: 0.0 }),
-                "social" => self.pn_abrir(P::Social { tab: 0 }),
+                "social" => self.pn_abrir(P::Social { tab: 0, scroll: 0.0 }),
                 "tienda" => self.pn_abrir(P::Tienda { tab: 0, cat: 0 }),
                 "crear" => self.pn_abrir(P::Crear),
                 "personajes" => self.pn_abrir(P::Personajes { tab: 0, scroll: 0.0 }),

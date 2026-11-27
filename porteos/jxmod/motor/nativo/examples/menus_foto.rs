@@ -62,6 +62,12 @@ fn main() {
     if std::env::var("JXM_RED").is_ok() { j.gmod.http_bin = Some(std::sync::Arc::new(|u: &str| {
         let o = std::process::Command::new("curl").args(["-s", "--max-time", "30", "-w", "\n%{http_code}", u]).output().map_err(|e| e.to_string())?;
         let mut b = o.stdout; let i = b.iter().rposition(|c| *c == b'\n').unwrap_or(0); let cod: u16 = String::from_utf8_lossy(&b[i + 1..]).trim().parse().unwrap_or(0); b.truncate(i); Ok((cod, b)) })); }
+    // (JXM_RED=1 también para la cuenta y lo social: los pedidos con método, encabezados y cuerpo, por curl)
+    if std::env::var("JXM_RED").is_ok() { j.soc.http = Some(std::sync::Arc::new(|met: &str, u: &str, cab: &[(String, String)], cuerpo: Option<&str>| {
+        let mut c = std::process::Command::new("curl"); c.args(["-s", "--max-time", "30", "-w", "\n%{http_code}", "-X", met, u]);
+        for (k, v) in cab { c.arg("-H").arg(format!("{k}: {v}")); } if let Some(b) = cuerpo { c.arg("--data-binary").arg(b); }
+        let o = c.output().map_err(|e| e.to_string())?; let mut b = o.stdout; let i = b.iter().rposition(|x| *x == b'\n').unwrap_or(0);
+        let cod: u16 = String::from_utf8_lossy(&b[i + 1..]).trim().parse().unwrap_or(0); b.truncate(i); if cod == 0 { return Err("sin respuesta".into()); } Ok((cod, String::from_utf8_lossy(&b).into_owned())) })); }
     // (JXM_IDIOMA=en|ja|ar…: las fotos en ese idioma)
     if let Some(i) = std::env::var("JXM_IDIOMA").ok().and_then(|c| jxjuego::idiomas::de_codigo(&c)) { jxjuego::idiomas::poner(i); }
     // (JXM_MUSICA=1: la placa de lo que suena —acá no hay sonido—)
@@ -165,6 +171,21 @@ fn main() {
             let b = std::fs::read(format!("{sal}/{pre}_{w}x{h}_ws_gif_b.png")).ok();
             let dec = |v: Option<Vec<u8>>| v.and_then(|v| { let d = png::Decoder::new(std::io::Cursor::new(v)); let mut r = d.read_info().ok()?; let mut buf = vec![0; r.output_buffer_size()]; r.next_frame(&mut buf).ok()?; Some(buf) });
             if let (Some(a), Some(b)) = (dec(a), dec(b)) { let dif = a.chunks(4).zip(b.chunks(4)).filter(|(x, y)| x.iter().zip(y.iter()).any(|(p, q)| (*p as i32 - *q as i32).abs() > 24)).count(); println!("workshop gif: {dif} píxeles cambiaron en medio segundo (de {})", a.len() / 4); }
+        }
+        if hace("social") {
+            use jxmod::comun::paneles_juego::Acc;
+            let tocar_acc = |j: &mut Juego, m: &mut Motor3d, a: Acc| -> bool { if let Some((r, _)) = j.ini.pn.zonas.iter().find(|z| z.1 == a).cloned() { let (x, y) = centro(r); tocar(j, m, x, y); paso(j, m, 20); true } else { false } };
+            // (sin sesión: lo que dice la tienda de verdad —con JXM_RED—, y Entrar con tu Gmail)
+            if let Some(b) = j.ini_zona(Pieza::Op(2)) { let (x, y) = centro(b); tocar(&mut j, &mut m, x, y); }
+            let t0 = std::time::Instant::now(); while j.soc.conf.is_none() && t0.elapsed().as_secs() < 20 { paso(&mut j, &mut m, 2); std::thread::sleep(std::time::Duration::from_millis(100)); }
+            paso(&mut j, &mut m, 60); foto(&mut m, "soc_entrar"); println!("social: config {:?}", j.soc.conf);
+            if tocar_acc(&mut j, &mut m, Acc::Soc("gmail".into())) { paso(&mut j, &mut m, 30); foto(&mut m, "soc_gmail"); }
+            // (con una sesión de ejemplo: las cuatro pestañas y la conversación del grupo)
+            j.soc_demo(false); paso(&mut j, &mut m, 10);
+            for (k, n) in ["soc_chats", "soc_amigos", "soc_buscar", "soc_perfil"].iter().enumerate() { tocar_acc(&mut j, &mut m, Acc::Tab(k)); paso(&mut j, &mut m, 40); foto(&mut m, n); }
+            tocar_acc(&mut j, &mut m, Acc::Tab(1)); tocar_acc(&mut j, &mut m, Acc::Soc("sub|1".into())); paso(&mut j, &mut m, 30); foto(&mut m, "soc_solicitudes");
+            tocar_acc(&mut j, &mut m, Acc::Tab(0)); j.soc_demo(true); paso(&mut j, &mut m, 40); foto(&mut m, "soc_chat");
+            tocar_acc(&mut j, &mut m, Acc::Volver); paso(&mut j, &mut m, 20);
         }
         if hace("paneles") {
             // (cada opción del menú y lo de arriba, tocando en el centro; la foto con la entrada terminada; y volver)

@@ -8,6 +8,7 @@ use super::*;
 use super::inicio_juego::{bezier, prog, Nivel};
 use super::aero::{self, blanco, negro, Aero, OpVentana};
 use crate::pincel::{self, rgba, con_a, Cara, Col, Pincel};
+#[path = "social_juego.rs"] pub mod social;
 
 // —— los colores de los paneles (--pn…) ——
 const PN_PL: Col = rgba(0x0a0e14, 0.80);
@@ -28,7 +29,7 @@ const PN_VI: Col = rgba(0xc39dff, 1.0);
 /// el panel abierto (lo de inicioPanel) y su estado
 #[derive(Clone, Debug, PartialEq)]
 pub enum PanelIni {
-    Nueva { cat: usize, scroll: f32 }, Multi { scroll: f32 }, Social { tab: usize }, Tienda { tab: usize, cat: usize }, Crear,
+    Nueva { cat: usize, scroll: f32 }, Multi { scroll: f32 }, Social { tab: usize, scroll: f32 }, Tienda { tab: usize, cat: usize }, Crear,
     Personajes { tab: usize, scroll: f32 }, Opciones { tab: usize, scroll: f32 }, Idioma, Avisos, Bugs { tab: usize, scroll: f32 }, Grieta,
     /// el formulario de Crear server (panelMultiCrear)
     CrearServer { scroll: f32 },
@@ -45,7 +46,9 @@ pub enum Acc { Volver, Cerrar, Cat(usize), Mapa(String), Empezar, Hora, Mods, Vr
     SrvNombre, SrvClave, SrvModo(bool), SrvTg(u8), SrvPaso(u8, i32), SrvCrear,
     /// la Workshop: una categoría, buscar, pegar un link o número, cambiar el orden, abrir la ficha de un resultado, bajar,
     /// prender o apagar un instalado, cerrar la ficha y la página siguiente
-    WsCat(usize), WsBuscar, WsLink, WsOrden, WsFicha(usize), WsBajar(String), WsAlternar(String), WsCerrar, WsMas }
+    WsCat(usize), WsBuscar, WsLink, WsOrden, WsFicha(usize), WsBajar(String), WsAlternar(String), WsCerrar, WsMas,
+    /// la cuenta y lo social (social_juego.rs): «orden|a|b»
+    Soc(String) }
 
 /// lo que se va eligiendo en Crear server (RB.srv de la web: Libre, sin PvP, RPG ni nextbots, 1000 props y 40 autos)
 #[derive(Clone, Debug)]
@@ -140,7 +143,7 @@ impl Juego {
         if d.5 { let c = self.ini.pn.contenido; let max = (self.ini.pn.alto_contenido - c[3]).max(0.0);
             if matches!(self.ini.panel, Some(PanelIni::Tienda { tab: 3, .. })) { let ws = &mut self.gmod.ws; if ws.ficha.is_none() { let rc = ws.r_cats;
                 if d.1 >= rc[0] && d.1 <= rc[0] + rc[2] && d.2 >= rc[1] && d.2 <= rc[1] + rc[3] { ws.scroll_cats = (ws.scroll_cats - dy).clamp(0.0, (ws.alto_cats - rc[3]).max(0.0)); } else { ws.scroll = (ws.scroll - dy).clamp(0.0, max); } } return; }
-            if let Some(pn) = self.ini.panel.as_mut() { match pn { PanelIni::Nueva { scroll, .. } | PanelIni::Multi { scroll } | PanelIni::Personajes { scroll, .. } | PanelIni::Opciones { scroll, .. } | PanelIni::Bugs { scroll, .. } | PanelIni::CrearServer { scroll } => { *scroll = (*scroll - dy).clamp(0.0, max); } _ => {} } } }
+            if let Some(pn) = self.ini.panel.as_mut() { match pn { PanelIni::Nueva { scroll, .. } | PanelIni::Multi { scroll } | PanelIni::Personajes { scroll, .. } | PanelIni::Opciones { scroll, .. } | PanelIni::Bugs { scroll, .. } | PanelIni::Social { scroll, .. } | PanelIni::CrearServer { scroll } => { *scroll = (*scroll - dy).clamp(0.0, max); } _ => {} } } }
     }
     pub(super) fn pn_dedo_arriba(&mut self, id: i32, _w: f32, _h: f32) {
         let Some(d) = self.ini.pn.dedo.take() else { return }; if d.0 != id { return; }
@@ -177,7 +180,8 @@ impl Juego {
                 match self.lan_hostear(&m) { Ok(s) => { self.ini_entrar_sala(&s); if let Some(ip) = self.lan_ip() { self.avisar(format!("Partida en el Wi-Fi: los demás la ven en la lista (o escriben {ip})")); } } Err(e) => self.avisar(e) } }
             (_, Acc::Refrescar) => { self.en_red.red.conectar_lista(); self.en_red.red.cargar_salas(); }
             (_, Acc::Buscar) => self.avisar("Para buscar hace falta el teclado del celular".into()),
-            (Some(PanelIni::Social { .. }), Acc::Tab(k)) => self.ini.panel = Some(PanelIni::Social { tab: k }),
+            (Some(PanelIni::Social { .. }), Acc::Tab(k)) => { self.ini.panel = Some(PanelIni::Social { tab: k, scroll: 0.0 }); self.soc.sumar = false; }
+            (_, Acc::Soc(s)) => self.soc_accion(&s),
             (Some(PanelIni::Tienda { cat, .. }), Acc::Tab(k)) => { self.ini.panel = Some(PanelIni::Tienda { tab: k, cat }); if k == 3 && !self.gmod.ws.buscada { self.ws_buscar(true); } }
             (_, Acc::WsCat(k)) => { self.gmod.ws.cat = k; if !self.gmod.ws.q.is_empty() && super::gmod_juego::ws_id_de(&self.gmod.ws.q).is_some() { self.gmod.ws.q.clear(); } self.ws_buscar(true); }
             (_, Acc::WsBuscar) => { let q = if super::gmod_juego::ws_id_de(&self.gmod.ws.q).is_some() { String::new() } else { self.gmod.ws.q.clone() }; self.pedir_texto(Escribir::WsBuscar, "Buscar en la Workshop", &q, 80, false); }
@@ -246,7 +250,7 @@ impl Juego {
             PanelIni::Crear => self.pn_crear(p, &m, ent, &mut z),
             PanelIni::CrearServer { scroll } => self.pn_crear_server(p, &m, *scroll, ent, &mut z),
             PanelIni::Multi { scroll } => self.pn_multi(p, &m, *scroll, ent, &mut z),
-            PanelIni::Social { tab } => self.pn_social(p, &m, *tab, ent, &mut z),
+            PanelIni::Social { tab, scroll } => self.pn_social(p, &m, *tab, *scroll, ent, &mut z),
             PanelIni::Tienda { tab, cat } => self.pn_tienda(p, &m, *tab, *cat, ent, &mut z),
             PanelIni::Personajes { tab, scroll } => self.pn_personajes(p, &m, *tab, *scroll, ent, &mut z),
             PanelIni::Opciones { tab, scroll } => self.pn_opciones(p, &m, *tab, *scroll, ent, &mut z),
@@ -587,23 +591,6 @@ impl Juego {
             (alto, cuerpo)
         });
         self.ini.pn.contenido = cont; self.ini.pn.alto_contenido = alto;
-    }
-
-    /// Social: las pestañas (Chats, Amigos, Buscar jugador, Perfil) y, sin cuenta, el cartel de la web
-    fn pn_social(&mut self, p: &mut Pincel, m: &Pm, tab: usize, t: f32, z: &mut Vec<([f32; 4], Acc)>) {
-        self.pn_marco(p, m, t, |p, c| {
-            let (xt, hc) = self.pn_cabecera(p, m, c, "03", Some(("gente", AMA)), "Social", t);
-            let tabs = [("Chats", "chat"), ("Amigos", "gente"), ("Buscar jugador", "buscar"), ("Perfil", "persona")];
-            let mut x = xt + m.u; let ty = c[1] + (hc - 1.0 - m.ph) / 2.0;
-            let entra = tabs.iter().map(|(n, _)| self.pn_pestana_ancho(p, m, n, None, true) + 4.0).sum::<f32>() <= c[0] + c[2] - 14.0 - x;
-            for (k, (n, ic)) in tabs.iter().enumerate() { let n2 = if entra { *n } else { "" }; let wt = if entra { self.pn_pestana_ancho(p, m, n, None, true) } else { m.ph.max(44.0) + 12.0 };
-                self.pn_pestana(p, m, [x, ty, wt, m.ph], n2, None, Some(ic), k == tab, Acc::Tab(k), z); x += wt + 4.0; }
-            let pie_h = m.ph + m.u * 1.5 + 1.0; let pie = self.pn_pie(p, m, c, pie_h, t, z);
-            let cu = [c[0], c[1] + hc, c[2], pie[1] - c[1] - hc];
-            let w = 460.0f32.min(cu[2] - 48.0); let lh = m.ft * 1.45; let rs = p.at.renglones(Cara::S4, m.ft, 0.0, "Lo social se activa cuando la tienda tenga el inicio de sesión con Google.", w);
-            let y = cu[1] + (cu[3] - rs.len() as f32 * lh) / 2.0;
-            self.pn_cascada(p, t, 0, |p| self.pn_parrafo(p, cu[0] + (cu[2] - w) / 2.0, y, w, m.ft, lh, TX, "Lo social se activa cuando la tienda tenga el inicio de sesión con Google.", true));
-        });
     }
 
     /// Buscar partida multijugador (rbmenus.js): el buscador, el estado, la lista de servers con Entrar y «Entrar al más lleno»

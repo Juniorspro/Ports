@@ -996,6 +996,7 @@ impl Juego {
         std::thread::spawn(move || { let r = h(&format!("{}gmod/archivo/{}", TIENDA_URL, id)).and_then(|(c, b)| if c == 200 { Ok(b) } else { Err(format!("HTTP {c}")) }); let _ = tx.send((format!("gma:{}", id), r)); });
     }
     pub(crate) fn gmod_tienda_paso(&mut self) {
+        self.cu_paso();
         self.base_addons_paso();
         // (cómo van las bajadas por SteamPipe)
         for it in self.gmod.tienda.iter_mut() { if let Some(p) = &it.prog { let (h, t) = (p.hecho.load(std::sync::atomic::Ordering::Relaxed), p.total.load(std::sync::atomic::Ordering::Relaxed)); if it.estado.starts_with("Bajando") && t > 0 { it.estado = format!("Bajando {}%", h * 100 / t); } } }
@@ -1017,6 +1018,9 @@ impl Juego {
                     None => self.avisar("No se pudo leer la tienda".into()),
                 }
                 self.gmod.tienda_pedida = false;
+            } else if let Some(c) = k.strip_prefix("cu:") {
+                // (la cuenta y lo social)
+                self.cu_llego(c, r);
             } else if let Some(n) = k.strip_prefix("bugs:") {
                 // (lo publicado en Bugs y sugerencias)
                 self.bugs_llegaron(n.parse().unwrap_or(0), r);

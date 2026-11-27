@@ -68,7 +68,7 @@ fn android_main(app: AndroidApp) {
     // (el multijugador: las conexiones al broker y a la tienda van por Java —TLS con los certificados del sistema—)
     j.en_red.puente = Some(unsafe { crate::red_android::Java::de_vm(app.vm_as_ptr()) }.puente());
     // (los addons de GMod: bajar de la tienda —binario— y la carpeta del celular donde se pueden dejar .gma)
-    let java = unsafe { crate::red_android::Java::de_vm(app.vm_as_ptr()) }; j.gmod.http_bin = Some(java.http_bin()); j.gmod.carpeta_externa = app.external_data_path().map(|p| p.join("addons"));
+    let java = unsafe { crate::red_android::Java::de_vm(app.vm_as_ptr()) }; j.gmod.http_bin = Some(java.http_bin()); j.soc.http = Some(java.http()); j.gmod.carpeta_externa = app.external_data_path().map(|p| p.join("addons"));
     // (el contenido base de GMod y HL2 —rb/gm_lib.*— y el menú de GMod —rb/jxp/— leídos de la APK)
     {   let lr = crate::comun::gmod_juego::lector_android(&app); let bj = bajas.clone();
         j.gmod.lector_rb = Some(std::sync::Arc::new(move |n: &str, o: u64, len: usize| lr(n, o, len).or_else(|| {
@@ -88,6 +88,8 @@ fn android_main(app: AndroidApp) {
         { let t4 = t.clone(); j.lan.candado = Some(Box::new(move || t4.candado_multicast())); }
         // (la actualización de la app, en el inicio: Actualizar.java la busca al abrir, la baja y la instala encima)
         { let (t5, t6) = (t.clone(), t.clone()); j.ini.act_estado = Some(Box::new(move || t5.estado_actualizacion())); j.ini.act_pedir = Some(Box::new(move || t6.actualizar_ahora())); }
+        // (la cuenta con Google: la página de la tienda en el navegador del celular)
+        { let t7 = t.clone(); j.soc.abrir = Some(Box::new(move |u: &str| t7.abrir_url(u))); }
         java = Some(t.clone());
         let (t1, t2) = (t.clone(), t);
         j.teclado = Some(crate::comun::Teclado { pedir: Box::new(move |id, ti, ini, max, cl| t1.pedir(id, ti, ini, max, cl)), tomar: Box::new(move || t2.tomar()) });

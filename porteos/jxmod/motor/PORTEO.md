@@ -13,7 +13,7 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | efectos.js, marcas.js | ✔ | juego/efectos.rs |
 | dia.js | ✔ | juego/dia.rs, nativo/mapas_juego.rs (Ajustes → Día: la hora y el ciclo) |
 | cielo3d.js | ✔ (la maqueta va con la niebla del mapa, no con la de su cámara) | nativo/mapas_juego.rs, jxmotor (FL_CIELO en los tres motores) |
-| noche.js (la noche de FNAF en RB_Pizzeria: un modo de juego, no la luz de la noche) | ✘ | |
+| noche.js (la noche de FNAF en RB_Pizzeria: un modo de juego, no la luz de la noche) | — (el dueño lo sacó: la pizzería no está en la nativa; FNAF se juega con lo del Workshop) | |
 | vhs.js, vivo.js | — | (el VHS del evento de los 300 y los eventos en vivo, que son JavaScript firmado) |
 | linterna.js | ◐ | nativo/jugabilidad.rs (sin el Lua de GMod ni la de los demás de la sala; en OpenGL 2, una luz donde pega) |
 | puertas.js, mapaio.js | ✔ (sin avisarle a la sala) | juego/puertas.rs, nativo/mapas_juego.rs |
@@ -57,7 +57,7 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | censura.js | ✔ (la parte local; la IA no) | juego/censura.rs (58 de 58 mensajes iguales) |
 | lan.js | ✔ (anfitrión: broker MQTT 3.1.1 por WebSocket en el 8765 y /lan.json; anuncio «JXMODLAN1» por UDP en el 8766; la lista de Buscar partida, entrar por ws://IP:8765/mqtt; el candado de multicast de Android. Compatible con las partidas de la web. No sirve la página del juego por HTTP como la web) | nativo/lan.rs, lan_juego.rs, tests/lan.rs |
 | voz.js | ✘ | |
-| social.js, cuenta.js, tiendared.js | ✘ | |
+| social.js, cuenta.js, tiendared.js | ◐ (la cuenta con Google en el navegador o con Gmail y el código; Chats con grupos, tildes, «escribiendo…» e invitaciones con Unirse; Amigos, solicitudes y bloqueados; Buscar por ID con recientes; Perfil; el latido y el aviso de mensaje nuevo; el freno de la tienda saturada. Falta copiar el progreso a la cuenta) | nativo/src/social_juego.rs |
 
 ## Addons de GMod
 | web | estado | nativa |
