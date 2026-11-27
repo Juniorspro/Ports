@@ -125,6 +125,15 @@ impl Estado {
 
     // ---------------- compilar y correr ----------------
     /// compilar un archivo: devuelve su función principal (o un error con «archivo:línea:»)
+    /// compilar con su propio entorno (lo que se compila en vivo: CompileString, loadstring, load): mientras no se le ponga
+    /// uno con setfenv, lee y escribe las globales de siempre; con setfenv, las de esa tabla (Lua 5.1, como GMod)
+    pub fn compilar_entorno(&mut self, src: &[u8], nombre: &str) -> Result<Valor, Error> {
+        let fichas = lexico::lexico(src, nombre).map_err(Error::nuevo)?;
+        let mut ast = sintaxis::parsear(fichas, nombre).map_err(Error::nuevo)?;
+        ast.con_modulo = true;
+        let p = compilar::compilar(&ast, &Rc::from(nombre)).map_err(Error::nuevo)?;
+        Ok(Valor::Func(Rc::new(Funcion { tipo: TipoFn::Lua(Clausura { proto: p, ups: Box::new([]), entorno: Some(Rc::new(RefCell::new(Valor::Nil))) }), id: Cell::new(0) })))
+    }
     pub fn compilar(&mut self, src: &[u8], nombre: &str) -> Result<Valor, Error> {
         // (lo mismo que ya se compiló con el mismo nombre se reusa, como LUA.cache de la web)
         let mut h: u64 = 0xcbf2_9ce4_8422_2325;

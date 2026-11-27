@@ -262,7 +262,8 @@ function IsUselessModel(m) return UTIL_IsUselessModel(m) end
 function Model(m) return m end
 function Sound(s) return s end
 function OrderVectors(a, b) local lo = Vector(math.min(a.x, b.x), math.min(a.y, b.y), math.min(a.z, b.z)); local hi = Vector(math.max(a.x, b.x), math.max(a.y, b.y), math.max(a.z, b.z)); a:Set(lo); b:Set(hi) end
-function CompileFile(r) return function() return include(r) end end
+-- (CompileFile: el archivo compilado con su propio entorno —setfenv le pone otro, como los idiomas de Murder—; si no se puede leer, como antes)
+function CompileFile(r) local s = file.Read(r, "LUA") if s then local f = CompileString(s, r, false) if type(f) == "function" then return f end end return function() return include(r) end end
 function DOF_Kill() end function DOF_Start() end
 function ScreenScale(n) return n * (ScrW() / 640) end
 function ScreenScaleH(n) return n * (ScrH() / 480) end
@@ -2004,4 +2005,90 @@ do
     def(W, "GetSlot", function(s) return s.Slot or 0 end) def(W, "GetSlotPos", function(s) return s.SlotPos or 0 end) def(W, "GetWeight", function(s) return s.Weight or 5 end)
     def(W, "SetActivity", poner("w_act"))
   end
+end
+
+-- ---------- los modos de juego: equipos, frags, muertes y espectador del jugador (gmod_modos.js, gmmApi) ----------
+do
+  local EQ = {}
+  local amarillo = Color(255, 255, 100)
+  local function poner(id, n, c, j) EQ[id] = { n = tostring(n), c = (type(c) == "table" and c.r) and c or amarillo, j = j ~= false, score = 0, spawns = nil, clases = nil } end
+  poner(0, "Joining/Connecting", amarillo, false); poner(1001, "Unassigned", amarillo, false); poner(1002, "Spectator", amarillo, true)
+  local yo = { eq = 1001, frags = 0, muertes = 0, obs = 0, obj = nil }
+  local function num(x, d) return tonumber(x) or d end
+  local function jugs() local p = LocalPlayer and LocalPlayer() if IsValid(p) then return { p } end return {} end
+  function __JX_MiEquipo() return yo.eq end
+  function __JX_EquiposElegibles()
+    local r = {} for id, e in pairs(EQ) do if id > 0 and id < 1000 and e.j then r[#r + 1] = { id, e.n, e.c.r or 255, e.c.g or 255, e.c.b or 100 } end end
+    table.sort(r, function(a, b) return a[1] < b[1] end) return r
+  end
+  team.SetUp = function(id, n, c, j) poner(num(id, 0), n, c, j) end
+  team.GetName = function(id) local e = EQ[num(id, -1)] return e and e.n or "" end
+  team.GetColor = function(id) local e = EQ[num(id, -1)] return e and e.c or amarillo end
+  team.SetColor = function(id, c) local e = EQ[num(id, -1)] if e and type(c) == "table" then e.c = c end end
+  team.Valid = function(id) return EQ[num(id, -1)] ~= nil end
+  team.Joinable = function(id) local e = EQ[num(id, -1)] return e ~= nil and e.j end
+  team.NumPlayers = function(id) return num(id, -1) == yo.eq and #jugs() or 0 end
+  team.GetPlayers = function(id) if num(id, -1) == yo.eq then return jugs() end return {} end
+  team.GetAllTeams = function() local t = {} for id, e in pairs(EQ) do t[id] = { Name = e.n, Color = e.c, Score = e.score, Joinable = e.j } end return t end
+  team.GetScore = function(id) local e = EQ[num(id, -1)] return e and e.score or 0 end
+  team.SetScore = function(id, s) local e = EQ[num(id, -1)] if e then e.score = num(s, 0) end end
+  team.AddScore = function(id, s) local e = EQ[num(id, -1)] if e then e.score = e.score + num(s, 0) end end
+  team.TotalFrags = function(id) return num(id, -1) == yo.eq and yo.frags or 0 end
+  team.TotalDeaths = function(id) return num(id, -1) == yo.eq and yo.muertes or 0 end
+  team.BestAutoJoinTeam = function()
+    local mejor, nm = 1001, math.huge
+    for id, e in SortedPairs(EQ) do if e.j and id > 0 and id < 1000 then local k = (id == yo.eq) and 1 or 0 if k < nm then nm = k mejor = id end end end
+    return mejor
+  end
+  team.SetSpawnPoint = function(id, s) local e = EQ[num(id, -1)] if e then e.spawns = s end end
+  team.GetSpawnPoint = function(id) local e = EQ[num(id, -1)] return e and e.spawns or {} end
+  team.GetSpawnPoints = function(id) return {} end
+  team.SetClass = function(id, c) local e = EQ[num(id, -1)] if e then e.clases = type(c) == "table" and c or { c } end end
+  team.GetClass = function(id) local e = EQ[num(id, -1)] return e and e.clases or nil end
+  -- el jugador (uno: el de este celular)
+  local P = FindMetaTable("Player")
+  P.Team = function(s) return yo.eq end
+  P.SetTeam = function(s, t) yo.eq = num(t, 1001) end
+  P.Frags = function() return yo.frags end
+  P.Deaths = function() return yo.muertes end
+  P.AddFrags = function(s, n) yo.frags = yo.frags + num(n, 0) end
+  P.AddDeaths = function(s, n) yo.muertes = yo.muertes + num(n, 0) end
+  P.SetFrags = function(s, n) yo.frags = num(n, 0) end
+  P.SetDeaths = function(s, n) yo.muertes = num(n, 0) end
+  P.Spawn = function(s) __jx_reaparecer() end
+  P.KillSilent = function(s) __jx_matar_callado() end
+  P.Spectate = function(s, m) yo.obs = num(m, 0) if yo.obs == (OBS_MODE_ROAMING or 6) then __jx_espectador(true) end end
+  P.UnSpectate = function(s) yo.obs = 0 yo.obj = nil __jx_espectador(false) end
+  P.SetObserverMode = function(s, m) yo.obs = num(m, 0) end
+  P.GetObserverMode = function() return yo.obs end
+  P.SpectateEntity = function(s, e) yo.obj = e end
+  P.GetObserverTarget = function() return yo.obj or NULL end
+  P.StripWeapons = function(s) __jx_quitar_armas() end
+  P.SendLua = function(s, str) BroadcastLua(tostring(str)) end
+  -- (las muertes y los frags del jugador cuentan solos, como en GMod)
+  hook.Add("PlayerDeath", "__jx_muertes", function(v, i, a) if v == LocalPlayer() then yo.muertes = yo.muertes + 1 end end)
+  -- baseclass.Get("gamemode_x") (DEFINE_BASECLASS en los modos): la tabla del modo cargado de este lado
+  if baseclass and baseclass.Get then
+    local get0 = baseclass.Get
+    baseclass.Get = function(n) if type(n) == "string" and string.sub(n, 1, 9) == "gamemode_" then local t = __jx_modo_tabla(n) if t then return t end end return get0(n) end
+  end
+  -- gmmPedirEquipo: el modo decide (AutoTeam o PlayerRequestTeam); sin eso, se pone y listo
+  function __JX_PedirEquipo(id)
+    local G = GAMEMODE or GM local p = LocalPlayer()
+    if id == nil then
+      if G and G.AutoTeam then G:AutoTeam(p) return end
+      id = team.BestAutoJoinTeam()
+    end
+    if G and G.PlayerRequestTeam then G:PlayerRequestTeam(p, id) else yo.eq = id end
+  end
+end
+
+-- ---------- properties (el menú del clic derecho sobre una entidad): la lista de propiedades y Add ----------
+do
+  rawset(properties, "List", rawget(properties, "List") or {})
+  rawset(properties, "Add", function(n, t) if type(t) ~= "table" then return end t.InternalName = n properties.List[n] = t end)
+  rawset(properties, "GetHovered", function() return nil end)
+  rawset(properties, "OnScreenClick", function() return false end)
+  rawset(properties, "OpenEntityMenu", function() end)
+  rawset(properties, "CanBeTargeted", function(e, p) return IsValid(e) and not e:IsPlayer() end)
 end

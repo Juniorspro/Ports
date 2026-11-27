@@ -60,6 +60,14 @@ pub fn correr(addons: Vec<(String, Vec<(String, Vec<u8>)>)>, ticks: u32, tiempo:
         if idx.is_empty() { con_lua = !ad.lua.is_empty(); }
         idx.push(gm.montar(ad));
     }
+    // (JXM_MODO: poner un modo de juego de los montados, como al empezar una partida con él)
+    if let Ok(md) = std::env::var("JXM_MODO") {
+        let lista: Vec<String> = gm.modos().iter().map(|m| format!("{}<{}>{}", m.n, m.base, if m.menu { "" } else { "(base)" })).collect();
+        eprintln!("modos: {}", lista.join(" "));
+        let ok = gm.activar_modo(&md); let (eq, por) = gm.equipos();
+        eprintln!("modo {md}: {} · por equipos {por} · equipos {:?} · barra {:?} · maneja la muerte {}", if ok { "puesto" } else { "NO" }, eq, gm.modo_barra(), gm.modo_maneja_muerte());
+        if let Some((id, _, _)) = eq.first() { gm.pedir_equipo(Some(*id)); eprintln!("pedí el equipo {id}: quedé en {} · barra {:?}", gm.mi_equipo(), gm.modo_barra()); }
+    }
     let t_montar = t0.elapsed();
     let (sweps, sents) = (gm.sweps(idx[0]), gm.sents(idx[0]));
     let lista = |v: &[String]| format!("[{}]", v.iter().map(|x| fmt_s(x)).collect::<Vec<_>>().join(","));

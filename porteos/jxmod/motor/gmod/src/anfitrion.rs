@@ -307,6 +307,14 @@ pub trait Anfitrion {
     fn danar_objeto(&mut self, o: ObjId, dano: f64, pos: V3, dir: V3);
     fn danar_persona(&mut self, p: PersonaId, dano: f64, pos: V3, dir: V3);
     fn matar_jugador(&mut self);
+    /// Player:Spawn() de un modo de juego: aparecer ya en un punto de aparición (vivo, con la vida llena)
+    fn reaparecer(&mut self) {}
+    /// sin las armas del juego (en un modo que no es del sandbox se aparece sin nada y el modo da las suyas)
+    fn quitar_armas(&mut self) {}
+    /// espectador que vuela libre (Spectate(OBS_MODE_ROAMING)) o de vuelta a caminar
+    fn espectador(&mut self, _on: bool) {}
+    /// ¿el juego reaparece solo al jugador muerto? (con un modo que tiene PlayerDeathThink, lo decide el modo)
+    fn reaparece_solo(&self) -> bool { true }
     /// una explosión del juego (empuja, daña y, si no `sin_fx`, se ve y se oye)
     fn explosion(&mut self, pos: V3, radio: f64, magnitud: f64, sin_fx: bool);
 

@@ -238,13 +238,25 @@ fn collectgarbage(_: &mut Estado, a: &[Valor], out: &mut Vec<Valor>) -> Result<(
     Ok(())
 }
 
+/// setfenv(f, t): el entorno de una función compilada con el suyo (CompileString, loadstring, load); las demás quedan igual
 fn setfenv(_: &mut Estado, a: &[Valor], out: &mut Vec<Valor>) -> Result<(), Error> {
+    if let (Valor::Func(f), Valor::Tabla(t)) = (arg(a, 0), arg(a, 1)) {
+        if let crate::valor::TipoFn::Lua(c) = &f.tipo { if let Some(cel) = &c.entorno { *cel.borrow_mut() = Valor::Tabla(t.clone()); } }
+    }
     if !arg(a, 0).es_nil() { out.push(arg(a, 0).clone()); }
     Ok(())
 }
 
-fn getfenv(e: &mut Estado, _: &[Valor], out: &mut Vec<Valor>) -> Result<(), Error> {
-    out.push(Valor::Tabla(e.globales()));
+fn getfenv(e: &mut Estado, a: &[Valor], out: &mut Vec<Valor>) -> Result<(), Error> {
+    if let Valor::Func(f) = arg(a, 0) { if let crate::valor::TipoFn::Lua(c) = &f.tipo { if let Some(cel) = &c.entorno { if let Valor::Tabla(t) = &*cel.borrow() { out.push(Valor::Tabla(t.clone())); return Ok(()); } } } }
+    // (getfenv() de una función común: las globales; con la capa de globales de un lado —GMod—, una vista que lee y
+    // escribe con la capa del lado que corre, así un entorno armado con __index = getfenv() ve lo del cliente o del server)
+    if e.capa.is_none() { out.push(Valor::Tabla(e.globales())); return Ok(()); }
+    let t = Tabla::nueva_ref(); let mt = Tabla::nueva_ref();
+    def(&mt, "__index", |e, a, o| { let v = e.leer_global(&arg(a, 1))?; o.push(v); Ok(()) });
+    def(&mt, "__newindex", |e, a, _| { e.escribir_global(arg(a, 1).clone(), arg(a, 2).clone()) });
+    t.borrow_mut().meta = Some(mt);
+    out.push(Valor::Tabla(t));
     Ok(())
 }
 
@@ -259,7 +271,7 @@ fn seeall(e: &mut Estado, a: &[Valor], _: &mut Vec<Valor>) -> Result<(), Error> 
 
 fn cargar(e: &mut Estado, src: &[u8], nombre: &Valor, defecto: &str, out: &mut Vec<Valor>) {
     let nombre = if js_verdad(nombre) { String::from_utf8_lossy(&js_string(nombre)).into_owned() } else { defecto.to_string() };
-    match e.compilar(src, &nombre) {
+    match e.compilar_entorno(src, &nombre) {
         Ok(f) => out.push(f),
         Err(err) => { out.push(Valor::Nil); out.push(err.valor); }
     }

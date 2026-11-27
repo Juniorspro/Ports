@@ -276,6 +276,8 @@ pub(crate) struct Gma {
     pub modelo_jug: String,
     /// las herramientas de la Tool Gun de los addons (sus modos, en el orden en que se montaron)
     pub tools_addon: Vec<String>,
+    /// el modo de juego puesto (gamemodes/: gmod_modos.js)
+    pub modo: Option<crate::modos::ModoActivo>,
 }
 
 /// las metatablas de los valores de Source
@@ -327,7 +329,7 @@ impl Gma {
             ents: Vec::new(), ents_idx: HashMap::new(), nid: 1000, clases: OrdenS::default(), armas: OrdenS::default(), efectos: OrdenS::default(), cvars: HashMap::new(),
             cmds: HashMap::new(), fuentes: HashMap::new(), err_cuenta: HashMap::new(), ult_err: false, jug: Valor::Nil, mundo: Valor::Nil, null: Valor::Nil, swep: None,
             armas_jug: Orden::default(), armas_juego: HashMap::new(), ent_por_obj: HashMap::new(), hijos: Vec::new(), hijos_orden: None,
-            mt: Metas::default(), metas: Orden::default(), faltan: HashMap::new(), ov_s: None, ov_c: None, cuadro: 0, iniciando: None, ini_c: None, cargando_clase: None,
+            mt: Metas::default(), metas: Orden::default(), faltan: HashMap::new(), ov_s: None, ov_c: None, modo: None, cuadro: 0, iniciando: None, ini_c: None, cargando_clase: None,
             addons: Vec::new(), addon_actual: None, hook_addon: None, hook_ev: None, arch: HashMap::new(), rutas_corridas: HashMap::new(), dir: String::new(),
             requeridos: HashMap::new(), bases: Orden::default(), ph_bases: Vec::new(), guiones: HashMap::new(), mats: HashMap::new(), glob: OrdenV::default(), globales: HashMap::new(),
             tec_ant: 0, teclas_ant: 0, bot_ant: None, bot_nuevos: Vec::new(), jug_vivo: None, armor: 0.0, lag_mov: None, walk: None, run: None, jump: None, escalon: None,

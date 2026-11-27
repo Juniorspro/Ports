@@ -397,7 +397,7 @@ pub(crate) fn instalar(e: &mut Estado) {
         let src = jxlua::bib::js_texto(&ar(a, 0));
         let nm = ar(a, 1);
         let nombre = if js_t(&nm) { js_str(&nm) } else { "CompileString".to_string() };
-        match e.compilar(&src, &nombre) { Ok(f) => ok1(o, f), Err(x) => { if matches!(ar(a, 2), Valor::Bool(false)) { s(o, &x.mensaje()) } else { Err(x) } } }
+        match e.compilar_entorno(&src, &nombre) { Ok(f) => ok1(o, f), Err(x) => { if matches!(ar(a, 2), Valor::Bool(false)) { s(o, &x.mensaje()) } else { Err(x) } } }
     });
     def(&gl, "RunString", |e, a, _| {
         let src = jxlua::bib::js_texto(&ar(a, 0));
@@ -425,7 +425,8 @@ pub(crate) fn instalar(e: &mut Estado) {
     def(&gl, "RegisterMetaTable", |_, a, _| { if let Valor::Tabla(t) = ar(a, 1) { let nm = js_str(&ar(a, 0)); g(|g| g.metas.set(nm, t)); } Ok(()) });
     def(&gl, "SafeRemoveEntity", |e, a, _| { quitar(e, &ar(a, 0)); Ok(()) });
     def(&gl, "SafeRemoveEntityDelayed", |_, a, _| { let x = ar(a, 0); let tt = tiempo() + num(&ar(a, 1), 0.0); g(|g| g.t_simples.push(TSimple { t: tt, f: Accion::Rust(Box::new(move |e| quitar(e, &x))), ctx: Lado::S })); Ok(()) });
-    for k in ["BroadcastLua", "SendUserMessage", "AddWorldTip", "DeriveGamemode"] { def(&gl, k, nada); }
+    for k in ["SendUserMessage", "AddWorldTip"] { def(&gl, k, nada); }
+    crate::modos::instalar(&gl);
     def(&gl, "CreateClientConVar", |_, a, o| ok1(o, cvar(&js_str(&ar(a, 0)), d_str(&ar(a, 1)), ar(a, 4), ar(a, 5), ar(a, 6))));
     def(&gl, "CreateConVar", |_, a, o| ok1(o, cvar(&js_str(&ar(a, 0)), d_str(&ar(a, 1)), ar(a, 3), ar(a, 4), ar(a, 5))));
     for k in ["GetConVar", "GetConVar_Internal"] { def(&gl, k, |_, a, o| { let nm = js_str(&ar(a, 0)); ok1(o, if cv_hay(&nm) { cvar(&nm, None, Valor::Nil, Valor::Nil, Valor::Nil) } else { Valor::Nil }) }); }
@@ -765,7 +766,7 @@ pub(crate) fn instalar(e: &mut Estado) {
     def(&hook_t, "Call", |e, a, o| {
         let ev = js_str(&ar(a, 0));
         let c = ctx();
-        let r = hook(e, &ev, &[c], &a[2.min(a.len())..]);
+        let r = hook_solo(e, &ev, &[c], &a[2.min(a.len())..]);
         if !r.is_empty() && !r[0].es_nil() { o.extend(r); return Ok(()); }
         if let Valor::Tabla(gm) = ar(a, 1) {
             let f = gm.borrow().get(&ar(a, 0));

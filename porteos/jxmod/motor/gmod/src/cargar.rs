@@ -133,6 +133,36 @@ impl Gmod {
     pub fn cvar_poner(&mut self, n: &str, v: &str) { self.activar(); crate::motor::cvar_poner(&mut self.lua, n, v) }
     /// la HUD de los addons (gmaHUDPaso): HUDPaint y el DrawHUD del arma, como órdenes de dibujo al juego
     pub fn hud(&mut self) { self.activar(); hud(&mut self.lua); }
+    // ---- los modos de juego (gamemodes de los addons) ----
+    /// los que traen los addons montados (con «menusystem» 0 son bases, como fretta: no se eligen)
+    pub fn modos(&self) -> Vec<crate::modos::ModoInfo> { self.activar(); crate::modos::lista() }
+    /// el modo de un mapa por su nombre (ph_* → Prop Hunt)
+    pub fn modo_de_mapa(&self, mapa: &str) -> Option<String> { self.activar(); crate::modos::de_mapa(mapa) }
+    /// poner un modo (con el Lua recién armado: gmmPartida reinicia antes)
+    pub fn activar_modo(&mut self, n: &str) -> bool { self.activar(); crate::modos::activar(&mut self.lua, n) }
+    /// el modo puesto
+    pub fn modo_actual(&self) -> Option<String> { self.activar(); g(|g| g.modo.as_ref().map(|m| m.n.clone())) }
+    /// la barrita de arriba: el modo, el equipo, la ronda y lo que falta
+    pub fn modo_barra(&mut self) -> Option<String> { self.activar(); crate::modos::barra(&mut self.lua) }
+    /// los equipos que se pueden elegir (número, nombre y color) y si el modo es por equipos
+    pub fn equipos(&mut self) -> (Vec<(i64, String, [u8; 3])>, bool) {
+        self.activar();
+        let por_eq = g(|g| g.modo.as_ref().map(|m| m.s.clone())).map(|t| t.borrow().get_str("TeamBased").es_verdad()).unwrap_or(false);
+        let r = llamar_global(&mut self.lua, "__JX_EquiposElegibles", &[]);
+        let mut v = vec![];
+        if let Some(Valor::Tabla(t)) = r.first() { for (_, x) in t.borrow().pares() { if let Valor::Tabla(x) = x { let x = x.borrow();
+            let n = |i: f64| if let Valor::Num(v) = x.get(&Valor::Num(i)) { v } else { 0.0 };
+            v.push((n(1.0) as i64, js_str(&x.get(&Valor::Num(2.0))), [n(3.0) as u8, n(4.0) as u8, n(5.0) as u8])); } } }
+        v.sort_by_key(|x| x.0); (v, por_eq)
+    }
+    /// el equipo del jugador
+    pub fn mi_equipo(&mut self) -> i64 { self.activar(); match llamar_global(&mut self.lua, "__JX_MiEquipo", &[]).first() { Some(Valor::Num(n)) => *n as i64, _ => 1001 } }
+    /// pedir un equipo (None: el que toque); lo decide el modo
+    pub fn pedir_equipo(&mut self, id: Option<i64>) { self.activar(); let a = id.map(|i| Valor::Num(i as f64)).unwrap_or(Valor::Nil); let f = self.lua.globales().borrow().get_str("__JX_PedirEquipo"); if let Valor::Func(_) = f { llamar(&mut self.lua, &f, Lado::S, &[a]); } }
+    /// ¿el modo decide cuándo se reaparece? (si tiene PlayerDeathThink)
+    pub fn modo_maneja_muerte(&self) -> bool { self.activar(); g(|g| g.modo.as_ref().map(|m| matches!(m.s.borrow().get_str("PlayerDeathThink"), Valor::Func(_)) && !m.sandbox).unwrap_or(false)) }
+    /// cada cuadro muerto con un modo: PlayerDeathThink (el modo hace Spawn cuando quiere)
+    pub fn modo_muerto(&mut self) { self.activar(); let jug = g(|g| g.jug.clone()); crate::motor::hook(&mut self.lua, "PlayerDeathThink", &[Lado::S], &[jug]); }
     /// lo 3D del cuadro (gmrAntes): los Draw de las entidades, los modelos de los addons que se ven (con su pose), los
     /// objetos que no se ven, los sprites de render.* y la vista del arma del addon. `dt`: lo que avanza la vista
     /// la cámara que piden los addons (hook CalcView y el CalcView del arma: la tercera persona del sable); None si nadie
@@ -587,7 +617,7 @@ fn paso(e: &mut Estado, dt: f64, choques: &[Choque]) {
                 g(|g| g.fov_lua = 0.0);
                 if ce(&jug, |x| x.mov.is_some()).unwrap_or(false) { mov_tipo_jug(2.0); }
                 hook(e, "PlayerSpawn", S, &[jug.clone(), Valor::Bool(false)]);
-                hook(e, "PlayerLoadout", S, &[jug.clone()]);
+                if g(|g| g.modo.is_none()) { hook(e, "PlayerLoadout", S, &[jug.clone()]); }
             } else if g(|g| std::mem::replace(&mut g.muerte_muda, false)) { hook(e, "PlayerSilentDeath", S, &[jug.clone()]); }
             else {
                 let mundo = g(|g| g.mundo.clone());

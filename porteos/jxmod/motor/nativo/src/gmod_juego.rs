@@ -45,6 +45,8 @@ enum Pedido {
     DanarJugador(f32),
     DanarObjeto(ObjId, f32),
     Matar,
+    /// los modos de juego: Player:Spawn() ya volvió al jugador en el espejo (el juego lo da por vivo), sin las armas
+    Reaparecer, QuitarArmas,
     Explosion([f32; 3], f32, f32, bool),
     Impacto([f32; 3], [f32; 3], bool),
     ExplosionFx([f32; 3]),
@@ -205,6 +207,15 @@ impl Anfitrion for Puente {
     fn danar_objeto(&mut self, o: ObjId, d: f64, _p: V3, _dir: V3) { self.pedidos.push(Pedido::DanarObjeto(o, d as f32)); }
     fn danar_persona(&mut self, _p: PersonaId, _d: f64, _pos: V3, _dir: V3) {}
     fn matar_jugador(&mut self) { self.jug.vivo = false; self.pedidos.push(Pedido::Matar); }
+    // (Player:Spawn() de un modo: vivo ya, con la vida llena, en un punto de aparición —su PlayerSpawn puede moverlo después—)
+    fn reaparecer(&mut self) {
+        let k = (self.t * 7.0) as usize; let sp = if self.spawns.is_empty() { None } else { Some(self.spawns[k % self.spawns.len()].clone()) };
+        self.jug.vivo = true; self.jug.vida = 100.0; self.jug.vel = V3 { x: 0.0, y: 0.0, z: 0.0 };
+        if let Some((p, yaw)) = sp { self.jug.pos = V3 { x: p.x, y: p.y + 0.2, z: p.z }; if let Some(y) = yaw { self.jug.yaw = y; } }
+        self.pedidos.push(Pedido::Reaparecer);
+    }
+    fn quitar_armas(&mut self) { self.pedidos.push(Pedido::QuitarArmas); }
+    fn espectador(&mut self, on: bool) { self.jug.noclip = on; }
     fn explosion(&mut self, p: V3, r: f64, m: f64, sin_fx: bool) { self.pedidos.push(Pedido::Explosion(f3(p), r as f32, m as f32, sin_fx)); }
     fn efecto_impacto(&mut self, p: V3, n: V3, cuerpo: bool) { self.pedidos.push(Pedido::Impacto(f3(p), f3(n), cuerpo)); }
     fn efecto_explosion(&mut self, p: V3) { self.pedidos.push(Pedido::ExplosionFx(f3(p))); }
@@ -306,13 +317,17 @@ pub struct EnGmod {
     pub pill: gmod_pill::Pill,
     /// la forma de choque de los vehículos de las listas ya armados (gmod_spawn.rs)
     veh_fis: HashMap<String, Arc<jxjuego::forma::PrefabFisica>>,
+    /// los modos de juego (gmod_modos.js): el elegido ("auto": el del mapa; "sandbox"; o un modo), en qué mapa se puso, la
+    /// fase (0 decidir, 1 rearmando el Lua, 2 listo), el que se pidió, la barrita de arriba, el panel de equipos y lo que
+    /// lleva muerto el jugador mientras el modo decide cuándo vuelve
+    pub modo_elegido: String, modo_mapa: Option<usize>, modo_fase: u8, modo_quiere: Option<String>, pub modo_barra: Option<String>, pub equipos_panel: bool, pub muerto_t: f32, modo_t: u32,
 }
 
 impl EnGmod {
     pub fn nueva(datos: Option<&Path>) -> EnGmod {
         let (tx, rx) = channel();
         EnGmod { gm: None, addons: vec![], pendientes: vec![], arma: None, base: 0, teclas: vec![], teclas_de: String::new(), carpeta_externa: None, datos: datos.map(|d| d.to_path_buf()), panel: false, scroll: 0.0, texs: vec![], hud_px: vec![], escala: 1.0,
-            http_bin: None, tienda: vec![], tx, rx, tienda_pedida: false, ms: 0.0, ms_prom: 0.0, pantalla: (1280.0, 720.0), buscado: false, cuenta: BTreeMap::new(), mods: Default::default(), ms_3d: 0.0, calc: None, usable: false, usar_ant: false, vgui_dedo: None, lector_rb: None, lib: None, jxp: None, menu: Default::default(), pm: Default::default(), veh_fis: HashMap::new(), bucles: HashMap::new(), t_snd: 0.0, pill: Default::default() }
+            http_bin: None, tienda: vec![], tx, rx, tienda_pedida: false, ms: 0.0, ms_prom: 0.0, pantalla: (1280.0, 720.0), buscado: false, cuenta: BTreeMap::new(), mods: Default::default(), ms_3d: 0.0, calc: None, usable: false, usar_ant: false, vgui_dedo: None, lector_rb: None, lib: None, jxp: None, menu: Default::default(), pm: Default::default(), veh_fis: HashMap::new(), modo_elegido: datos.and_then(|d| std::fs::read_to_string(d.join("gmod_modo.txt")).ok()).map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).unwrap_or_else(|| "auto".into()), modo_mapa: None, modo_fase: 0, modo_quiere: None, modo_barra: None, equipos_panel: false, muerto_t: 0.0, modo_t: 0, bucles: HashMap::new(), t_snd: 0.0, pill: Default::default() }
     }
     fn apagados_ruta(&self) -> Option<PathBuf> { self.datos.as_ref().map(|d| d.join("gmod_apagados.txt")) }
     /// los addons de las carpetas (.gma y carpetas con lua/), en orden de nombre; los apagados quedan anotados
@@ -506,6 +521,7 @@ impl Juego {
         if self.gmod.panel || !self.gmod.menu.pend.is_empty() { self.gmod_menu_paso(m); }
         if self.mapa.is_some() { self.pill_paso(m, dt); }
         if self.gmod.gm.is_none() || self.mapa.is_none() { return; }
+        self.gmod_modos_paso(dt);
         let t0 = Instant::now();
         // (el arma de un addon: si el jugador eligió otra del juego, se guarda)
         if self.gmod.arma.is_some() && self.armas.i != self.gmod.base { self.gmod.arma = None; }
@@ -660,7 +676,7 @@ impl Juego {
         self.gmod.hud_px = cmds;
     }
     fn gmod_pedido(&mut self, m: &mut Motor3d, pd: Pedido) {
-        let clase = match &pd { Pedido::Crear(..) => "crear", Pedido::Borrar(..) => "borrar", Pedido::Sonido(..) => "sonido", Pedido::Bucle { .. } => "bucle", Pedido::Canal(..) => "canal", Pedido::DanarJugador(..) => "danar_jugador", Pedido::DanarObjeto(..) => "danar_objeto", Pedido::Matar => "matar", Pedido::Explosion(..) => "explosion",
+        let clase = match &pd { Pedido::Crear(..) => "crear", Pedido::Borrar(..) => "borrar", Pedido::Sonido(..) => "sonido", Pedido::Bucle { .. } => "bucle", Pedido::Canal(..) => "canal", Pedido::DanarJugador(..) => "danar_jugador", Pedido::DanarObjeto(..) => "danar_objeto", Pedido::Matar => "matar", Pedido::Reaparecer => "reaparecer", Pedido::QuitarArmas => "quitar_armas", Pedido::Explosion(..) => "explosion",
             Pedido::Impacto(..) => "impacto", Pedido::ExplosionFx(..) => "explosion_fx", Pedido::Traza(..) => "traza", Pedido::Fogonazo => "fogonazo", Pedido::Particula(..) => "particula", Pedido::Sacudir(..) => "sacudir", Pedido::Aviso(..) => "aviso", Pedido::Arma(..) => "arma", Pedido::Textura(..) => "textura", Pedido::Anim(..) => "anim" };
         *self.gmod.cuenta.entry(clase).or_insert(0) += 1;
         let id_juego = |o: ObjId| GM_OBJ.with(|x| x.borrow().get(&o).copied());
@@ -699,6 +715,8 @@ impl Juego {
             Pedido::DanarJugador(d) => self.danar_jugador(d),
             Pedido::DanarObjeto(oid, d) => { if let Some(i) = id_juego(oid).and_then(|g| self.objs.iter().position(|o| o.id == g)) { self.danar_objeto(i, d); } }
             Pedido::Matar => { self.jug.vida = 0.0; self.muerto = true; }
+            Pedido::Reaparecer => { self.muerto = false; self.jug.aire = 12.0; self.gmod.muerto_t = 0.0; }
+            Pedido::QuitarArmas => { if self.gmod.arma.is_some() { self.gmod.arma = None; let b = self.gmod.base; self.armas.elegir(&mut self.fis, b); } }
             Pedido::Explosion(p, r, mg, sin_fx) => { if !sin_fx { self.ef.explosion(p, (r / 4.0).clamp(0.3, 4.0), None); } self.explosion(p, r, mg); }
             Pedido::Impacto(p, n, cuerpo) => self.ef.impacto(p, n, if cuerpo { efx::Sup::Cuerpo } else { efx::Sup::Mundo }),
             Pedido::ExplosionFx(p) => self.ef.explosion(p, 1.0, None),
@@ -1158,4 +1176,78 @@ fn recortar_tris(v: &mut Vec<f32>, desde: usize, r: [f32; 4]) {
 impl EnGmod {
     /// cuántos píxeles es una unidad de la pantalla del Lua (ScrW() = ancho / escala)
     pub fn escala_lua(&self) -> f32 { self.escala }
+}
+
+// ---------------- los modos de juego de los addons (gmod_modos.js) ----------------
+impl Juego {
+    /// el modo que toca en este mapa: el elegido o, en Automático, el que dice el mapa (ph_* → Prop Hunt)
+    fn modo_que_toca(&self) -> Option<String> {
+        let gm = self.gmod.gm.as_ref()?; let e = self.gmod.modo_elegido.as_str();
+        match e {
+            "sandbox" => None,
+            "auto" => { let m = self.mapas.get(self.mapa_i).cloned().unwrap_or_default(); let nom = m.strip_prefix("WS_").unwrap_or(&m).to_string(); gm.modo_de_mapa(&nom) }
+            n => gm.modos().into_iter().find(|x| x.n == n).map(|x| x.n),
+        }
+    }
+    /// gmmPartida: cuando el mapa está y los addons montados, si toca un modo (o hay uno puesto que ya no), el Lua de cero
+    /// con el modo; después, la barrita y el jugador muerto que espera al modo
+    fn gmod_modos_paso(&mut self, dt: f32) {
+        if !self.gmod.pendientes.is_empty() { return; }
+        if self.gmod.modo_mapa != Some(self.mapa_i) { self.gmod.modo_mapa = Some(self.mapa_i); self.gmod.modo_fase = 0; }
+        match self.gmod.modo_fase {
+            0 => {
+                let quiero = self.modo_que_toca(); let actual = self.gmod.gm.as_ref().and_then(|g| g.modo_actual());
+                self.gmod.modo_fase = 2;
+                if quiero.is_none() && actual.is_none() { self.gmod.modo_barra = None; return; }
+                self.gmod.modo_quiere = quiero; self.gmod.modo_barra = None; self.gmod.equipos_panel = false;
+                // (el Lua vuelve a empezar de cero: se rearma y se montan de nuevo los addons; el modo se pone al terminar)
+                self.gmod_reiniciar(); self.gmod.modo_fase = 1;
+            }
+            1 => {
+                self.gmod.modo_fase = 2;
+                if let Some(n) = self.gmod.modo_quiere.take() {
+                    self.gmod_prestar(true);
+                    let ok = self.gmod.gm.as_mut().map(|g| g.activar_modo(&n)).unwrap_or(false);
+                    self.gmod_prestar(false);
+                    if ok {
+                        let (eq, por_eq) = self.gmod.gm.as_mut().map(|g| g.equipos()).unwrap_or_default();
+                        let tit = self.gmod.gm.as_ref().and_then(|g| g.modos().into_iter().find(|x| x.n == n)).map(|x| x.titulo).unwrap_or(n.clone());
+                        self.avisar(format!("Modo de juego: {tit}"));
+                        // (por equipos: el panel para elegir, como la pantalla de GMod)
+                        if por_eq && !eq.is_empty() { self.gmod.equipos_panel = true; }
+                    } else { self.avisar(format!("No se pudo poner el modo {n}")); }
+                }
+            }
+            _ => {}
+        }
+        let Some(gm) = self.gmod.gm.as_mut() else { return };
+        if gm.modo_actual().is_none() { self.gmod.modo_barra = None; return; }
+        self.gmod.modo_t += 1; if self.gmod.modo_t % 15 == 1 { self.gmod_prestar(true); self.gmod.modo_barra = self.gmod.gm.as_mut().and_then(|g| g.modo_barra()); self.gmod_prestar(false); }
+        // (muerto con un modo que decide cuándo se vuelve: PlayerDeathThink cada cuadro; a los 5 minutos, igual)
+        if self.jug.vida <= 0.0 && self.gmod_retiene_muerte() { self.gmod.muerto_t += dt; self.gmod_prestar(true); if let Some(g) = self.gmod.gm.as_mut() { g.modo_muerto(); } self.gmod_prestar(false); }
+    }
+    /// ¿el juego espera al modo para volver a aparecer? (si tiene PlayerDeathThink; hasta 5 minutos)
+    pub(crate) fn gmod_retiene_muerte(&self) -> bool { self.gmod.muerto_t < 300.0 && self.gmod.gm.as_ref().map(|g| g.modo_maneja_muerte()).unwrap_or(false) }
+    /// elegir el modo de la próxima partida (Automático → Sandbox → cada modo de los addons → Automático)
+    pub fn modo_siguiente(&mut self) {
+        let mut l: Vec<String> = vec!["auto".into(), "sandbox".into()];
+        if let Some(g) = self.gmod.gm.as_ref() { l.extend(g.modos().into_iter().filter(|m| m.menu).map(|m| m.n)); }
+        let i = l.iter().position(|x| *x == self.gmod.modo_elegido).map(|i| (i + 1) % l.len()).unwrap_or(0);
+        self.gmod.modo_elegido = l[i].clone(); if let Some(d) = &self.datos { let _ = std::fs::write(d.join("gmod_modo.txt"), &self.gmod.modo_elegido); }
+        self.gmod.modo_mapa = None;
+    }
+    /// el nombre del modo elegido, para el botón
+    pub fn modo_nombre(&self) -> String {
+        match self.gmod.modo_elegido.as_str() { "auto" => "Modo: automático".into(), "sandbox" => "Modo: sandbox".into(),
+            n => format!("Modo: {}", self.gmod.gm.as_ref().and_then(|g| g.modos().into_iter().find(|x| x.n == n)).map(|x| x.titulo).unwrap_or(n.to_string())) }
+    }
+    /// los equipos para el panel (número, nombre, color) y el mío
+    pub fn modo_equipos(&mut self) -> (Vec<(i64, String, [u8; 3])>, i64) {
+        let Some(g) = self.gmod.gm.as_mut() else { return (vec![], 1001) }; let (v, _) = g.equipos(); let mio = g.mi_equipo(); (v, mio)
+    }
+    /// gmmPedirEquipo: el modo decide (None: el que toque)
+    pub fn modo_pedir_equipo(&mut self, id: Option<i64>) {
+        self.gmod_prestar(true); if let Some(g) = self.gmod.gm.as_mut() { g.pedir_equipo(id); } self.gmod_prestar(false);
+        self.gmod.equipos_panel = false; self.gmod.modo_t = 0;
+    }
 }

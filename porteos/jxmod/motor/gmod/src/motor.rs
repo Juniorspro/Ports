@@ -14,7 +14,13 @@ pub(crate) const C: &[Lado] = &[Lado::C];
 
 // ---------------- hooks ----------------
 /// gmaHook: corre un evento en los lados pedidos; el primero que devuelve algo corta
+/// los hooks de un evento y, si ninguno devolvió algo y hay un modo de juego puesto, la función del modo (hook.Call con GAMEMODE)
 pub(crate) fn hook(e: &mut Estado, ev: &str, ctx: &[Lado], args: &[Valor]) -> Vec<Valor> {
+    let r = hook_solo(e, ev, ctx, args); if !r.is_empty() && !r[0].es_nil() { return r; }
+    crate::modos::gm_fn(e, ev, ctx, args)
+}
+/// sólo los hooks (hook.Call ya llama él mismo a la tabla que le pasan)
+pub(crate) fn hook_solo(e: &mut Estado, ev: &str, ctx: &[Lado], args: &[Valor]) -> Vec<Valor> {
     let ids: Vec<Valor> = match g(|g| g.hooks.get(ev).map(|h| h.iter().map(|x| x.0.clone()).collect::<Vec<_>>())) { Some(v) if !v.is_empty() => v, _ => return Vec::new() };
     for id in ids {
         let obj = matches!(id, Valor::Tabla(_) | Valor::Udata(_));

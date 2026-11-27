@@ -37,6 +37,8 @@ registro.Panel = setmetatable({ ThisClass = "Panel" }, { __index = PM }) if base
 -- ---------- el objeto panel ----------
 local panelMeta = { MetaName = "Panel", __tostring = function(p) return "Panel: [" .. tostring(rg(p, "__nombre")) .. "]" end }
 panelMeta.__index = function(p, k)
+  -- (panel.x y panel.y: el lugar, como en GMod)
+  if k == "x" then return rg(p, "__x") elseif k == "y" then return rg(p, "__y") end
   local c = rg(p, "__clase")
   if c then local v = c[k] if v ~= nil then return v end end
   local v = PM[k] if v ~= nil then return v end
@@ -47,6 +49,9 @@ panelMeta.__index = function(p, k)
     if string.sub(k, 1, 2) == "On" or b == "Set" or string.sub(k, 1, 2) == "Do" then return function(s) return s end end
   end
   return nil
+end
+panelMeta.__newindex = function(p, k, v)
+  if k == "x" then rs(p, "__x", math.floor(tonumber(v) or 0)) elseif k == "y" then rs(p, "__y", math.floor(tonumber(v) or 0)) else rawset(p, k, v) end
 end
 RegisterMetaTable("Panel", PM)
 PM.MetaName = "Panel"

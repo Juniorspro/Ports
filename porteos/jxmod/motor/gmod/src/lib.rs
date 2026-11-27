@@ -24,6 +24,8 @@ mod libs;
 mod matriz;
 pub mod pills;
 mod motor;
+mod modos;
+pub use modos::ModoInfo;
 mod nucleo;
 mod resto;
 mod valores;
