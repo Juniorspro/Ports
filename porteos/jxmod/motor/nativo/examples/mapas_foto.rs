@@ -134,5 +134,7 @@ fn main() {
     j.aj.hora = 12.0; paso(&mut j, &mut m, 2);
     // lo que tarda un cuadro en el mapa
     let mut ms = vec![]; for _ in 0..60 { let t = Instant::now(); paso(&mut j, &mut m, 1); ms.push(t.elapsed().as_secs_f32() * 1000.0); }
+    // (lo de HL2 que nombran los addons montados, bajado en el fondo)
+    if std::env::var_os("JXM_STEAM").is_some() { let t = Instant::now(); while t.elapsed().as_secs() < 120 { paso(&mut j, &mut m, 1); std::thread::sleep(std::time::Duration::from_millis(30)); if t.elapsed().as_secs() > 20 && j.gb.bajados_addons > 0 { break; } } println!("Steam para los addons: {} archivos bajados · addons {:?}", j.gb.bajados_addons, j.gmod.addons.iter().map(|a| (a.nombre.clone(), a.prendido, a.idx)).collect::<Vec<_>>()); }
     ms.sort_by(|a, b| a.partial_cmp(b).unwrap()); println!("cuadro: mediana {:.1} ms · {}", ms[30], m.resumen());
 }

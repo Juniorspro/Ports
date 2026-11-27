@@ -19,6 +19,8 @@ pub struct EnBase {
     /// el depósito abierto, el hilo que lo está abriendo y el error (si no se pudo: no se vuelve a probar hasta reiniciar)
     base: Option<Arc<Base>>, abriendo: Option<std::thread::JoinHandle<Result<Base, String>>>, pub error: Option<String>,
     prep: Option<Prep>,
+    /// lo que nombran los addons montados y falta (se baja en el fondo, sin pantalla de carga): la cola, su vuelta y el hilo
+    cola: Vec<String>, cola_vuelta: u32, hilo_addons: Option<(std::thread::JoinHandle<usize>, Vec<String>)>, pub bajados_addons: usize,
     /// los mapas ya preparados (no se vuelven a mirar) y lo último que se hizo (para las pruebas)
     listos: HashSet<String>, pub info: String,
 }
@@ -52,7 +54,65 @@ fn refs_mdl(r: &str, b: Rc<[u8]>, out: &mut Vec<String>) {
     for i in jxgmod::formatos::incluidos(&m) { out.push(i.to_lowercase().replace('\\', "/")); }
 }
 
+/// las rutas que nombra un addon y pueden ser del contenido base (como gmlRefs de la web): las cadenas de su Lua, las texturas
+/// de sus .vmt y lo que piden sus .mdl
+pub(crate) fn refs_addon(archivos: &std::collections::HashMap<String, Rc<[u8]>>) -> Vec<String> {
+    let mut out = vec![];
+    for (r, b) in archivos {
+        if r.ends_with(".vmt") { refs_vmt(b, &mut out); }
+        else if r.ends_with(".mdl") { refs_mdl(r, b.clone(), &mut out); }
+        if r.ends_with(".lua") || r.ends_with(".txt") || r.ends_with(".vmt") {
+            // (las cadenas entre comillas de 3 a 120 letras de ruta: cada una como está, como material, modelo o sonido)
+            let mut i = 0; let n = b.len();
+            while i < n {
+                let q = b[i]; i += 1; if q != b'"' && q != b'\'' { continue; }
+                let ini = i; while i < n && i - ini <= 120 && (b[i].is_ascii_alphanumeric() || b"_-./\\ ".contains(&b[i])) { i += 1; }
+                if i < n && b[i] == q && i - ini >= 3 {
+                    let t = String::from_utf8_lossy(&b[ini..i]).to_lowercase().replace('\\', "/"); let t = t.trim().trim_start_matches('/').to_string();
+                    if t.ends_with(".mdl") { out.push(if t.starts_with("models/") { t } else { format!("models/{t}") }); }
+                    else if t.ends_with(".wav") || t.ends_with(".mp3") { out.push(if t.starts_with("sound/") { t } else { format!("sound/{t}") }); }
+                    else if !t.contains(' ') && t.contains('/') { let m = t.strip_prefix("materials/").unwrap_or(&t).trim_end_matches(".vmt").trim_end_matches(".vtf").to_string(); out.push(format!("materials/{m}.vmt")); out.push(format!("materials/{m}.vtf")); }
+                    i += 1;
+                }
+            }
+        }
+    }
+    out.sort(); out.dedup(); out
+}
+
 impl Juego {
+    /// lo que nombra un addon recién montado, a la cola de lo que se busca en Steam (base_addons_paso)
+    pub(crate) fn base_addon(&mut self, refs: Vec<String>) { if std::env::var_os("JXM_STEAM_DEBUG").is_some() { eprintln!("addon montado: {} rutas nombradas", refs.len()); } if self.gb.error.is_none() { self.gb.cola.extend(refs); } }
+    /// cada cuadro: lo de los addons que falta y está en Steam se baja en el fondo (de a tandas; lo que piden los materiales y
+    /// modelos bajados va a la cola otra vez, hasta 3 vueltas); al llegar, lo que se había dado por faltante se vuelve a buscar
+    pub(crate) fn base_addons_paso(&mut self) {
+        if self.gb.cola.is_empty() && self.gb.hilo_addons.is_none() { return; }
+        if let Some((h, bajando)) = self.gb.hilo_addons.take() {
+            if !h.is_finished() { self.gb.hilo_addons = Some((h, bajando)); return; }
+            let n = h.join().unwrap_or(0); self.gb.bajados_addons += n;
+            if n > 0 { self.gm_reintentar_faltantes(); }
+            if self.gb.cola_vuelta < 3 { let mut o = vec![]; for r in bajando.iter().filter(|r| r.ends_with(".vmt") || r.ends_with(".mdl")) { if let Some(b) = self.gmod_archivo(r) { if r.ends_with(".vmt") { refs_vmt(&b, &mut o); } else { refs_mdl(r, b, &mut o); } } } self.gb.cola.extend(o); self.gb.cola_vuelta += 1; }
+            return;
+        }
+        // (el depósito: abrirlo si hace falta; sin red ni carpeta de datos, la cola se tira)
+        if self.gb.base.is_none() {
+            // (sin red todavía —la app la pone al arrancar—: la cola espera, con tope)
+            let (Some(http), Some(dir)) = (self.gmod_http_bin(), self.gbs_dir()) else { if self.gb.cola.len() > 30000 { self.gb.cola.drain(..10000); } return };
+            if self.gb.error.is_some() { self.gb.cola.clear(); return; }
+            match self.gb.abriendo.take() {
+                None => { self.gb.abriendo = Some(std::thread::spawn(move || Base::abrir(http, gmod_juego::TIENDA_URL, &dir, true))); return; }
+                Some(t) if !t.is_finished() => { self.gb.abriendo = Some(t); return; }
+                Some(t) => match t.join().unwrap_or_else(|_| Err("el hilo se cayó".into())) { Ok(b) => self.gb.base = Some(Arc::new(b)), Err(e) => { self.gb.error = Some(e); self.gb.cola.clear(); return; } },
+            }
+        }
+        let Some(base) = self.gb.base.clone() else { return };
+        let mut l = std::mem::take(&mut self.gb.cola); l.sort(); l.dedup();
+        let n_l = l.len(); let bajar: Vec<String> = l.into_iter().filter(|r| base.tiene(r) && !self.gmod_existe(r)).collect();
+        if std::env::var_os("JXM_STEAM_DEBUG").is_some() { eprintln!("addons → Steam: {} nombrados, {} para bajar {:?}", n_l, bajar.len(), bajar.iter().take(6).collect::<Vec<_>>()); }
+        if bajar.is_empty() { self.gb.cola_vuelta = 0; return; }
+        let b2 = bajar.clone();
+        self.gb.hilo_addons = Some((std::thread::spawn(move || base.traer(&b2, 4, &Progreso::default())), bajar));
+    }
     /// la carpeta de lo bajado de Steam
     fn gbs_dir(&self) -> Option<PathBuf> { self.datos.as_ref().map(|d| d.join("gbs")) }
     /// lo que el mapa que se va a cargar todavía espera de Steam: (hechos, total, falló) en archivos; None si ya puede armarse

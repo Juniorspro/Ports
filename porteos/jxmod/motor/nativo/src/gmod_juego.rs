@@ -467,6 +467,8 @@ impl Juego {
         let nombre = self.gmod.addons[i].nombre.clone();
         crate::caja_negra::paso(format!("montar el addon {nombre}"));
         let ad = Addon::de_archivos(&nombre, &nombre, arch);
+        // (lo de HL2 y CS:S que nombra y no trae: a la cola de Steam —base_juego.rs—, se baja en el fondo)
+        let refs = super::base_juego::refs_addon(&ad.archivos); self.base_addon(refs);
         let copia: Vec<(String, Rc<[u8]>)> = ad.archivos.iter().filter(|(k, _)| k.starts_with("sound/") || k.starts_with("materials/")).map(|(k, v)| (k.clone(), v.clone())).collect();
         self.con_puente(|p| for (k, v) in copia { p.archivos.entry(k).or_insert(v); });
         // (el Lua de los addons corre con el mundo a mano: algunos trazan al cargar)
@@ -982,6 +984,7 @@ impl Juego {
         std::thread::spawn(move || { let r = h(&format!("{}gmod/archivo/{}", TIENDA_URL, id)).and_then(|(c, b)| if c == 200 { Ok(b) } else { Err(format!("HTTP {c}")) }); let _ = tx.send((format!("gma:{}", id), r)); });
     }
     pub(crate) fn gmod_tienda_paso(&mut self) {
+        self.base_addons_paso();
         // (cómo van las bajadas por SteamPipe)
         for it in self.gmod.tienda.iter_mut() { if let Some(p) = &it.prog { let (h, t) = (p.hecho.load(std::sync::atomic::Ordering::Relaxed), p.total.load(std::sync::atomic::Ordering::Relaxed)); if it.estado.starts_with("Bajando") && t > 0 { it.estado = format!("Bajando {}%", h * 100 / t); } } }
         while let Ok((k, r)) = self.gmod.rx.try_recv() {

@@ -74,6 +74,8 @@ impl Juego {
         let mm = &mut self.gmod.mods; mm.modelos.clear(); mm.lejos.clear(); mm.texs.clear(); mm.bytes = 0; mm.mats.clear(); mm.mats_spr.clear(); mm.quad = false; mm.lote = None;
         self.gmod.texs.clear();
     }
+    /// lo que se dio por faltante (texturas y modelos) se vuelve a buscar: llegó contenido de Steam
+    pub(crate) fn gm_reintentar_faltantes(&mut self) { self.gmod.mods.texs.retain(|_, v| v.is_some()); self.gmod.mods.modelos.retain(|_, v| v.is_some()); }
     fn gm_id(&mut self) -> i64 { self.gmod.mods.sig += 1; ID_GM - 16 - self.gmod.mods.sig }
     fn gm_archivo(&self, r: &str) -> Option<Rc<[u8]>> { self.gmod.gm.as_ref()?.archivo(r) }
     /// una textura de los addons (materials/<ruta>.vtf, o una imagen PNG): su número, ancho y alto
