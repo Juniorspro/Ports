@@ -1,9 +1,9 @@
 {
- "codigo": 26112703,
- "version": "0.36",
+ "codigo": 26112704,
+ "version": "0.37",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 75458822,
- "sha256": "d8a1ea2db9d52d2f4b457403074ed9ef2f16e246ec28a6ff35886e16eaf6ed03",
- "notas_es": "JXMod Nativo 0.36 — Agua de partículas de verdad, como GWater: tirala desde Props → Agua (un balde, un montón, una canilla, la manguera o secar todo) sobre cualquier superficie. Es simulada, no animada: se desparrama, la corrés al caminar, empuja y hace flotar los objetos (la madera flota, el fierro se hunde), las explosiones y los tiros la mueven, y en los mapas con agua lo que cae salpica de verdad y larga burbujas. Los objetos huecos (botellas, baldes, latas, bañeras) se llenan, se hunden largando burbujas, guardan el aire boca abajo y vuelcan el agua. Vulkan se sacó (fallaba en muchos celulares): quedan OpenGL 3 y OpenGL 2.",
- "notas_en": "JXMod Native 0.36 — Real particle water, like GWater: spawn it from Props → Water (a bucket, a pile, a faucet, the hose or dry everything) on any surface. It is simulated, not animated: it spreads, you push it when walking, it pushes and floats objects (wood floats, iron sinks), explosions and shots move it, and in maps with water whatever falls in really splashes and releases bubbles. Hollow objects (bottles, buckets, cans, bathtubs) fill up, sink releasing bubbles, keep air trapped upside down and pour their water out. Vulkan was removed (it failed on many phones): OpenGL 3 and OpenGL 2 remain."
+ "tam": 75495686,
+ "sha256": "9cb0496a9c5408024ebbdbc2371441bc7637b78e946e5b4cf936b5396b90e8a6",
+ "notas_es": "JXMod Nativo 0.37 — El agua de Half-Life 2 de verdad, la de Source: gm_construct usa su material original (los canales de HL2: verde oscura y turbia, con su reflejo, su refracción y la textura animada de Valve) y los demás mapas, la de la costa. La textura se baja sola una vez (10 MB) y queda guardada; sin internet se ve el agua de antes. Además, las bibliotecas ya cargan en los celulares nuevos con páginas de 16 KB.",
+ "notas_en": "JXMod Native 0.37 — The real Half-Life 2 water, Source's: gm_construct uses its original material (HL2's canals: dark, murky green, with its reflection, refraction and Valve's animated texture) and the other maps use the coast one. The texture downloads once by itself (10 MB) and stays saved; without internet the previous water is shown. Also, the libraries now load on new phones with 16 KB pages."
 }
