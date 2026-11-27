@@ -87,7 +87,7 @@ pub struct PanelNpc { pub npc: Option<u32>, pub est: String }
 pub enum BtnNpc { Rapida(usize), Arma(Option<npc::Arma>), SkinAnt, SkinSig, Escribir, Borrar, BorrarTodos, Cerrar }
 /// para qué se pidió escribir (el cuadro de texto de Android)
 #[derive(Clone, Debug)]
-pub enum Escribir { Chat, Clave(jxjuego::red::Sala), Nombre, Actitud, Pj, SrvNombre, SrvClave, Buscar, /** un cuadro de texto de un menú de un addon (DTextEntry) */ Vgui }
+pub enum Escribir { Chat, Clave(jxjuego::red::Sala), Nombre, Actitud, Pj, SrvNombre, SrvClave, Buscar, /** un cuadro de texto de un menú de un addon (DTextEntry) */ Vgui, /** la Workshop: lo buscado y un link o número */ WsBuscar, WsLink }
 /// pedir texto (título, lo que ya hay, hasta cuántas letras, si es contraseña; con un número) y levantar lo escrito
 /// (número y texto, o None si se canceló): en Android, el cuadro de Juego.java (red_android::Teclado)
 pub struct Teclado { pub pedir: Box<dyn Fn(i32, &str, &str, i32, bool)>, pub tomar: Box<dyn Fn() -> Option<(i32, Option<String>)>> }
@@ -576,8 +576,12 @@ impl Juego {
         if let (Escribir::Buscar, Some(t)) = (&que, &txt) { if let Some(m) = self.menu.as_mut() { m.q = limpio(t, 30); m.scroll = 0.0; } return; }
         // (un cuadro de texto de un menú de un addon: lo escrito, aunque esté vacío, y su OnEnter)
         if let (Escribir::Vgui, Some(t)) = (&que, &txt) { if let Some(g) = self.gmod.gm.as_mut() { g.vgui_texto(t, true); } return; }
+        // (la Workshop: lo buscado —vacío: todo— y un link o número de un addon)
+        if let (Escribir::WsBuscar, Some(t)) = (&que, &txt) { self.gmod.ws.q = limpio(t, 80); self.ws_buscar(true); return; }
+        if let (Escribir::WsLink, Some(t)) = (&que, &txt) { match gmod_juego::ws_id_de(t) { Some(id) => { self.gmod.ws.q = id; self.gmod.ws.cat = 0; self.ws_buscar(true); } None => if !t.trim().is_empty() { self.avisar("Eso no es un link ni un número de la Workshop".into()); } } return; }
         let Some(t) = txt.map(|t| t.trim().to_string()).filter(|t| !t.is_empty()) else { return };
         match que {
+            Escribir::WsBuscar | Escribir::WsLink => {}
             Escribir::Vgui => {}
             Escribir::Chat => { if self.en_red.en_sala() { self.en_red.red.chat(&t, None); let n = self.en_red.red.nombre.clone(); self.en_red.al_chat(format!("{n}: {t}")); } }
             Escribir::Clave(s) => self.entrar_sala_con(&s, Some(&t)),
@@ -993,7 +997,8 @@ impl Juego {
         self.cont_paso();
         self.musica_paso();
         aero::ESCALA.store(self.aj.menus, std::sync::atomic::Ordering::Relaxed);
-        if self.ini.abierto { return self.ini_cuadro(m, w, h); }
+        // (lo que llega de la tienda y de la Workshop también con el menú abierto)
+        if self.ini.abierto { self.gmod_tienda_paso(); return self.ini_cuadro(m, w, h); }
         // (al cargar: primero un cuadro con el cartel de «Cargando…», y en el siguiente se arma el mapa, que tarda)
         if self.recargar {
             if self.paq.is_some() && !self.mapa_cartel { self.mapa_cartel = true; self.mapa = None; m.vaciar(); self.objs.clear(); self.fis = Fisica::nueva(); self.npcs.olvidar(); self.npc_skins.olvidar(); self.vehs = Vehiculos::nuevo(); self.pila.clear(); self.prefabs.clear(); self.cargados.olvidar(); self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false; self.armas_ico = false; self.hud_ico = false; self.gr.cargada = false; self.ef_atlas = false; if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; } self.cargar_letras(m); }

@@ -166,7 +166,19 @@ impl Juego {
         Some(pincel::achicar(w, h, px, 1280))
     }
     /// una foto lista para dibujar (o None mientras no está: se pide y llega en el cuadro siguiente)
+    /// (para las pruebas) ¿ya está esa foto en la placa?
+    pub fn ini_foto_lista(&self, k: &str) -> bool { self.ini_foto(k).is_some() }
     pub(super) fn ini_foto(&self, k: &str) -> Option<(i64, f32, f32)> { self.ini.rec.fotos.get(k).filter(|f| f.subida).map(|f| (f.id, f.w as f32, f.h as f32)) }
+    /// una foto ya decodificada en la textura `id` (la de otra que se olvidó: el motor pisa la vieja y la libera)
+    pub(super) fn ini_poner_foto_id(&mut self, k: &str, id: i64, w: u32, h: u32, px: Vec<u8>) { self.ini.rec.fotos.insert(k.to_string(), Foto { id, w, h, subida: false, px: Some(px) }); }
+    /// sacar una foto de la lista (devuelve su número de textura, para reusarlo)
+    pub(super) fn ini_sacar_foto(&mut self, k: &str) -> Option<i64> { self.ini.rec.fotos.remove(k).map(|f| f.id) }
+    /// una foto ya decodificada (las de la Workshop): se sube en el próximo cuadro
+    pub(super) fn ini_poner_foto(&mut self, k: &str, w: u32, h: u32, px: Vec<u8>) {
+        if self.ini.rec.fotos.contains_key(k) { return; }
+        self.ini.rec.sig_foto += 1; let id = TEX_FOTOS - self.ini.rec.sig_foto;
+        self.ini.rec.fotos.insert(k.to_string(), Foto { id, w, h, subida: false, px: Some(px) });
+    }
     /// pedir una foto (se lee ahora y se sube en el próximo cuadro)
     pub(super) fn ini_pedir_foto(&mut self, k: &str) -> bool {
         if self.ini.rec.fotos.contains_key(k) { return true; }

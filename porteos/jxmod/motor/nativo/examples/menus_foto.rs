@@ -118,6 +118,47 @@ fn main() {
         }
         // (JXM_LAN=1: una partida de otro celular en el Wi-Fi, para ver que aparece en la lista de Buscar partida)
         let _lan = if std::env::var("JXM_LAN").is_ok() { jxmod::lan::Anfitrion::empezar(&serde_json::json!({ "du": "juan12345", "n": "Juan", "s": "Juan · LAN", "m": "RB_Construct", "p": jxmod::lan::PUERTO })).ok() } else { None };
+        // la Workshop (como el navegador de GMod, en Aero): con curl, tocando de verdad
+        if hace("workshop") {
+            use jxmod::comun::paneles_juego::Acc;
+            j.gmod.http_bin = Some(std::sync::Arc::new(|u: &str| {
+                let o = std::process::Command::new("curl").args(["-s", "--max-time", "30", "-w", "\n%{http_code}", u]).output().map_err(|e| e.to_string())?;
+                let mut b = o.stdout; let i = b.iter().rposition(|c| *c == b'\n').unwrap_or(0); let cod: u16 = String::from_utf8_lossy(&b[i + 1..]).trim().parse().unwrap_or(0); b.truncate(i); Ok((cod, b))
+            }));
+            let esperar = |j: &mut Juego, m: &mut Motor3d, seg: f32, listo: &dyn Fn(&Juego) -> bool| { let t = std::time::Instant::now(); while t.elapsed().as_secs_f32() < seg { paso(j, m, 1); if listo(j) { break; } std::thread::sleep(std::time::Duration::from_millis(15)); } paso(j, m, 6); };
+            let tocar_acc = |j: &mut Juego, m: &mut Motor3d, a: Acc| -> bool { if let Some((r, _)) = j.ini.pn.zonas.iter().find(|z| z.1 == a).cloned() { let (x, y) = (r[0] + r[2] / 2.0, r[1] + r[3] / 2.0); tocar(j, m, x, y); true } else { println!("workshop: no está {a:?}"); false } };
+            let fotos = |j: &Juego| j.gmod.ws.items.iter().take(8).filter(|it| j.ini_foto_lista(&format!("ws:{}", it.id))).count();
+            j.ws_abrir_prueba(); esperar(&mut j, &mut m, 25.0, &|j| j.gmod.ws.items.len() >= 30 && fotos(j) >= 8);
+            println!("workshop: {} resultados de {} · fotos {} · error {:?}", j.gmod.ws.items.len(), j.gmod.ws.total, fotos(&j), j.gmod.ws.error); foto(&mut m, "ws_todo");
+            tocar_acc(&mut j, &mut m, Acc::WsCat(2)); esperar(&mut j, &mut m, 25.0, &|j| !j.gmod.ws.cargando && fotos(j) >= 8);
+            println!("workshop mapas: {} de {} · primero {:?}", j.gmod.ws.items.len(), j.gmod.ws.total, j.gmod.ws.items.first().map(|x| x.t.clone())); foto(&mut m, "ws_mapas");
+            tocar_acc(&mut j, &mut m, Acc::WsFicha(0)); paso(&mut j, &mut m, 10); foto(&mut m, "ws_ficha");
+            if let Some((r, _)) = j.ini.pn.zonas.iter().rev().find(|z| z.1 == Acc::WsCerrar).cloned() { tocar(&mut j, &mut m, r[0] + r[2] / 2.0, r[1] + r[3] / 2.0); } paso(&mut j, &mut m, 4); println!("workshop ficha cerrada: {}", j.gmod.ws.ficha.is_none());
+            tocar_acc(&mut j, &mut m, Acc::WsOrden); esperar(&mut j, &mut m, 25.0, &|j| !j.gmod.ws.cargando && fotos(j) >= 6); println!("workshop orden {}: {:?}", j.gmod.ws.orden, j.gmod.ws.items.first().map(|x| x.t.clone())); foto(&mut m, "ws_orden");
+            j.gmod.ws.q = "prop hunt".into(); j.gmod.ws.cat = 0; j.ws_buscar(true); esperar(&mut j, &mut m, 25.0, &|j| !j.gmod.ws.cargando && fotos(j) >= 6);
+            println!("workshop «prop hunt»: {} de {} · {:?}", j.gmod.ws.items.len(), j.gmod.ws.total, j.gmod.ws.items.iter().take(3).map(|x| x.t.clone()).collect::<Vec<_>>()); foto(&mut m, "ws_buscar");
+            j.gmod.ws.q = "https://steamcommunity.com/sharedfiles/filedetails/?id=105982362&searchtext=".into(); j.ws_buscar(true); esperar(&mut j, &mut m, 25.0, &|j| !j.gmod.ws.cargando && fotos(j) >= 1);
+            println!("workshop link: {:?}", j.gmod.ws.items.iter().map(|x| (x.id.clone(), x.t.clone())).collect::<Vec<_>>()); foto(&mut m, "ws_link");
+            // (arrastrar la grilla para abajo: la página siguiente)
+            j.gmod.ws.q.clear(); j.gmod.ws.cat = 0; j.ws_buscar(true); esperar(&mut j, &mut m, 25.0, &|j| !j.gmod.ws.cargando);
+            for _ in 0..12 { let (x, y) = (wf * 0.6, hf * 0.75); j.dedo_abajo(5, x, y, wf, hf); for k in 1..=8 { j.dedo_mueve(5, x, y - k as f32 * hf * 0.06, hf); paso(&mut j, &mut m, 1); } j.dedo_arriba(5); paso(&mut j, &mut m, 2); }
+            esperar(&mut j, &mut m, 25.0, &|j| !j.gmod.ws.cargando && j.gmod.ws.items.len() > 30);
+            println!("workshop desplazada: {} resultados (scroll {:.0})", j.gmod.ws.items.len(), j.gmod.ws.scroll); foto(&mut m, "ws_scroll");
+            // (los GIF: primero la foto fija, después se animan —dos fotos a medio segundo—)
+            j.gmod.ws.scroll = 0.0; j.gmod.ws.orden = 1; j.gmod.ws.cat = 0; j.ws_buscar(true);
+            let t0 = std::time::Instant::now(); let mut fija_t = None; let mut anim_t = None;
+            while t0.elapsed().as_secs_f32() < 40.0 { paso(&mut j, &mut m, 1); std::thread::sleep(std::time::Duration::from_millis(15));
+                if fija_t.is_none() && fotos(&j) >= 1 { fija_t = Some(t0.elapsed().as_secs_f32()); }
+                if anim_t.is_none() && !j.gmod.ws.anims.is_empty() { anim_t = Some(t0.elapsed().as_secs_f32()); }
+                if j.gmod.ws.anims.len() >= 4 && fotos(&j) >= 8 { break; } }
+            println!("workshop gif: primera foto fija a los {:.1} s, primer GIF animado a los {:.1} s, {} animados", fija_t.unwrap_or(-1.0), anim_t.unwrap_or(-1.0), j.gmod.ws.anims.len());
+            for (id, a) in j.gmod.ws.anims.iter().take(4) { println!("  {id}: {} cuadros en {:.2} s ({}×{} cada uno)", a.fin.len(), a.fin.last().copied().unwrap_or(0.0), a.fw, a.fh); }
+            paso(&mut j, &mut m, 4); foto(&mut m, "ws_gif_a"); let a = std::fs::read(format!("{sal}/{pre}_{w}x{h}_ws_gif_a.png")).ok();
+            let t1 = std::time::Instant::now(); while t1.elapsed().as_secs_f32() < 0.5 { paso(&mut j, &mut m, 1); std::thread::sleep(std::time::Duration::from_millis(15)); } foto(&mut m, "ws_gif_b");
+            let b = std::fs::read(format!("{sal}/{pre}_{w}x{h}_ws_gif_b.png")).ok();
+            let dec = |v: Option<Vec<u8>>| v.and_then(|v| { let d = png::Decoder::new(std::io::Cursor::new(v)); let mut r = d.read_info().ok()?; let mut buf = vec![0; r.output_buffer_size()]; r.next_frame(&mut buf).ok()?; Some(buf) });
+            if let (Some(a), Some(b)) = (dec(a), dec(b)) { let dif = a.chunks(4).zip(b.chunks(4)).filter(|(x, y)| x.iter().zip(y.iter()).any(|(p, q)| (*p as i32 - *q as i32).abs() > 24)).count(); println!("workshop gif: {dif} píxeles cambiaron en medio segundo (de {})", a.len() / 4); }
+        }
         if hace("paneles") {
             // (cada opción del menú y lo de arriba, tocando en el centro; la foto con la entrada terminada; y volver)
             let nombres = ["nueva", "multi", "social", "tienda", "crear", "personajes", "opciones"];

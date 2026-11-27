@@ -321,13 +321,15 @@ pub struct EnGmod {
     /// fase (0 decidir, 1 rearmando el Lua, 2 listo), el que se pidió, la barrita de arriba, el panel de equipos y lo que
     /// lleva muerto el jugador mientras el modo decide cuándo vuelve
     pub modo_elegido: String, modo_mapa: Option<usize>, modo_fase: u8, modo_quiere: Option<String>, pub modo_barra: Option<String>, pub equipos_panel: bool, pub muerto_t: f32, modo_t: u32,
+    /// la Workshop de «Mods y mapas» (como el navegador de GMod): lo buscado, la categoría, el orden, las páginas y las fotos
+    pub ws: Ws,
 }
 
 impl EnGmod {
     pub fn nueva(datos: Option<&Path>) -> EnGmod {
         let (tx, rx) = channel();
         EnGmod { gm: None, addons: vec![], pendientes: vec![], arma: None, base: 0, teclas: vec![], teclas_de: String::new(), carpeta_externa: None, datos: datos.map(|d| d.to_path_buf()), panel: false, scroll: 0.0, texs: vec![], hud_px: vec![], escala: 1.0,
-            http_bin: None, tienda: vec![], tx, rx, tienda_pedida: false, ms: 0.0, ms_prom: 0.0, pantalla: (1280.0, 720.0), buscado: false, cuenta: BTreeMap::new(), mods: Default::default(), ms_3d: 0.0, calc: None, usable: false, usar_ant: false, vgui_dedo: None, lector_rb: None, lib: None, jxp: None, menu: Default::default(), pm: Default::default(), veh_fis: HashMap::new(), modo_elegido: datos.and_then(|d| std::fs::read_to_string(d.join("gmod_modo.txt")).ok()).map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).unwrap_or_else(|| "auto".into()), modo_mapa: None, modo_fase: 0, modo_quiere: None, modo_barra: None, equipos_panel: false, muerto_t: 0.0, modo_t: 0, bucles: HashMap::new(), t_snd: 0.0, pill: Default::default() }
+            http_bin: None, tienda: vec![], tx, rx, tienda_pedida: false, ms: 0.0, ms_prom: 0.0, pantalla: (1280.0, 720.0), buscado: false, cuenta: BTreeMap::new(), mods: Default::default(), ms_3d: 0.0, calc: None, usable: false, usar_ant: false, vgui_dedo: None, lector_rb: None, lib: None, jxp: None, menu: Default::default(), pm: Default::default(), veh_fis: HashMap::new(), modo_elegido: datos.and_then(|d| std::fs::read_to_string(d.join("gmod_modo.txt")).ok()).map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).unwrap_or_else(|| "auto".into()), modo_mapa: None, modo_fase: 0, modo_quiere: None, modo_barra: None, equipos_panel: false, muerto_t: 0.0, modo_t: 0, ws: Ws::default(), bucles: HashMap::new(), t_snd: 0.0, pill: Default::default() }
     }
     fn apagados_ruta(&self) -> Option<PathBuf> { self.datos.as_ref().map(|d| d.join("gmod_apagados.txt")) }
     /// los addons de las carpetas (.gma y carpetas con lua/), en orden de nombre; los apagados quedan anotados
@@ -977,10 +979,13 @@ impl Juego {
         }
         std::thread::spawn(move || { let r = h(&format!("{}gmod/archivo/{}", TIENDA_URL, id)).and_then(|(c, b)| if c == 200 { Ok(b) } else { Err(format!("HTTP {c}")) }); let _ = tx.send((format!("gma:{}", id), r)); });
     }
-    fn gmod_tienda_paso(&mut self) {
+    pub(crate) fn gmod_tienda_paso(&mut self) {
         // (cómo van las bajadas por SteamPipe)
         for it in self.gmod.tienda.iter_mut() { if let Some(p) = &it.prog { let (h, t) = (p.hecho.load(std::sync::atomic::Ordering::Relaxed), p.total.load(std::sync::atomic::Ordering::Relaxed)); if it.estado.starts_with("Bajando") && t > 0 { it.estado = format!("Bajando {}%", h * 100 / t); } } }
         while let Ok((k, r)) = self.gmod.rx.try_recv() {
+            if let Some(g) = k.strip_prefix("ws:") { self.ws_respuesta(g, r); continue; }
+            if let Some(id) = k.strip_prefix("wsgif:") { if let Ok(b) = r { self.ws_hoja(id, &b); } continue; }
+            if let Some(id) = k.strip_prefix("wsimg:") { if let Ok(b) = r { if b.len() > 8 { let w = u32::from_le_bytes(b[0..4].try_into().unwrap()); let h = u32::from_le_bytes(b[4..8].try_into().unwrap()); if (w * h * 4) as usize == b.len() - 8 { self.ws_guardar_foto(&format!("ws:{id}"), w, h, b[8..].to_vec()); } } } continue; }
             if k == "lista" {
                 match r.ok().and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok()) {
                     Some(v) => {
@@ -1250,4 +1255,287 @@ impl Juego {
         self.gmod_prestar(true); if let Some(g) = self.gmod.gm.as_mut() { g.pedir_equipo(id); } self.gmod_prestar(false);
         self.gmod.equipos_panel = false; self.gmod.modo_t = 0;
     }
+}
+
+// ---------------- la Workshop (gmod_tienda.js con el navegador de GMod): buscar en toda la Workshop, por tipo, por
+// etiqueta, por texto o con un link o su número; las fotos de Steam achicadas; bajar como la tienda de siempre ----------------
+/// un resultado (lo que manda la tienda: gmCompacto)
+#[derive(Clone, Default, Debug)]
+pub struct ItemWs { pub id: String, pub t: String, pub img: String, pub mb: f32, pub subs: u64, pub fav: u64, pub d: String, pub tags: Vec<String>, pub dir: bool, pub act: i64 }
+/// las categorías de la izquierda, como el navegador de GMod: (nombre, etiqueta de Steam —"" todo, "#inst" los instalados—,
+/// a qué grupo pertenece)
+pub const WS_CATS: [(&str, &str, &str); 21] = [("Todo", "", "Explorar"), ("Instalados", "#inst", "Explorar"),
+    ("Mapas", "Map", "Tipo"), ("Modos de juego", "Gamemode", "Tipo"), ("Armas", "Weapon", "Tipo"), ("Vehículos", "Vehicle", "Tipo"), ("NPC", "NPC", "Tipo"), ("Herramientas", "Tool", "Tipo"),
+    ("Efectos", "Effects", "Tipo"), ("Modelos", "Model", "Tipo"), ("Entidades", "Entity", "Tipo"), ("Contenido de server", "ServerContent", "Tipo"),
+    ("Diversión", "Fun", "Etiquetas"), ("Roleplay", "Roleplay", "Etiquetas"), ("Paisajes", "Scenic", "Etiquetas"), ("Películas", "Movie", "Etiquetas"), ("Realismo", "Realism", "Etiquetas"),
+    ("Caricatura", "Cartoon", "Etiquetas"), ("Agua", "Water", "Etiquetas"), ("Cómic", "Comic", "Etiquetas"), ("Construcción", "Build", "Etiquetas")];
+/// los órdenes (el de la tienda y su nombre)
+pub const WS_ORDENES: [(&str, &str); 5] = [("subs", "Más suscriptos"), ("pop", "Tendencia"), ("votos", "Mejor votados"), ("nuevo", "Más nuevos"), ("act", "Actualizados")];
+#[derive(Default)]
+pub struct Ws {
+    pub items: Vec<ItemWs>, pub q: String, pub cat: usize, pub orden: usize, pub pag: u32, pub total: u64, pub cargando: bool, gen: u32,
+    /// la ficha abierta (el número del resultado), lo desplazado, si ya se buscó la primera vez y el último error
+    pub ficha: Option<usize>, pub scroll: f32, pub buscada: bool, pub error: Option<String>,
+    /// los GIF que ya tienen su hoja de cuadros (se animan en la grilla y en la ficha)
+    pub anims: HashMap<String, AnimWs>,
+    /// cuándo se dibujó por última vez cada foto (para olvidar las que no se ven cuando se llega al tope)
+    pub vistas: HashMap<String, f32>,
+    /// la columna de las categorías: lo desplazado, dónde está y su alto (para arrastrarla aparte de la grilla)
+    pub scroll_cats: f32, pub r_cats: [f32; 4], pub alto_cats: f32,
+    /// las fotos pedidas y la fila de las que faltan bajar (la atienden tres hilos)
+    fotos: std::collections::HashSet<String>, cola: Option<Sender<(String, String)>>,
+}
+/// el número de un addon en un texto: un link de steamcommunity (filedetails/?id=…, el de la app de Steam) o el número solo
+pub fn ws_id_de(q: &str) -> Option<String> {
+    let t = q.trim(); if t.is_empty() { return None; }
+    let digitos = |s: &str| -> Option<String> { let d: String = s.chars().take_while(|c| c.is_ascii_digit()).collect(); if (5..=12).contains(&d.len()) { Some(d) } else { None } };
+    for pre in ["?id=", "&id=", "CommunityFilePage/", "communityfilepage/"] { if let Some(i) = t.find(pre) { if let Some(d) = digitos(&t[i + pre.len()..]) { return Some(d); } } }
+    if t.chars().all(|c| c.is_ascii_digit()) { return digitos(t); }
+    None
+}
+fn url_cod(s: &str) -> String { s.bytes().map(|b| if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect() }
+/// una foto de Steam a RGBA de hasta `max` de ancho (JPEG o PNG): w y h en los primeros 8 bytes
+fn ws_foto_rgba(b: &[u8], max: u32) -> Option<Vec<u8>> {
+    let (w, h, px) = if b.starts_with(&[0xFF, 0xD8]) {
+        let op = zune_jpeg::zune_core::options::DecoderOptions::default().jpeg_set_out_colorspace(zune_jpeg::zune_core::colorspace::ColorSpace::RGBA);
+        let mut d = zune_jpeg::JpegDecoder::new_with_options(zune_jpeg::zune_core::bytestream::ZCursor::new(b), op);
+        let px = d.decode().ok()?; let i = d.info()?; (i.width as u32, i.height as u32, px)
+    } else if b.starts_with(&[0x89, b'P', b'N', b'G']) {
+        let mut dec = png::Decoder::new(std::io::Cursor::new(b)); dec.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
+        let mut r = dec.read_info().ok()?; let mut buf = vec![0; r.output_buffer_size()]; let inf = r.next_frame(&mut buf).ok()?;
+        let n = (inf.width * inf.height) as usize; let px: Vec<u8> = match inf.color_type { png::ColorType::Rgba => buf[..n * 4].to_vec(), png::ColorType::Rgb => buf[..n * 3].chunks(3).flat_map(|c| [c[0], c[1], c[2], 255]).collect(),
+            png::ColorType::Grayscale => buf[..n].iter().flat_map(|&g| [g, g, g, 255]).collect(), png::ColorType::GrayscaleAlpha => buf[..n * 2].chunks(2).flat_map(|c| [c[0], c[0], c[0], c[1]]).collect(), _ => return None };
+        (inf.width, inf.height, px)
+    } else if b.starts_with(b"GIF8") { gif_primero(b)? } else { return None };
+    if w == 0 || h == 0 || px.len() < (w * h * 4) as usize { return None; }
+    // (achicada promediando, para que entre en la memoria y se vea suave)
+    let (nw, nh, chica) = achicar(&px, w, h, max);
+    let mut out = Vec::with_capacity(8 + chica.len()); out.extend_from_slice(&nw.to_le_bytes()); out.extend_from_slice(&nh.to_le_bytes()); out.extend_from_slice(&chica);
+    Some(out)
+}
+/// los cuadros de un GIF (las fotos animadas de la Workshop), hasta `max`: cada uno ya compuesto sobre los anteriores
+/// (con su forma de borrarse: dejarlo, volver al fondo o al de antes), con su paleta, la transparencia, el entrelazado y
+/// lo que dura (en ms); LZW de tamaño variable
+fn gif_cuadros(b: &[u8], max: usize) -> Option<(u32, u32, Vec<(Vec<u8>, u32)>)> {
+    let u16le = |i: usize| -> Option<u16> { Some(u16::from_le_bytes([*b.get(i)?, *b.get(i + 1)?])) };
+    let (w, h) = (u16le(6)? as usize, u16le(8)? as usize); if w == 0 || h == 0 || w * h > 4_000_000 { return None; }
+    let fl = *b.get(10)?; let mut i = 13usize; let mut global: Vec<[u8; 3]> = vec![];
+    if fl & 0x80 != 0 { let n = 2usize << (fl & 7); for k in 0..n { global.push([*b.get(i + k * 3)?, *b.get(i + k * 3 + 1)?, *b.get(i + k * 3 + 2)?]); } i += n * 3; }
+    let (mut transp, mut demora, mut borrar): (Option<u8>, u32, u8) = (None, 100, 0);
+    let mut lienzo = vec![0u8; w * h * 4]; let mut cuadros: Vec<(Vec<u8>, u32)> = vec![];
+    while cuadros.len() < max {
+        let Some(&t) = b.get(i) else { break };
+        match t {
+            0x21 => { // (extensiones: la de control gráfico trae el color transparente, lo que dura y cómo se borra)
+                let et = *b.get(i + 1)?; i += 2;
+                if et == 0xF9 && *b.get(i)? >= 4 { let f = *b.get(i + 1)?; borrar = (f >> 2) & 7; transp = if f & 1 != 0 { Some(*b.get(i + 4)?) } else { None };
+                    let d = u16le(i + 2)? as u32; demora = if d < 2 { 100 } else { d * 10 }; }
+                loop { let n = *b.get(i)? as usize; i += 1; if n == 0 { break; } i += n; }
+            }
+            0x2C => {
+                let (x0, y0, iw, ih) = (u16le(i + 1)? as usize, u16le(i + 3)? as usize, u16le(i + 5)? as usize, u16le(i + 7)? as usize); let lf = *b.get(i + 9)?; i += 10;
+                let mut pal = global.clone();
+                if lf & 0x80 != 0 { let n = 2usize << (lf & 7); pal.clear(); for k in 0..n { pal.push([*b.get(i + k * 3)?, *b.get(i + k * 3 + 1)?, *b.get(i + k * 3 + 2)?]); } i += n * 3; }
+                let entre = lf & 0x40 != 0; let min = *b.get(i)? as u32; i += 1; if min > 11 { return None; }
+                let mut datos = vec![]; loop { let n = *b.get(i)? as usize; i += 1; if n == 0 { break; } datos.extend_from_slice(b.get(i..i + n)?); i += n; }
+                let (clear, fin) = (1u32 << min, (1u32 << min) + 1); let mut tam = min + 1; let mut dic: Vec<(i32, u8)> = Vec::with_capacity(4096);
+                let reiniciar = |dic: &mut Vec<(i32, u8)>| { dic.clear(); for c in 0..(1u32 << min) { dic.push((-1, c as u8)); } dic.push((-1, 0)); dic.push((-1, 0)); };
+                reiniciar(&mut dic); let mut idx: Vec<u8> = Vec::with_capacity(iw * ih); let (mut acc, mut nb, mut pos) = (0u32, 0u32, 0usize); let mut prev: Option<u32> = None;
+                let cadena = |dic: &Vec<(i32, u8)>, mut c: u32, v: &mut Vec<u8>| -> u8 { let ini = v.len(); loop { let (p, ch) = dic[c as usize]; v.push(ch); if p < 0 { break; } c = p as u32; } v[ini..].reverse(); v[ini] };
+                while idx.len() < iw * ih {
+                    while nb < tam { if pos >= datos.len() { break; } acc |= (datos[pos] as u32) << nb; nb += 8; pos += 1; }
+                    if nb < tam { break; }
+                    let c = acc & ((1 << tam) - 1); acc >>= tam; nb -= tam;
+                    if c == clear { reiniciar(&mut dic); tam = min + 1; prev = None; continue; }
+                    if c == fin { break; }
+                    match prev {
+                        None => { if (c as usize) >= dic.len() { return None; } cadena(&dic, c, &mut idx); }
+                        Some(pc) => {
+                            if (c as usize) < dic.len() { let f = cadena(&dic, c, &mut idx); if dic.len() < 4096 { dic.push((pc as i32, f)); } }
+                            else if c as usize == dic.len() { let f = cadena(&dic, pc, &mut idx); idx.push(f); if dic.len() < 4096 { dic.push((pc as i32, f)); } }
+                            else { break; }
+                        }
+                    }
+                    prev = Some(c); if dic.len() == (1 << tam) as usize && tam < 12 { tam += 1; }
+                }
+                // (lo de antes, por si este cuadro se borra volviendo a él)
+                let antes = if borrar == 3 { Some(lienzo.clone()) } else { None };
+                let filas: Vec<usize> = if entre { (0..ih).step_by(8).chain((4..ih).step_by(8)).chain((2..ih).step_by(4)).chain((1..ih).step_by(2)).collect() } else { (0..ih).collect() };
+                for (k, &fy) in filas.iter().enumerate() { for fx in 0..iw { let Some(&ci) = idx.get(k * iw + fx) else { continue }; let (x, y) = (x0 + fx, y0 + fy); if x >= w || y >= h { continue; }
+                    if Some(ci) == transp { continue; } let o = (y * w + x) * 4; let c = pal.get(ci as usize).copied().unwrap_or([0, 0, 0]); lienzo[o..o + 4].copy_from_slice(&[c[0], c[1], c[2], 255]); } }
+                cuadros.push((lienzo.clone(), demora));
+                match borrar { 2 => { for y in y0..(y0 + ih).min(h) { for x in x0..(x0 + iw).min(w) { let o = (y * w + x) * 4; lienzo[o..o + 4].copy_from_slice(&[0, 0, 0, 0]); } } } 3 => { if let Some(a) = antes { lienzo = a; } } _ => {} }
+                transp = None; demora = 100; borrar = 0;
+            }
+            _ => break,
+        }
+    }
+    if cuadros.is_empty() { None } else { Some((w as u32, h as u32, cuadros)) }
+}
+/// el primer cuadro de un GIF
+fn gif_primero(b: &[u8]) -> Option<(u32, u32, Vec<u8>)> { let (w, h, mut c) = gif_cuadros(b, 1)?; Some((w, h, c.remove(0).0)) }
+/// achicar una imagen RGBA promediando, hasta `max` de ancho
+fn achicar(px: &[u8], w: u32, h: u32, max: u32) -> (u32, u32, Vec<u8>) {
+    let k = (w as f32 / max as f32).max(1.0); let (nw, nh) = (((w as f32 / k) as u32).max(1), ((h as f32 / k) as u32).max(1));
+    let mut out = Vec::with_capacity((nw * nh * 4) as usize);
+    for y in 0..nh { for x in 0..nw {
+        let (x0, x1, y0, y1) = ((x as f32 * k) as u32, (((x + 1) as f32 * k) as u32).min(w).max((x as f32 * k) as u32 + 1), (y as f32 * k) as u32, (((y + 1) as f32 * k) as u32).min(h).max((y as f32 * k) as u32 + 1));
+        let mut s = [0u32; 4]; let mut n = 0u32;
+        for yy in y0..y1.min(h) { for xx in x0..x1.min(w) { let o = ((yy * w + xx) * 4) as usize; for c in 0..4 { s[c] += px[o + c] as u32; } n += 1; } }
+        for c in 0..4 { out.push((s[c] / n.max(1)) as u8); }
+    } }
+    (nw, nh, out)
+}
+/// la hoja con los cuadros de un GIF (para una sola textura): cada cuadro de hasta 160 de ancho, en una grilla de hasta
+/// 2048 × 2048 (si no entran, se salta de a varios sumando lo que duran). Bytes: ancho y alto del cuadro, columnas, cuántos,
+/// lo que dura cada uno (u16 en ms), el ancho y el alto de la hoja y sus píxeles
+fn gif_hoja(w: u32, h: u32, cuadros: Vec<(Vec<u8>, u32)>) -> Option<Vec<u8>> {
+    if cuadros.len() < 2 { return None; }
+    // (cuadros de hasta 128 px y 32 cuadros como mucho, en una hoja de hasta 1024 × 1024: unos 2 MB por GIF)
+    let k = (w.max(h) as f32 / 128.0).max(1.0); let (fw, fh) = (((w as f32 / k) as u32).max(1), ((h as f32 / k) as u32).max(1));
+    let cols = (1024 / fw).max(1); let filas_max = (1024 / fh).max(1); let cab = (cols * filas_max) as usize;
+    let paso = cuadros.len().div_ceil(cab.min(32)).max(1);
+    let mut elegidos: Vec<(Vec<u8>, u32)> = vec![];
+    for (k2, (px, d)) in cuadros.into_iter().enumerate() { if k2 % paso == 0 { elegidos.push((px, d)); } else if let Some(u) = elegidos.last_mut() { u.1 += d; } }
+    let n = elegidos.len() as u32; let filas = n.div_ceil(cols); let (aw, ah) = (cols.min(n) * fw, filas * fh);
+    let mut hoja = vec![0u8; (aw * ah * 4) as usize];
+    for (q, (px, _)) in elegidos.iter().enumerate() {
+        let (cw, ch, ch_px) = achicar(px, w, h, fw); let (ox, oy) = ((q as u32 % cols) * fw, (q as u32 / cols) * fh);
+        for y in 0..ch.min(fh) { for x in 0..cw.min(fw) { let s = ((y * cw + x) * 4) as usize; let d = (((oy + y) * aw + ox + x) * 4) as usize; hoja[d..d + 4].copy_from_slice(&ch_px[s..s + 4]); } }
+    }
+    let mut out = vec![]; for v in [fw, fh, cols, n] { out.extend_from_slice(&v.to_le_bytes()); }
+    for (_, d) in &elegidos { out.extend_from_slice(&(((*d).min(65535)) as u16).to_le_bytes()); }
+    out.extend_from_slice(&aw.to_le_bytes()); out.extend_from_slice(&ah.to_le_bytes()); out.extend_from_slice(&hoja);
+    Some(out)
+}
+/// un GIF de la Workshop animándose: el tamaño de cada cuadro en la hoja, las columnas y cuándo termina cada uno (s)
+#[derive(Clone, Debug)]
+pub struct AnimWs { pub fw: f32, pub fh: f32, pub cols: u32, pub fin: Vec<f32> }
+impl AnimWs {
+    /// el pedazo de la hoja que toca en el segundo `t`
+    pub fn cuadro(&self, t: f32) -> [f32; 4] {
+        let total = self.fin.last().copied().unwrap_or(1.0).max(0.05); let r = t % total;
+        let q = self.fin.iter().position(|&f| r < f).unwrap_or(0) as u32;
+        [(q % self.cols) as f32 * self.fw, (q / self.cols) as f32 * self.fh, self.fw, self.fh]
+    }
+}
+fn ws_item(x: &serde_json::Value) -> Option<ItemWs> {
+    let id = x["id"].as_str().map(String::from).or_else(|| x["id"].as_u64().map(|n| n.to_string()))?;
+    Some(ItemWs { id, t: x["t"].as_str().unwrap_or("").to_string(), img: x["img"].as_str().unwrap_or("").to_string(), mb: x["mb"].as_f64().unwrap_or(0.0) as f32,
+        subs: x["subs"].as_u64().unwrap_or(0), fav: x["fav"].as_u64().unwrap_or(0), d: x["d"].as_str().unwrap_or("").to_string(),
+        tags: x["tags"].as_array().map(|a| a.iter().filter_map(|t| t.as_str().map(String::from)).collect()).unwrap_or_default(), dir: x["dir"].as_bool().unwrap_or(false), act: x["act"].as_i64().unwrap_or(0) })
+}
+impl Juego {
+    /// buscar (con `de_nuevo`, desde la primera página: cambió lo buscado, la categoría o el orden; si no, la página siguiente)
+    pub fn ws_buscar(&mut self, de_nuevo: bool) {
+        let ws = &mut self.gmod.ws;
+        if de_nuevo { ws.items.clear(); ws.pag = 0; ws.total = 0; ws.scroll = 0.0; ws.gen += 1; ws.cargando = false; ws.ficha = None; ws.error = None; }
+        if ws.cargando || (ws.pag > 0 && ws.items.len() as u64 >= ws.total) { return; }
+        ws.buscada = true;
+        let Some(h) = self.gmod_http_bin() else { self.gmod.ws.error = Some("Sin conexión: la Workshop anda con internet".into()); return };
+        let ws = &mut self.gmod.ws; let cat = WS_CATS[ws.cat.min(WS_CATS.len() - 1)];
+        // (un link o un número: ése; los instalados: sus fichas; si no, la búsqueda de la tienda de a 30)
+        let url = if let Some(id) = ws_id_de(&ws.q) { if ws.pag > 0 { return; } format!("{}gmod/detalles?ids={}", TIENDA_URL, id) }
+            else if cat.1 == "#inst" {
+                if ws.pag > 0 { return; }
+                let ids: Vec<String> = self.gmod.addons.iter().filter_map(|a| { let n = a.ruta.file_stem()?.to_string_lossy().into_owned(); if n.chars().all(|c| c.is_ascii_digit()) && n.len() >= 5 { Some(n) } else { None } }).collect();
+                if ids.is_empty() { self.gmod.ws.total = 0; self.gmod.ws.pag = 1; return; }
+                format!("{}gmod/detalles?ids={}", TIENDA_URL, ids.join(","))
+            } else { format!("{}gmod/buscar?q={}&tag={}&orden={}&p={}", TIENDA_URL, url_cod(&ws.q), cat.1, WS_ORDENES[ws.orden.min(4)].0, ws.pag + 1) };
+        let ws = &mut self.gmod.ws; ws.cargando = true; ws.pag += 1;
+        let (tx, g) = (self.gmod.tx.clone(), ws.gen);
+        std::thread::spawn(move || { let r = h(&url).and_then(|(c, b)| if c == 200 { Ok(b) } else { Err(format!("HTTP {c}")) }); let _ = tx.send((format!("ws:{g}"), r)); });
+    }
+    fn ws_respuesta(&mut self, g: &str, r: Result<Vec<u8>, String>) {
+        if g.parse::<u32>().ok() != Some(self.gmod.ws.gen) { return; }
+        self.gmod.ws.cargando = false;
+        let v = match r.and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).map_err(|e| e.to_string())) { Ok(v) => v, Err(e) => { self.gmod.ws.error = Some(format!("La Workshop no contestó ({e})")); return } };
+        let nuevos: Vec<ItemWs> = v["items"].as_array().map(|a| a.iter().filter_map(ws_item).collect()).unwrap_or_default();
+        let ws = &mut self.gmod.ws;
+        ws.total = v["total"].as_u64().unwrap_or(ws.items.len() as u64 + nuevos.len() as u64);
+        if nuevos.is_empty() && ws.items.is_empty() { ws.total = 0; }
+        for n in nuevos { if !ws.items.iter().any(|x| x.id == n.id) { ws.items.push(n); } }
+        if ws.items.len() as u64 >= ws.total || ws.items.len() < 30 * ws.pag as usize { ws.total = ws.items.len() as u64; }
+        ws.error = None;
+    }
+    /// la foto de un resultado: si no se pidió, a la fila de los hilos de las fotos (de Steam, ya achicada en su CDN)
+    pub fn ws_pedir_foto(&mut self, k: usize) {
+        let Some(it) = self.gmod.ws.items.get(k) else { return }; if it.img.is_empty() || self.gmod.ws.fotos.contains(&it.id) { return; }
+        let (id, img) = (it.id.clone(), it.img.clone());
+        if self.gmod.ws.cola.is_none() {
+            let Some(h) = self.gmod_http_bin() else { return };
+            let (stx, srx) = channel::<(String, String)>(); let srx = Arc::new(std::sync::Mutex::new(srx));
+            for _ in 0..3 { let (srx, h, tx) = (srx.clone(), h.clone(), self.gmod.tx.clone());
+                std::thread::spawn(move || loop {
+                    let Ok((id, url)) = srx.lock().map_err(|_| ()).and_then(|r| r.recv().map_err(|_| ())) else { break };
+                    let u = if url.contains('?') { url } else { format!("{url}?imw=240&imh=240&ima=fit&impolicy=Letterbox&letterbox=false") };
+                    let r = h(&u).and_then(|(c, b)| if c == 200 { Ok(b) } else { Err(format!("HTTP {c}")) });
+                    // (primero la foto fija —el primer cuadro si es un GIF— y, si se mueve, después todos sus cuadros)
+                    let fija = r.as_ref().map_err(|e| e.clone()).and_then(|b| ws_foto_rgba(b, 240).ok_or_else(|| "foto rara".to_string()));
+                    if tx.send((format!("wsimg:{id}"), fija)).is_err() { break; }
+                    if let Ok(b) = r { if b.starts_with(b"GIF8") { if let Some((w, hh, c)) = gif_cuadros(&b, 400) { if let Some(hoja) = gif_hoja(w, hh, c) { if tx.send((format!("wsgif:{id}"), Ok(hoja))).is_err() { break; } } } } }
+                }); }
+            self.gmod.ws.cola = Some(stx);
+        }
+        self.gmod.ws.fotos.insert(id.clone());
+        if let Some(c) = &self.gmod.ws.cola { let _ = c.send((id, img)); }
+    }
+    /// la hoja de cuadros de un GIF: a la placa y sus tiempos a la lista
+    fn ws_hoja(&mut self, id: &str, b: &[u8]) {
+        let u = |i: usize| -> Option<u32> { Some(u32::from_le_bytes(b.get(i..i + 4)?.try_into().ok()?)) };
+        let (Some(fw), Some(fh), Some(cols), Some(n)) = (u(0), u(4), u(8), u(12)) else { return };
+        let o = 16 + n as usize * 2; let (Some(aw), Some(ah)) = (u(o), u(o + 4)) else { return };
+        if b.len() != o + 8 + (aw * ah * 4) as usize || cols == 0 { return; }
+        let mut fin = vec![]; let mut t = 0.0f32; for q in 0..n as usize { let d = u16::from_le_bytes([b[16 + q * 2], b[17 + q * 2]]) as f32 / 1000.0; t += d.max(0.02); fin.push(t); }
+        self.ws_guardar_foto(&format!("wsa:{id}"), aw, ah, b[o + 8..].to_vec());
+        self.gmod.ws.anims.insert(id.to_string(), AnimWs { fw: fw as f32, fh: fh as f32, cols, fin });
+    }
+    /// guardar una foto de la Workshop con tope (72 fijas y 10 hojas animadas): llegado el tope, se olvida la que hace más
+    /// que no se ve y se reusa su textura (si vuelve a verse, se pide de nuevo)
+    fn ws_guardar_foto(&mut self, k: &str, w: u32, h: u32, px: Vec<u8>) {
+        if self.ini_foto_lista(k) { return; }
+        let (pre, tope) = if k.starts_with("wsa:") { ("wsa:", 10) } else { ("ws:", 72) };
+        let mias: Vec<String> = self.gmod.ws.vistas.keys().filter(|x| x.starts_with(pre)).cloned().collect();
+        let mut id_libre = None;
+        if mias.len() >= tope {
+            if let Some(vieja) = mias.iter().min_by(|a, b| self.gmod.ws.vistas[*a].partial_cmp(&self.gmod.ws.vistas[*b]).unwrap_or(std::cmp::Ordering::Equal)).cloned() {
+                self.gmod.ws.vistas.remove(&vieja); id_libre = self.ini_sacar_foto(&vieja);
+                let item = vieja[pre.len()..].to_string(); if pre == "wsa:" { self.gmod.ws.anims.remove(&item); } else { self.gmod.ws.fotos.remove(&item); }
+            }
+        }
+        self.gmod.ws.vistas.insert(k.to_string(), self.ini.reloj);
+        match id_libre { Some(id) => self.ini_poner_foto_id(k, id, w, h, px), None => self.ini_poner_foto(k, w, h, px) }
+    }
+    /// la foto de un resultado para dibujar: la hoja animada (con el pedazo que toca) o la fija
+    pub fn ws_foto(&self, id: &str, t: f32) -> Option<(i64, f32, f32, Option<[f32; 4]>)> {
+        if let (Some(a), Some((tex, tw, th))) = (self.gmod.ws.anims.get(id), self.ini_foto(&format!("wsa:{id}"))) { return Some((tex, tw, th, Some(a.cuadro(t)))); }
+        self.ini_foto(&format!("ws:{id}")).map(|(tex, tw, th)| (tex, tw, th, None))
+    }
+    /// el estado de un resultado: (texto, progreso 0..1 si baja, si está instalado)
+    pub fn ws_estado(&self, id: &str) -> (String, Option<f32>, bool) {
+        let inst = self.gmod.addons.iter().any(|a| a.ruta.file_stem().map(|s| s.to_string_lossy() == id).unwrap_or(false));
+        if let Some(t) = self.gmod.tienda.iter().find(|t| t.id == id) {
+            let p = t.prog.as_ref().map(|p| { let (hh, tt) = (p.hecho.load(std::sync::atomic::Ordering::Relaxed), p.total.load(std::sync::atomic::Ordering::Relaxed)); if tt > 0 { hh as f32 / tt as f32 } else { 0.0 } });
+            if t.estado.starts_with("Bajando") { return (t.estado.clone(), p.or(Some(0.0)), false); }
+            if t.estado != "Bajar" && !inst && t.estado != "Instalado" { return (t.estado.clone(), None, false); }
+        }
+        if inst { ("Instalado".into(), None, true) } else { ("Bajar".into(), None, false) }
+    }
+    /// bajar un resultado (directo o por SteamPipe, como la tienda de siempre)
+    pub fn ws_bajar(&mut self, id: &str) {
+        let Some(it) = self.gmod.ws.items.iter().find(|x| x.id == id).cloned() else { return };
+        if self.ws_estado(id).2 { return; }
+        let k = match self.gmod.tienda.iter().position(|t| t.id == it.id) { Some(k) => { if !self.gmod.tienda[k].estado.starts_with("Bajando") { self.gmod.tienda[k].estado = "Bajar".into(); } k }
+            None => { self.gmod.tienda.push(ItemTienda { id: it.id.clone(), titulo: it.t.clone(), estado: "Bajar".into(), mb: it.mb, pipe: !it.dir, prog: None }); self.gmod.tienda.len() - 1 } };
+        if self.gmod.http_bin.is_none() { self.avisar("Para bajar de la Workshop hace falta el celular (la conexión de la app)".into()); return; }
+        self.gmod_bajar(k); self.avisar(format!("Bajando {}", it.t));
+    }
+    /// prender o apagar un addon instalado (se rearma el Lua, como en el panel Mods)
+    pub fn ws_alternar(&mut self, id: &str) {
+        if let Some(i) = self.gmod.addons.iter().position(|a| a.ruta.file_stem().map(|s| s.to_string_lossy() == id).unwrap_or(false)) {
+            let a = &mut self.gmod.addons[i]; a.prendido = !a.prendido; let on = a.prendido; self.gmod.guardar_apagados(); self.gmod_reiniciar();
+            self.avisar(if on { "Addon prendido".into() } else { "Addon apagado".into() });
+        }
+    }
+    pub fn ws_prendido(&self, id: &str) -> Option<bool> { self.gmod.addons.iter().find(|a| a.ruta.file_stem().map(|s| s.to_string_lossy() == id).unwrap_or(false)).map(|a| a.prendido) }
 }

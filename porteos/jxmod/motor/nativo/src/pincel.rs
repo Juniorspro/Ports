@@ -556,6 +556,15 @@ impl<'a> Pincel<'a> {
         let (u0, v0) = ((1.0 - vw) * pos[0], (1.0 - vh) * pos[1]);
         self.quad(tex, [[x, y], [x + w, y], [x + w, y + h], [x, y + h]], [[u0, v0], [u0 + vw, v0], [u0 + vw, v0 + vh], [u0, v0 + vh]], [c; 4]);
     }
+    /// un pedazo `src` (en píxeles) de una textura de tw × th que cubre el rectángulo sin deformarse (los cuadros de un GIF
+    /// puestos en una sola hoja)
+    pub fn foto_cubre_parte(&mut self, tex: i64, tw: f32, th: f32, src: [f32; 4], x: f32, y: f32, w: f32, h: f32, pos: [f32; 2], c: Col) {
+        if tw <= 0.0 || th <= 0.0 || src[2] <= 0.0 || src[3] <= 0.0 { return; }
+        let k = (w / src[2]).max(h / src[3]); let (vw, vh) = (w / k, h / k);
+        let (sx, sy) = (src[0] + (src[2] - vw) * pos[0], src[1] + (src[3] - vh) * pos[1]);
+        let (u0, v0, u1, v1) = (sx / tw, sy / th, (sx + vw) / tw, (sy + vh) / th);
+        self.quad(tex, [[x, y], [x + w, y], [x + w, y + h], [x, y + h]], [[u0, v0], [u1, v0], [u1, v1], [u0, v1]], [c; 4]);
+    }
     /// una foto entera estirada en el rectángulo
     pub fn foto(&mut self, tex: i64, x: f32, y: f32, w: f32, h: f32, c: Col) { self.quad(tex, [[x, y], [x + w, y], [x + w, y + h], [x, y + h]], [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]], [c; 4]); }
     /// lo que queda a la vista de un rectángulo con el recorte de ahora (para lo que se toca: lo tapado no se toca)

@@ -22,6 +22,8 @@ image-webp = "0.2"
 flate2 = "1"
 khronos-egl = { version = "6", features = ["dynamic"] }
 libloading = "0.8"
+# (las fotos de la Workshop de Steam vienen en JPEG: ya estaba en el caché de cargo)
+zune-jpeg = "0.5"
 
 [target.'cfg(target_os = "android")'.dependencies]
 android-activity = { version = "0.6", features = ["native-activity"] }

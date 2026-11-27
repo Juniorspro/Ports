@@ -40,7 +40,10 @@ pub enum Acc { Volver, Cerrar, Cat(usize), Mapa(String), Empezar, Hora, Mods, Vr
     CrearBase(String), CrearEmpezar, AjTab(usize), Aj(usize, usize), Listo, AjCancelar, AjAplicar, Idioma(usize), GMod, CuentaNo, NovVer, Nada,
     /// Crear server: el nombre, la clave, el modo (PvP o no), prender PvP / RPG / nextbots (0, 1, 2), los topes (0 props,
     /// 1 autos: más o menos un paso) y crearlo
-    SrvNombre, SrvClave, SrvModo(bool), SrvTg(u8), SrvPaso(u8, i32), SrvCrear }
+    SrvNombre, SrvClave, SrvModo(bool), SrvTg(u8), SrvPaso(u8, i32), SrvCrear,
+    /// la Workshop: una categoría, buscar, pegar un link o número, cambiar el orden, abrir la ficha de un resultado, bajar,
+    /// prender o apagar un instalado, cerrar la ficha y la página siguiente
+    WsCat(usize), WsBuscar, WsLink, WsOrden, WsFicha(usize), WsBajar(String), WsAlternar(String), WsCerrar, WsMas }
 
 /// lo que se va eligiendo en Crear server (RB.srv de la web: Libre, sin PvP, RPG ni nextbots, 1000 props y 40 autos)
 #[derive(Clone, Debug)]
@@ -112,6 +115,8 @@ impl Juego {
         let e = self.ini.pn.escena; if matches!(self.ini.panel, Some(PanelIni::Personajes { .. })) && d.1 >= e[0] && d.1 <= e[0] + e[2] && d.2 >= e[1] && d.2 <= e[1] + e[3] { d.5 = true; self.ini.pn.apretado = None; self.ini.pn.giro += dx * 0.012; return; }
         if (d.3 - d.1).abs() + (d.4 - d.2).abs() > h * 0.03 { d.5 = true; self.ini.pn.apretado = None; }
         if d.5 { let c = self.ini.pn.contenido; let max = (self.ini.pn.alto_contenido - c[3]).max(0.0);
+            if matches!(self.ini.panel, Some(PanelIni::Tienda { tab: 3, .. })) { let ws = &mut self.gmod.ws; if ws.ficha.is_none() { let rc = ws.r_cats;
+                if d.1 >= rc[0] && d.1 <= rc[0] + rc[2] && d.2 >= rc[1] && d.2 <= rc[1] + rc[3] { ws.scroll_cats = (ws.scroll_cats - dy).clamp(0.0, (ws.alto_cats - rc[3]).max(0.0)); } else { ws.scroll = (ws.scroll - dy).clamp(0.0, max); } } return; }
             if let Some(pn) = self.ini.panel.as_mut() { match pn { PanelIni::Nueva { scroll, .. } | PanelIni::Multi { scroll } | PanelIni::Personajes { scroll, .. } | PanelIni::Opciones { scroll, .. } | PanelIni::Bugs { scroll, .. } | PanelIni::CrearServer { scroll } => { *scroll = (*scroll - dy).clamp(0.0, max); } _ => {} } } }
     }
     pub(super) fn pn_dedo_arriba(&mut self, id: i32, _w: f32, _h: f32) {
@@ -124,6 +129,8 @@ impl Juego {
     fn pn_accion(&mut self, a: Acc) {
         match (self.ini.panel.clone(), a) {
             (Some(PanelIni::CrearServer { .. }), Acc::Volver) => self.pn_abrir(PanelIni::Multi { scroll: 0.0 }),
+            // (en la Workshop, Volver primero cierra la ficha abierta)
+            (Some(PanelIni::Tienda { tab: 3, .. }), Acc::Volver) if self.gmod.ws.ficha.is_some() => self.gmod.ws.ficha = None,
             (_, Acc::Volver) | (_, Acc::Cerrar) => self.pn_volver(),
             (_, Acc::SrvNombre) => { let n = self.ini.pn.srv.n.clone(); self.pedir_texto(Escribir::SrvNombre, "Nombre del server", &n, 24, false); }
             (_, Acc::SrvClave) => { let c = self.ini.pn.srv.pw.clone(); self.pedir_texto(Escribir::SrvClave, "Clave (opcional)", &c, 16, true); }
@@ -148,7 +155,16 @@ impl Juego {
             (_, Acc::Refrescar) => { self.en_red.red.conectar_lista(); self.en_red.red.cargar_salas(); }
             (_, Acc::Buscar) => self.avisar("Para buscar hace falta el teclado del celular".into()),
             (Some(PanelIni::Social { .. }), Acc::Tab(k)) => self.ini.panel = Some(PanelIni::Social { tab: k }),
-            (Some(PanelIni::Tienda { cat, .. }), Acc::Tab(k)) => { if k == 3 { self.pn_volver(); self.ini.abierto = false; self.gmod_abrir(); self.ini.desde_juego = false; } else { self.ini.panel = Some(PanelIni::Tienda { tab: k, cat }); } }
+            (Some(PanelIni::Tienda { cat, .. }), Acc::Tab(k)) => { self.ini.panel = Some(PanelIni::Tienda { tab: k, cat }); if k == 3 && !self.gmod.ws.buscada { self.ws_buscar(true); } }
+            (_, Acc::WsCat(k)) => { self.gmod.ws.cat = k; if !self.gmod.ws.q.is_empty() && super::gmod_juego::ws_id_de(&self.gmod.ws.q).is_some() { self.gmod.ws.q.clear(); } self.ws_buscar(true); }
+            (_, Acc::WsBuscar) => { let q = if super::gmod_juego::ws_id_de(&self.gmod.ws.q).is_some() { String::new() } else { self.gmod.ws.q.clone() }; self.pedir_texto(Escribir::WsBuscar, "Buscar en la Workshop", &q, 80, false); }
+            (_, Acc::WsLink) => self.pedir_texto(Escribir::WsLink, "Pegá el link o el número de la Workshop", "", 200, false),
+            (_, Acc::WsOrden) => { self.gmod.ws.orden = (self.gmod.ws.orden + 1) % super::gmod_juego::WS_ORDENES.len(); self.ws_buscar(true); }
+            (_, Acc::WsFicha(k)) => self.gmod.ws.ficha = Some(k),
+            (_, Acc::WsCerrar) => self.gmod.ws.ficha = None,
+            (_, Acc::WsBajar(id)) => self.ws_bajar(&id),
+            (_, Acc::WsAlternar(id)) => self.ws_alternar(&id),
+            (_, Acc::WsMas) => self.ws_buscar(false),
             (Some(PanelIni::Tienda { tab, .. }), Acc::Cat(k)) => self.ini.panel = Some(PanelIni::Tienda { tab, cat: k }),
             (Some(PanelIni::Personajes { .. }), Acc::Tab(k)) => self.ini.panel = Some(PanelIni::Personajes { tab: k, scroll: 0.0 }),
             (Some(PanelIni::Bugs { .. }), Acc::Tab(k)) => self.ini.panel = Some(PanelIni::Bugs { tab: k, scroll: 0.0 }),
@@ -636,11 +652,11 @@ impl Juego {
     fn pn_tienda(&mut self, p: &mut Pincel, m: &Pm, tab: usize, cat: usize, t: f32, z: &mut Vec<([f32; 4], Acc)>) {
         let m2 = Pm { x: 6.0f32.max(if m.vh * 100.0 <= 500.0 { 6.0 } else { m.x }), y: if m.vh * 100.0 <= 500.0 { 6.0 } else { m.y }, ..*m };
         let m2 = Pm { w: m.w + 2.0 * (m.x - m2.x), h: m.h + 2.0 * (m.y - m2.y), ..m2 };
-        self.pn_marco(p, &m2, t, |p, c| {
+        let ws = self.pn_marco(p, &m2, t, |p, c| {
             let (xt, hc) = self.pn_cabecera(p, &Pm { ph: m.hb, ..m2 }, c, "04", None, "", t);
             let fs = m.fs; let base = p.at.base_centrada(Cara::S7, m.ft * 1.0, m.ft, c[1], hc - 1.0);
             let wt = p.texto(Cara::S7, m.ft, xt, base, TX, 0.035, "Mods y mapas");
-            let tabs = [("Mods", "ico_mod"), ("Mapas", "mapa"), ("Emotes", "ico_animacion"), ("GMod", "ico_gmod")];
+            let tabs = [("Mods", "ico_mod"), ("Mapas", "mapa"), ("Emotes", "ico_animacion"), ("Workshop", "ico_gmod")];
             let mut x = xt + wt + m.u; let ty = c[1] + (hc - 1.0 - m.hb) / 2.0;
             for (k, (n, ic)) in tabs.iter().enumerate() { let w = fs * 0.5 * 2.0 + 7.0 + p.at.ancho(Cara::S7, fs, 0.02, &n) + fs * 1.25 + fs * 0.35; self.pn_tab_chica(p, m, [x, ty, w, m.hb], n, ic, k == tab, Acc::Tab(k), z); x += w + 4.0; }
             // (arriba a la derecha: Crear un mod y Subir archivo —.rbmod / .rbmapa—, chicos)
@@ -663,6 +679,8 @@ impl Juego {
             let wpn = fs * 1.1 * 2.0 + 12.0 + p.at.ancho(Cara::S7, m.ft, 0.05, "Empezar partida nueva") + m.ft * 1.5;
             let corto = wtxt(p, "Volver") + wtxt(p, "Deshabilitar todo") + wtxt(p, "Habilitar todo") + m.u * 3.0 + wpn > pie[2] - m.u * 3.0;
             for (txt, ico, col, a, apagado) in [("Volver", "atras", TX, Acc::Volver, false), ("Deshabilitar todo", "prohibido", rgba(0xff7a6e, 1.0), Acc::Nada, true), ("Habilitar todo", "si", rgba(0x6fd68f, 1.0), Acc::Mods, false)] {
+                // (en la Workshop sólo Volver: prender y apagar va en la ficha de cada uno)
+                if tab == 3 && a != Acc::Volver { continue; }
                 let txt = if corto && a != Acc::Volver { "" } else { txt };
                 let wb = if txt.is_empty() { fs * 0.5 * 2.0 + 7.0 + fs * 1.15 } else { wtxt(p, txt) }; let rb = [xb, pby, wb.max(44.0), m.ph]; let wb = rb[2];
                 p.con_alfa(if apagado { 0.42 } else { 1.0 }, |p| { placa(p, rb[0], rb[1], rb[2], rb[3], 4, 12.0, PN_PL3, None); p.borde(rb[0], rb[1], rb[2] - 11.0, rb[3], 1.0, PN_LIN2);
@@ -673,6 +691,8 @@ impl Juego {
               let ap = self.ini.pn.apretado == Some(Acc::Empezar); self.pn_golpe(p, &Acc::Empezar, rp, |p| { placa(p, rp[0], rp[1], rp[2], rp[3], 1, 22.0, if ap { rgba(0xffc531, 1.0) } else { AMA }, None);
                   let wt = p.texto(Cara::S7, f, rp[0] + fs * 1.1, p.at.base_centrada(Cara::S7, f, f * 1.1, rp[1], rp[3]), NEGRO, 0.05, txt); p.icono("jugar", rp[0] + fs * 1.1 + wt + f * 0.35, rp[1] + (rp[3] - f * 1.15) / 2.0, f * 1.15, 2.7, NEGRO); });
               zona(p, z, rp, Acc::Empezar); }
+            // (la Workshop: su propio cuerpo —categorías, buscador, link, orden, grilla y ficha—)
+            if tab == 3 { return Some((c, c[1] + hc, pie[1])); }
             // (a la izquierda, las categorías; arriba de la grilla, el buscador, el orden y Explorar/Instalados)
             let cats = ["Todas", "Jugabilidad", "Física", "Armas", "Personajes", "Diversión", "Construcción", "Vehículos", "Aventura", "PvP", "Otros"];
             let cy0 = c[1] + hc; let cw = (c[2] * 0.125).max(fs * 9.0); let cal = pie[1] - cy0;
@@ -698,7 +718,136 @@ impl Juego {
                 p.rect(xs + w1, gy, wseg - w1, m.ph, PN_PL2); p.texto(Cara::S4, m.ft, xs + w1 + m.ft * 0.9, p.at.base_centrada(Cara::S4, m.ft, m.ft, gy, m.ph), PN_T2, 0.05, "Instalados");
                 p.texto_c(Cara::S4, m.ft, gx + gw / 2.0, gy + m.ph + m.u * 4.5, PN_T2, 0.0, if tab == 2 { "Los emotes del juego están en el panel de Emotes" } else { "No hay resultados" });
             });
+            None
         });
+        if let Some((c, cy0, pie_y)) = ws { self.pn_workshop(p, m, c, cy0, pie_y, t, z); }
+    }
+    /// (para las pruebas) abrir «Mods y mapas» en la Workshop y buscar
+    pub fn ws_abrir_prueba(&mut self) { self.ini.abierto = true; self.pn_abrir(PanelIni::Tienda { tab: 3, cat: 0 }); self.ws_buscar(true); }
+    /// la Workshop (gmod_tienda.js con el navegador de GMod, en Aero): a la izquierda las categorías (Explorar, Tipo y
+    /// Etiquetas, con su número los instalados), arriba el buscador, «Link o ID» y el orden; la grilla de resultados con su
+    /// foto, suscriptos, tamaño y si está instalado o bajando; tocando uno, su ficha (foto grande, datos, etiquetas,
+    /// descripción, Bajar o Prender/Apagar)
+    fn pn_workshop(&mut self, p: &mut Pincel, m: &Pm, c: [f32; 4], cy0: f32, pie_y: f32, t: f32, z: &mut Vec<([f32; 4], Acc)>) {
+        use super::gmod_juego::{WS_CATS, WS_ORDENES};
+        let fs = m.fs; let cal = pie_y - cy0;
+        // ---- las categorías ----
+        let cw = (c[2] * 0.17).max(fs * 10.5).min(fs * 15.0);
+        p.rect(c[0], cy0, cw, cal, PN_POZO); p.rect(c[0] + cw - 1.0, cy0, 1.0, cal, PN_LIN);
+        let (cat, scc, n_inst) = (self.gmod.ws.cat, self.gmod.ws.scroll_cats, self.gmod.addons.len());
+        let hb = (fs * 1.75).max(22.0);
+        let alto_cats = p.con_recorte([c[0], cy0, cw, cal], |p| {
+            let y0 = cy0 + m.u * 0.6 - scc; let mut y = y0; let mut grupo = "";
+            for (k, (n, _, g)) in WS_CATS.iter().enumerate() {
+                if *g != grupo { grupo = g; y += m.u * 0.4; p.texto(Cara::S7, fs * 0.78, c[0] + m.u * 1.2, y + fs * 0.85, AMA, 0.14, &g.to_uppercase()); y += fs * 1.25; }
+                let r = [c[0] + m.u * 0.6, y, cw - m.u * 0.6 - 6.0, hb]; let sel = k == cat;
+                if sel { placa(p, r[0], r[1], r[2], r[3], 4, 10.0, AMA, None); }
+                let col = if sel { NEGRO } else { PN_T2 }; let li = fs * 1.05;
+                p.icono(ws_icono(k), r[0] + m.u * 0.6, r[1] + (hb - li) / 2.0, li, 2.2, col);
+                let txt = if k == 1 { format!("{n} ({n_inst})") } else { n.to_string() };
+                p.texto_max(if sel { Cara::S7 } else { Cara::S4 }, fs * 0.95, r[0] + m.u * 0.6 + li + fs * 0.5, p.at.base_centrada(Cara::S4, fs * 0.95, fs * 0.95, r[1], r[3]), col, 0.02, &txt, r[2] - li - fs * 1.2);
+                zona(p, z, r, Acc::WsCat(k)); y += hb + 2.0;
+            }
+            y - y0 + m.u
+        });
+        { let ws = &mut self.gmod.ws; ws.r_cats = [c[0], cy0, cw, cal]; ws.alto_cats = alto_cats; }
+        // ---- arriba: buscador, Link o ID, orden ----
+        let gx = c[0] + cw + m.u * 1.2; let gw = c[0] + c[2] - gx - m.u * 1.2; let ty = cy0 + m.u * 0.9;
+        let w_link = p.at.ancho(Cara::S4, m.ft, 0.03, "Link o ID") + m.ft * 3.0; let orden_txt = WS_ORDENES[self.gmod.ws.orden.min(4)].1;
+        let w_ord = (p.at.ancho(Cara::S4, m.ft, 0.03, orden_txt) + m.ft * 3.0).max(m.ft * 7.5); let wb = (gw - w_link - w_ord - m.u * 2.0).max(m.ft * 6.0);
+        let q = self.gmod.ws.q.clone(); let es_id = super::gmod_juego::ws_id_de(&q).is_some();
+        self.pn_cascada(p, t, 0, |p| {
+            p.rect(gx, ty, wb, m.ph, PN_POZO); p.borde(gx, ty, wb, m.ph, 1.0, PN_LIN2); let li = m.ft * 1.2; p.icono("buscar", gx + m.ft * 0.7, ty + (m.ph - li) / 2.0, li, 2.4, AMA);
+            let (txt, col) = if q.is_empty() || es_id { ("Buscar en la Workshop…".to_string(), PN_T3) } else { (q.clone(), TX) };
+            p.texto_max(Cara::S4, m.ft, gx + m.ft * 2.5, p.at.base_centrada(Cara::S4, m.ft, m.ft * 1.2, ty, m.ph), col, 0.0, &txt, wb - m.ft * 3.0); zona(p, z, [gx, ty, wb, m.ph], Acc::WsBuscar);
+            let xl = gx + wb + m.u; placa(p, xl, ty, w_link, m.ph, 4, 10.0, PN_PL3, None); p.borde(xl, ty, w_link - 5.0, m.ph, 1.0, PN_LIN2);
+            p.icono("copiar", xl + m.ft * 0.55, ty + (m.ph - li) / 2.0, li, 2.2, AMA); p.texto(Cara::S4, m.ft, xl + m.ft * 2.2, p.at.base_centrada(Cara::S4, m.ft, m.ft, ty, m.ph), TX, 0.03, "Link o ID"); zona(p, z, [xl, ty, w_link, m.ph], Acc::WsLink);
+            let xo = xl + w_link + m.u; p.rect(xo, ty, w_ord, m.ph, PN_POZO); p.borde(xo, ty, w_ord, m.ph, 1.0, PN_LIN2);
+            p.texto_max(Cara::S4, m.ft, xo + m.ft * 0.7, p.at.base_centrada(Cara::S4, m.ft, m.ft * 1.1, ty, m.ph), TX, 0.03, orden_txt, w_ord - m.ft * 2.4);
+            p.icono("chevron", xo + w_ord - m.ft * 1.6, ty + (m.ph - m.ft) / 2.0, m.ft, 2.6, AMA); zona(p, z, [xo, ty, w_ord, m.ph], Acc::WsOrden);
+        });
+        // ---- el renglón de lo que se ve: categoría, cuántos y lo buscado ----
+        let ry = ty + m.ph + m.u * 0.7; let (total, cargando, n_items) = (self.gmod.ws.total, self.gmod.ws.cargando, self.gmod.ws.items.len());
+        let titulo = if es_id { format!("Workshop · número {q}") } else if q.is_empty() { WS_CATS[cat].0.to_string() } else { format!("{} · «{}»", WS_CATS[cat].0, q) };
+        let cuenta = if cargando && n_items == 0 { "Buscando…".to_string() } else { format!("{} resultados", fmt_miles(total)) };
+        p.texto_max(Cara::S7, fs * 1.05, gx, ry + fs, TX, 0.02, &titulo, gw * 0.65); let wc = p.at.ancho(Cara::S4, fs * 0.9, 0.02, &cuenta); p.texto(Cara::S4, fs * 0.9, gx + gw - wc, ry + fs, PN_T2, 0.02, &cuenta);
+        // ---- la grilla ----
+        let gy = ry + fs * 1.6; let gh = pie_y - gy - m.u * 0.6; let g = [gx - m.u * 0.4, gy, gw + m.u * 0.8, gh];
+        let n = (((gw + m.u) / (fs * 10.0 + m.u)).floor() as usize).max(2); let wcard = (gw - m.u * (n - 1) as f32) / n as f32;
+        let hfoto = wcard * 0.72; let hcard = hfoto + fs * 3.3; let scroll = self.gmod.ws.scroll;
+        let filas = n_items.div_ceil(n); let alto = filas as f32 * (hcard + m.u) + if self.gmod.ws.items.len() as u64 > n_items as u64 || (total as usize) > n_items { fs * 4.0 } else { m.u };
+        // (las fotos de lo que se ve —y un poco más—; la página siguiente cuando se llega cerca del final)
+        for k in 0..n_items { let f = k / n; let y = gy + f as f32 * (hcard + m.u) - scroll; if y + hcard > gy - gh && y < gy + gh * 2.0 { self.ws_pedir_foto(k); } }
+        if !cargando && (n_items as u64) < total && scroll + gh > alto - hcard * 1.5 { self.ws_buscar(false); }
+        let items: Vec<super::gmod_juego::ItemWs> = self.gmod.ws.items.clone();
+        let estados: Vec<(String, Option<f32>, bool)> = items.iter().map(|it| self.ws_estado(&it.id)).collect();
+        let reloj = self.ini.reloj; let fotos: Vec<Option<(i64, f32, f32, Option<[f32; 4]>)>> = items.iter().map(|it| self.ws_foto(&it.id, reloj)).collect();
+        // (las que se ven ahora quedan anotadas: al llegar al tope se olvidan las que hace más que no se ven)
+        for (k, it) in items.iter().enumerate() { let y = gy + (k / n) as f32 * (hcard + m.u) - scroll; if y + hcard >= gy && y <= gy + gh { for pre in ["ws:", "wsa:"] { let c = format!("{pre}{}", it.id); if let Some(v) = self.gmod.ws.vistas.get_mut(&c) { *v = reloj; } } } }
+        if let Some(k) = self.gmod.ws.ficha { if let Some(it) = items.get(k) { for pre in ["ws:", "wsa:"] { if let Some(v) = self.gmod.ws.vistas.get_mut(&format!("{pre}{}", it.id)) { *v = reloj; } } } }
+        let error = self.gmod.ws.error.clone();
+        p.con_recorte(g, |p| {
+            if n_items == 0 {
+                let msg = if let Some(e) = &error { e.clone() } else if cargando { "Buscando en la Workshop…".into() } else if cat == 1 { "Todavía no bajaste nada de la Workshop".into() } else { "No hay resultados".into() };
+                p.texto_c(Cara::S4, m.ft, gx + gw / 2.0, gy + gh * 0.35, PN_T2, 0.0, &msg);
+            }
+            for (k, it) in items.iter().enumerate() {
+                let (col, fila) = (k % n, k / n); let x = gx + col as f32 * (wcard + m.u); let y = gy + fila as f32 * (hcard + m.u) - scroll;
+                if y + hcard < gy || y > gy + gh { continue; }
+                let r = [x, y, wcard, hcard]; p.rect(r[0] + 3.0, r[1] + 3.0, r[2], r[3], [0.0, 0.0, 0.0, 0.45]); p.rect(r[0], r[1], r[2], r[3], PN_PL2); p.borde(r[0], r[1], r[2], r[3], 1.0, PN_LIN);
+                let fr = [x + 1.0, y + 1.0, wcard - 2.0, hfoto]; p.rect(fr[0], fr[1], fr[2], fr[3], PN_PL1);
+                match fotos[k] { Some((id, tw, th, Some(src))) => p.foto_cubre_parte(id, tw, th, src, fr[0], fr[1], fr[2], fr[3], [0.5, 0.5], [1.0; 4]),
+                    Some((id, tw, th, None)) => p.foto_cubre(id, tw, th, fr[0], fr[1], fr[2], fr[3], [0.5, 0.5], [1.0; 4]), None => p.icono(ws_icono_item(it), fr[0] + fr[2] / 2.0 - fs, fr[1] + fr[3] / 2.0 - fs, fs * 2.0, 2.0, PN_T3) }
+                self.pn_marco_foto(p, fr);
+                let (est, prog, inst) = &estados[k];
+                if *inst { let l = fs * 1.6; p.rect(fr[0] + fr[2] - l - 5.0, fr[1] + 5.0, l, l, rgba(0x2f9e54, 0.95)); p.icono("si", fr[0] + fr[2] - l - 5.0 + l * 0.15, fr[1] + 5.0 + l * 0.15, l * 0.7, 2.6, [1.0; 4]); }
+                if let Some(pr) = prog { p.rect(fr[0], fr[1] + fr[3] - 5.0, fr[2], 5.0, [0.0, 0.0, 0.0, 0.6]); p.rect(fr[0], fr[1] + fr[3] - 5.0, fr[2] * pr.clamp(0.0, 1.0), 5.0, AMA); }
+                else if !inst && est != "Bajar" { p.rect(fr[0], fr[1] + fr[3] - fs * 1.4, fr[2], fs * 1.4, [0.35, 0.05, 0.05, 0.85]); p.texto_max(Cara::S4, fs * 0.8, fr[0] + 4.0, fr[1] + fr[3] - fs * 0.4, TX, 0.0, est, fr[2] - 8.0); }
+                let ty2 = y + hfoto + fs * 1.25; p.texto_max(Cara::S7, fs * 0.95, x + fs * 0.5, ty2, TX, 0.01, &it.t, wcard - fs);
+                let info = format!("{} suscriptos · {}", fmt_corto(it.subs), fmt_mb(it.mb)); p.texto_max(Cara::S4, fs * 0.8, x + fs * 0.5, ty2 + fs * 1.15, PN_T2, 0.0, &info, wcard - fs);
+                zona(p, z, r, Acc::WsFicha(k));
+            }
+            if cargando && n_items > 0 { let y = gy + filas as f32 * (hcard + m.u) - scroll + fs; p.texto_c(Cara::S4, m.ft, gx + gw / 2.0, y + fs, PN_T2, 0.0, "Cargando más…"); }
+        });
+        self.ini.pn.contenido = g; self.ini.pn.alto_contenido = alto;
+        // ---- la ficha del elegido ----
+        let Some(k) = self.gmod.ws.ficha else { return }; let Some(it) = items.get(k).cloned() else { self.gmod.ws.ficha = None; return };
+        let (est, prog, inst) = estados[k].clone(); let prendido = self.ws_prendido(&it.id);
+        zona(p, z, c, Acc::WsCerrar); p.rect(c[0], c[1], c[2], c[3], [0.0, 0.0, 0.0, 0.62]);
+        let fw = (c[2] * 0.86).min(fs * 60.0); let fh = (c[3] * 0.86).min(fs * 34.0); let f = [c[0] + (c[2] - fw) / 2.0, c[1] + (c[3] - fh) / 2.0, fw, fh];
+        p.rect(f[0] + 5.0, f[1] + 5.0, f[2], f[3], [0.0, 0.0, 0.0, 0.5]); placa(p, f[0], f[1], f[2], f[3], 4, 0.0, rgba(0x1b1c1f, 0.98), None); p.borde(f[0], f[1], f[2], f[3], 1.0, PN_LIN2);
+        zona(p, z, f, Acc::Nada);
+        let pad = m.u * 1.4; let iw = (f[2] * 0.42).min(f[3] - pad * 2.0); let ir = [f[0] + pad, f[1] + pad, iw, iw * 0.75];
+        p.rect(ir[0], ir[1], ir[2], ir[3], PN_PL1);
+        match self.ws_foto(&it.id, reloj) { Some((id, tw, th, Some(src))) => p.foto_cubre_parte(id, tw, th, src, ir[0], ir[1], ir[2], ir[3], [0.5, 0.5], [1.0; 4]),
+            Some((id, tw, th, None)) => p.foto_cubre(id, tw, th, ir[0], ir[1], ir[2], ir[3], [0.5, 0.5], [1.0; 4]), None => p.icono(ws_icono_item(&it), ir[0] + ir[2] / 2.0 - fs * 1.5, ir[1] + ir[3] / 2.0 - fs * 1.5, fs * 3.0, 2.0, PN_T3) }
+        self.pn_marco_foto(p, ir);
+        // (abajo de la foto, los números)
+        let mut yy = ir[1] + ir[3] + fs * 1.4;
+        for (ico, txt) in [("persona", format!("{} suscriptos", fmt_miles(it.subs))), ("estrella", format!("{} favoritos", fmt_miles(it.fav))), ("caja", fmt_mb(it.mb)), ("reloj", hace_dias(it.act))] {
+            p.icono(ico, ir[0], yy - fs * 0.9, fs * 1.05, 2.2, AMA); p.texto_max(Cara::S4, fs * 0.92, ir[0] + fs * 1.6, yy, TX, 0.01, &txt, iw - fs * 1.6); yy += fs * 1.35; }
+        // (a la derecha: el nombre, las etiquetas y la descripción)
+        let dx = ir[0] + iw + pad; let dw = f[0] + f[2] - pad - dx; let mut y = f[1] + pad + fs * 1.4;
+        for ren in partir_txt(p, Cara::S7, fs * 1.35, &it.t, dw).into_iter().take(2) { p.texto(Cara::S7, fs * 1.35, dx, y, TX, 0.01, &ren); y += fs * 1.6; }
+        p.texto(Cara::S4, fs * 0.85, dx, y, PN_T2, 0.02, &format!("Workshop #{}", it.id)); y += fs * 0.8;
+        let mut xt = dx; let hch = fs * 1.45;
+        for tg in it.tags.iter().filter(|t| t.as_str() != "Addon").take(6) { let w = p.at.ancho(Cara::S4, fs * 0.82, 0.02, tg) + fs * 1.1; if xt + w > dx + dw { break; }
+            placa(p, xt, y + fs * 0.4, w, hch, 4, 0.0, PN_PL3, None); p.texto(Cara::S4, fs * 0.82, xt + fs * 0.55, p.at.base_centrada(Cara::S4, fs * 0.82, fs * 0.82, y + fs * 0.4, hch), TX, 0.02, tg); xt += w + 4.0; }
+        y += hch + fs * 1.6;
+        let bot_h = m.ph + m.u; let max_y = f[1] + f[3] - pad - bot_h - fs;
+        let desc = if it.d.is_empty() { "Sin descripción".to_string() } else { it.d.clone() };
+        for ren in partir_txt(p, Cara::S4, fs * 0.92, &desc, dw) { if y > max_y { break; } p.texto(Cara::S4, fs * 0.92, dx, y, PN_T2, 0.0, &ren); y += fs * 1.25; }
+        // (abajo a la derecha: Bajar / Bajando / Instalado y Prender o Apagar, y Cerrar)
+        let by = f[1] + f[3] - pad - m.ph; let mut bx = f[0] + f[2] - pad;
+        let wcer = p.at.ancho(Cara::S4, m.ft, 0.03, "Cerrar") + m.ft * 2.0; bx -= wcer; placa(p, bx, by, wcer, m.ph, 4, 10.0, PN_PL3, None); p.texto(Cara::S4, m.ft, bx + m.ft * 0.9, p.at.base_centrada(Cara::S4, m.ft, m.ft, by, m.ph), TX, 0.03, "Cerrar"); zona(p, z, [bx, by, wcer, m.ph], Acc::WsCerrar);
+        let (txt, ico, accion, fondo, letra) = if inst { (if prendido == Some(false) { "Prender" } else { "Apagar" }.to_string(), "power", Acc::WsAlternar(it.id.clone()), PN_PL3, TX) }
+            else if let Some(pr) = prog { (format!("Bajando {:.0} %", pr * 100.0), "bajar", Acc::Nada, PN_PL3, TX) }
+            else if est != "Bajar" { (format!("Reintentar ({est})"), "bajar", Acc::WsBajar(it.id.clone()), AMA, NEGRO) }
+            else { (format!("Bajar · {}", fmt_mb(it.mb)), "bajar", Acc::WsBajar(it.id.clone()), AMA, NEGRO) };
+        let wbt = p.at.ancho(Cara::S7, m.ft, 0.03, &txt) + m.ft * 3.2; bx -= wbt + m.u; placa(p, bx, by, wbt, m.ph, 4, 10.0, fondo, None);
+        p.icono(ico, bx + m.ft * 0.6, by + (m.ph - m.ft * 1.15) / 2.0, m.ft * 1.15, 2.4, letra); p.texto(Cara::S7, m.ft, bx + m.ft * 2.2, p.at.base_centrada(Cara::S7, m.ft, m.ft, by, m.ph), letra, 0.03, &txt); zona(p, z, [bx, by, wbt, m.ph], accion);
+        if inst { let w2 = p.at.ancho(Cara::S7, m.ft, 0.03, "Instalado") + m.ft * 3.0; bx -= w2 + m.u; placa(p, bx, by, w2, m.ph, 4, 10.0, rgba(0x2f9e54, 1.0), None);
+            p.icono("si", bx + m.ft * 0.6, by + (m.ph - m.ft * 1.15) / 2.0, m.ft * 1.15, 2.6, [1.0; 4]); p.texto(Cara::S7, m.ft, bx + m.ft * 2.1, p.at.base_centrada(Cara::S7, m.ft, m.ft, by, m.ph), [1.0; 4], 0.03, "Instalado"); }
     }
     /// una pestaña chica de la tienda (con ícono)
     fn pn_tab_chica(&self, p: &mut Pincel, m: &Pm, r: [f32; 4], txt: &str, ico: &'static str, sel: bool, a: Acc, z: &mut Vec<([f32; 4], Acc)>) {
@@ -953,3 +1102,32 @@ fn placa(p: &mut Pincel, x: f32, y: f32, w: f32, h: f32, _punta: usize, ap: f32,
 }
 /// (el grano ya no va: el vidrio es liso)
 fn sin_grano(_p: &mut Pincel, _x: f32, _y: f32, _w: f32, _h: f32, _gx: f32, _gy: f32, _a: f32) {}
+
+
+// ---------------- la Workshop: los íconos y los números ----------------
+/// el ícono (propio) de cada categoría de la Workshop
+fn ws_icono(k: usize) -> &'static str {
+    ["mundo", "carpeta", "mapa", "bandera", "pistola", "ico_auto", "persona", "martillo", "estrella", "caja", "cosa", "servidor", "dado", "gente", "mundo", "video", "ojo", "lapiz", "foco", "libro", "martillo"].get(k).copied().unwrap_or("mods")
+}
+/// el ícono de un resultado sin foto, por su tipo
+fn ws_icono_item(it: &super::gmod_juego::ItemWs) -> &'static str {
+    let t = |x: &str| it.tags.iter().any(|g| g.eq_ignore_ascii_case(x));
+    if t("map") { "mapa" } else if t("gamemode") { "bandera" } else if t("weapon") { "pistola" } else if t("npc") { "persona" } else if t("tool") { "martillo" } else if t("model") { "caja" } else { "mods" }
+}
+/// 3 270 201 → «3.270.201»
+fn fmt_miles(n: u64) -> String { let s = n.to_string(); let mut o = String::new(); for (i, ch) in s.chars().enumerate() { if i > 0 && (s.len() - i) % 3 == 0 { o.push('.'); } o.push(ch); } o }
+/// 3 270 201 → «3,3 M»; 12 400 → «12,4 k»
+fn fmt_corto(n: u64) -> String { if n >= 1_000_000 { format!("{:.1} M", n as f64 / 1e6).replace('.', ",") } else if n >= 1000 { format!("{:.1} k", n as f64 / 1e3).replace('.', ",") } else { n.to_string() } }
+fn fmt_mb(mb: f32) -> String { if mb >= 1000.0 { format!("{:.1} GB", mb / 1000.0).replace('.', ",") } else if mb >= 1.0 { format!("{mb:.1} MB").replace('.', ",") } else { format!("{:.0} KB", (mb * 1000.0).max(1.0)) } }
+/// «actualizado hace 3 días» (con la fecha en segundos de Unix)
+fn hace_dias(t: i64) -> String {
+    if t <= 0 { return "Sin fecha".into(); }
+    let ahora = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0); let d = ((ahora - t) / 86400).max(0);
+    if d == 0 { "Actualizado hoy".into() } else if d < 60 { format!("Actualizado hace {d} días") } else if d < 730 { format!("Actualizado hace {} meses", d / 30) } else { format!("Actualizado hace {} años", d / 365) }
+}
+/// un texto partido en renglones de hasta `ancho`
+fn partir_txt(p: &Pincel, cara: Cara, tam: f32, txt: &str, ancho: f32) -> Vec<String> {
+    let mut v = vec![]; let mut r = String::new();
+    for pal in txt.split_whitespace() { let c = if r.is_empty() { pal.to_string() } else { format!("{r} {pal}") }; if p.at.ancho(cara, tam, 0.0, &c) > ancho && !r.is_empty() { v.push(std::mem::replace(&mut r, pal.to_string())); } else { r = c; } }
+    if !r.is_empty() { v.push(r); } v
+}
