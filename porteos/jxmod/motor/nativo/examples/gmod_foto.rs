@@ -26,7 +26,8 @@ fn main() {
     let letras = || (std::fs::read_to_string(Path::new(&let_).join("letras.json")).ok(), std::fs::read(Path::new(&let_).join("letras.png")).ok());
     let (lj, lp) = letras(); let mut j = Juego::nuevo(paq, lj, lp, Some(datos.clone()));
     j.gmod.carpeta_externa = std::env::var("JXM_ADDONS").ok().map(std::path::PathBuf::from);
-    if let Some(f) = std::env::var("JXM_FOV").ok().and_then(|x| x.parse().ok()) { j.aj.fov = f; }   // (el campo de visión de Ajustes: la vista del arma tiene que verse igual con cualquiera)
+    if let Some(f) = std::env::var("JXM_FOV").ok().and_then(|x| x.parse().ok()) { j.aj.fov = f; }
+    if let Some(q) = std::env::var("JXM_CALIDAD").ok().and_then(|v| v.parse().ok()) { j.aj.poner_calidad(q); j.aj.auto = false; j.aj.dinamica = false; }   // (el campo de visión de Ajustes: la vista del arma tiene que verse igual con cualquiera)
     // (rb/: la biblioteca de GMod —gm_lib— y los datos de la versión personal —jxp—)
     j.gmod.lector_rb = Some(jxmod::comun::gmod_juego::lector_carpetas(vec![Path::new(&www).join("rb"), "/tmp/claude-0/jxp_pub/rb".into()]));
     let _ = std::fs::remove_file(datos.join("gmod_apagados.txt"));
@@ -231,12 +232,22 @@ fn main() {
         let (cx, cy) = pos_boton(wf, hf, Boton::Camara);
         for (k, r) in elegidos.iter().enumerate() {
             j.gmp_elegir(&mut m, &format!("gmpm:{r}")); paso(&mut j, &mut m, 5);
+            // (JXM_ARMA_I=n: con esa arma del juego en la mano —3: la palanca—)
+            if let Some(i) = std::env::var("JXM_ARMA_I").ok().and_then(|x| x.parse::<usize>().ok()) { j.armas.elegir(&mut j.fis, i); paso(&mut j, &mut m, 20); println!("  arma: {}", j.armas.def().n); }
             println!("puesto {} · armado {}", r, j.gmp_listo(&j.skin.clone()));
             let n = r.rsplit('/').next().unwrap_or(r).trim_end_matches(".mdl").to_string();
             println!("  aparece en {:?} yaw {}", j.jug.pos, j.jug.yaw); j.jug.yaw = 0.0; j.jug.pitch = 0.0;
             // (JXM_LUGAR=x,y,z: donde está el de la web, para fotos desde el mismo lugar)
             if let Ok(l) = std::env::var("JXM_LUGAR") { let v: Vec<f32> = l.split(',').filter_map(|x| x.parse().ok()).collect(); if v.len() >= 3 { j.jug.pos = [v[0], v[1], v[2]]; j.jug.vel = [0.0; 3]; } }
+            // (primero un rato en primera persona —como jugando—, después de frente)
+            if std::env::var_os("JXM_PRIMERA").is_some() { j.camara = 0; paso(&mut j, &mut m, 40); foto(&mut m, &format!("p{k}_{n}_primera")); }
             j.camara = 2; paso(&mut j, &mut m, 30); foto(&mut m, &format!("p{k}_{n}_frente"));
+            // (JXM_GOLPE: el golpe con el arma, de frente, cuadro por cuadro; y lo más lejos que quedó un hueso del modelo)
+            if std::env::var_os("JXM_GOLPE").is_some() {
+                let (bx, by) = pos_boton(wf, hf, Boton::Disparo); j.dedo_abajo(5, bx, by, wf, hf);
+                for c in 0..24 { paso(&mut j, &mut m, 1); if c % 3 == 0 { foto(&mut m, &format!("p{k}_{n}_golpe{c:02}")); } println!("  golpe {c}: {}", j.gmp_info(0).unwrap_or_default().chars().take(160).collect::<String>()); }
+                j.dedo_arriba(5); paso(&mut j, &mut m, 10);
+            }
             println!("  numeros {}", j.gmp_info(0).unwrap_or_default());
             if todos { continue; }
             // (con JXM_ARMA: el arma en primera persona, con las manos de este modelo —AddValidHands—)

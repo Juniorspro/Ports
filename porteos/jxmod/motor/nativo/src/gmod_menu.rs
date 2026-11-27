@@ -106,8 +106,9 @@ impl Juego {
             let Some(idx) = idx else { continue }; let Some(gm) = self.gmod.gm.as_ref() else { break };
             let mut it: Vec<ItemM> = vec![];
             let mios: Vec<&(String, String, String, bool)> = pms.iter().filter(|x| x.2 == an).collect();
-            for x in &mios { it.push(ItemM { id: format!("gmpm:{}", x.0), n: nom(&x.0), ic: None }); }
+            // (primero como NPC —lo que se espera al tocar un personaje en un menú de spawn—; ponérselo, con su nombre bien claro)
             for x in &mios { it.push(ItemM { id: format!("gmnpcm:{}", x.0), n: format!("{} (NPC)", nom(&x.0)), ic: None }); }
+            for x in &mios { it.push(ItemM { id: format!("gmpm:{}", x.0), n: format!("{} (ponérmelo)", nom(&x.0)), ic: None }); }
             for x in &mios { it.push(ItemM { id: format!("gmrag:{}", x.0), n: format!("{} (muñeco)", nom(&x.0)), ic: None }); }
             let campo = |c: &[(String, String)], k: &str| c.iter().find(|x| x.0 == k).map(|x| x.1.clone()).unwrap_or_default();
             let mut fuera: Vec<String> = mios.iter().map(|x| x.0.clone()).collect();

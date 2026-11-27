@@ -345,6 +345,14 @@ pub fn posar(g: &mut PrepPm, d: &HeroD, hw: &[M4], raiz: &M4, hace: &Hace, mundo
     if rag { apoyar(g, rag_piso); } else if cerca && g.otra_esc && hace.suelo && !hace.sentado { no_hundir(g, rp[1]); }
     let _ = mundo;
     if let (Some(ad), Some(rh)) = (g.arma_d.as_mut(), def.m("RightHand")) { ad.1 = g.pw[rh]; }
+    // (ningún hueso queda roto: un giro o un lugar que no es un número —una IK sin solución— o una escala fuera de lo
+    // razonable toma lo del padre; si no, esa parte de la piel se estira en placas hacia el origen del hueso)
+    for i in 1..=nb {
+        let pa = def.pa[i] as usize;
+        if !g.q[i].iter().all(|x| x.is_finite()) || g.q[i].iter().all(|x| *x == 0.0) { g.q[i] = qnorm(qmul(g.q[pa], def.lr[i])); }
+        if !g.pw[i].iter().all(|x| x.is_finite()) { g.pw[i] = add(g.pw[pa], qrot(g.q[pa], esc(def.lp[i], g.s[pa]))); }
+        if !g.s[i].is_finite() || g.s[i] > 4.0 { g.s[i] = if g.s[pa].is_finite() && g.s[pa] <= 4.0 { g.s[pa] } else { 1.0 }; }
+    }
     (0..=nb).map(|i| if i == 0 { *raiz } else { trs(g.pw[i], g.q[i], if g.s[i] < 0.02 { 0.0001 } else { g.s[i] }) }).collect()
 }
 /// gmpNoHundir: parado, lo más bajo de la malla (salvo los pies, que pone la IK) no queda debajo de donde pisa el Hero
