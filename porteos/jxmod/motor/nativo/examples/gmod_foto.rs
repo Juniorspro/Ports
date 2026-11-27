@@ -26,6 +26,8 @@ fn main() {
     let letras = || (std::fs::read_to_string(Path::new(&let_).join("letras.json")).ok(), std::fs::read(Path::new(&let_).join("letras.png")).ok());
     let (lj, lp) = letras(); let mut j = Juego::nuevo(paq, lj, lp, Some(datos.clone()));
     j.gmod.carpeta_externa = std::env::var("JXM_ADDONS").ok().map(std::path::PathBuf::from);
+    // (JXM_MENUS: la carpeta con ui/menus.* —el atlas de los menús, como en la app—: el menú de objetos y Herramientas)
+    if let Ok(menus) = std::env::var("JXM_MENUS") { j.inicio_lector(Box::new(move |n| std::fs::read(std::path::Path::new(&menus).join(n)).ok())); }
     if let Some(f) = std::env::var("JXM_FOV").ok().and_then(|x| x.parse().ok()) { j.aj.fov = f; }
     if let Some(q) = std::env::var("JXM_CALIDAD").ok().and_then(|v| v.parse().ok()) { j.aj.poner_calidad(q); j.aj.auto = false; j.aj.dinamica = false; }   // (el campo de visión de Ajustes: la vista del arma tiene que verse igual con cualquiera)
     // (rb/: la biblioteca de GMod —gm_lib— y los datos de la versión personal —jxp—)
@@ -169,6 +171,19 @@ fn main() {
         }
     }
     println!("modelos armados {} ({} triángulos; el más lento {:.1} ms: {}) · {:?}", j.gmod.mods.armados, j.gmod.mods.tris, j.gmod.mods.ms_max.0, j.gmod.mods.ms_max.1, j.gmod.mods.modelos.iter().map(|(k, v)| (k.clone(), v.is_some())).collect::<Vec<_>>());
+    // (JXM_OPC=1: las opciones de los mods en la ventana Herramientas: elegir la primera, tocar su primera casilla y su deslizador)
+    if std::env::var("JXM_OPC").is_ok() {
+        j.menu = Some(jxmod::comun::Menu::nuevo()); paso(&mut j, &mut m, 25);
+        println!("opciones de los mods: {:?} · menú {} · lista {:?}", j.her.opc, j.menu.is_some(), j.mo_zona_lista(wf, hf));
+        let lh = j.mo_zona_lista(wf, hf); let n = j.her.lista.len();
+        if let Some(lh) = lh { let sc = ((n as f32 + 1.0) * lh[4] - lh[3] * 0.3).max(0.0); if let Some(mm) = j.menu.as_mut() { mm.scroll_her = sc; } paso(&mut j, &mut m, 2); let sc = j.menu.as_ref().map_or(0.0, |mm| mm.scroll_her);
+            let y = lh[1] + 6.0 + (n as f32 + 1.5) * lh[4] - sc; println!("toco la primera opción en y={y:.0} (bajado {sc:.0})"); j.dedo_abajo(31, lh[0] + 40.0, y, wf, hf); paso(&mut j, &mut m, 1); j.dedo_arriba_en(31, wf, hf); paso(&mut j, &mut m, 4); }
+        println!("elegida {:?} · controles {:?}", j.her.opc_sel, j.her.opc_ctl); foto(&mut m, "9_opciones");
+        if let Some((k, b)) = j.mo_cajas_opc_prueba(wf, hf).into_iter().find(|(k, _)| matches!(j.her.opc_ctl.get(*k), Some(jxgmod::Control::Check { .. }))) { let r = b[0]; j.dedo_abajo(32, r[0] + r[2] / 2.0, r[1] + r[3] / 2.0, wf, hf); paso(&mut j, &mut m, 1); j.dedo_arriba_en(32, wf, hf); paso(&mut j, &mut m, 4); println!("tocado No de la casilla {k}"); }
+        if let Some((k, b)) = j.mo_cajas_opc_prueba(wf, hf).into_iter().find(|(k, _)| matches!(j.her.opc_ctl.get(*k), Some(jxgmod::Control::Slider { .. }))) { let r = b[2]; j.dedo_abajo(33, r[0] + r[2] / 2.0, r[1] + r[3] / 2.0, wf, hf); paso(&mut j, &mut m, 1); j.dedo_arriba_en(33, wf, hf); paso(&mut j, &mut m, 4); println!("tocado + del deslizador {k}"); }
+        println!("después: {:?}", j.her.opc_ctl); foto(&mut m, "9b_opciones_tocadas");
+        j.menu = None; paso(&mut j, &mut m, 2);
+    }
     // (JXM_MENU=1: el menú de GMod: pestañas, listas, poner un prop de un spawnlist, un NPC y un vehículo)
     if std::env::var("JXM_MENU").is_ok() {
         j.gmod_abrir(); paso(&mut j, &mut m, 3);

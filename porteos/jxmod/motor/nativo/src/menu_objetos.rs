@@ -79,6 +79,7 @@ impl Juego {
     fn mo_nombre(&self, it: &str) -> String { npc::skin_de_item(it).map(|s| npc::skin_nom(s).to_string()).unwrap_or_else(|| self.jg.nombre_item(it).to_string()) }
     /// el menú, con el pincel (después del HUD)
     pub(super) fn mo_dibujar(&mut self, p: &mut Pincel, w: f32, h: f32) {
+        self.mo_opc_paso();
         // (las herramientas ya no son una pestaña: tienen su ventana)
         if let Some(m) = self.menu.as_mut() { if m.pestana == PESTANA_HER { m.pestana = 0; m.sub = 0; } }
         let Some(mm) = self.menu.as_ref() else { return }; let (pe, sub, scroll, scroll_c, congelar) = (mm.pestana, mm.sub, mm.scroll, mm.scroll_cats, self.poner_congelado);
@@ -152,19 +153,32 @@ impl Juego {
         aero::ventana(p, g.ven_h, g.u, &OpVentana { titulo: "Herramientas", ico: Some("ico_herr"), atras: false, cerrar: false, blanco: false, apretado: 0 });
         let ch = g.caja_h; p.rect(ch[0], ch[1], ch[2], ch[3], FONDO); p.borde(ch[0], ch[1], ch[2], ch[3], 1.0, negro(0.6));
         let lh = g.lista_h; p.rect(lh[0], lh[1], lh[2], lh[3], COLUMNA); p.rect(lh[0] + lh[2], lh[1], 1.0, lh[3], LIN);
-        let sh = self.menu.as_ref().map_or(0.0, |m| m.scroll_her);
+        let sh = self.menu.as_ref().map_or(0.0, |m| m.scroll_her); let opc_sel = self.her.opc_sel;
         p.con_recorte(lh, |p| {
             let mut yy = lh[1] + 6.0 * c - sh;
             for (k, hh) in self.her.lista.iter().enumerate() {
-                let r = [lh[0], yy, lh[2], g.fila_h]; let s = k == self.her.sel;
+                let r = [lh[0], yy, lh[2], g.fila_h]; let s = k == self.her.sel && opc_sel.is_none();
                 if s { aero::fila_vidrio(p, [r[0] + 3.0 * c, r[1] + 1.0 * c, r[2] - 6.0 * c, r[3] - 2.0 * c], g.u, true); }
                 p.icono("martillo", r[0] + 9.0 * c, r[1] + (r[3] - 13.0 * c) / 2.0, 13.0 * c, 2.2, if s { T1 } else { T3 });
                 let f = 12.5 * c; p.texto_max(if s { Cara::S7 } else { Cara::S4 }, f, r[0] + 27.0 * c, p.at.base_centrada(Cara::S4, f, f, r[1], r[3]), if s { T1 } else { T2 }, 0.0, &hh.n, r[2] - 32.0 * c);
                 yy += g.fila_h;
             }
+            // (las opciones de los mods —spawnmenu.AddToolMenuOption: deslizarse, el cuerpo en primera persona…—, con su título)
+            if !self.her.opc.is_empty() {
+                let f = 11.0 * c; p.texto_max(Cara::S7, f, lh[0] + 9.0 * c, p.at.base_centrada(Cara::S7, f, f, yy, g.fila_h), AMA, 0.08, "OPCIONES DE LOS MODS", lh[2] - 18.0 * c); yy += g.fila_h;
+                for (i, o) in self.her.opc.iter().enumerate() {
+                    let r = [lh[0], yy, lh[2], g.fila_h]; let s = opc_sel == Some(i);
+                    if s { aero::fila_vidrio(p, [r[0] + 3.0 * c, r[1] + 1.0 * c, r[2] - 6.0 * c, r[3] - 2.0 * c], g.u, true); }
+                    p.icono("ico_mod", r[0] + 9.0 * c, r[1] + (r[3] - 13.0 * c) / 2.0, 13.0 * c, 2.2, if s { T1 } else { T3 });
+                    let f = 12.5 * c; p.texto_max(if s { Cara::S7 } else { Cara::S4 }, f, r[0] + 27.0 * c, p.at.base_centrada(Cara::S4, f, f, r[1], r[3]), if s { T1 } else { T2 }, 0.0, &o.2, r[2] - 32.0 * c);
+                    yy += g.fila_h;
+                }
+            }
         });
-        self.mo_inspector(p, &g);
-        let max_her = (self.her.lista.len() as f32 * g.fila_h + 12.0 * c - lh[3]).max(0.0);
+        let alto_insp = if opc_sel.is_some() { self.mo_inspector_opc(p, &g) } else { self.mo_inspector(p, &g); 0.0 };
+        let filas = self.her.lista.len() + if self.her.opc.is_empty() { 0 } else { self.her.opc.len() + 1 };
+        let max_her = (filas as f32 * g.fila_h + 12.0 * c - lh[3]).max(0.0);
+        if let Some(mm) = self.menu.as_mut() { mm.insp_x0 = g.panel_h[0]; mm.max_insp = (alto_insp - g.panel_h[3]).max(0.0); mm.scroll_insp = mm.scroll_insp.min(mm.max_insp); }
         if let Some(mm) = self.menu.as_mut() { mm.her_x0 = g.ven_h[0]; mm.max_her = max_her; mm.scroll_her = mm.scroll_her.min(max_her); mm.col_x1 = col[0] + col[2]; mm.max_cats = (alto_c - col[3]).max(0.0); mm.max_scroll = (alto_g - gr[3]).max(0.0); mm.scroll = mm.scroll.min(mm.max_scroll); mm.scroll_cats = mm.scroll_cats.min(mm.max_cats); }
     }
     /// el panel de la herramienta elegida (el de la derecha): su nombre, la ayuda y cada parámetro con sus valores para tocar
@@ -184,6 +198,84 @@ impl Juego {
             }
         }
     }
+    /// dónde va cada control de la opción de un mod elegida: el renglón de su nombre (o los de la ayuda) y sus botones; y el alto
+    /// de todo (para bajarlo con el dedo)
+    fn mo_cajas_opc(&self, at: &Atlas, g: &Geo) -> (Vec<(f32, Vec<String>, Vec<[f32; 4]>)>, f32) {
+        let c = g.c; let pr = g.panel_h; let x0 = pr[0] + 9.0 * c; let wv = pr[2] - 18.0 * c; let sc = self.menu.as_ref().map_or(0.0, |m| m.scroll_insp);
+        let y0 = pr[1] + 8.0 * c + 38.0 * c; let mut y = y0 - sc; let fil = 30.0 * c; let mut v = vec![];
+        let fila = |y: &mut f32, n: usize, por: usize| -> Vec<[f32; 4]> { let por = por.max(1); let bw = wv / por as f32; let r: Vec<[f32; 4]> = (0..n).map(|k| [x0 + (k % por) as f32 * bw, *y + (k / por) as f32 * (fil + 4.0 * c), bw - 4.0 * c, fil]).collect(); *y += n.div_ceil(por) as f32 * (fil + 4.0 * c); r };
+        for ct in &self.her.opc_ctl {
+            match ct {
+                jxgmod::Control::Ayuda(t) => { let rs = at.renglones(Cara::S4, 11.0 * c, 0.0, t, wv); let n = rs.len().min(8); v.push((y + 11.0 * c, rs.into_iter().take(n).collect(), vec![])); y += n as f32 * 14.0 * c + 6.0 * c; }
+                jxgmod::Control::Check { txt, .. } => { let ly = y + 11.0 * c; y += 16.0 * c; v.push((ly, vec![txt.clone()], fila(&mut y, 2, 2))); y += 6.0 * c; }
+                jxgmod::Control::Slider { txt, .. } => { let ly = y + 11.0 * c; y += 16.0 * c; v.push((ly, vec![txt.clone()], fila(&mut y, 3, 3))); y += 6.0 * c; }
+                jxgmod::Control::Combo { txt, ops, .. } => { let ly = y + 11.0 * c; y += 16.0 * c; v.push((ly, vec![txt.clone()], fila(&mut y, ops.len().max(1), 2))); y += 6.0 * c; }
+                jxgmod::Control::Boton(_) => { v.push((y, vec![], fila(&mut y, 1, 1))); y += 6.0 * c; }
+                jxgmod::Control::Texto { txt, .. } => { let ly = y + 11.0 * c; y += 16.0 * c; v.push((ly, vec![txt.clone()], fila(&mut y, 1, 1))); y += 6.0 * c; }
+            }
+        }
+        (v, y + sc - y0 + 34.0 * c)
+    }
+    /// el panel de la derecha con una opción de un mod: su nombre y sus controles (casillas Sí/No, deslizadores −/+, listas,
+    /// botones y textos) con los valores de sus ConVars; devuelve el alto de lo que tiene
+    fn mo_inspector_opc(&self, p: &mut Pincel, g: &Geo) -> f32 {
+        let Some(o) = self.her.opc_sel.and_then(|i| self.her.opc.get(i)) else { return 0.0 }; let c = g.c; let pr = g.panel_h; let x = pr[0] + 9.0 * c;
+        let (cajas, alto) = self.mo_cajas_opc(p.at, g); let sc = self.menu.as_ref().map_or(0.0, |m| m.scroll_insp);
+        p.con_recorte(pr, |p| {
+            p.texto_max(Cara::S7, 14.5 * c, x, pr[1] + 22.0 * c - sc, T1, 0.0, &o.2, pr[2] - 18.0 * c);
+            if !o.1.is_empty() { p.texto_max(Cara::S4, 10.5 * c, x, pr[1] + 34.0 * c - sc, T3, 0.0, &format!("{} · {}", o.1, o.3), pr[2] - 18.0 * c); }
+            for (ct, (ly, renglones, bs)) in self.her.opc_ctl.iter().zip(cajas.iter()) {
+                let ayuda = matches!(ct, jxgmod::Control::Ayuda(_));
+                for (k, r) in renglones.iter().enumerate() { if r.is_empty() { continue; } p.texto_max(if ayuda { Cara::S4 } else { Cara::S7 }, if ayuda { 11.0 * c } else { 12.0 * c }, x, ly + k as f32 * 14.0 * c, if ayuda { T2 } else { T1 }, 0.0, r, pr[2] - 18.0 * c); }
+                let etiquetas: Vec<(String, bool)> = match ct {
+                    jxgmod::Control::Check { on, .. } => vec![("No".into(), !*on), ("Sí".into(), *on)],
+                    jxgmod::Control::Slider { v, dec, .. } => vec![("−".into(), false), (format!("{:.*}", *dec as usize, v), true), ("+".into(), false)],
+                    jxgmod::Control::Combo { ops, sel, .. } => ops.iter().enumerate().map(|(k, t)| (t.clone(), *sel == k + 1)).collect(),
+                    jxgmod::Control::Boton(t) => vec![(t.clone(), false)],
+                    jxgmod::Control::Texto { v, .. } => vec![(if v.is_empty() { "(tocar para escribir)".into() } else { v.clone() }, false)],
+                    jxgmod::Control::Ayuda(_) => vec![],
+                };
+                for ((t, s), b) in etiquetas.iter().zip(bs.iter()) {
+                    if *s { aero::boton_azul(p, *b, c, false); } else { aero::boton_vidrio(p, *b, c, false, false); }
+                    let mut f = 12.5 * c; while p.at.ancho(Cara::S4, f, 0.0, t) > b[2] - 6.0 * c && f > 8.0 { f *= 0.92; }
+                    p.texto_c(Cara::S4, f, b[0] + b[2] / 2.0, p.at.base_centrada(Cara::S4, f, f, b[1], b[3]), if *s { NEG } else { T1 }, 0.0, t);
+                }
+            }
+            if self.her.opc_ctl.is_empty() { p.texto_max(Cara::S4, 11.0 * c, x, pr[1] + 52.0 * c - sc, T2, 0.0, "Este mod no tiene controles para tocar acá.", pr[2] - 18.0 * c); }
+        });
+        alto
+    }
+    /// un toque en el panel de una opción de un mod: la casilla se da vuelta, el deslizador sube o baja un veinteavo, la lista
+    /// elige, el botón se aprieta, el texto abre el teclado; se guarda (como GMod guarda sus ConVars)
+    fn mo_toque_opc(&mut self, x: f32, y: f32, g: &Geo) {
+        let Some(i) = self.her.opc_sel else { return }; let Some(at) = self.ini.rec.atlas.as_ref() else { return };
+        let (cajas, _) = self.mo_cajas_opc(at, g); let mut hecho = false;
+        for (k, (ct, (_, _, bs))) in self.her.opc_ctl.clone().iter().zip(cajas.iter()).enumerate() {
+            let Some(b) = bs.iter().position(|b| dentro(*b, x, y)) else { continue };
+            let Some(gm) = self.gmod.gm.as_mut() else { return };
+            match ct {
+                jxgmod::Control::Check { on, .. } => { if (b == 1) != *on { gm.opcion_tocar_n(i, k, 0.0); } }
+                jxgmod::Control::Slider { v, min, max, dec, .. } => { if b != 1 { let paso = ((max - min) / 20.0).max(if *dec == 0 { 1.0 } else { 10f64.powi(-(*dec as i32)) }); let n = if b == 0 { v - paso } else { v + paso }; gm.opcion_tocar_n(i, k, n.clamp(*min, *max)); } }
+                jxgmod::Control::Combo { .. } => gm.opcion_tocar_n(i, k, b as f64 + 1.0),
+                jxgmod::Control::Boton(_) => gm.opcion_tocar_n(i, k, 0.0),
+                jxgmod::Control::Texto { txt, v } => { let (t, v) = (txt.clone(), v.clone()); self.pedir_texto(Escribir::OpcMod(i, k), if t.is_empty() { "Escribir" } else { &t }, &v, 200, false); return; }
+                jxgmod::Control::Ayuda(_) => {}
+            }
+            hecho = true; break;
+        }
+        if hecho { if let Some(gm) = self.gmod.gm.as_mut() { self.her.opc_ctl = gm.opcion_leer(i); } self.opc_guardar(); }
+    }
+    /// (para las pruebas) dónde está la lista de herramientas: x, y, ancho, alto y el alto de cada fila
+    pub fn mo_zona_lista(&self, w: f32, h: f32) -> Option<[f32; 5]> { let at = self.ini.rec.atlas.as_ref()?; let g = geo(at, w, h, 0); Some([g.lista_h[0], g.lista_h[1], g.lista_h[2], g.lista_h[3], g.fila_h]) }
+    /// (para las pruebas) los botones de cada control de la opción elegida
+    pub fn mo_cajas_opc_prueba(&self, w: f32, h: f32) -> Vec<(usize, Vec<[f32; 4]>)> { let Some(at) = self.ini.rec.atlas.as_ref() else { return vec![] }; let g = geo(at, w, h, 0); self.mo_cajas_opc(at, &g).0.into_iter().enumerate().map(|(k, x)| (k, x.2)).collect() }
+    /// cada tanto con el menú abierto: la lista de opciones de los mods (llegan al cargarse cada uno) y los valores de la elegida
+    pub(super) fn mo_opc_paso(&mut self) {
+        self.her.opc_n += 1; if self.her.opc_n % 20 != 1 { return; }
+        let Some(gm) = self.gmod.gm.as_mut() else { return };
+        self.her.opc = gm.opciones_menu();
+        if let Some(i) = self.her.opc_sel { if i >= self.her.opc.len() { self.her.opc_sel = None; } else { self.her.opc_ctl = gm.opcion_leer(i); } }
+    }
     /// dónde van los valores de cada parámetro de la herramienta (un renglón por parámetro)
     fn mo_cajas_param(&self, g: &Geo) -> Vec<Vec<[f32; 4]>> {
         let Some(hh) = self.her.lista.get(self.her.sel) else { return vec![] }; let c = g.c; let pr = g.panel_h;
@@ -199,8 +291,12 @@ impl Juego {
         let Some(at) = self.ini.rec.atlas.as_ref() else { return }; let Some(mm) = self.menu.as_ref() else { return }; let g = geo(at, w, h, mm.pestana);
         // (la ventana de herramientas: elegir una —y tenerla en la mano— o tocar sus valores)
         if dentro(g.ven_h, x, y) {
-            if dentro(g.lista_h, x, y) { let sh = self.menu.as_ref().map_or(0.0, |m| m.scroll_her); let k = ((y - g.lista_h[1] - 6.0 * g.c + sh) / g.fila_h).floor(); if k >= 0.0 && (k as usize) < self.her.lista.len() { self.her.sel = k as usize; self.equipar_herramienta(k as usize); } }
-            else if dentro(g.panel_h, x, y) { self.mo_toque_inspector(x, y, &g); }
+            if dentro(g.lista_h, x, y) { let sh = self.menu.as_ref().map_or(0.0, |m| m.scroll_her); let k = ((y - g.lista_h[1] - 6.0 * g.c + sh) / g.fila_h).floor(); let n = self.her.lista.len();
+                if k >= 0.0 && (k as usize) < n { self.her.sel = k as usize; self.her.opc_sel = None; self.equipar_herramienta(k as usize); }
+                // (una opción de un mod: se arma su panel —con su función del Lua— y se ve a la derecha)
+                else if k >= 0.0 && (k as usize) > n && (k as usize) - n - 1 < self.her.opc.len() { let i = k as usize - n - 1; self.her.opc_sel = Some(i); if let Some(m) = self.menu.as_mut() { m.scroll_insp = 0.0; }
+                    if let Some(gm) = self.gmod.gm.as_mut() { self.her.opc_ctl = gm.opcion_armar(i); } } }
+            else if dentro(g.panel_h, x, y) { if self.her.opc_sel.is_some() { self.mo_toque_opc(x, y, &g); } else { self.mo_toque_inspector(x, y, &g); } }
             return;
         }
         if !dentro(g.ven, x, y) || dentro(g.cerrar, x, y) { self.menu = None; return; }

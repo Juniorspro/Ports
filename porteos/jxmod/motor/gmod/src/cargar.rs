@@ -143,6 +143,14 @@ impl Gmod {
     pub fn opcion_leer(&mut self, i: usize) -> Vec<crate::Control> { self.activar(); let r = llamar_global(&mut self.lua, "__JXM_OpcLeer", &[Valor::Num(i as f64 + 1.0)]); crate::Control::de_lista(r.first()) }
     /// tocar el control `k` de la opción `i`: el valor (el número del deslizador, el texto, la opción del combo desde 1)
     pub fn opcion_tocar(&mut self, i: usize, k: usize, v: Valor) { self.activar(); llamar_global(&mut self.lua, "__JXM_OpcTocar", &[Valor::Num(i as f64 + 1.0), Valor::Num(k as f64 + 1.0), v]); }
+    /// tocar con un número (el deslizador, la opción del combo desde 1; nada para la casilla y el botón) o con un texto
+    pub fn opcion_tocar_n(&mut self, i: usize, k: usize, v: f64) { self.opcion_tocar(i, k, Valor::Num(v)) }
+    pub fn opcion_tocar_t(&mut self, i: usize, k: usize, v: &str) { self.opcion_tocar(i, k, cad(v)) }
+    /// las ConVars que tocan los controles de la opción `i` (para guardarlas: en GMod quedan guardadas entre partidas)
+    pub fn opcion_cvars(&mut self, i: usize) -> Vec<String> {
+        self.activar(); let r = llamar_global(&mut self.lua, "__JXM_OpcCvars", &[Valor::Num(i as f64 + 1.0)]);
+        match r.first() { Some(Valor::Tabla(t)) => (1..=t.borrow().len()).map(|k| js_str(&t.borrow().get(&Valor::Num(k as f64)))).filter(|s| !s.is_empty()).collect(), _ => vec![] }
+    }
     /// el valor de una ConVar (None si no existe)
     pub fn cvar_leer(&self, n: &str) -> Option<String> { self.activar(); g(|g| g.cvars.get(n).map(|c| c.borrow().v.clone())) }
     /// poner una ConVar (los ajustes de las herramientas de los addons: «<modo>_<nombre>»)

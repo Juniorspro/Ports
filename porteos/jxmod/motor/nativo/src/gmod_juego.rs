@@ -483,8 +483,20 @@ impl Juego {
         a.idx = Some(idx); a.sweps = sw.into_iter().zip(nom_sw).collect(); a.sents = se.into_iter().zip(nom_se).collect(); a.errores = er;
         let txt = format!("Mod cargado: {} ({} armas, {} entidades)", a.nombre, a.sweps.len(), a.sents.len());
         self.avisar(txt);
-        // (el menú de GMod se vuelve a armar con lo del addon nuevo)
-        self.gmod.menu.hecho = false;
+        // (el menú de GMod se vuelve a armar con lo del addon nuevo; y las opciones de los mods guardadas, otra vez puestas)
+        self.gmod.menu.hecho = false; self.opc_aplicar();
+    }
+    /// las opciones de los mods guardadas (gmod_opciones.txt: «ConVar=valor» por renglón)
+    fn opc_leidas(&self) -> Vec<(String, String)> {
+        self.datos.as_ref().and_then(|d| std::fs::read_to_string(d.join("gmod_opciones.txt")).ok()).map(|t| t.lines().filter_map(|l| l.split_once('=').map(|(a, b)| (a.to_string(), b.to_string()))).collect()).unwrap_or_default()
+    }
+    /// poner las opciones guardadas (las ConVars que todavía no existen —su mod no se cargó— no hacen nada)
+    pub(crate) fn opc_aplicar(&mut self) { let v = self.opc_leidas(); if let Some(g) = self.gmod.gm.as_mut() { for (n, x) in v { if g.cvar_leer(&n).map_or(false, |a| a != x) { g.cvar_poner(&n, &x); } } } }
+    /// guardar las ConVars de la opción elegida en Herramientas (como GMod guarda las FCVAR_ARCHIVE)
+    pub(crate) fn opc_guardar(&mut self) {
+        let Some(i) = self.her.opc_sel else { return }; let mut v = self.opc_leidas(); let Some(g) = self.gmod.gm.as_mut() else { return };
+        for n in g.opcion_cvars(i) { if let Some(x) = g.cvar_leer(&n) { match v.iter_mut().find(|e| e.0 == n) { Some(e) => e.1 = x, None => v.push((n, x)) } } }
+        if let Some(d) = &self.datos { let _ = std::fs::write(d.join("gmod_opciones.txt"), v.iter().map(|(a, b)| format!("{a}={}", b.replace('\n', " "))).collect::<Vec<_>>().join("\n")); }
     }
     /// presta (o devuelve) el mapa, la física y las letras al puente mientras corre el Lua
     pub(crate) fn gmod_prestar(&mut self, prestar: bool) {

@@ -22,7 +22,10 @@ pub struct Herr { pub n: String, pub p: Vec<Param>, /** la herramienta de un add
 pub struct Logica { pub tipo: String, pub params: HashMap<String, Valor>, pub entradas: Vec<u32>, pub salida: bool, pub t: f32, pub luz: bool, pub texto: String, pub color: String }
 /// las herramientas: la lista, la elegida, los parámetros de cada una, el cable empezado, las trazas y lo que tiró un Spawner
 #[derive(Default)]
-pub struct Herramientas { pub lista: Vec<Herr>, pub sel: usize, pub params: HashMap<String, HashMap<String, Valor>>, pub cable: Option<u32>, pub trazas: Vec<([f32; 3], [f32; 3], f32)>, pub tirados: Vec<(u32, f32)>, pub spawn: Option<[f32; 3]>, pub nb: Nextbots }
+pub struct Herramientas {
+    /// las opciones de los mods (spawnmenu.AddToolMenuOption: pestaña, categoría, nombre, addon), la elegida y sus controles
+    pub opc: Vec<(String, String, String, String)>, pub opc_sel: Option<usize>, pub opc_ctl: Vec<jxgmod::Control>, pub opc_n: u32,
+    pub lista: Vec<Herr>, pub sel: usize, pub params: HashMap<String, HashMap<String, Valor>>, pub cable: Option<u32>, pub trazas: Vec<([f32; 3], [f32; 3], f32)>, pub tirados: Vec<(u32, f32)>, pub spawn: Option<[f32; 3]>, pub nb: Nextbots }
 
 /// los nextbots de la Tool Gun (nextbotNuevo/nextbotPaso de la web): una imagen que persigue al jugador. El material de cada
 /// imagen (las del juego —Obunga, Toilet, Scream— o una URL PNG/WebP, bajada en un hilo), la velocidad del golpe de cada uno

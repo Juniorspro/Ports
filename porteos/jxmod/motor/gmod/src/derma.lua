@@ -1075,3 +1075,5 @@ function __JXM_OpcTocar(i, k, v)
     local cmd = rg(p, "__consola") if cmd then RunConsoleCommand(cmd[1], cmd[2]) end
   end
 end
+-- las ConVars de los controles de la opción i (el juego las guarda entre partidas, como GMod las FCVAR_ARCHIVE)
+function __JXM_OpcCvars(i) local o = __JXM_OPC_CTL[i] local r = {} if not o then return r end for _, d in ipairs(o) do local cv = cv_de(d.p) if cv then r[#r + 1] = cv end end return r end

@@ -90,7 +90,7 @@ pub struct PanelNpc { pub npc: Option<u32>, pub est: String }
 pub enum BtnNpc { Rapida(usize), Arma(Option<npc::Arma>), SkinAnt, SkinSig, Escribir, Borrar, BorrarTodos, Cerrar }
 /// para qué se pidió escribir (el cuadro de texto de Android)
 #[derive(Clone, Debug)]
-pub enum Escribir { Chat, Clave(jxjuego::red::Sala), Nombre, Actitud, Pj, SrvNombre, SrvClave, Buscar, /** un cuadro de texto de un menú de un addon (DTextEntry) */ Vgui, /** la Workshop: lo buscado y un link o número */ WsBuscar, WsLink }
+pub enum Escribir { Chat, Clave(jxjuego::red::Sala), Nombre, Actitud, Pj, SrvNombre, SrvClave, Buscar, /** un cuadro de texto de un menú de un addon (DTextEntry) */ Vgui, /** un cuadro de texto de las opciones de un mod (la opción y el control) */ OpcMod(usize, usize), /** la Workshop: lo buscado y un link o número */ WsBuscar, WsLink }
 /// pedir texto (título, lo que ya hay, hasta cuántas letras, si es contraseña; con un número) y levantar lo escrito
 /// (número y texto, o None si se canceló): en Android, el cuadro de Juego.java (red_android::Teclado)
 pub struct Teclado { pub pedir: Box<dyn Fn(i32, &str, &str, i32, bool)>, pub tomar: Box<dyn Fn() -> Option<(i32, Option<String>)>> }
@@ -152,8 +152,9 @@ const ICO_COLS: u32 = 10;
 pub struct Menu { pub sub: usize, pub scroll: f32, atlas_de: Option<(usize, usize)>, atlas_h: u32, /** 0 Props, 1 NPCs, 2 Vehículos, 3 Herramientas */ pub pestana: usize,
     /** lo buscado, cuánto bajó la columna de las categorías, hasta dónde bajan y de qué búsqueda es el atlas */ pub q: String, pub scroll_cats: f32, pub max_scroll: f32, pub max_cats: f32, atlas_q: String,
     /** dónde termina la columna de las categorías (para saber qué baja el dedo) */ pub col_x1: f32,
-    /** la lista de herramientas: cuánto bajó, hasta dónde baja y dónde empieza su ventana */ pub scroll_her: f32, pub max_her: f32, pub her_x0: f32 }
-impl Menu { pub fn nuevo() -> Menu { Menu { sub: 0, scroll: 0.0, atlas_de: None, atlas_h: 0, pestana: 0, q: String::new(), scroll_cats: 0.0, max_scroll: 0.0, max_cats: 0.0, atlas_q: String::new(), col_x1: 0.0, scroll_her: 0.0, max_her: 0.0, her_x0: 0.0 } } }
+    /** la lista de herramientas: cuánto bajó, hasta dónde baja y dónde empieza su ventana */ pub scroll_her: f32, pub max_her: f32, pub her_x0: f32,
+    /** el panel de la derecha de Herramientas (las opciones de un mod pueden ser largas): cuánto bajó, hasta dónde y dónde empieza */ pub scroll_insp: f32, pub max_insp: f32, pub insp_x0: f32 }
+impl Menu { pub fn nuevo() -> Menu { Menu { sub: 0, scroll: 0.0, atlas_de: None, atlas_h: 0, pestana: 0, q: String::new(), scroll_cats: 0.0, max_scroll: 0.0, max_cats: 0.0, atlas_q: String::new(), col_x1: 0.0, scroll_her: 0.0, max_her: 0.0, her_x0: 0.0, scroll_insp: 0.0, max_insp: 0.0, insp_x0: 0.0 } } }
 /// las pestañas de arriba del menú (las del spawn menu de la web)
 const PESTANAS_MENU: [&str; 5] = ["Props", "NPCs", "Vehículos", "Herramientas", "Mods"];
 /// la pestaña de los addons de GMod: abre su panel (gmod_juego.rs)
@@ -511,7 +512,8 @@ impl Juego {
             // (con el menú de la web: arrastrar en la columna baja las categorías; en la grilla, la grilla; hasta donde llegan)
             let nuevo = self.ini.rec.atlas.is_some();
             if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { let dy = y - d.y; d.x = x; d.y = y;
-                if nuevo && m.her_x0 > 0.0 && d.x0 >= m.her_x0 { m.scroll_her = (m.scroll_her - dy).clamp(0.0, m.max_her); }
+                if nuevo && m.insp_x0 > 0.0 && d.x0 >= m.insp_x0 { m.scroll_insp = (m.scroll_insp - dy).clamp(0.0, m.max_insp); }
+                else if nuevo && m.her_x0 > 0.0 && d.x0 >= m.her_x0 { m.scroll_her = (m.scroll_her - dy).clamp(0.0, m.max_her); }
                 else if nuevo && d.x0 < m.col_x1 { m.scroll_cats = (m.scroll_cats - dy).clamp(0.0, m.max_cats); }
                 else if nuevo { m.scroll = (m.scroll - dy).clamp(0.0, m.max_scroll); } else { m.scroll = (m.scroll - dy).max(0.0); } }
             return;
@@ -593,13 +595,14 @@ impl Juego {
         if let (Escribir::Buscar, Some(t)) = (&que, &txt) { if let Some(m) = self.menu.as_mut() { m.q = limpio(t, 30); m.scroll = 0.0; } return; }
         // (un cuadro de texto de un menú de un addon: lo escrito, aunque esté vacío, y su OnEnter)
         if let (Escribir::Vgui, Some(t)) = (&que, &txt) { if let Some(g) = self.gmod.gm.as_mut() { g.vgui_texto(t, true); } return; }
+        if let (Escribir::OpcMod(i, k), Some(t)) = (&que, &txt) { let (i, k) = (*i, *k); if let Some(g) = self.gmod.gm.as_mut() { g.opcion_tocar_t(i, k, t); self.her.opc_ctl = g.opcion_leer(i); } self.opc_guardar(); return; }
         // (la Workshop: lo buscado —vacío: todo— y un link o número de un addon)
         if let (Escribir::WsBuscar, Some(t)) = (&que, &txt) { self.gmod.ws.q = limpio(t, 80); self.ws_buscar(true); return; }
         if let (Escribir::WsLink, Some(t)) = (&que, &txt) { match gmod_juego::ws_id_de(t) { Some(id) => { self.gmod.ws.q = id; self.gmod.ws.cat = 0; self.ws_buscar(true); } None => if !t.trim().is_empty() { self.avisar("Eso no es un link ni un número de la Workshop".into()); } } return; }
         let Some(t) = txt.map(|t| t.trim().to_string()).filter(|t| !t.is_empty()) else { return };
         match que {
             Escribir::WsBuscar | Escribir::WsLink => {}
-            Escribir::Vgui => {}
+            Escribir::Vgui | Escribir::OpcMod(..) => {}
             Escribir::Chat => { if self.en_red.en_sala() { self.en_red.red.chat(&t, None); let n = self.en_red.red.nombre.clone(); self.en_red.al_chat(format!("{n}: {t}")); } }
             Escribir::Clave(s) => self.entrar_sala_con(&s, Some(&t)),
             Escribir::Nombre => { let n: String = t.chars().filter(|c| !c.is_control()).take(20).collect(); self.en_red.poner_nombre(&n); self.avisar(format!("Ahora te ven como «{n}»")); }
