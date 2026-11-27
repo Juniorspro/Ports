@@ -167,7 +167,8 @@ impl Juego {
             let mut f = |i: u32, nom: &str| -> InfoMat {
                 let v = self.gm_vmt(nom, &[]);
                 // (sin su .vmt —el contenido de HL2 que la web trae de Steam—, el agua se reconoce por el nombre)
-                if v.as_ref().map(|v| v.shader.contains("water")).unwrap_or_else(|| bsp::es_agua_nom(nom)) {
+                // (un «patch» cuyo material de base no está queda sin shader de agua: el nombre manda)
+                if v.as_ref().map(|v| v.shader.contains("water") || (v.base.is_none() && bsp::es_agua_nom(nom))).unwrap_or_else(|| bsp::es_agua_nom(nom)) {
                     if agua_vmt.is_none() { agua_vmt = v.as_ref().and_then(|v| v.agua.clone()); }
                     return InfoMat { dibuja: true, agua: true, segunda: false };
                 }

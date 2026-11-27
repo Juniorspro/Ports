@@ -820,10 +820,12 @@ pub fn armar(bsp: &Bsp, ents: &[Ent], mut props: Vec<PropBsp>, mat: &mut dyn FnM
     let (mut lo, mut hi) = ([i32::MAX; 2], [i32::MIN; 2]); for (k, _) in &ped { lo = [lo[0].min(k.0), lo[1].min(k.1)]; hi = [hi[0].max(k.0 + 1), hi[1].max(k.1 + 1)]; }
     if lo[0] < i32::MAX { a.lejos = (((hi[0] - lo[0]) as f32).hypot((hi[1] - lo[1]) as f32) * CELDA).clamp(120.0, 1600.0); }
     // el agua: un volumen bajo cada superficie de agua; el fondo, lo más bajo de lo que choca debajo
-    for pts in agua.iter().take(64) {
+    // (hasta 600 caras: el mar de un mapa grande viene en cientos; el fondo, mirando sólo los pedazos de al lado)
+    for pts in agua.iter().take(600) {
         let (mut x0, mut x1, mut z0, mut z1, mut y) = (1e9f32, -1e9f32, 1e9f32, -1e9f32, 0f32);
         for p in pts { x0 = x0.min(p[0]); x1 = x1.max(p[0]); z0 = z0.min(p[2]); z1 = z1.max(p[2]); y += p[1]; } y /= pts.len() as f32;
-        let mut yb = 1e9f32; for (_, p) in &ped { for c in &p.c { if c[0] >= x0 && c[0] <= x1 && c[2] >= z0 && c[2] <= z1 && c[1] < y - 0.05 && c[1] < yb { yb = c[1]; } } }
+        let (ci0, ci1, cj0, cj1) = ((x0 / CELDA).floor() as i32 - 1, (x1 / CELDA).floor() as i32 + 1, (z0 / CELDA).floor() as i32 - 1, (z1 / CELDA).floor() as i32 + 1);
+        let mut yb = 1e9f32; for (k, p) in &ped { if k.0 < ci0 || k.0 > ci1 || k.1 < cj0 || k.1 > cj1 { continue; } for c in &p.c { if c[0] >= x0 && c[0] <= x1 && c[2] >= z0 && c[2] <= z1 && c[1] < y - 0.05 && c[1] < yb { yb = c[1]; } } }
         a.aguas.push([x0, if yb < 1e8 { yb } else { y - 4.0 }, z0, x1, y, z1]);
     }
     // (sin apariciones: arriba del primer pedazo que choca)

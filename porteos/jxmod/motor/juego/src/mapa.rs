@@ -234,7 +234,17 @@ pub fn agua_source(a: &mut jxmotor::escena::Agua, m: &MatAguaSrc, w: u32, h: u32
 /// el agua (el volumen más grande del mapa): como el agua de HL2 de la versión personal (jxpAguaHL2), con un mapa de
 /// normales propio y lo hondo medido con rayos (jxpAguaFondo); sus datos se suman a `datos`. Devuelve el agua y su altura
 pub fn agua_hl2(aguas: &[[f32; 6]], mundo: &crate::mundo::Mundo, datos: &mut Vec<u8>) -> (Option<jxmotor::escena::Agua>, Option<f32>) {
-    let Some(v) = aguas.iter().max_by(|a, b| ((a[3] - a[0]) * (a[5] - a[2])).partial_cmp(&((b[3] - b[0]) * (b[5] - b[2]))).unwrap_or(std::cmp::Ordering::Equal)) else { return (None, None) };
+    // (el agua de los mapas de Source viene en muchas caras —el mar de gm_fork, cientos de 26 m—: se juntan las del mismo nivel
+    // y se usa el nivel con más superficie, con la caja de todas; antes se tomaba sólo la cara más grande)
+    let area = |a: &[f32; 6]| (a[3] - a[0]).max(0.0) * (a[5] - a[2]).max(0.0);
+    let mut niveles: Vec<([f32; 6], f32)> = vec![];
+    for a in aguas {
+        match niveles.iter_mut().find(|(n, _)| (n[4] - a[4]).abs() < 0.1) {
+            Some((n, s)) => { for k in 0..3 { n[k] = n[k].min(a[k]); n[k + 3] = n[k + 3].max(a[k + 3]); } *s += area(a); }
+            None => niveles.push((*a, area(a))),
+        }
+    }
+    let Some((v, _)) = niveles.into_iter().max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal)) else { return (None, None) };
     let (lo, hi) = ([v[0], v[1], v[2]], [v[3], v[4], v[5]]);
     while datos.len() % 4 != 0 { datos.push(0); }
     let (n, cuadros) = (128u32, 40u32); let nrm = normales_agua_hl2(n, cuadros); let o = datos.len(); datos.extend_from_slice(&nrm);
