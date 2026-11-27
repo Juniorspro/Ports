@@ -1,9 +1,9 @@
 {
- "codigo": 26112717,
- "version": "0.50",
+ "codigo": 26112718,
+ "version": "0.51",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 76536070,
- "sha256": "067c0561d232f9a623b67920a355f93b2e4f78f6da8059a11b2d45a308de916a",
- "notas_es": "Voz por cercanía: en una sala, tocá el micrófono (al lado del chat) y te escuchan los que están cerca, desde donde estás, con eco y paredes. Arriba se ve quién habla. Se apaga en Ajustes → Escuchar la voz de los demás. La radio y la tele se pausan al salir de la app.",
- "notas_en": "Proximity voice: in a room, tap the microphone (next to chat) and nearby players hear you from where you are, with echo and walls. Who is talking shows at the top. Turn it off in Settings → Hear other players' voices. Radio and TV pause when you leave the app."
+ "tam": 76704006,
+ "sha256": "7298b280068842b8106bb5eba152188fa4431fe3e21267e78b17a690da67e523",
+ "notas_es": "Bugs y sugerencias: ahora con Celulares, y se publica sin cuenta (sólo un nombre) con título, descripción y video. Multijugador: ves las puertas, nucleares, bocinas, el Cíclope, la catapulta y el piano y la radio de los demás. Arreglo para celulares Mali (la resolución se iba al piso).",
+ "notas_en": "Bugs and suggestions: now with Phones, and you can post without an account (just a name) with title, description and video. Multiplayer: you see other players' doors, nukes, horns, Cyclops, catapult, piano and radio. Fix for Mali phones (resolution dropping to the minimum)."
 }
