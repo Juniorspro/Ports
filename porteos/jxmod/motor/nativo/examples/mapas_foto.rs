@@ -95,6 +95,7 @@ fn main() {
     let p0 = j.jug.pos; let y0 = j.jug.yaw;
     println!("  el jugador quedó en {:?} (en el piso: {})", p0, j.jug.suelo);
     for (k, dy) in [0.0f32, 1.57, 3.14, 4.71].iter().enumerate() { j.poner_ojos([p0[0], p0[1] + 0.7, p0[2]], y0 + dy, -0.05); paso(&mut j, &mut m, 2); foto(&mut m, &format!("ws_{k}")); }
+    if std::env::var_os("JXM_RAPIDO").is_some() { j.jug.noclip = true; for (k, (dy, alto, pit)) in [(1.57f32, 6.0f32, -0.6f32), (1.57, 25.0, -1.2), (1.2, 2.0, -0.25)].iter().enumerate() { j.poner_ojos([p0[0], p0[1] + alto, p0[2]], y0 + dy, *pit); paso(&mut j, &mut m, 2); foto(&mut m, &format!("ws_mira{k}")); } for (k, dy) in [0.0f32, 1.57, 3.14, 4.71].iter().enumerate() { j.poner_ojos([p0[0], p0[1] + 20.7, p0[2]], y0 + dy, 0.0); paso(&mut j, &mut m, 2); foto(&mut m, &format!("ws_horizonte{k}")); } return; }
     // (el agua, si hay: desde arriba de su medio, mirándola en cuatro rumbos —el agua de verdad del material del mapa—)
     if let Some(a) = j.mapa.as_ref().and_then(|m| m.esc.c.agua.clone()) { if let Some(pr) = a.prof.as_ref() {
         j.jug.noclip = true; let c = [pr.x0 + pr.w * 0.5, a.y + 3.0, pr.z0 + pr.h * 0.5];

@@ -292,7 +292,7 @@ pub struct EnGmod {
     /// las texturas de los materiales ya subidas y las órdenes de dibujo del último cuadro (en unidades de la pantalla)
     texs: Vec<i64>, hud_px: Vec<Cmd2D>, escala: f32,
     /// la tienda: el HTTP binario (lo pone la app), lo que se pidió y lo que llega
-    pub http_bin: Option<HttpBin>, pub tienda: Vec<ItemTienda>, tx: Sender<(String, Result<Vec<u8>, String>)>, rx: Receiver<(String, Result<Vec<u8>, String>)>, tienda_pedida: bool,
+    pub http_bin: Option<HttpBin>, pub tienda: Vec<ItemTienda>, pub(crate) tx: Sender<(String, Result<Vec<u8>, String>)>, rx: Receiver<(String, Result<Vec<u8>, String>)>, tienda_pedida: bool,
     /// lo que tardó el último cuadro del Lua (ms) y en promedio
     pub ms: f32, pub ms_prom: f32,
     /// el tamaño de la pantalla (lo pone el HUD) y si ya se buscaron los addons de las carpetas
@@ -1017,6 +1017,12 @@ impl Juego {
                     None => self.avisar("No se pudo leer la tienda".into()),
                 }
                 self.gmod.tienda_pedida = false;
+            } else if let Some(n) = k.strip_prefix("bugs:") {
+                // (lo publicado en Bugs y sugerencias)
+                self.bugs_llegaron(n.parse().unwrap_or(0), r);
+            } else if let Some(c) = k.strip_prefix("wsmfoto:") {
+                // (la foto del mapa de inicio todavía sin bajar, para Partida nueva)
+                if let Some(rg) = r.ok().and_then(|b| ws_foto_rgba(&b, 512)) { let u = |i: usize| u32::from_le_bytes([rg[i], rg[i + 1], rg[i + 2], rg[i + 3]]); let k = format!("wsm:{c}"); self.ini_poner_foto(&k, u(0), u(4), rg[8..].to_vec()); }
             } else if let Some(id) = k.strip_prefix("pipe:") {
                 let id = id.to_string(); let est = match r { Ok(_) => { self.gmod.buscar(); "Instalado".to_string() } Err(e) => e };
                 if let Some(it) = self.gmod.tienda.iter_mut().find(|x| x.id == id) { it.estado = est; it.prog = None; }

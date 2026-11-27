@@ -50,8 +50,9 @@ impl Clips {
     }
 }
 
-struct Piel { i: usize, m: i64, bo: Vec<i32>, bp: Vec<M4>, partes: Vec<(u32, u32, i64)>, c: V, r: f32 }
-struct Rigida { i: usize, m: i64, s0: u32, sn: u32, mat: i64, c: V, r: f32 }
+/// (cada parte: el pedazo de índices, el material y si es del arma —lo pintado— o de las manos)
+struct Piel { i: usize, m: i64, bo: Vec<i32>, bp: Vec<M4>, partes: Vec<(u32, u32, i64, bool)>, c: V, r: f32 }
+struct Rigida { i: usize, m: i64, s0: u32, sn: u32, mat: i64, c: V, r: f32, arma: bool }
 
 // (el celular en la mano en primera persona —y el arma a gusto—: celu_vista.rs)
 #[path = "celu_vista.rs"] pub mod celu_vista;
@@ -67,6 +68,9 @@ pub struct Vista {
     /// apuntar (vistaAds): el giro y el corrimiento que llevan la boca del arma al centro de la vista, y para qué pedido
     /// de apuntar se calculó
     pub ads: Option<(Q, V)>, pub ads_tok: u32,
+    /// los nombres de los nodos (para pegarle cosas a un hueso) y si se esconde el arma dejando las manos (las armas de
+    /// diseño nuevo, armas_aero.rs, van encima)
+    nombres: Vec<String>, pub ocultar_arma: bool,
 }
 
 /// la copia del sub-árbol desde el nodo i0 con los índices nuevos (subArbol)
@@ -210,14 +214,15 @@ impl Vista {
                 // (pintado: el mismo material con otro id y la pintura puesta)
                 let (id, ti) = match pal { Some(p) if pint.get(k).copied().unwrap_or(false) => (id_pintado(mt, kp), Some(p)), _ => (mt, None) };
                 if !ya.mats.contains(&id) { match material(d, mt as usize) { Some(mut m) => { if let Some(p) = ti { m.id = id; m.ti = p; } ya.mats.insert(id); mats.push(m); } None => continue } }
-                partes.push((sp[0].as_u64().unwrap_or(0) as u32, sp[1].as_u64().unwrap_or(0) as u32, id));
+                // (del arma es todo menos las manos —el material 523, AJX_MATS—: al esconder el arma quedan sólo las manos)
+                partes.push((sp[0].as_u64().unwrap_or(0) as u32, sp[1].as_u64().unwrap_or(0) as u32, id, mt != 523));
             }
             match (bo, sk) {
                 (Some(bo), Some(_)) => {
                     let bp: Vec<M4> = md["bp"].as_array().map(|a| a.iter().map(|m| { let mut o = [0.0f32; 16]; for (k, e) in o.iter_mut().enumerate() { *e = f(&m[k]); } o }).collect()).unwrap_or_default();
                     pieles.push(Piel { i, m: mi, bo: bo.iter().map(|b| b.as_i64().unwrap_or(-1) as i32).collect(), bp, partes, c, r: rr });
                 }
-                _ => for (s0, sn, mat) in partes { rigidas.push(Rigida { i, m: mi, s0, sn, mat, c, r: rr }); },
+                _ => for (s0, sn, mat, arma) in partes { rigidas.push(Rigida { i, m: mi, s0, sn, mat, c, r: rr, arma }); },
             }
         }
         let quiero: Vec<i64> = mats.iter().flat_map(|m| { let mut v = vec![m.t, m.t2]; if let Some(t) = &m.terr { v.extend(t.iter().map(|x| x.0)); } v }).filter(|&t| t >= 0).collect();
@@ -233,8 +238,9 @@ impl Vista {
         let mut por_hash = HashMap::new(); por_hash.insert(crc32(""), 0);
         for i in 1..n { let mut c = vec![]; let mut k = i as i32; while k > 0 { c.push(nombres[k as usize].as_str()); k = pa[k as usize]; } c.reverse(); por_hash.insert(crc32(&c.join("/")), i); }
         let mz = nombres.iter().position(|x| x == "Muzzle" || x == "MuzzlePoint" || x.contains("StartLinePoint") || x.contains("weapon_end"));
+        if std::env::var_os("JXM_VISTA_NODOS").is_some() { eprintln!("vista {nodo}: {}", nombres.iter().enumerate().map(|(i, n)| format!("{i}:{n}{}{}", if mesh[i] { "*" } else { "" }, if pa[i] >= 0 { format!("<{}", pa[i]) } else { String::new() })).collect::<Vec<_>>().join(" ")); }
         let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas, mats, texs, lms: vec![], items: vec![], agua: None, cielo: None };
-        Ok((Vista { nodo: nodo.to_string(), pa, act, mesh, p, r, s, w: vec![m4::id(); n], raiz: m4::id(), pieles, rigidas, por_hash, mz, clip: None, t: 0.0, vel: 1.0, bucle: false, mantener: false, ads: None, ads_tok: 0 }, Escena { c: cab, datos }))
+        Ok((Vista { nodo: nodo.to_string(), pa, act, mesh, p, r, s, w: vec![m4::id(); n], raiz: m4::id(), pieles, rigidas, por_hash, mz, clip: None, t: 0.0, vel: 1.0, bucle: false, mantener: false, ads: None, ads_tok: 0, nombres, ocultar_arma: false }, Escena { c: cab, datos }))
     }
 
     /// vistaTocar: empieza un clip (devuelve lo que dura)
@@ -317,12 +323,14 @@ impl Vista {
     fn visible(&self, i: usize) -> bool { let mut k = i as i32; while k >= 0 { if !self.act[k as usize] { return false; } k = self.pa[k as usize]; } self.mesh[i] }
 
     /// la boca del arma en el mundo (vistaPuntaMundo)
+    /// la matriz del nodo que se llama así (un hueso del arma), en el mundo
+    pub fn nodo_w(&self, n: &str) -> Option<M4> { self.nombres.iter().position(|x| x == n).map(|i| self.w[i]) }
     pub fn punta(&self) -> Option<V> { self.mz.map(|i| [self.w[i][12], self.w[i][13], self.w[i][14]]) }
 
     /// lo que se dibuja (sin sombra: el arma está pegada a la cámara)
     pub fn items(&self, out: &mut Vec<ItemDin>) {
         for x in &self.rigidas {
-            if !self.visible(x.i) { continue; }
+            if !self.visible(x.i) || (x.arma && self.ocultar_arma) { continue; }
             let w = &self.w[x.i]; let c = punto(w, x.c);
             out.push(ItemDin { m: x.m, s0: x.s0, sn: x.sn, mat: x.mat, mm: *w, esf: [c[0], c[1], c[2], x.r * escala(w)], fl: FL_SIN_SOMBRA | FL_ARMA, h: vec![] });
         }
@@ -337,7 +345,7 @@ impl Vista {
             }
             if h.is_empty() { h.extend_from_slice(&[1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]); }
             let w = &self.w[pz.i]; let c = punto(w, pz.c);
-            for &(s0, sn, mat) in &pz.partes { out.push(ItemDin { m: pz.m, s0, sn, mat, mm: m4::id(), esf: [c[0], c[1], c[2], pz.r * 4.0 * escala(w).max(0.3)], fl: FL_SIN_SOMBRA | FL_ARMA, h: h.clone() }); }
+            for &(s0, sn, mat, arma) in &pz.partes { if arma && self.ocultar_arma { continue; } out.push(ItemDin { m: pz.m, s0, sn, mat, mm: m4::id(), esf: [c[0], c[1], c[2], pz.r * 4.0 * escala(w).max(0.3)], fl: FL_SIN_SOMBRA | FL_ARMA, h: h.clone() }); }
         }
     }
 }

@@ -205,13 +205,15 @@ impl Juego {
     /// los mapas de «Empezar partida nueva» (los de la versión personal, MAPAS_RB con JXP: gm_construct y gm_flatgrass; si el
     /// paquete no los tiene, todos)
     pub(super) fn mapas_inicio(&self) -> Vec<String> {
-        let mut v: Vec<String> = ["RB_Construct", "RB_Flatgrass"].iter().filter(|m| self.mapas.iter().any(|x| x == *m)).map(|s| s.to_string()).collect();
+        // (primero el de inicio —gm_construct Windows 7, del Workshop—, gm_flatgrass y después los bajados)
+        let ini = super::mapas_juego::MAPA_INICIAL.0;
+        let mut v: Vec<String> = [ini, "RB_Flatgrass"].iter().filter(|m| self.mapas.iter().any(|x| x == *m)).map(|s| s.to_string()).collect();
         if v.is_empty() { return self.mapas.clone(); }
         // (y los bajados: los .bsp de los addons del Workshop —WS_…—, como «Garry's Mod» en la web)
-        v.extend(self.mapas_bajados()); v
+        v.extend(self.mapas_bajados().into_iter().filter(|m| m != ini)); v
     }
-    /// los mapas bajados del Workshop (los .bsp de los addons prendidos)
-    pub(super) fn mapas_bajados(&self) -> Vec<String> { self.mapas.iter().filter(|m| m.starts_with("WS_")).cloned().collect() }
+    /// los mapas bajados del Workshop (los .bsp de los addons prendidos; el de inicio, si ya está bajado)
+    pub(super) fn mapas_bajados(&self) -> Vec<String> { self.mapas.iter().filter(|m| m.starts_with("WS_") && (m.as_str() != super::mapas_juego::MAPA_INICIAL.0 || self.mj.ws.iter().any(|w| w.clave == **m))).cloned().collect() }
 
     /// un cuadro con el inicio a la vista: sin el juego, sólo el fondo, el menú o un panel (y lo que esté abierto encima)
     pub(super) unsafe fn ini_cuadro(&mut self, m: &mut Motor3d, w: i32, h: i32) -> Result<(), String> {

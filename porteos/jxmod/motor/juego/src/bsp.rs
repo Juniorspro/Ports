@@ -11,6 +11,12 @@ use std::collections::HashMap;
 pub const GM_S: f32 = 0.0254;
 /// (m: cada pedazo de mundo es una malla aparte, con su propia caja y precisión)
 pub const CELDA: f32 = 64.0;
+thread_local! {
+    /// el lado de los pedazos del mapa que se está armando: 64 m; en los mapas chicos (menos de 1100 m de lado con el cielo, como los
+    /// gm_construct) 128 m —la mitad de dibujos por cuadro: casi todo se ve igual, y en el celular cada dibujo cuesta—
+    static CELDA_ACT: std::cell::Cell<f32> = const { std::cell::Cell::new(CELDA) };
+}
+fn celda() -> f32 { CELDA_ACT.with(|c| c.get()) }
 const SURF_LIGHT: i32 = 0x1; const SURF_SKY2D: i32 = 0x2; const SURF_SKY: i32 = 0x4; const SURF_WARP: i32 = 0x8; const SURF_TRIGGER: i32 = 0x40; const SURF_NODRAW: i32 = 0x80;
 const SURF_HINT: i32 = 0x100; const SURF_SKIP: i32 = 0x200; const SURF_NOLIGHT: i32 = 0x400; const SURF_BUMP: i32 = 0x800;
 /// (sólido, ventana, reja, movible y playerclip: lo que frena a un jugador)
@@ -381,7 +387,7 @@ pub fn texturas(bsp: &Bsp) -> (Vec<String>, Vec<[f32; 2]>) {
     let (mut n, mut t) = (vec![], vec![]);
     for i in 0..td.len() / 32 {
         let sid = i32a(td, i * 32 + 12); let off = if sid >= 0 && sid as usize * 4 + 4 <= st.len() { i32a(st, sid as usize * 4) } else { -1 };
-        n.push(if off >= 0 { cad(sd, off as usize).to_lowercase().replace('\\', "/") } else { "tools/toolsnodraw".into() });
+        n.push(if off >= 0 { cad(sd, off as usize).to_lowercase().replace('\\', "/").trim_start_matches('/').to_string() } else { "tools/toolsnodraw".into() });
         let (w, h) = (i32a(td, i * 32 + 16), i32a(td, i * 32 + 20)); t.push([if w != 0 { w as f32 } else { 512.0 }, if h != 0 { h as f32 } else { 512.0 }]);
     }
     (n, t)
@@ -542,7 +548,7 @@ fn destino<'p>(pieza: Option<usize>, cielo: bool, pts: &[V], piezas: &'p mut [Pi
     if let Some(i) = pieza { return &mut piezas[i]; }
     let n = pts.len() as f32; let c = pts.iter().fold([0.0; 3], |a, q| [a[0] + q[0], a[1] + q[1], a[2] + q[2]]);
     let (v, idx) = if cielo { (pedc, pedc_i) } else { (ped, ped_i) };
-    let k = ((c[0] / n / CELDA).floor() as i32, (c[2] / n / CELDA).floor() as i32);
+    let k = ((c[0] / n / celda()).floor() as i32, (c[2] / n / celda()).floor() as i32);
     let i = *idx.entry(k).or_insert_with(|| { v.push((k, Pieza::default())); v.len() - 1 }); &mut v[i].1
 }
 /// una entidad de bloques en uso (usoMo): su modelo, dónde, su giro (adelante, izquierda, arriba), sin choque, invisible,
@@ -555,6 +561,9 @@ pub fn armar(bsp: &Bsp, ents: &[Ent], mut props: Vec<PropBsp>, mat: &mut dyn FnM
     let mut a = Armado::default();
     let (pl, vt, ti, fc, ed, se, mo, di, dvs) = (bsp.lump(1), bsp.lump(3), bsp.lump(6), bsp.lump(7), bsp.lump(12), bsp.lump(13), bsp.lump(14), bsp.lump(26), bsp.lump(33));
     let (tex_nom, tex_tam) = texturas(bsp);
+    // (el lado de los pedazos según lo grande del mundo: la caja del modelo 0, en metros)
+    let lado = if mo.len() >= 24 { let d = |k: usize| (f32a(mo, 12 + k * 4) - f32a(mo, k * 4)).abs() * GM_S; d(0).max(d(1)) } else { 1e9 };
+    CELDA_ACT.with(|c| c.set(if lado < 1100.0 { CELDA * 2.0 } else { CELDA })); if std::env::var_os("JXM_DBG_CELDA").is_some() { eprintln!("mundo de {lado:.0} m: pedazos de {} m", celda()); }
     // el cielo 3D: la sala aparte con el paisaje en miniatura; lo que cae adentro no es parte del mundo
     let skc = ents.iter().find(|e| e.cl() == "sky_camera" && e.get("origin").is_some());
     let es_apar = |c: &str| c.starts_with("info_player_") || c == "gmod_player_start";
@@ -573,18 +582,20 @@ pub fn armar(bsp: &Bsp, ents: &[Ent], mut props: Vec<PropBsp>, mat: &mut dyn FnM
     let mut ped: Vec<((i32, i32), Pieza)> = vec![]; let mut ped_i: HashMap<(i32, i32), usize> = HashMap::new();
     let mut pedc: Vec<((i32, i32), Pieza)> = vec![]; let mut pedc_i: HashMap<(i32, i32), usize> = HashMap::new();
     fn pedazo<'p>(v: &'p mut Vec<((i32, i32), Pieza)>, idx: &mut HashMap<(i32, i32), usize>, x: f32, z: f32) -> &'p mut Pieza {
-        let k = ((x / CELDA).floor() as i32, (z / CELDA).floor() as i32);
+        let k = ((x / celda()).floor() as i32, (z / celda()).floor() as i32);
         let i = *idx.entry(k).or_insert_with(|| { v.push((k, Pieza::default())); v.len() - 1 }); &mut v[i].1
     }
     let mut agua: Vec<Vec<V>> = vec![];
     // los modelos de bloques: el 0 es el mundo; los demás, de entidades (puertas, paredes), en su lugar
     let nmo = mo.len() / 48; let mut uso = vec![Uso { i: 0, o: [0.0; 3], rot: None, sin_choque: false, sin_dibujo: false, puerta: None, nombre: String::new(), padre: String::new(), pieza: None }];
-    const NO_DIBUJO: [&str; 21] = ["trigger_", "func_areaportal", "func_occluder", "func_precipitation", "func_buyzone", "func_bomb_target", "func_hostage_rescue", "func_nobuild", "func_ladderendpoint", "func_dustcloud", "func_smokevolume", "env_", "info_", "func_viscluster", "func_vehicleclip", "func_respawnroom", "func_nogrenades", "func_regenerate", "func_capturezone", "", ""];
+    const NO_DIBUJO: [&str; 21] = ["trigger_", "func_areaportal", "func_occluder", "func_precipitation", "func_buyzone", "func_bomb_target", "func_hostage_rescue", "func_nobuild", "func_ladderendpoint", "func_dustcloud", "func_smokevolume", "env_", "info_", "func_viscluster", "func_vehicleclip", "func_respawnroom", "func_nogrenades", "func_regenerate", "func_capturezone", "func_dustmotes", ""];
     for e in ents {
         let Some(m) = e.s("model").strip_prefix('*').and_then(|x| x.parse::<usize>().ok()) else { continue }; let cl = e.cl();
         if NO_DIBUJO.iter().filter(|p| !p.is_empty()).any(|p| cl.starts_with(p)) { continue; }
         if (cl.starts_with("func_brush") || cl.starts_with("func_wall_toggle")) && e.get("startdisabled") == Some("1") { continue; }
-        let no_solido = cl.starts_with("func_illusionary") || cl.starts_with("func_clip_vphysics") || (cl.starts_with("func_brush") && e.get("solidity") == Some("1"));
+        // (func_dustmotes es polvo en el aire —gm_construct_win7 tiene un bloque de 21 × 55 m que era una pared invisible—; el
+        // func_rotating con la marca 64 no es sólido)
+        let no_solido = cl.starts_with("func_illusionary") || cl.starts_with("func_clip_vphysics") || (cl.starts_with("func_brush") && e.get("solidity") == Some("1")) || (cl == "func_rotating" && e.sf() & 64 != 0);
         let rm = e.get("rendermode"); let invisible = cl.starts_with("func_clip") || rm == Some("10") || (rm.map(|r| !r.is_empty() && r != "0").unwrap_or(false) && e.get("renderamt") == Some("0"));
         let ang = e.v3_0("angles");
         uso.push(Uso { i: m, o: e.v3_0("origin"), rot: if ang.iter().any(|&x| x != 0.0) { Some(ang_mat(ang)) } else { None }, sin_choque: no_solido, sin_dibujo: invisible, puerta: puerta_de(e, cl), nombre: e.s("targetname").to_lowercase(), padre: e.s("parentname").to_lowercase(), pieza: None });
@@ -629,6 +640,7 @@ pub fn armar(bsp: &Bsp, ents: &[Ent], mut props: Vec<PropBsp>, mat: &mut dyn FnM
             // lados, con la de arriba alcanza; con las dos se pisaban)
             let mi = if dibuja && im.dibuja && !(im.agua && ng[1] < -0.5) { Some(if im.agua { MatRef::Agua } else { MatRef::Tex(tdi as u32) }) } else { None };
             // la luz horneada de la cara: su rectángulo de luxels y dónde cae cada punto (en el espacio del modelo)
+            let mut lm_wh: Option<(f32, f32)> = None;
             let lm_de: Option<Box<dyn Fn(V) -> (i32, f32, f32)>> = if con_lm && dibuja {
                 let (lo, sty, m0, m1, w, h) = (i32a(fc, o + 20), fc[o + 16], i32a(fc, o + 28) as f32, i32a(fc, o + 32) as f32, i32a(fc, o + 36) + 1, i32a(fc, o + 40) + 1);
                 let lv: Vec<f32> = (8..16).map(|k| f32a(ti, tix * 72 + k * 4)).collect();
@@ -638,6 +650,7 @@ pub fn armar(bsp: &Bsp, ents: &[Ent], mut props: Vec<PropBsp>, mat: &mut dyn FnM
                     let r = *lm_por.entry(lo).or_insert_with(|| { lm_r.push(Rect { lo, w: w as u32, h: h as u32, offs }); lm_r.len() - 1 }) as i32;
                     let _ = lm_r[r as usize].lo;
                     let (wf, hf) = ((w - 1) as f32, (h - 1) as f32);
+                    lm_wh = Some((wf, hf));
                     Some(Box::new(move |q: V| (r, (lv[0] * q[0] + lv[1] * q[1] + lv[2] * q[2] + lv[3] - m0).clamp(0.0, wf), (lv[4] * q[0] + lv[5] * q[1] + lv[6] * q[2] + lv[7] - m1).clamp(0.0, hf))))
                 } else { let r = if fl & SURF_LIGHT != 0 { -2 } else { -1 }; Some(Box::new(move |_| (r, 0.0, 0.0))) }
             } else { None };
@@ -651,7 +664,9 @@ pub fn armar(bsp: &Bsp, ents: &[Ent], mut props: Vec<PropBsp>, mat: &mut dyn FnM
                     for j in 0..n {
                         let base = lerp(a0, b0, j as f32 / (n - 1) as f32); let w = (v0 + i * n + j) * 20; let mut pp = base;
                         if w + 20 <= dvs.len() { let d = f32a(dvs, w + 12); pp = [base[0] + f32a(dvs, w) * d, base[1] + f32a(dvs, w + 4) * d, base[2] + f32a(dvs, w + 8) * d]; alfa.push(f32a(dvs, w + 16) / 255.0); } else { alfa.push(0.0); }
-                        pts.push(gv(tr(pp))); uvs.push(uv_de(base)); if let Some(l) = &lm_de { lmv.push(l(base)); }
+                        pts.push(gv(tr(pp))); uvs.push(uv_de(base));
+                        // (la luz de un displacement va estirada sobre su grilla desde la esquina de inicio —como en Source—, no proyectada)
+                        if let Some(l) = &lm_de { let r = l(base).0; lmv.push(match lm_wh { Some((wf, hf)) if r >= 0 => (r, j as f32 / (n - 1) as f32 * wf, i as f32 / (n - 1) as f32 * hf), _ => l(base) }); }
                     } }
                 let mut tris: Vec<[u32; 3]> = vec![];
                 for i in 0..n - 1 { for j in 0..n - 1 { let (a1, b1, c1, d1) = ((i * n + j) as u32, ((i + 1) * n + j) as u32, ((i + 1) * n + j + 1) as u32, (i * n + j + 1) as u32); tris.push([a1, b1, c1]); tris.push([a1, c1, d1]); } }
@@ -818,13 +833,13 @@ pub fn armar(bsp: &Bsp, ents: &[Ent], mut props: Vec<PropBsp>, mat: &mut dyn FnM
     a.cielo = ws.and_then(|w| w.get("skyname")).unwrap_or("sky_day01_01").to_lowercase();
     // hasta dónde se ve: lo que mide el mapa (con tope)
     let (mut lo, mut hi) = ([i32::MAX; 2], [i32::MIN; 2]); for (k, _) in &ped { lo = [lo[0].min(k.0), lo[1].min(k.1)]; hi = [hi[0].max(k.0 + 1), hi[1].max(k.1 + 1)]; }
-    if lo[0] < i32::MAX { a.lejos = (((hi[0] - lo[0]) as f32).hypot((hi[1] - lo[1]) as f32) * CELDA).clamp(120.0, 1600.0); }
+    if lo[0] < i32::MAX { a.lejos = (((hi[0] - lo[0]) as f32).hypot((hi[1] - lo[1]) as f32) * celda()).clamp(120.0, 1600.0); }
     // el agua: un volumen bajo cada superficie de agua; el fondo, lo más bajo de lo que choca debajo
     // (hasta 600 caras: el mar de un mapa grande viene en cientos; el fondo, mirando sólo los pedazos de al lado)
     for pts in agua.iter().take(600) {
         let (mut x0, mut x1, mut z0, mut z1, mut y) = (1e9f32, -1e9f32, 1e9f32, -1e9f32, 0f32);
         for p in pts { x0 = x0.min(p[0]); x1 = x1.max(p[0]); z0 = z0.min(p[2]); z1 = z1.max(p[2]); y += p[1]; } y /= pts.len() as f32;
-        let (ci0, ci1, cj0, cj1) = ((x0 / CELDA).floor() as i32 - 1, (x1 / CELDA).floor() as i32 + 1, (z0 / CELDA).floor() as i32 - 1, (z1 / CELDA).floor() as i32 + 1);
+        let (ci0, ci1, cj0, cj1) = ((x0 / celda()).floor() as i32 - 1, (x1 / celda()).floor() as i32 + 1, (z0 / celda()).floor() as i32 - 1, (z1 / celda()).floor() as i32 + 1);
         let mut yb = 1e9f32; for (k, p) in &ped { if k.0 < ci0 || k.0 > ci1 || k.1 < cj0 || k.1 > cj1 { continue; } for c in &p.c { if c[0] >= x0 && c[0] <= x1 && c[2] >= z0 && c[2] <= z1 && c[1] < y - 0.05 && c[1] < yb { yb = c[1]; } } }
         a.aguas.push([x0, if yb < 1e8 { yb } else { y - 4.0 }, z0, x1, y, z1]);
     }
@@ -836,6 +851,7 @@ pub fn armar(bsp: &Bsp, ents: &[Ent], mut props: Vec<PropBsp>, mat: &mut dyn FnM
     // los props: los de la sala del cielo 3D van a la maqueta
     for p in props.iter_mut() { if en_cielo(p.o) { p.padre = "\u{1}cielo".into(); } }
     a.props = props;
+    if std::env::var_os("JXM_DBG_PAREDES").is_some() { paredes_invisibles(&ped); }
     a.pedazos = ped.into_iter().filter(|(_, p)| !p.por.is_empty() || p.c.len() >= 3 || p.cc.len() >= 3).collect();
     a.cielo3 = if a.cielo3d.is_some() { pedc.into_iter().map(|x| x.1).filter(|p| !p.por.is_empty()).collect() } else { vec![] };
     a.tex_nom = tex_nom; a.mats = mats;
@@ -907,4 +923,39 @@ mod prueba {
         assert!((r[0] - 1.0).abs() < 1e-5 && r[2].abs() < 1e-5);
         let q = quat_de([1.0, 0.0, 0.0]); assert!((q[1] - (std::f32::consts::FRAC_PI_4).sin()).abs() < 1e-5);
     }
+}
+
+/// (prueba: dónde algo choca sin que se vea nada —una pared invisible—: desde el medio de cada piso, a la altura del pecho, ocho
+/// rayos de 1,5 m; si el choque más cercano no tiene una cara que se ve a menos de 35 cm, cuenta. Se imprime por zonas de 4 m)
+fn paredes_invisibles(ped: &[((i32, i32), Pieza)]) {
+    let rayo = |o: V, d: V, t: &[V; 3]| -> Option<f32> {
+        let (e1, e2) = ([t[1][0] - t[0][0], t[1][1] - t[0][1], t[1][2] - t[0][2]], [t[2][0] - t[0][0], t[2][1] - t[0][1], t[2][2] - t[0][2]]);
+        let p = [d[1] * e2[2] - d[2] * e2[1], d[2] * e2[0] - d[0] * e2[2], d[0] * e2[1] - d[1] * e2[0]]; let det = e1[0] * p[0] + e1[1] * p[1] + e1[2] * p[2]; if det.abs() < 1e-8 { return None; }
+        let s = [o[0] - t[0][0], o[1] - t[0][1], o[2] - t[0][2]]; let u = (s[0] * p[0] + s[1] * p[1] + s[2] * p[2]) / det; if !(0.0..=1.0).contains(&u) { return None; }
+        let q = [s[1] * e1[2] - s[2] * e1[1], s[2] * e1[0] - s[0] * e1[2], s[0] * e1[1] - s[1] * e1[0]]; let v = (d[0] * q[0] + d[1] * q[1] + d[2] * q[2]) / det; if v < 0.0 || u + v > 1.0 { return None; }
+        let t = (e2[0] * q[0] + e2[1] * q[1] + e2[2] * q[2]) / det; if t > 1e-3 { Some(t) } else { None } };
+    // (rejillas de 2 m: los triángulos que se ven y los que chocan —0: de las caras, 1: los que sólo frenan al jugador—)
+    let mut vis: HashMap<(i32, i32), Vec<[V; 3]>> = HashMap::new(); let mut cho: HashMap<(i32, i32), Vec<([V; 3], u8)>> = HashMap::new();
+    let celdas = |t: &[V; 3]| { let (mut x0, mut x1, mut z0, mut z1) = (1e9f32, -1e9f32, 1e9f32, -1e9f32); for q in t { x0 = x0.min(q[0]); x1 = x1.max(q[0]); z0 = z0.min(q[2]); z1 = z1.max(q[2]); }
+        let mut v = vec![]; for i in (x0 / 2.0).floor() as i32..=(x1 / 2.0).floor() as i32 { for j in (z0 / 2.0).floor() as i32..=(z1 / 2.0).floor() as i32 { v.push((i, j)); if v.len() > 4000 { return v; } } } v };
+    let mut pisos: Vec<V> = vec![];
+    for (_, p) in ped {
+        for (m, ix) in &p.por { if *m == MatRef::Agua { continue; } for t in ix.chunks_exact(3) { let tt = [p.p[t[0] as usize], p.p[t[1] as usize], p.p[t[2] as usize]]; for c in celdas(&tt) { vis.entry(c).or_default().push(tt); } } }
+        for (k, l) in [(0u8, &p.c), (1u8, &p.cc)] { for t in l.chunks_exact(3) { let tt = [t[0], t[1], t[2]]; for c in celdas(&tt) { cho.entry(c).or_default().push((tt, k)); }
+            if k == 0 { let (e1, e2) = ([tt[1][0] - tt[0][0], tt[1][1] - tt[0][1], tt[1][2] - tt[0][2]], [tt[2][0] - tt[0][0], tt[2][1] - tt[0][1], tt[2][2] - tt[0][2]]);
+                let n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]]; let l = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
+                if l > 0.02 && n[1].abs() / l > 0.8 { pisos.push([(tt[0][0] + tt[1][0] + tt[2][0]) / 3.0, (tt[0][1] + tt[1][1] + tt[2][1]) / 3.0 + 1.0, (tt[0][2] + tt[1][2] + tt[2][2]) / 3.0]); } } } }
+    }
+    let mut zonas: HashMap<(i32, i32, i32), (u32, u32)> = HashMap::new(); let (mut n_r, mut n_inv) = (0u32, 0u32);
+    for o in pisos.iter().take(60000) {
+        for k in 0..8 { let a = k as f32 * std::f32::consts::FRAC_PI_4; let d = [a.cos(), 0.0, a.sin()]; n_r += 1;
+            let f = [o[0] + d[0] * 1.5, o[2] + d[2] * 1.5]; let mut cs = vec![(((o[0] / 2.0).floor() as i32), ((o[2] / 2.0).floor() as i32))]; let c2 = ((f[0] / 2.0).floor() as i32, (f[1] / 2.0).floor() as i32); if c2 != cs[0] { cs.push(c2); }
+            let mut tc = (1.5f32, 9u8); for c in &cs { if let Some(l) = cho.get(c) { for (t, kk) in l { if let Some(x) = rayo(*o, d, t) { if x < tc.0 { tc = (x, *kk); } } } } }
+            if tc.1 == 9 { continue; }
+            let mut tv = 9.0f32; for c in &cs { if let Some(l) = vis.get(c) { for t in l { if let Some(x) = rayo(*o, d, t) { tv = tv.min(x); } } } }
+            if tv > tc.0 + 0.35 { n_inv += 1; let e = zonas.entry(((o[0] / 4.0).floor() as i32, (o[1] / 4.0).floor() as i32, (o[2] / 4.0).floor() as i32)).or_insert((0, 0)); if tc.1 == 0 { e.0 += 1 } else { e.1 += 1 } }
+        } }
+    let mut v: Vec<_> = zonas.into_iter().collect(); v.sort_by(|a, b| (b.1 .0 + b.1 .1).cmp(&(a.1 .0 + a.1 .1)));
+    eprintln!("paredes invisibles: {} pisos, {} rayos, {} chocan sin verse ({} zonas de 4 m)", pisos.len(), n_r, n_inv, v.len());
+    for ((x, y, z), (a, b)) in v.iter().take(20) { eprintln!("  zona ({:.0}, {:.0}, {:.0}) m: {} de caras/brochas, {} de clip", *x as f32 * 4.0 + 2.0, *y as f32 * 4.0 + 2.0, *z as f32 * 4.0 + 2.0, a, b); }
 }

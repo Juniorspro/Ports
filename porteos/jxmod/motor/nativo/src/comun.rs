@@ -156,6 +156,8 @@ pub struct Menu { pub sub: usize, pub scroll: f32, atlas_de: Option<(usize, usiz
     /** el panel de la derecha de Herramientas (las opciones de un mod pueden ser largas): cuánto bajó, hasta dónde y dónde empieza */ pub scroll_insp: f32, pub max_insp: f32, pub insp_x0: f32 }
 impl Menu { pub fn nuevo() -> Menu { Menu { sub: 0, scroll: 0.0, atlas_de: None, atlas_h: 0, pestana: 0, q: String::new(), scroll_cats: 0.0, max_scroll: 0.0, max_cats: 0.0, atlas_q: String::new(), col_x1: 0.0, scroll_her: 0.0, max_her: 0.0, her_x0: 0.0, scroll_insp: 0.0, max_insp: 0.0, insp_x0: 0.0 } } }
 /// las pestañas de arriba del menú (las del spawn menu de la web)
+/// las armas de diseño nuevo (armas_aero.rs) en vez de las de siempre: apagadas
+const ARMAS_AERO: bool = false;
 const PESTANAS_MENU: [&str; 5] = ["Props", "NPCs", "Vehículos", "Herramientas", "Mods"];
 /// la pestaña de los addons de GMod: abre su panel (gmod_juego.rs)
 const PESTANA_MODS: usize = 4;
@@ -303,6 +305,9 @@ pub struct Juego {
     pub proys: Vec<Proy>, por_explotar: Vec<(u32, f32)>, temblor: f32, golpe_t: f32, pub muerto: bool, fov_b: f32,
     /// el atlas de los íconos de las armas está en el motor
     armas_ico: bool, armas_ico_h: u32, hud_ico: bool,
+    /// las tres armas de diseño nuevo (armas_aero.rs: Physics, Gravity y Tool Gun), su eje de arriba (arma, eje, signo), los
+    /// segundos desde el último tiro y cuánto están abiertas las garras
+    aero: Option<jxjuego::armas_aero::Aero>, aero_tiro: f32, aero_abre: f32,
     pub vista: Option<Vista>, vista_cargados: vista::Cargados, clips: vista::Clips, clip_ya: &'static str, sway: [f32; 5], bob_arma: f32, mdx: f32, tubo_ok: bool,
     // —— el sonido (como sonidos.js): pasos, golpes, agua, botones ——
     /// los ajustes (ajustes.txt) y la pestaña del menú de Ajustes, si está abierto (el juego queda en pausa)
@@ -388,7 +393,7 @@ impl Juego {
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
             npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), ondas: Vec::new(), onda_t: 0.0, gi: Default::default(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
             her: Herramientas::default(), en_red, gmod, gb: Default::default(), vr: Default::default(), grabar_pedido: None, grabando: false, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), banco: Default::default(), musica: Default::default(), ed: hud_web::Editor::default(), tut: Default::default(), gr: Default::default(), cont: Default::default(), poner_congelado: false, pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
-            armas_ico: false, armas_ico_h: 256, hud_ico: false, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
+            armas_ico: false, armas_ico_h: 256, hud_ico: false, aero: None, aero_tiro: 9.0, aero_abre: 0.0, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         // los mapas: todos los de la web (DATA.esc), primero los RB (los de la versión personal); empieza en el último elegido
         if let Some(p) = &j.paq { if let Some(e) = p.d["esc"].as_object() {
@@ -396,6 +401,8 @@ impl Juego {
             if !v.is_empty() { j.mapas = v; }
             // (los propios con las texturas de GMod: mapas_jx.rs)
             for (k, _) in mapas_jx::MAPAS_JX { if !j.mapas.iter().any(|x| x == k) { j.mapas.push(k.to_string()); } }
+            // (el gm_construct de siempre ya no está: el de inicio es el gm_construct Windows 7 del Workshop, que se baja solo)
+            j.mapas.retain(|m| m != "RB_Construct"); j.mapas.insert(0, mapas_juego::MAPA_INICIAL.0.to_string());
             let ult = j.datos.as_ref().and_then(|d| std::fs::read_to_string(d.join("mapa.txt")).ok()).unwrap_or_default();
             j.mapa_i = j.mapas.iter().position(|m| *m == ult.trim()).unwrap_or(0);
         } }
@@ -651,6 +658,7 @@ impl Juego {
     /// quieto (o sosteniendo, con algo agarrado), y el vaivén al caminar y al girar
     unsafe fn arma_en_mano(&mut self, m: &mut Motor3d, dt: f32) {
         if !self.tubo_ok { self.tubo_ok = m.cargar(&vista::tubo()).is_ok(); }
+        if ARMAS_AERO && self.aero.is_none() { let (a, e) = jxjuego::armas_aero::Aero::armar(); if m.cargar(&e).is_ok() { self.aero = Some(a); } }
         if !self.ef_atlas { self.ef_atlas = m.cargar(&efx::atlas()).is_ok(); }
         // (los íconos de las armas, para la barra: un atlas de 10 por fila)
         if !self.armas_ico { if let Some(paq) = self.paq.as_ref() {
@@ -680,7 +688,11 @@ impl Juego {
         }
         let Some(paq) = self.paq.as_ref() else { return };
         let Some(v) = self.vista.as_mut() else { return };
-        if let Some(a) = self.armas.anim.take() { let c = self.clips.de(&paq.d, a); if v.tocar(c, false) > 0.0 { self.clip_ya = a; } }
+        if let Some(a) = self.armas.anim.take() { let c = self.clips.de(&paq.d, a); if v.tocar(c, false) > 0.0 { self.clip_ya = a; } if a == d.fuego { self.aero_tiro = 0.0; } }
+        // (las de diseño nuevo: la vieja escondida —quedan las manos—; el tiro y las garras que se abren al agarrar, suave)
+        // (por ahora las de siempre: el dueño prefirió quedarse con ellas; las de diseño nuevo quedan armadas para más adelante)
+        v.ocultar_arma = ARMAS_AERO && self.aero.is_some() && !d.jx.is_empty() && jxjuego::armas_aero::Tipo::de(d.n).is_some();
+        self.aero_tiro += dt; let quiere = if self.armas.agarre.is_some() || self.armas.grav.is_some() { 1.0 } else { 0.0 }; self.aero_abre += (quiere - self.aero_abre) * (dt * 7.0).min(1.0);
         // (terminó el de sacar o el de fuego: quieto, o sosteniendo si tiene algo)
         let quiero = if self.armas.agarre.is_some() || self.armas.grav.is_some() { d.sujeta } else { d.quieto };
         let fijo = self.clip_ya == d.sacar || self.clip_ya == d.fuego;
@@ -968,6 +980,8 @@ impl Juego {
         self.npcs.olvidar(); self.npc_skins.olvidar(); self.vehs = Vehiculos::nuevo(); self.pila.clear(); self.jg_limpiar(); self.pjs_limpiar();
         self.fis = Fisica::nueva(); self.acum_fis = 0.0; self.armas.olvidar(); self.proys.clear(); self.por_explotar.clear(); self.her.cable = None; self.her.trazas.clear(); self.her.tirados.clear(); self.her.spawn = None; self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false; self.armas_ico = false; self.hud_ico = false; self.gr.cargada = false; self.ef_atlas = false;
         unsafe { m.vaciar(); }
+        // (lo propio que se cargó una vez —las armas de diseño nuevo, el tubo del rayo— se fue con el motor: otra vez)
+        self.aero = None; self.tubo_ok = false;
         self.mapas_vaciado();
         let Some(paq) = self.paq.as_mut() else { return };
         match if nombre.starts_with("WS_") { self.mapa_ws(m, nombre) } else if nombre.starts_with("JX_") { self.mapa_jx(m, nombre) } else { mapa::armar(paq, nombre, 1024, 750.0) } {
@@ -1028,9 +1042,14 @@ impl Juego {
         // (al cargar: primero un cuadro con el cartel de «Cargando…», y en el siguiente se arma el mapa, que tarda)
         if self.recargar {
             if self.paq.is_some() && !self.mapa_cartel && !self.ini.abierto { self.entrando_partida(); }
-            if self.paq.is_some() && !self.mapa_cartel { self.mapa_cartel = true; self.mapa = None; m.vaciar(); self.objs.clear(); self.fis = Fisica::nueva(); self.npcs.olvidar(); self.npc_skins.olvidar(); self.vehs = Vehiculos::nuevo(); self.pila.clear(); self.prefabs.clear(); self.cargados.olvidar(); self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false; self.armas_ico = false; self.hud_ico = false; self.gr.cargada = false; self.ef_atlas = false; if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; } self.cargar_letras(m); }
+            if self.paq.is_some() && !self.mapa_cartel { self.mapa_cartel = true; self.mapa = None; m.vaciar(); self.aero = None; self.tubo_ok = false; self.objs.clear(); self.fis = Fisica::nueva(); self.npcs.olvidar(); self.npc_skins.olvidar(); self.vehs = Vehiculos::nuevo(); self.pila.clear(); self.prefabs.clear(); self.cargados.olvidar(); self.pj = None; self.pj_cargados.olvidar(); self.vista = None; self.vista_cargados.olvidar(); self.tubo_ok = false; self.armas_ico = false; self.hud_ico = false; self.gr.cargada = false; self.ef_atlas = false; if let Some(mm) = self.menu.as_mut() { mm.atlas_de = None; } self.cargar_letras(m); }
             // (si al mapa —o a la skin elegida— le falta bajar su paquete aparte, la pantalla de carga espera y dice cuánto va;
             // si el mapa no se puede bajar, vuelve al menú)
+            // (el mapa de inicio del Workshop: si no está bajado, se baja; si no se puede —sin conexión—, gm_flatgrass)
+            else if let Some(b) = self.ws_inicial_falta() {
+                if b.2 { self.bajada = None; if let Some(i) = self.mapas.iter().position(|m| m == "RB_Flatgrass") { self.mapa_i = i; } self.avisar(format!("No se pudo bajar {} (hace falta internet la primera vez): se juega en gm_flatgrass", mapas_juego::MAPA_INICIAL.2)); }
+                else { self.bajada = Some(b); }
+            }
             else if let Some(b) = self.rb_falta_carga() {
                 if b.2 { self.bajada = None; self.recargar = false; self.mapa_cartel = false; self.avisar("No se pudo bajar el mapa: revisá la conexión".into()); self.inicio_abrir(); }
                 else { self.bajada = Some(b); }
@@ -1259,6 +1278,19 @@ impl Juego {
             if arma_vista { if let Some(v) = self.vista.as_mut() {
                 if self.armas.ap_k > 0.002 && v.ads_tok != self.armas.ap_tok { v.calcular_ads(self.armas.ap_tok); }
                 v.ubicar_aj(ojos, qcam(yaw, pitch), self.sway, self.armas.ap_k, aj); v.items(&mut items); self.arma_raiz = Some(v.raiz);
+                // (las de diseño nuevo, pegadas a los huesos del arma; el eje de arriba de la base se elige una vez por arma: el
+                // que más mira para arriba de la cámara)
+                if let (true, Some(ae), Some(tp)) = (v.ocultar_arma, self.aero.as_ref(), jxjuego::armas_aero::Tipo::de(self.armas.def().n)) {
+                    let (hb, hm) = tp.huesos();
+                    if let (Some(b), Some(bm)) = (v.nodo_w(hb), v.nodo_w(hm)) {
+                        // (la cámara: adelante, y arriba sin el balanceo)
+                        let rt = { let r = [fw[2], 0.0, -fw[0]]; let l = (r[0] * r[0] + r[2] * r[2]).sqrt().max(1e-5); [r[0] / l, 0.0, r[2] / l] };
+                        let cup = [rt[1] * fw[2] - rt[2] * fw[1], rt[2] * fw[0] - rt[0] * fw[2], rt[0] * fw[1] - rt[1] * fw[0]];
+                        let cup = if cup[1] < 0.0 { [-cup[0], -cup[1], -cup[2]] } else { cup };
+                        let n0 = items.len(); ae.items(tp, &b, &bm, ojos, fw, cup, self.t0.elapsed().as_secs_f32(), self.aero_abre, self.aero_tiro, &mut items);
+                        if std::env::var_os("JXM_AERO_DBG").is_some() { eprintln!("aero {:?}: ojos {:?} base {:?} boca {:?} · {} piezas, la 1.ª en {:?}", tp, ojos, &b[12..15], &bm[12..15], items.len() - n0, items.get(n0).map(|i| i.esf)); }
+                    }
+                }
             } }
             self.proyectiles_items(&mut items);
             if let (Some(p1), Some(a), true) = (self.armas.punto_agarrado(&self.fis), self.armas.agarre.as_ref(), self.tubo_ok) {

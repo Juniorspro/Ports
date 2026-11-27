@@ -120,6 +120,9 @@ impl Juego {
             if v.trans { blend = 1; } else if v.corte { cut = 1; }
             if v.suma { add = 1; blend = 0; } else if v.sin_luz && blend == 0 { unlit = 1; }
             if v.shader == "refract" && v.base.is_none() { blend = 1; c[3] = 0.3; }
+            // (los haces de luz de Source —models/effects/vol_light*: UnlitTwoTexture sumado— van multiplicados por un ruido
+            // oscuro que acá no está: sin bajarlos, un haz agrandado en el cielo 3D tapa el cielo de blanco —gm_construct_win7—)
+            if v.shader == "unlittwotexture" && v.suma { for k in 0..3 { c[k] *= 0.6; } c[3] *= 0.22; }
             if v.nodraw { c[3] = 0.0; blend = 1; }
         }
         let brillo = v.as_ref().map(|v| v.phong || v.env).unwrap_or(false);

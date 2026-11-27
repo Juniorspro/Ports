@@ -366,7 +366,7 @@ vec3 retoque(vec3 c) {
   vec2 q = gl_FragCoord.xy * uRet.xy - 0.5; return c * (1.0 - dot(q, q) * 0.32);
 }
 void main() {
-  vec4 a = uIVP * vec4(vP, -1.0, 1.0), b = uIVP * vec4(vP, 1.0, 1.0); vec3 d = normalize(b.xyz / b.w - a.xyz / a.w);
+  vec4 a = uIVP * vec4(vP, -1.0, 1.0), b = uIVP * vec4(vP, 0.5, 1.0); vec3 d = normalize(b.xyz / b.w - a.xyz / a.w);
   if (uTiene > 0.5) {
     bool ar = d.y > 0.0; vec3 g = mix(uMid, ar ? uTop : uBot, pow(abs(d.y), ar ? uExp.x : uExp.y));
     vec3 cc = g; if (uTiene > 1.5) cc = mix(g, textureCube(uCubo, d).rgb * uTinte, uDia);
@@ -674,7 +674,7 @@ float desem(vec4 c) { return dot(c, vec4(1.0, 1.0 / 255.0, 1.0 / 65025.0, 1.0 / 
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 void main() {
   float a = texture2D(uT, vU).a, te = a < 0.002 ? uVol.x : min(a * 64.0, uVol.x);
-  vec4 f = uIVP * vec4(vU * 2.0 - 1.0, 1.0, 1.0); vec3 d = normalize(f.xyz / f.w - uCam);
+  vec4 f = uIVP * vec4(vU * 2.0 - 1.0, 0.5, 1.0); vec3 d = normalize(f.xyz / f.w - uCam);
   float dt = te / float(PASOS), t = dt * ign(gl_FragCoord.xy), lit = 0.0;
   for (int i = 0; i < PASOS; i++) {
     vec4 q = uSVP2 * vec4(uCam + d * t, 1.0); vec3 s = q.xyz / q.w * 0.5 + 0.5;
@@ -1144,7 +1144,7 @@ impl Motor {
             self.cielo_dibujar(&vp); self.luces(&vp);
             self.puesto.olvidar(); for i in op_c { self.dibujar_item(i); }
             { let gl = &self.gl; gl.enable(glow::BLEND); gl.depth_mask(false); }
-            self.puesto.olvidar(); for i in tr_c { let add = self.mats[&self.items[i].mat].add != 0; let gl = &self.gl; if add { gl.blend_func(glow::SRC_ALPHA, glow::ONE); } else { gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); } self.dibujar_item(i); }
+            self.puesto.olvidar(); for i in tr_c { let add = self.mats[&self.items[i].mat].add != 0; let gl = &self.gl; if add { gl.blend_func(glow::SRC_ALPHA, glow::ONE); } else { gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); } if add { self.niebla_suma(true); } self.dibujar_item(i); if add { self.niebla_suma(false); } }
             { let gl = &self.gl; gl.disable(glow::BLEND); gl.depth_mask(true); gl.clear(glow::DEPTH_BUFFER_BIT); gl.use_program(Some(self.p_luz.p)); }
             self.puesto.olvidar(); for i in self.de_cerca(&op_r) { self.dibujar_item(i); }
         } else { self.puesto.olvidar(); for i in self.de_cerca(&opacos) { self.dibujar_item(i); } self.cielo_dibujar(&vp); }
@@ -1157,7 +1157,7 @@ impl Motor {
         // lo transparente (sin escribir la profundidad), de lo más lejos a lo más cerca
         let gl = &self.gl; gl.enable(glow::BLEND); gl.depth_mask(false); gl.use_program(Some(self.p_luz.p));
         let tr = self.transp.clone();
-        self.puesto.olvidar(); for i in tr { if self.items[i].fl & FL_CIELO != 0 { continue; } let add = self.mats[&self.items[i].mat].add != 0; let gl = &self.gl; if add { gl.blend_func(glow::SRC_ALPHA, glow::ONE); } else { gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); } self.dibujar_item(i); }
+        self.puesto.olvidar(); for i in tr { if self.items[i].fl & FL_CIELO != 0 { continue; } let add = self.mats[&self.items[i].mat].add != 0; let gl = &self.gl; if add { gl.blend_func(glow::SRC_ALPHA, glow::ONE); } else { gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); } if add { self.niebla_suma(true); } self.dibujar_item(i); if add { self.niebla_suma(false); } }
         // el agua (transparente, después de lo demás)
         if !self.aguas.is_empty() { if let (Some(a), Some(nt)) = (self.agua.clone(), self.agua_n) {
             let olas_k = self.olas_subir();
@@ -1465,6 +1465,15 @@ impl Motor {
         self.dibujos += tandas.len() as u32; self.part_v = v;
     }
     unsafe fn luces(&self, vp: &M4) { for p in [&self.p_luz_c, &self.p_luz] { self.luces_en(p, vp); } }
+    /// (lo sumado —haces de luz, brillos— se pierde en la niebla yendo a negro, como en Source: si tomara el color de la
+    /// niebla, un haz lejano —el de gm_construct_win7 en su cielo 3D— se vuelve una cuña blanca que tapa el cielo)
+    unsafe fn niebla_suma(&mut self, suma: bool) {
+        { let gl = &self.gl; let l = &self.c.as_ref().unwrap().luz;
+          for p in [&self.p_luz_c, &self.p_luz] { gl.use_program(Some(p.p));
+            if suma { gl.uniform_3_f32(p.u("uNieC"), 0.0, 0.0, 0.0); gl.uniform_3_f32(p.u("uNieS"), 0.0, 0.0, 0.0); gl.uniform_4_f32(p.u("uNubes"), 0.0, 0.0, 0.0, 0.0); }
+            else { gl.uniform_3_f32(p.u("uNieC"), l.nie.c[0], l.nie.c[1], l.nie.c[2]); gl.uniform_3_f32(p.u("uNieS"), l.nie.s[0], l.nie.s[1], l.nie.s[2]); gl.uniform_4_f32(p.u("uNubes"), if self.op.aaa { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0); } } }
+        self.puesto.prog = None;
+    }
     unsafe fn luces_en(&self, p: &Prog2, vp: &M4) {
         let gl = &self.gl; let c = self.c.as_ref().unwrap(); let l = &c.luz; let s = self.sol();
         gl.use_program(Some(p.p));

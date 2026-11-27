@@ -58,6 +58,10 @@ fn main() {
     if let Ok(c) = std::env::var("JXM_WS_MAPAS") { let _ = std::fs::create_dir_all(datos.join("addons")); for e in std::fs::read_dir(&c).unwrap().flatten() { if e.path().extension().map_or(false, |x| x == "gma") { let _ = std::os::unix::fs::symlink(e.path(), datos.join("addons").join(e.file_name())); } } }
     let lj = std::fs::read_to_string(Path::new(&let_).join("letras.json")).ok(); let lp = std::fs::read(Path::new(&let_).join("letras.png")).ok();
     let mut j = Juego::nuevo(paq, lj, lp, Some(datos.clone()));
+    // (JXM_RED=1: la conexión con curl —Bugs y sugerencias trae lo publicado de verdad—)
+    if std::env::var("JXM_RED").is_ok() { j.gmod.http_bin = Some(std::sync::Arc::new(|u: &str| {
+        let o = std::process::Command::new("curl").args(["-s", "--max-time", "30", "-w", "\n%{http_code}", u]).output().map_err(|e| e.to_string())?;
+        let mut b = o.stdout; let i = b.iter().rposition(|c| *c == b'\n').unwrap_or(0); let cod: u16 = String::from_utf8_lossy(&b[i + 1..]).trim().parse().unwrap_or(0); b.truncate(i); Ok((cod, b)) })); }
     // (JXM_IDIOMA=en|ja|ar…: las fotos en ese idioma)
     if let Some(i) = std::env::var("JXM_IDIOMA").ok().and_then(|c| jxjuego::idiomas::de_codigo(&c)) { jxjuego::idiomas::poner(i); }
     // (JXM_MUSICA=1: la placa de lo que suena —acá no hay sonido—)

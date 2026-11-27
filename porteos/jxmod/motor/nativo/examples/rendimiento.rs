@@ -47,6 +47,8 @@ fn main() {
     let datos = std::env::temp_dir().join("jxm_rend_datos"); let _ = std::fs::create_dir_all(&datos); for n in ["mapa.txt", "ajustes.txt"] { let _ = std::fs::remove_file(datos.join(n)); }
     let lj = std::fs::read_to_string(Path::new(&let_).join("letras.json")).ok(); let lp = std::fs::read(Path::new(&let_).join("letras.png")).ok();
     let mut j = Juego::nuevo(paq, lj, lp, Some(datos));
+    // (JXM_ADDONS: una carpeta de addons —los mapas del Workshop, como el de inicio—)
+    j.gmod.carpeta_externa = std::env::var("JXM_ADDONS").ok().map(std::path::PathBuf::from);
     // (la biblioteca de GMod de rb/: la usan los mapas JX_ —texturas de GMod— y los del Workshop)
     j.gmod.lector_rb = Some(jxmod::comun::gmod_juego::lector_carpetas(vec![std::path::Path::new(&www).join("rb"), "/tmp/claude-0/jxp_pub/rb".into()]));
     j.dt_fijo = Some(1.0 / 60.0); j.en_uso = if vk { Placa::Vulkan } else if gl2 { Placa::Gl2 } else { Placa::Gl3 }; j.aj.tut = true; j.aj.cont = true;

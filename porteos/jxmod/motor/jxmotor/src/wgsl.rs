@@ -300,7 +300,7 @@ pub const CIELO: &str = r#"
   let p = vec2<f32>(f32((i << 1u) & 2u), f32(i & 2u)) * 2.0 - 1.0; var o: VP; o.p = p; o.pos = vec4<f32>(p, 1.0, 1.0); return o;
 }
 @fragment fn fs_cielo(i: VP) -> @location(0) vec4<f32> {
-  let a = G.ivp * vec4<f32>(i.p, -1.0, 1.0); let b = G.ivp * vec4<f32>(i.p, 1.0, 1.0); let d = normalize(b.xyz / b.w - a.xyz / a.w);
+  let a = G.ivp * vec4<f32>(i.p, -1.0, 1.0); let b = G.ivp * vec4<f32>(i.p, 0.5, 1.0); let d = normalize(b.xyz / b.w - a.xyz / a.w);
   let cubo = textureSample(t_cubo, s_cla, d).rgb; let tc = i32(G.tinte.w);
   if (tc > 0) {
     var g: vec3<f32>;

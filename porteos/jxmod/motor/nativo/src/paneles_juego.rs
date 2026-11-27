@@ -38,6 +38,8 @@ pub enum PanelIni {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Acc { Volver, Cerrar, Cat(usize), Mapa(String), Empezar, Hora, Mods, Vr, Entrar(String), MasLleno, CrearServer, Lan, Refrescar, Buscar, Tab(usize), Skin(String),
     CrearBase(String), CrearEmpezar, AjTab(usize), Aj(usize, usize), Listo, AjCancelar, AjAplicar, Idioma(usize), GMod, CuentaNo, NovVer, Nada,
+    /// Bugs y sugerencias: abrir o cerrar uno (por su id) y volver a pedir la lista
+    BugVer(String), BugRecargar,
     /// Crear server: el nombre, la clave, el modo (PvP o no), prender PvP / RPG / nextbots (0, 1, 2), los topes (0 props,
     /// 1 autos: más o menos un paso) y crearlo
     SrvNombre, SrvClave, SrvModo(bool), SrvTg(u8), SrvPaso(u8, i32), SrvCrear,
@@ -79,6 +81,20 @@ pub fn skin_nombre(s: &str) -> String {
         "PilotFemale" => "Alas", "Butcher" => "Carnicero", "Swat" => "Sombra", "Military" => "Duna", "Engineer" => "Chispa", x => npc::skin_nom(x) }.to_string()
 }
 
+/// un bug o una idea publicada (panel/posts de la tienda: lo mismo que la web)
+#[derive(Clone, Debug, Default)]
+pub struct PostBug { pub id: String, pub titulo: String, pub texto: String, pub nombre: String, pub version: String, pub estado: String, pub respuesta: Option<String>, pub likes: i64, pub creado: f64 }
+impl PostBug {
+    fn de(v: &serde_json::Value) -> Option<PostBug> {
+        let s = |k: &str| v[k].as_str().unwrap_or("").to_string();
+        Some(PostBug { id: v["id"].as_str()?.to_string(), titulo: s("titulo"), texto: s("texto"), nombre: s("nombre"), version: s("version"), estado: s("estado"), respuesta: v["respuesta"].as_str().filter(|x| !x.trim().is_empty()).map(String::from), likes: v["likes"].as_i64().unwrap_or(0), creado: v["creado"].as_f64().unwrap_or(0.0) })
+    }
+}
+/// los posts de una respuesta de panel/posts
+pub fn posts_de(b: &[u8]) -> Result<Vec<PostBug>, String> {
+    let v: serde_json::Value = serde_json::from_slice(b).map_err(|e| e.to_string())?;
+    Ok(v["posts"].as_array().map(|a| a.iter().filter_map(PostBug::de).collect()).unwrap_or_default())
+}
 /// el estado de los paneles que no está en PanelIni (lo de la última vez: las zonas que se tocan, la entrada, el dedo)
 #[derive(Default)]
 pub struct EstPaneles { pub zonas: Vec<([f32; 4], Acc)>, pub t0: f32, dedo: Option<(i32, f32, f32, f32, f32, bool)>, pub apretado: Option<Acc>,
@@ -87,6 +103,9 @@ pub struct EstPaneles { pub zonas: Vec<([f32; 4], Acc)>, pub t0: f32, dedo: Opti
     pub escena: [f32; 4], pub giro: f32,
     /// el formulario de Crear server
     pub srv: SrvForm,
+    /// Bugs y sugerencias: lo publicado de cada pestaña (bug, sug) que llegó del servidor, si se está pidiendo, el error y el
+    /// abierto (para leerlo entero)
+    pub bugs: [Option<Vec<PostBug>>; 2], pub bugs_pidiendo: [bool; 2], pub bugs_error: Option<String>, pub bug_abierto: Option<String>,
     /// la ventana del panel de este cuadro (la flecha para volver y la X)
     pub chrome: std::cell::Cell<Option<aero::Ventana>>,
     /// los ajustes como estaban al abrir Opciones (para Cancelar)
@@ -171,7 +190,9 @@ impl Juego {
             (_, Acc::WsMas) => self.ws_buscar(false),
             (Some(PanelIni::Tienda { tab, .. }), Acc::Cat(k)) => self.ini.panel = Some(PanelIni::Tienda { tab, cat: k }),
             (Some(PanelIni::Personajes { .. }), Acc::Tab(k)) => self.ini.panel = Some(PanelIni::Personajes { tab: k, scroll: 0.0 }),
-            (Some(PanelIni::Bugs { .. }), Acc::Tab(k)) => self.ini.panel = Some(PanelIni::Bugs { tab: k, scroll: 0.0 }),
+            (Some(PanelIni::Bugs { .. }), Acc::Tab(k)) => { self.ini.panel = Some(PanelIni::Bugs { tab: k, scroll: 0.0 }); self.ini.pn.bug_abierto = None; }
+            (_, Acc::BugVer(id)) => { self.ini.pn.bug_abierto = if self.ini.pn.bug_abierto.as_deref() == Some(id.as_str()) { None } else { Some(id) }; }
+            (_, Acc::BugRecargar) => { self.ini.pn.bugs = [None, None]; self.ini.pn.bugs_error = None; }
             (_, Acc::Skin(s)) => { self.skin = s.clone(); if let Some(d) = &self.datos { let _ = std::fs::write(d.join("skin.txt"), &s); } self.ini.cuerpo_nuevo = true; }
             (_, Acc::CrearBase(m)) => self.ini.pn.base = Some(m),
             (_, Acc::CrearEmpezar) => { let m = self.ini.pn.base.clone().unwrap_or_default(); self.ini_empezar(&m); self.jug.noclip = true; self.avisar("Volá libre y armá tu mapa con el menú de props".into()); }
@@ -1007,17 +1028,32 @@ impl Juego {
         self.ini.pn.contenido = cont; self.ini.pn.alto_contenido = alto;
     }
 
+    /// pide al servidor lo publicado de la pestaña (0 bugs, 1 sugerencias), una vez (Actualizar lo vuelve a pedir)
+    fn bugs_pedir(&mut self, k: usize) {
+        if self.ini.pn.bugs[k].is_some() || self.ini.pn.bugs_pidiendo[k] || self.ini.pn.bugs_error.is_some() { return; }
+        let Some(h) = self.gmod.http_bin.clone() else { self.ini.pn.bugs_error = Some("sin conexión".into()); return };
+        self.ini.pn.bugs_pidiendo[k] = true; let tx = self.gmod.tx.clone();
+        let url = format!("{}panel/posts?tipo={}&orden=nuevo&p=0", super::gmod_juego::TIENDA_URL, if k == 0 { "bug" } else { "sug" });
+        std::thread::spawn(move || { let r = h(&url).and_then(|(c, b)| if c == 200 { Ok(b) } else { Err(format!("HTTP {c}")) }); let _ = tx.send((format!("bugs:{k}"), r)); });
+    }
+    /// llegó lo publicado de una pestaña
+    pub(super) fn bugs_llegaron(&mut self, k: usize, r: Result<Vec<u8>, String>) {
+        let k = k.min(1); self.ini.pn.bugs_pidiendo[k] = false;
+        match r.and_then(|b| posts_de(&b)) { Ok(l) => self.ini.pn.bugs[k] = Some(l), Err(e) => self.ini.pn.bugs_error = Some(e) }
+    }
     /// Bugs y sugerencias (panel_juego.js): las pestañas Bugs, Sugerencias y Novedades (el registro de novedades.js); los
     /// publicados necesitan la tienda en línea
     fn pn_bugs(&mut self, p: &mut Pincel, m: &Pm, tab: usize, scroll: f32, t: f32, z: &mut Vec<([f32; 4], Acc)>) {
         let notas = novedades();
+        if tab < 2 { self.bugs_pedir(tab); }
         let (alto, cont) = self.pn_marco(p, m, t, |p, c| {
             let (xt, hc) = self.pn_cabecera(p, m, c, "!", Some(("bicho", AMA)), "Bugs y sugerencias", t);
             let tabs = [("Bugs", "bicho"), ("Sugerencias", "foco"), ("Novedades", "estrella")]; let mut x = xt + m.u; let ty = c[1] + (hc - 1.0 - m.ph) / 2.0;
             for (k, (n, ic)) in tabs.iter().enumerate() { let w = self.pn_pestana_ancho(p, m, n, None, true); if x + w > c[0] + c[2] - 16.0 { break; } self.pn_pestana(p, m, [x, ty, w, m.ph], n, None, Some(ic), k == tab, Acc::Tab(k), z); x += w + 4.0; }
             let pie_h = m.ph + 2.0 + m.u * 1.5 + 1.0; let pie = self.pn_pie(p, m, c, pie_h, t, z);
             if tab < 2 { let s = if tab == 0 { "Contar un bug" } else { "Dar una idea" }; let wp = self.pn_principal_ancho(p, m, s); let pby = pie[1] + 1.0 + (pie_h - 1.0 - m.ph) / 2.0;
-                self.pn_principal(p, m, [pie[0] + pie[2] - m.u * 1.5 - wp, pby - 1.0, wp, m.ph + 2.0], s, "mas", Acc::CuentaNo, z); }
+                self.pn_principal(p, m, [pie[0] + pie[2] - m.u * 1.5 - wp, pby - 1.0, wp, m.ph + 2.0], s, "mas", Acc::CuentaNo, z);
+                let wa = self.pn_boton_ancho(p, m, "Actualizar", true, false); self.pn_boton(p, m, [pie[0] + pie[2] - m.u * 1.5 - wp - m.u - wa, pby, wa, m.ph], "Actualizar", Some("girar"), false, Acc::BugRecargar, z); }
             let cu = [c[0], c[1] + hc, c[2], pie[1] - c[1] - hc]; let u = m.u; let mut alto = 0.0;
             p.con_recorte(cu, |p| {
                 let x0 = cu[0] + u * 1.4; let w = cu[2] - u * 2.8; let mut y = cu[1] + u - scroll;
@@ -1031,7 +1067,44 @@ impl Juego {
                         self.pn_parrafo(p, x0 + u, y + u * 1.2 + m.ft * 1.3, w - u * 2.0, m.fs, m.fs * 1.4, PN_T2, &n.es, false);
                     }); }
                     y += h + u * 0.6; }
-                } else { p.texto(Cara::S4, m.ft, x0, y + m.ft * 1.2, PN_T2, 0.0, if tab == 0 { "Todavía no hay bugs publicados (los publicados están en la tienda en línea)." } else { "Todavía no hay sugerencias publicadas." }); y += m.ft * 2.0; }
+                } else {
+                    // (lo publicado, del servidor —lo mismo que se ve en la web—: el título, el estado, quién y cuándo, el texto —tocándolo,
+                    // entero— y la respuesta si hay)
+                    let k = tab.min(1);
+                    match (&self.ini.pn.bugs[k], &self.ini.pn.bugs_error) {
+                        (None, Some(e)) => { p.texto_max(Cara::S4, m.ft, x0, y + m.ft * 1.2, PN_T2, 0.0, &format!("No se pudo traer lo publicado ({e}). Tocá Actualizar."), w); y += m.ft * 2.0; }
+                        (None, None) => { p.texto(Cara::S4, m.ft, x0, y + m.ft * 1.2, PN_T2, 0.0, "Cargando lo publicado…"); y += m.ft * 2.0; }
+                        (Some(l), _) if l.is_empty() => { p.texto(Cara::S4, m.ft, x0, y + m.ft * 1.2, PN_T2, 0.0, if tab == 0 { "Todavía no hay bugs publicados." } else { "Todavía no hay sugerencias publicadas." }); y += m.ft * 2.0; }
+                        (Some(l), _) => {
+                            let ahora = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as f64).unwrap_or(0.0);
+                            for (i, b) in l.iter().enumerate() {
+                                let abierto = self.ini.pn.bug_abierto.as_deref() == Some(b.id.as_str());
+                                let rs = p.at.renglones(Cara::S4, m.fs, 0.0, &b.texto, w - u * 2.0); let nr = if abierto { rs.len().min(40) } else { rs.len().min(3) };
+                                let rr = b.respuesta.as_ref().map(|r| p.at.renglones(Cara::S4, m.fs, 0.0, &format!("Respuesta: {r}"), w - u * 3.0)).unwrap_or_default(); let nrr = if abierto { rr.len().min(20) } else { rr.len().min(2) };
+                                let h = u * 0.8 + m.ft * 1.3 + m.fs * 1.4 + nr as f32 * m.fs * 1.35 + if nrr > 0 { nrr as f32 * m.fs * 1.35 + u * 0.9 } else { 0.0 } + u * 0.8;
+                                if y + h > cu[1] && y < cu[1] + cu[3] {
+                                    let (est, col) = match b.estado.as_str() { "visto" => ("Visto", rgba(0x5fa8ff, 1.0)), "en_curso" => ("En curso", rgba(0xffb84d, 1.0)), "hecho" => ("Hecho", rgba(0x5fd36a, 1.0)), "no" => ("No va", rgba(0xff6b6b, 1.0)), _ => ("Nuevo", rgba(0x9aa3b2, 1.0)) };
+                                    self.pn_cascada(p, t, i.min(12), |p| {
+                                        p.rect(x0, y, w, h, if abierto { rgba(0x1d2733, 0.95) } else { PN_PL2 }); p.borde(x0, y, w, h, 1.0, if abierto { con_a(AMA, 0.5) } else { PN_LIN });
+                                        p.rect(x0, y, 3.0, h, col);
+                                        // (el estado, como etiqueta de color a la derecha)
+                                        let fe = m.fs * 0.85; let we = p.at.ancho(Cara::S7, fe, 0.04, est) + u; let xe = x0 + w - u - we;
+                                        p.rect(xe, y + u * 0.6, we, fe * 1.5, con_a(col, 0.22)); p.borde(xe, y + u * 0.6, we, fe * 1.5, 1.0, con_a(col, 0.8));
+                                        p.texto_c(Cara::S7, fe, xe + we / 2.0, y + u * 0.6 + fe * 1.1, col, 0.04, est);
+                                        p.texto_max(Cara::S7, m.ft, x0 + u, y + u * 0.6 + m.ft, TX, 0.02, &b.titulo, xe - x0 - u * 2.0);
+                                        let dias = ((ahora - b.creado) / 86_400_000.0).max(0.0); let cuando = if dias < 1.0 { format!("hace {:.0} h", (dias * 24.0).max(1.0)) } else { format!("hace {:.0} días", dias) };
+                                        let meta = format!("por {} · v{} · {} · {} me gusta", if b.nombre.is_empty() { "alguien" } else { &b.nombre }, b.version, cuando, b.likes);
+                                        let mut yy = y + u * 0.8 + m.ft * 1.3; p.texto_max(Cara::S4, m.fs * 0.9, x0 + u, yy + m.fs, PN_T3, 0.0, &meta, w - u * 2.0); yy += m.fs * 1.4;
+                                        for (k2, r) in rs.iter().take(nr).enumerate() { let r = if !abierto && k2 + 1 == nr && rs.len() > nr { format!("{r}…") } else { r.clone() }; p.texto(Cara::S4, m.fs, x0 + u, yy + m.fs, PN_T2, 0.0, &r); yy += m.fs * 1.35; }
+                                        if nrr > 0 { yy += u * 0.3; p.rect(x0 + u, yy, w - u * 2.0, nrr as f32 * m.fs * 1.35 + u * 0.4, rgba(0x15301c, 0.9)); for r in rr.iter().take(nrr) { p.texto(Cara::S4, m.fs, x0 + u * 1.5, yy + m.fs, rgba(0x9be59f, 1.0), 0.0, r); yy += m.fs * 1.35; } }
+                                    });
+                                    zona(p, z, [x0, y.max(cu[1]), w, (y + h).min(cu[1] + cu[3]) - y.max(cu[1])], Acc::BugVer(b.id.clone()));
+                                }
+                                y += h + u * 0.6;
+                            }
+                        }
+                    }
+                }
                 alto = y + scroll - cu[1];
             });
             (alto, cu)

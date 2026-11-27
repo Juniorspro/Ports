@@ -251,6 +251,14 @@ fn main() {
         let v = id.and_then(|i| j.fis.cuerpo(i)).map(|b| b.vel).unwrap_or_default(); println!("patada: la caja sale a {:.2} m/s (la web: hasta 9 m/s, más arriba)", (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt());
         paso(&mut j, &mut m, 60);
     }
+    // (las tres de JXMod en la mano: quietas, disparando y de cerca —JXM_SOLO=armas—)
+    if hace("armas") {
+        for n in ["PhysicsGun", "GravityGun", "ToolBaton"] {
+            let Some(i) = jxmod::armas::ARMAS.iter().position(|a| a.n == n) else { continue };
+            j.armas.elegir(&mut j.fis, i); j.jug.pitch = -0.15; paso(&mut j, &mut m, 70); foto(&mut m, &format!("arma_{n}"));
+            let (x, y) = jxmod::comun::pos_boton(wf, hf, jxmod::comun::Boton::Disparo); j.dedo_abajo(91, x, y, wf, hf); paso(&mut j, &mut m, 6); foto(&mut m, &format!("arma_{n}_tiro")); j.dedo_arriba(91); paso(&mut j, &mut m, 30);
+        }
+    }
     if hace("hud") {
         // el HUD como la web (hud_web.rs): la barra de armas abierta en fila arriba a la derecha, la Pistol con sus balas en el
         // recuadro del arma, y la linterna y la cámara libre prendidas (amarillas, con el ícono negro)

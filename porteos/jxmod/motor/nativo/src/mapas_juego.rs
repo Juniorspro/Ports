@@ -15,6 +15,10 @@ use jxmotor::escena::{Caras, Cielo, ItemDin, Lm, Luz, Malla, Mat, Niebla, FL_CIE
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
+/// el mapa de inicio: gm_construct al estilo Windows 7 / Frutiger Aero, del Workshop (en lugar del gm_construct de siempre):
+/// su clave en la lista, el número del Workshop, el nombre y lo que pesa. No viene en la APK: se baja la primera vez que se
+/// entra (con la barra de la pantalla de carga) y queda como cualquier addon bajado
+pub const MAPA_INICIAL: (&str, &str, &str, f32) = ("WS_gm_construct_win7", "3764805005", "gm_construct_win7", 72.8);
 /// la gravedad de Source (sv_gravity 600 unidades por segundo²: 15,24 m/s²) sobre la de la Tierra: la de los mapas de Source
 pub(crate) const GRAVEDAD_SOURCE: f32 = 600.0 * 0.0254 / 9.81;
 
@@ -170,11 +174,35 @@ impl Juego {
         let k = format!("wsm:{clave}");
         if self.ini_foto_lista(&k) { return Some(k); }
         if !self.mj.fotos_buscadas.insert(clave.to_string()) { return None; }
-        let w = self.mj.ws.iter().find(|w| w.clave == clave)?.clone();
+        let Some(w) = self.mj.ws.iter().find(|w| w.clave == clave).cloned() else {
+            // (el de inicio todavía sin bajar: la foto de su página del Workshop)
+            if clave == MAPA_INICIAL.0 { if let Some(h) = self.gmod.http_bin.clone() { let tx = self.gmod.tx.clone(); let c = clave.to_string();
+                std::thread::spawn(move || { let r = h(&format!("{}gmod/detalles?ids={}", super::gmod_juego::TIENDA_URL, MAPA_INICIAL.1)).ok().and_then(|(_, b)| serde_json::from_slice::<serde_json::Value>(&b).ok())
+                    .and_then(|v| v["items"][0]["img"].as_str().map(String::from)).ok_or_else(|| "sin foto".to_string()).and_then(|u| h(&u).map(|x| x.1)); let _ = tx.send((format!("wsmfoto:{c}"), r)); }); } }
+            return None;
+        };
         let base = w.ruta.trim_start_matches("maps/").trim_end_matches(".bsp").to_string();
         let b = [format!("maps/thumb/{base}.png"), format!("maps/thumb/{base}.jpg"), format!("maps/{base}.png"), format!("maps/{base}.jpg")].iter().find_map(|n| archivo_addon(&w.addon, n))?;
         let r = super::gmod_juego::ws_foto_rgba(&b, 512)?; let u = |i: usize| u32::from_le_bytes([r[i], r[i + 1], r[i + 2], r[i + 3]]);
         self.ini_poner_foto(&k, u(0), u(4), r[8..].to_vec()); Some(k)
+    }
+    /// si el mapa elegido es el de inicio y todavía no está bajado: lo baja (una vez) y dice cuánto va —para la pantalla de
+    /// carga— (hecho, total, falló)
+    pub(crate) fn ws_inicial_falta(&mut self) -> Option<(u64, u64, bool)> {
+        let nom = self.mapas.get(self.mapa_i)?.clone();
+        if nom != MAPA_INICIAL.0 || self.mj.ws.iter().any(|w| w.clave == nom) { return None; }
+        // (lo que llegó de la descarga; y si ya está en la carpeta, a la lista)
+        self.gmod_tienda_paso(); self.mapas_registrar();
+        if self.mj.ws.iter().any(|w| w.clave == nom) { return None; }
+        let id = MAPA_INICIAL.1;
+        let k = match self.gmod.tienda.iter().position(|t| t.id == id) { Some(k) => k, None => {
+            self.gmod.tienda.push(super::gmod_juego::ItemTienda { id: id.into(), titulo: MAPA_INICIAL.2.into(), estado: "Bajar".into(), mb: MAPA_INICIAL.3, pipe: true, prog: None }); self.gmod.tienda.len() - 1 } };
+        let est = self.gmod.tienda[k].estado.clone();
+        if est == "Bajar" { self.gmod_bajar(k); if self.gmod.tienda[k].estado != "Bajando…" { return Some((0, 1, true)); } }
+        else if est == "Instalado" { self.gmod.buscar(); self.mj.vistos.clear(); self.mapas_registrar(); return if self.mj.ws.iter().any(|w| w.clave == nom) { None } else { Some((0, 1, true)) }; }
+        else if !est.starts_with("Bajando") { return Some((0, 1, true)); }
+        let (h, t) = self.gmod.tienda[k].prog.as_ref().map(|p| (p.hecho.load(std::sync::atomic::Ordering::Relaxed), p.total.load(std::sync::atomic::Ordering::Relaxed))).unwrap_or((0, 0));
+        Some((h, t.max((MAPA_INICIAL.3 * 1_048_576.0) as u64), false))
     }
     /// el motor se vació para otro mapa: lo armado de los addons ya no está en él, ni lo de este mapa
     pub(crate) fn mapas_vaciado(&mut self) {

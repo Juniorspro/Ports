@@ -507,7 +507,7 @@ vec3 enc(vec3 x) { x = max(x, 0.0); vec3 a = sqrt(x), b = sqrt(a), c = sqrt(b); 
 
 @@NUBES@@
 void main() {
-  vec4 a = uIVP * vec4(vP, -1.0, 1.0), b = uIVP * vec4(vP, 1.0, 1.0); vec3 d = normalize(b.xyz / b.w - a.xyz / a.w);
+  vec4 a = uIVP * vec4(vP, -1.0, 1.0), b = uIVP * vec4(vP, 0.5, 1.0); vec3 d = normalize(b.xyz / b.w - a.xyz / a.w);
   if (uTieneCubo > 0) {
     // (el cielo del mapa, como en WebGL: el degradé y la caja —una imagen ya terminada, sin tono— con su tinte)
     bool ar = d.y > 0.0; vec3 g = mix(uMid, ar ? uTop : uBot, pow(abs(d.y), ar ? uExp.x : uExp.y));
@@ -1340,6 +1340,14 @@ impl Motor {
         } else { gl.draw_elements(glow::TRIANGLES, it.sn as i32, tipo, off); }
     }
 
+    /// (lo sumado —haces de luz, brillos— se pierde en la niebla yendo a negro, como en Source: si tomara el color de la
+    /// niebla, un haz lejano —el de gm_construct_win7 en su cielo 3D— se vuelve una cuña blanca que tapa el cielo)
+    unsafe fn niebla_suma(&self, p: &Prog, suma: bool) {
+        let gl = &self.gl; let l = &self.c.as_ref().unwrap().luz;
+        if suma { gl.uniform_3_f32(p.u(U::NieC), 0.0, 0.0, 0.0); gl.uniform_3_f32(p.u(U::NieS), 0.0, 0.0, 0.0); gl.uniform_4_f32(p.u(U::Nubes), 0.0, 0.0, 0.0, 0.0); }
+        else { gl.uniform_3_f32(p.u(U::NieC), l.nie.c[0], l.nie.c[1], l.nie.c[2]); gl.uniform_3_f32(p.u(U::NieS), l.nie.s[0], l.nie.s[1], l.nie.s[2]); gl.uniform_4_f32(p.u(U::Nubes), if self.op.aaa { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0); }
+    }
+
     /// los uniformes de la pasada (cámara, sol, cielo, niebla, sombra y luces) en un programa
     unsafe fn luces(&self, p: &Prog, vp: &M4, clip: f32) {
         let gl = &self.gl; let c = self.c.as_ref().unwrap(); let l = &c.luz; let s = self.sol(); let cp = &c.pos;
@@ -1981,9 +1989,9 @@ impl Motor {
             for &i in self.transp.iter().filter(|&&i| self.items[i].fl & FL_CIELO != 0) {
                 let it = &self.items[i]; let piel = !it.h.is_empty() && self.mallas[&it.m].piel; let p = if piel { &self.p_luz_piel_c } else { &self.p_luz_c };
                 if act != Some(piel) { act = Some(piel); self.luces(p, &vp, -1e9); }
-                let add = self.mats[&it.mat].add != 0; if add { self.gl.blend_func(glow::SRC_ALPHA, glow::ONE); }
+                let add = self.mats[&it.mat].add != 0; if add { self.gl.blend_func(glow::SRC_ALPHA, glow::ONE); self.niebla_suma(p, true); }
                 self.dibujar_item(p, it, true); self.dibujos += 1;
-                if add { self.gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); }
+                if add { self.gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); self.niebla_suma(p, false); }
             }
             { let gl = &self.gl; gl.disable(glow::BLEND); gl.depth_mask(true); gl.clear(glow::DEPTH_BUFFER_BIT); }
             self.marca("cielo3d");
@@ -2038,12 +2046,12 @@ impl Motor {
             let it = &self.items[i]; if it.fl & FL_CIELO != 0 { continue; } let piel = !it.h.is_empty() && self.mallas[&it.m].piel; let p = if piel { &self.p_luz_piel_c } else { &self.p_luz_c };
             if act != Some(piel) { act = Some(piel); self.luces(p, &vp, -1e9); }
             let add = self.mats[&it.mat].add != 0;
-            if add { self.gl.blend_func(glow::SRC_ALPHA, glow::ONE); }
+            if add { self.gl.blend_func(glow::SRC_ALPHA, glow::ONE); self.niebla_suma(p, true); }
             // (lo transparente del arma, en su franja de la profundidad como lo demás del arma)
             let franja = it.fl & FL_ARMA != 0; if franja { self.gl.depth_range_f32(0.0, FRANJA_ARMA); }
             self.dibujar_item(p, it, true); self.dibujos += 1;
             if franja { self.gl.depth_range_f32(0.0, 1.0); }
-            if add { self.gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); }
+            if add { self.gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA); self.niebla_suma(p, false); }
         }
         if hay_agua {
             // la escena hasta acá (lo opaco y lo transparente), copiada: el agua la ve a través de sí, corrida por las olas
