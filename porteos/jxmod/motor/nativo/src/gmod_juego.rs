@@ -989,6 +989,8 @@ impl Juego {
         for it in self.gmod.tienda.iter_mut() { if let Some(p) = &it.prog { let (h, t) = (p.hecho.load(std::sync::atomic::Ordering::Relaxed), p.total.load(std::sync::atomic::Ordering::Relaxed)); if it.estado.starts_with("Bajando") && t > 0 { it.estado = format!("Bajando {}%", h * 100 / t); } } }
         while let Ok((k, r)) = self.gmod.rx.try_recv() {
             if let Some(g) = k.strip_prefix("ws:") { self.ws_respuesta(g, r); continue; }
+            if k.starts_with("req:") { self.ws_requeridos(r); continue; }
+            if k == "reqdet" { self.ws_requeridos_bajar(r); continue; }
             if let Some(id) = k.strip_prefix("wsgif:") { if let Ok(b) = r { self.ws_hoja(id, &b); } continue; }
             if let Some(id) = k.strip_prefix("wsimg:") { if let Ok(b) = r { if b.len() > 8 { let w = u32::from_le_bytes(b[0..4].try_into().unwrap()); let h = u32::from_le_bytes(b[4..8].try_into().unwrap()); if (w * h * 4) as usize == b.len() - 8 { self.ws_guardar_foto(&format!("ws:{id}"), w, h, b[8..].to_vec()); } } } continue; }
             if k == "lista" {
@@ -1534,6 +1536,28 @@ impl Juego {
             None => { self.gmod.tienda.push(ItemTienda { id: it.id.clone(), titulo: it.t.clone(), estado: "Bajar".into(), mb: it.mb, pipe: !it.dir, prog: None }); self.gmod.tienda.len() - 1 } };
         if self.gmod.http_bin.is_none() { self.avisar("Para bajar de la Workshop hace falta el celular (la conexión de la app)".into()); return; }
         self.gmod_bajar(k); self.avisar(format!("Bajando {}", it.t));
+        // (los «Required items» de su página —la base de armas, las texturas aparte…—: se piden a la tienda y se bajan también)
+        if let Some(h) = self.gmod_http_bin() { let (tx, id) = (self.gmod.tx.clone(), it.id.clone());
+            std::thread::spawn(move || { let r = h(&format!("{}gmod/requiere/{}", TIENDA_URL, id)).and_then(|(c, b)| if c == 200 { Ok(b) } else { Err(format!("HTTP {c}")) }); let _ = tx.send((format!("req:{id}"), r)); }); }
+    }
+    /// lo que pide un addon (sus «Required items»): los que no están instalados, a la tienda con su información y a bajar
+    fn ws_requeridos(&mut self, r: Result<Vec<u8>, String>) {
+        let Some(v) = r.ok().and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok()) else { return };
+        let ids: Vec<String> = v["ids"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default();
+        let faltan: Vec<String> = ids.into_iter().filter(|id| !self.gmod.addons.iter().any(|a| a.ruta.file_stem().map(|s| s.to_string_lossy() == id.as_str()).unwrap_or(false)) && !self.gmod.tienda.iter().any(|t| &t.id == id && t.estado != "Bajar")).take(10).collect();
+        if faltan.is_empty() { return; }
+        let Some(h) = self.gmod_http_bin() else { return }; let tx = self.gmod.tx.clone();
+        std::thread::spawn(move || { let r = h(&format!("{}gmod/detalles?ids={}", TIENDA_URL, faltan.join(","))).and_then(|(c, b)| if c == 200 { Ok(b) } else { Err(format!("HTTP {c}")) }); let _ = tx.send(("reqdet".into(), r)); });
+    }
+    fn ws_requeridos_bajar(&mut self, r: Result<Vec<u8>, String>) {
+        let Some(v) = r.ok().and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok()) else { return };
+        let items: Vec<ItemWs> = v["items"].as_array().map(|a| a.iter().filter_map(ws_item).collect()).unwrap_or_default();
+        let mut nombres = vec![];
+        for it in items {
+            let k = match self.gmod.tienda.iter().position(|t| t.id == it.id) { Some(k) => k, None => { self.gmod.tienda.push(ItemTienda { id: it.id.clone(), titulo: it.t.clone(), estado: "Bajar".into(), mb: it.mb, pipe: !it.dir, prog: None }); self.gmod.tienda.len() - 1 } };
+            if self.gmod.tienda[k].estado == "Bajar" { self.gmod_bajar(k); nombres.push(it.t.clone()); }
+        }
+        if !nombres.is_empty() { self.avisar(format!("También hace falta: {}", nombres.join(", "))); }
     }
     /// prender o apagar un addon instalado (se rearma el Lua, como en el panel Mods)
     pub fn ws_alternar(&mut self, id: &str) {
