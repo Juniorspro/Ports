@@ -50,6 +50,11 @@ impl Gmod {
             Ok(_) => {}
             Err(x) => gma_err(&format!("prelude: {}", x.mensaje())),
         }
+        // (Derma y VGUI: los paneles de verdad, después del prelude)
+        match e.compilar(DERMA.as_bytes(), "gmod/derma.lua").and_then(|f| e.llamar(&f, &[])) {
+            Ok(_) => {}
+            Err(x) => gma_err(&format!("derma: {}", x.mensaje())),
+        }
         e.set_global("SERVER", Valor::Bool(true));
         e.set_global("CLIENT", Valor::Bool(false));
         let (s, c) = (Tabla::nueva_ref(), Tabla::nueva_ref());
@@ -107,7 +112,16 @@ impl Gmod {
         if !g(|g| g.activo) { return; }
         paso(&mut self.lua, dt, choques);
         crate::herramientas::paso(&mut self.lua);
+        llamar_global(&mut self.lua, "__VGUI_Pensar", &[]);
     }
+    /// ¿hay un menú de un addon abierto que toma los toques (MakePopup o gui.EnableScreenClicker)?
+    pub fn vgui_modal(&mut self) -> bool { self.activar(); g(|g| g.activo) && llamar_global(&mut self.lua, "__VGUI_Modal", &[]).first().map(|x| x.es_verdad()).unwrap_or(false) }
+    /// un toque en la pantalla (en unidades del Lua): 1 apretar, 2 mover, 3 soltar; si fue de un menú de un addon
+    pub fn vgui_toque(&mut self, x: f64, y: f64, estado: u8) -> bool { self.activar(); if !g(|g| g.activo) { return false; } llamar_global(&mut self.lua, "__VGUI_Toque", &[Valor::Num(x), Valor::Num(y), Valor::Num(estado as f64)]).first().map(|x| x.es_verdad()).unwrap_or(false) }
+    /// el texto del cuadro de texto que tiene el foco (para abrir el teclado del sistema); None si no hay
+    pub fn vgui_foco_texto(&mut self) -> Option<String> { self.activar(); llamar_global(&mut self.lua, "__VGUI_Foco_Texto", &[]).into_iter().next().filter(|x| !x.es_nil()).map(|x| js_str(&x)) }
+    /// lo que se escribió con el teclado del sistema (enter: lo mandó)
+    pub fn vgui_texto(&mut self, s: &str, enter: bool) { self.activar(); llamar_global(&mut self.lua, "__VGUI_Texto", &[cad(s), Valor::Bool(enter)]); }
     /// las herramientas de la Tool Gun de los addons (para el Tool Gun del juego)
     pub fn herramientas_cuenta(&self) -> usize { self.activar(); g(|g| g.tools_addon.len()) }
     pub fn herramientas(&mut self) -> Vec<crate::HerrAddon> { self.activar(); crate::herramientas::lista(&mut self.lua) }
@@ -279,7 +293,11 @@ impl Gmod {
 
 
 /// el prelude de la web (gmod_prelude.js, GMA_PRELUDE): extensiones de string/table/math, enums, weapon_base...
+/// llamar a una función global del Lua (del lado del cliente); nada si no está
+fn llamar_global(e: &mut Estado, n: &str, args: &[Valor]) -> Vec<Valor> { let f = e.globales().borrow().get_str(n); if let Valor::Func(_) = f { llamar(e, &f, Lado::C, args) } else { Vec::new() } }
 pub const PRELUDE: &str = include_str!("prelude.lua");
+/// los paneles de GMod (Derma y VGUI): árbol, layout, pintado, toques y los controles D*
+pub const DERMA: &str = include_str!("derma.lua");
 
 // ---------------- leer addons ----------------
 impl Addon {
@@ -746,7 +764,8 @@ fn hud(e: &mut Estado) {
     let hay_arma = w.as_ref().map(|w| ce(w, |x| (x.vivo, x.clase.clone())).map(|(v, c)| v && clase_tabla(&c, Lado::C).is_some()).unwrap_or(false)).unwrap_or(false);
     let hay = |ev: &str| g(|g| g.hooks.get(ev).map(|hs| hs.iter().any(|x| x.1.c.is_some())).unwrap_or(false));
     let hay_ef = hay("RenderScreenspaceEffects");
-    let hay_hooks = hay_ef || hay("HUDPaint") || hay("HUDPaintBackground") || hay("PostDrawHUD") || hay("DrawOverlay") || crate::herramientas::hay_activa();
+    let hay_vgui = llamar_global(e, "__VGUI_Hay", &[]).first().map(|x| x.es_verdad()).unwrap_or(false);
+    let hay_hooks = hay_ef || hay("HUDPaint") || hay("HUDPaintBackground") || hay("PostDrawHUD") || hay("DrawOverlay") || crate::herramientas::hay_activa() || hay_vgui;
     g(|g| g.pp = None);
     if !hay_hooks && !hay_arma && !g(|g| g.hud_sucio) { return; }
     g(|g| g.hud_sucio = false);
@@ -762,6 +781,8 @@ fn hud(e: &mut Estado) {
     }
     if hay_arma && h(|h| h.jug().vivo) { if let Some(w) = &w { metodo(e, w, "DrawHUD", Lado::C, &[]); } }
     if h(|h| h.jug().vivo) { crate::herramientas::hud(e); }
+    // (los paneles de los addons, arriba de todo)
+    if hay_vgui { llamar_global(e, "__VGUI_Pintar", &[]); }
     if hay_hooks { hook(e, "DrawOverlay", C, &[]); }
     g(|g| g.dibujo_hud = false);
 }

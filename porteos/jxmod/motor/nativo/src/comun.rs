@@ -87,7 +87,7 @@ pub struct PanelNpc { pub npc: Option<u32>, pub est: String }
 pub enum BtnNpc { Rapida(usize), Arma(Option<npc::Arma>), SkinAnt, SkinSig, Escribir, Borrar, BorrarTodos, Cerrar }
 /// para qué se pidió escribir (el cuadro de texto de Android)
 #[derive(Clone, Debug)]
-pub enum Escribir { Chat, Clave(jxjuego::red::Sala), Nombre, Actitud, Pj, SrvNombre, SrvClave, Buscar }
+pub enum Escribir { Chat, Clave(jxjuego::red::Sala), Nombre, Actitud, Pj, SrvNombre, SrvClave, Buscar, /** un cuadro de texto de un menú de un addon (DTextEntry) */ Vgui }
 /// pedir texto (título, lo que ya hay, hasta cuántas letras, si es contraseña; con un número) y levantar lo escrito
 /// (número y texto, o None si se canceló): en Android, el cuadro de Juego.java (red_android::Teclado)
 pub struct Teclado { pub pedir: Box<dyn Fn(i32, &str, &str, i32, bool)>, pub tomar: Box<dyn Fn() -> Option<(i32, Option<String>)>> }
@@ -426,6 +426,16 @@ impl Juego {
         if self.tut.on { self.tut_toque(x, y, w, h); return; }
         self.dedos.retain(|d| d.id != id);
         if self.ini_dedo_abajo(id, x, y, w, h) { return; }
+        // (un menú de un addon abierto —Derma con MakePopup—: el toque es suyo si cae en uno de sus paneles)
+        if self.gmod.vgui_dedo.is_none() && self.mapa.is_some() {
+            let k = self.gmod.escala_lua().max(1e-3);
+            let tomado = self.gmod.gm.as_mut().map(|g| g.vgui_modal() && g.vgui_toque((x / k) as f64, (y / k) as f64, 1)).unwrap_or(false);
+            if tomado {
+                self.gmod.vgui_dedo = Some((id, x, y));
+                if let Some(t) = self.gmod.gm.as_mut().and_then(|g| g.vgui_foco_texto()) { self.pedir_texto(Escribir::Vgui, "Escribir", &t, 500, false); }
+                return;
+            }
+        }
         if self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel || self.gmod.panel || self.emotes_panel || self.jg.panel() || self.pjs.panel() { self.dedos.push(Dedo { id, palanca: false, boton: None, x0: x, y0: y, x, y }); return; }
         if self.pj_dedo_abajo(id, x, y, w, h) { self.dedos.push(Dedo { id, palanca: false, boton: None, x0: x, y0: y, x, y }); return; }
         let ve = |b: Boton| self.boton_visible(b);
@@ -470,6 +480,7 @@ impl Juego {
     }
     pub fn dedo_mueve(&mut self, id: i32, x: f32, y: f32, h: f32) {
         if self.ed.activo { self.ed_mueve(id, x, y); return; }
+        if let Some((d, _, _)) = self.gmod.vgui_dedo { if d == id { let k = self.gmod.escala_lua().max(1e-3); self.gmod.vgui_dedo = Some((id, x, y)); if let Some(g) = self.gmod.gm.as_mut() { g.vgui_toque((x / k) as f64, (y / k) as f64, 2); } return; } }
         if self.ini_dedo_mueve(id, x, y, h) { return; }
         if self.ajustes.is_some() || self.npc_panel.is_some() { if let Some(d) = self.dedos.iter_mut().find(|d| d.id == id) { d.x = x; d.y = y; } return; }
         // (en el panel de salas, arrastrar baja la lista)
@@ -497,6 +508,7 @@ impl Juego {
     /// al soltar: en el menú, un toque (sin arrastrar) elige
     pub fn dedo_arriba_en(&mut self, id: i32, w: f32, h: f32) {
         if self.ed.activo { self.ed_arriba(id); return; }
+        if let Some((d, x, y)) = self.gmod.vgui_dedo { if d == id { self.gmod.vgui_dedo = None; let k = self.gmod.escala_lua().max(1e-3); if let Some(g) = self.gmod.gm.as_mut() { g.vgui_toque((x / k) as f64, (y / k) as f64, 3); } self.dedo_arriba(id); return; } }
         self.pj_dedo_arriba(id);
         if self.ini_dedo_arriba(id, w, h) { self.dedo_arriba(id); return; }
         if self.menu.is_some() || self.ajustes.is_some() || self.npc_panel.is_some() || self.en_red.panel || self.gmod.panel || self.emotes_panel || self.jg.panel() || self.pjs.panel() {
@@ -562,8 +574,11 @@ impl Juego {
         if let (Escribir::SrvClave, Some(t)) = (&que, &txt) { self.ini.pn.srv.pw = limpio(t, 16); return; }
         // (lo buscado en el menú de objetos: vacío, se borra la búsqueda)
         if let (Escribir::Buscar, Some(t)) = (&que, &txt) { if let Some(m) = self.menu.as_mut() { m.q = limpio(t, 30); m.scroll = 0.0; } return; }
+        // (un cuadro de texto de un menú de un addon: lo escrito, aunque esté vacío, y su OnEnter)
+        if let (Escribir::Vgui, Some(t)) = (&que, &txt) { if let Some(g) = self.gmod.gm.as_mut() { g.vgui_texto(t, true); } return; }
         let Some(t) = txt.map(|t| t.trim().to_string()).filter(|t| !t.is_empty()) else { return };
         match que {
+            Escribir::Vgui => {}
             Escribir::Chat => { if self.en_red.en_sala() { self.en_red.red.chat(&t, None); let n = self.en_red.red.nombre.clone(); self.en_red.al_chat(format!("{n}: {t}")); } }
             Escribir::Clave(s) => self.entrar_sala_con(&s, Some(&t)),
             Escribir::Nombre => { let n: String = t.chars().filter(|c| !c.is_control()).take(20).collect(); self.en_red.poner_nombre(&n); self.avisar(format!("Ahora te ven como «{n}»")); }

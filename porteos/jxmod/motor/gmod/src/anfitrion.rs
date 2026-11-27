@@ -214,6 +214,8 @@ pub enum Cmd2D {
     Trazar(Rgba, f64),
     /// una imagen (un material cargado) en un rectángulo, con su recorte (u0, v0, u1, v1) en píxeles de la imagen
     Imagen { material: String, x: f64, y: f64, w: f64, h: f64, recorte: [f64; 4], alfa: f64 },
+    /// lo que se dibuja después queda dentro de este rectángulo (en la pantalla, sin mover) hasta el próximo Restaurar
+    Recorte { x: f64, y: f64, w: f64, h: f64 },
 }
 
 /// lo que el juego sabe de un material (para la HUD)

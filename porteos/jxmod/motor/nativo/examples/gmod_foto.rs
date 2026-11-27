@@ -134,7 +134,24 @@ fn main() {
         j.camara = 1; paso(&mut j, &mut m, 6); foto(&mut m, "7b_arma_tercera"); j.camara = 0; paso(&mut j, &mut m, 2);
         println!("vista propia {} · modelo de mundo en la mano {}", j.gmod_vista_propia(), j.gmod_arma_mundo());
         // (JXM_LUA: un pedazo de Lua para preguntar algo después de tener el arma 4 s en la mano, como la web)
-        if let Ok(l) = std::env::var("JXM_LUA") { j.jug.yaw = 0.0; j.jug.pitch = 0.0; paso(&mut j, &mut m, 240); println!("lua: {}", j.gmod_lua_texto(&std::fs::read_to_string(&l).unwrap_or(l))); paso(&mut j, &mut m, 2); foto(&mut m, "7c_arma_4s"); }
+        if let Ok(l) = std::env::var("JXM_LUA") { j.jug.yaw = 0.0; j.jug.pitch = 0.0; paso(&mut j, &mut m, 240); println!("lua: {}", j.gmod_lua_texto(&std::fs::read_to_string(&l).unwrap_or(l))); paso(&mut j, &mut m, 2); foto(&mut m, "7c_arma_4s");
+            // (JXM_VGUI_TOCAR: tocar con el dedo lo que el Lua dejó en __p_check, __p_boton y __p_combo)
+            if std::env::var_os("JXM_VGUI_TOCAR").is_some() {
+                let k = j.gmod.escala_lua();
+                let mut tocar = |j: &mut Juego, m: &mut Motor3d, quien: &str| {
+                    let r = j.gmod_lua_texto(&format!("if not IsValid({q}) then return '' end local x, y = {q}:LocalToScreen(math.min(10, {q}:GetWide() / 2), {q}:GetTall() / 2) return x .. ',' .. y", q = quien));
+                    let v: Vec<f32> = r.split(',').filter_map(|x| x.parse().ok()).collect();
+                    if v.len() == 2 { j.dedo_abajo(21, v[0] * k, v[1] * k, wf, hf); paso(j, m, 2); j.dedo_arriba_en(21, wf, hf); paso(j, m, 3); }
+                    println!("tocado {quien} en {r}");
+                };
+                tocar(&mut j, &mut m, "__p_check"); tocar(&mut j, &mut m, "__p_boton"); tocar(&mut j, &mut m, "__p_combo");
+                foto(&mut m, "7d_menu_combo");
+                println!("estado: {}", j.gmod_lua_texto("local o = '' for _, p in ipairs(vgui.GetAll()) do if p:GetClassName() == 'DMenuOption' and p:GetText() == 'Rojo' then _G.__p_rojo = p end end return 'check=' .. tostring(__p_check:GetChecked()) .. ' aplicado=' .. tostring(__aplicado) .. ' menu=' .. tostring(IsValid(__p_rojo) and __p_rojo:IsVisible())"));
+                tocar(&mut j, &mut m, "__p_rojo");
+                println!("combo después: {}", j.gmod_lua_texto("return tostring(__p_combo:GetSelected())"));
+                foto(&mut m, "7e_combo_elegido");
+            }
+        }
     }
     // (JXM_NB: un nextbot delante; persigue al jugador)
     if let Ok(nb) = std::env::var("JXM_NB") {

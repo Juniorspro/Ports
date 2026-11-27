@@ -294,6 +294,8 @@ pub struct EnGmod {
     pub calc: Option<jxgmod::modelos::CalcVista>,
     /// el jugador mira una entidad de un addon que se puede usar (aparece el botón Usar) y si lo tenía apretado
     pub usable: bool, pub usar_ant: bool,
+    /// el dedo que está tocando un menú de un addon (id, x, y en píxeles)
+    pub vgui_dedo: Option<(i32, f32, f32)>,
     /// cómo leer rb/ (la biblioteca gm_lib y rb/jxp: en la APK o en una carpeta; lo pone la app), lo leído y el menú de GMod
     pub lector_rb: Option<LectorRb>, pub(crate) lib: Option<Rc<gmod_base::Biblioteca>>, pub jxp: Option<gmod_base::MenuJxp>, pub menu: gmod_menu::MenuGm,
     /// los modelos de jugador puestos (el jugador y los NPC con uno: gmod_pm.rs)
@@ -310,7 +312,7 @@ impl EnGmod {
     pub fn nueva(datos: Option<&Path>) -> EnGmod {
         let (tx, rx) = channel();
         EnGmod { gm: None, addons: vec![], pendientes: vec![], arma: None, base: 0, teclas: vec![], teclas_de: String::new(), carpeta_externa: None, datos: datos.map(|d| d.to_path_buf()), panel: false, scroll: 0.0, texs: vec![], hud_px: vec![], escala: 1.0,
-            http_bin: None, tienda: vec![], tx, rx, tienda_pedida: false, ms: 0.0, ms_prom: 0.0, pantalla: (1280.0, 720.0), buscado: false, cuenta: BTreeMap::new(), mods: Default::default(), ms_3d: 0.0, calc: None, usable: false, usar_ant: false, lector_rb: None, lib: None, jxp: None, menu: Default::default(), pm: Default::default(), veh_fis: HashMap::new(), bucles: HashMap::new(), t_snd: 0.0, pill: Default::default() }
+            http_bin: None, tienda: vec![], tx, rx, tienda_pedida: false, ms: 0.0, ms_prom: 0.0, pantalla: (1280.0, 720.0), buscado: false, cuenta: BTreeMap::new(), mods: Default::default(), ms_3d: 0.0, calc: None, usable: false, usar_ant: false, vgui_dedo: None, lector_rb: None, lib: None, jxp: None, menu: Default::default(), pm: Default::default(), veh_fis: HashMap::new(), bucles: HashMap::new(), t_snd: 0.0, pill: Default::default() }
     }
     fn apagados_ruta(&self) -> Option<PathBuf> { self.datos.as_ref().map(|d| d.join("gmod_apagados.txt")) }
     /// los addons de las carpetas (.gma y carpetas con lua/), en orden de nombre; los apagados quedan anotados
@@ -750,8 +752,10 @@ impl Juego {
         let blanco = { let mut v = vec![]; l.rect(&mut v, 0.0, 0.0, 1.0, 1.0, [1.0; 4]); (v[2], v[3]) };
         let tri = |u: &mut Vec<f32>, p: [(f32, f32); 3], c: [f32; 4]| for (x, y) in p { u.extend_from_slice(&[x, y, blanco.0, blanco.1, c[0], c[1], c[2], c[3]]); };
         let col = |c: &jxgmod::Rgba| [c[0] as f32 / 255.0, c[1] as f32 / 255.0, c[2] as f32 / 255.0, (c[3] as f32).clamp(0.0, 1.0)];
-        let mut pila: Vec<Af> = vec![];
+        let mut pila: Vec<(Af, Option<[f32; 4]>)> = vec![];
         let mut m: Af = [k, 0.0, 0.0, k, 0.0, 0.0];
+        // (el recorte de los paneles de los addons —Cmd2D::Recorte—, en píxeles de la pantalla)
+        let mut recorte: Option<[f32; 4]> = None;
         let mut camino: Vec<Vec<(f32, f32)>> = vec![];
         let quad = |u: &mut Vec<f32>, m: &Af, x: f32, y: f32, w: f32, h: f32, c: [f32; 4]| {
             let (a, b, cc, d) = (af_mul(m, x, y), af_mul(m, x + w, y), af_mul(m, x + w, y + h), af_mul(m, x, y + h));
@@ -763,9 +767,11 @@ impl Juego {
             tri(u, [p0, p1, p2], c); tri(u, [p0, p2, p3], c);
         };
         for c in &self.gmod.hud_px {
+            let u0 = u.len(); let e0: Vec<usize> = extra.iter().map(|e| e.1.len()).collect();
             match c {
-                Cmd2D::Guardar => pila.push(m),
-                Cmd2D::Restaurar => { if let Some(x) = pila.pop() { m = x; } }
+                Cmd2D::Guardar => pila.push((m, recorte)),
+                Cmd2D::Restaurar => { if let Some((x, r)) = pila.pop() { m = x; recorte = r; } }
+                Cmd2D::Recorte { x, y, w, h } => { recorte = Some([*x as f32 * k, *y as f32 * k, (*x + *w) as f32 * k, (*y + *h) as f32 * k]); }
                 Cmd2D::Mover(x, y) => { let (a, b) = (*x as f32, *y as f32); m[4] += m[0] * a + m[2] * b; m[5] += m[1] * a + m[3] * b; }
                 Cmd2D::Rotar(r) => { let (s, co) = ((*r as f32).sin(), (*r as f32).cos()); let (a, b, cc, d) = (m[0], m[1], m[2], m[3]); m[0] = a * co + cc * s; m[1] = b * co + d * s; m[2] = cc * co - a * s; m[3] = d * co - b * s; }
                 Cmd2D::Rect { x, y, w, h, color, .. } => quad(u, &m, *x as f32, *y as f32, *w as f32, *h as f32, col(color)),
@@ -800,6 +806,10 @@ impl Juego {
                     let ps = [(af_mul(&m, x, y), 0.0, 0.0), (af_mul(&m, x + w, y), 1.0, 0.0), (af_mul(&m, x + w, y + h), 1.0, 1.0), (af_mul(&m, x, y + h), 0.0, 1.0)];
                     for i in [0, 1, 2, 0, 2, 3] { let ((px, py), uu, vv) = ps[i]; g.1.extend_from_slice(&[px, py, uu, vv, 1.0, 1.0, 1.0, *alfa as f32]); }
                 }
+            }
+            if let Some(r) = recorte {
+                if u.len() > u0 { recortar_tris(u, u0, r); }
+                for (i, e) in extra.iter_mut().enumerate() { let d = e0.get(i).copied().unwrap_or(0); if e.1.len() > d { recortar_tris(&mut e.1, d, r); } }
             }
         }
         if self.gmod.panel { self.gmod_menu_iconos(wf, hf, &mut extra); }
@@ -1118,4 +1128,34 @@ impl Juego {
         }
         Some((clave, v as f32, t as f32))
     }
+}
+
+/// recortar los triángulos de `v` desde `desde` (8 valores por vértice: x, y, u, v, r, g, b, a) al rectángulo `r`
+/// (x0, y0, x1, y1): los de afuera se van, los cortados se parten (con su textura y su color interpolados)
+fn recortar_tris(v: &mut Vec<f32>, desde: usize, r: [f32; 4]) {
+    const N: usize = 8;
+    let cola: Vec<f32> = v.split_off(desde);
+    for t in cola.chunks_exact(N * 3) {
+        let dentro_todo = (0..3).all(|i| { let (x, y) = (t[i * N], t[i * N + 1]); x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3] });
+        if dentro_todo { v.extend_from_slice(t); continue; }
+        let mut poli: Vec<[f32; N]> = (0..3).map(|i| { let mut a = [0.0; N]; a.copy_from_slice(&t[i * N..(i + 1) * N]); a }).collect();
+        for (eje, lim, menor) in [(0usize, r[0], false), (0, r[2], true), (1, r[1], false), (1, r[3], true)] {
+            let dentro = |p: &[f32; N]| if menor { p[eje] <= lim } else { p[eje] >= lim };
+            let mut out: Vec<[f32; N]> = Vec::with_capacity(poli.len() + 2);
+            for i in 0..poli.len() {
+                let (a, b) = (poli[i], poli[(i + 1) % poli.len()]);
+                let (ia, ib) = (dentro(&a), dentro(&b));
+                if ia { out.push(a); }
+                if ia != ib { let k = (lim - a[eje]) / (b[eje] - a[eje]); let mut c = [0.0; N]; for j in 0..N { c[j] = a[j] + (b[j] - a[j]) * k; } out.push(c); }
+            }
+            poli = out;
+            if poli.len() < 3 { break; }
+        }
+        if poli.len() < 3 { continue; }
+        for i in 1..poli.len() - 1 { for p in [poli[0], poli[i], poli[i + 1]] { v.extend_from_slice(&p); } }
+    }
+}
+impl EnGmod {
+    /// cuántos píxeles es una unidad de la pantalla del Lua (ScrW() = ancho / escala)
+    pub fn escala_lua(&self) -> f32 { self.escala }
 }

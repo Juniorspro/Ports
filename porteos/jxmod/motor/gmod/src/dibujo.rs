@@ -159,6 +159,10 @@ pub(crate) fn instalar(e: &mut Estado) {
         d2(Cmd2D::Borde { x: num(&ar(a, 0), 0.0) + 0.5, y: num(&ar(a, 1), 0.0) + 0.5, w: num(&ar(a, 2), 0.0) - 1.0, h: num(&ar(a, 3), 0.0) - 1.0, color: rgba(c), ancho: num(&ar(a, 4), 1.0) });
         Ok(())
     });
+    // (los paneles: el lugar y el recorte de cada uno —derma.lua—)
+    let gl = e.globales();
+    def(&gl, "__vgui_poner", |_, a, _| { let n = |i: usize| num(&ar(a, i), 0.0); d2(Cmd2D::Guardar); d2(Cmd2D::Mover(n(0), n(1))); d2(Cmd2D::Recorte { x: n(2), y: n(3), w: n(4), h: n(5) }); Ok(()) });
+    def(&gl, "__vgui_sacar", |_, _, _| { d2(Cmd2D::Restaurar); Ok(()) });
     def(&surface, "DrawLine", |_, a, _| {
         lienzo();
         let c = g(|g| g.dib.col);

@@ -180,6 +180,7 @@ impl Anfitrion for AnfitrionPrueba {
             Cmd2D::Llenar(c) => vec![fmt_s("llenar"), fmt_s(&css(&c))],
             Cmd2D::Trazar(c, w) => vec![fmt_s("trazar"), fmt_s(&css(&c)), n(w)],
             Cmd2D::Imagen { material, .. } => vec![fmt_s("imagen"), fmt_s(&material)],
+            Cmd2D::Recorte { x, y, w, h } => vec![fmt_s("recorte"), n(x), n(y), n(w), n(h)],
         };
         self.d2(v);
     }

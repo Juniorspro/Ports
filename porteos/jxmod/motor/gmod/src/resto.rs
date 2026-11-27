@@ -414,7 +414,15 @@ pub(crate) fn instalar(e: &mut Estado) {
             ok1(o, Valor::Tabla(x))
         });
     }
-    def(&bcl, "Set", |_, a, _| { if let Valor::Tabla(t2) = ar(a, 1) { let nm = js_str(&ar(a, 0)); g(|g| g.bases.set(nm, t2)); } Ok(()) });
+    def(&bcl, "Set", |_, a, _| {
+        if let Valor::Tabla(t2) = ar(a, 1) {
+            let nm = js_str(&ar(a, 0));
+            // (si alguien pidió la clase antes de que exista, su marcador pasa a mirar la de verdad)
+            if let Some(ph) = g(|g| g.bases.get(&nm).cloned()) { if es_ph(&ph) && !Rc::ptr_eq(&ph, &t2) { let m = Tabla::nueva_ref(); m.borrow_mut().set_str("__index", Valor::Tabla(t2.clone())); ph.borrow_mut().set_meta(Some(m)); } }
+            g(|g| g.bases.set(nm, t2));
+        }
+        Ok(())
+    });
     // ---- file ----
     let file = l("file");
     let ws = |v: &Valor| if v.es_nil() { "GAME".to_string() } else { js_str(v) };
