@@ -1,9 +1,9 @@
 {
- "codigo": 26112712,
- "version": "0.45",
+ "codigo": 26112713,
+ "version": "0.46",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 75979014,
- "sha256": "8c084d850f546cd9750ff036897816bf6b0a8ea7bccb5d334ac206de4456737f",
- "notas_es": "La resolución va aparte de la calidad: Automática o de 10 % a 100 %, sin pasar a Personal y sin quitar reflejos, luz global ni sombras (eso se elige con la calidad). Con menos resolución la imagen se estira con un filtro nuevo (Catmull-Rom con bordes suavizados), nítido y sin escalones. La resolución dinámica sólo actúa en Automática, de a 5 % y sin saltos, y el antilag ya no apaga efectos. Arreglado OpenGL 2 con resolución baja.",
- "notas_en": "Resolution is now separate from quality: Automatic or 10% to 100%, without switching to Custom and without removing reflections, global illumination or shadows (those are chosen with the quality preset). Lower resolutions are upscaled with a new filter (Catmull-Rom with smoothed edges), sharp and without stair-steps. Dynamic resolution only works on Automatic, in 5% steps without jumps, and anti-lag no longer turns effects off. Fixed OpenGL 2 at low resolution."
+ "tam": 76011782,
+ "sha256": "c77b015b7892c9e7c7286e7dad87b4671bd540ad73cd1a9b5a07b8490987e488",
+ "notas_es": "Las opciones de los mods (deslizarse, el cuerpo en primera persona y todos los que traen su panel de opciones) aparecen en Herramientas, abajo de todo («Opciones de los mods»): casillas Sí/No, deslizadores, listas y botones. Lo que elegís queda guardado para la próxima partida.",
+ "notas_en": "Mod options (sliding, first person body and every mod that ships an options panel) show up in Tools, at the bottom (Mod options): Yes/No checkboxes, sliders, lists and buttons. Your choices are saved for the next game."
 }
