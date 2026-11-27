@@ -23,8 +23,10 @@ pub struct Cic {
     pub ult: Option<Ult>,
     /// el ambiente rojo (CIC.rojo) y la ayuda ya mostrada; las manos arriba (víctima: no en la nativa sola)
     pub rojo: f32, pub ayudo: bool, pub manos: bool, piso: Option<Piso>,
+    /// las definitivas de los demás de la sala (su ID → adónde pega el rayo y hace cuánto llegó) y cuándo contar la mía
+    red: std::collections::HashMap<String, (Option<V>, f32)>, t_red: f32,
 }
-impl Cic { pub fn mia(&self) -> bool { self.ult.is_some() } }
+impl Cic { pub fn mia(&self) -> bool { self.ult.is_some() } /** (pruebas) cuántas definitivas de otros se ven */ pub fn de_otros(&self) -> usize { self.red.len() } }
 /// el marco de la cabeza (cicMarco): el centro, el giro, la escala y los ojos
 #[derive(Clone, Copy)]
 pub struct Cabeza { pub c: V, pub q: Q, pub s: f32, pub o: [f32; 5] }
@@ -67,6 +69,7 @@ impl Juego {
         self.jg.cic.t_laser = 0.28;
         let o = self.cic_origen(); let d = norm(sub(self.cic_mira(), o)); let h = self.cic_rayo(o, d, 120.0); let p = h.map(|x| x.1).unwrap_or(add(o, esc(d, 120.0)));
         self.jg.cic.rayos.push((o, p, 0.0, 0.3)); self.cic_son_laser(o);
+        self.cic_contar(serde_json::json!({ "f": "l", "o": r3v(o), "p": r3v(p) }));
         if let Some((_, p, n, cu)) = h {
             self.ef.impacto(p, n, Sup::Mundo); self.ef.luz_temporal(p, 5.0, [8.0, 0.6, 0.3], 0.25);
             if let Some(c) = cu {
@@ -84,11 +87,13 @@ impl Juego {
         let f = [self.jug.yaw.sin(), 0.0, self.jug.yaw.cos()];
         self.jg.cic.ult = Some(Ult { pos: self.jug.pos, yaw: self.jug.yaw, t0: self.jg.t, dir: norm(add(esc(f, 0.55), [0.0, 0.84, 0.0])), dir_meta: None, hit: None, t_exp: 0.0, vic: None, sin_pegar: 0.0, ignora: None, encendido: false, terc: self.camara, arma: self.armas.i });
         self.camara = 1; self.jg.cic.piso = None;
+        self.cic_contar(serde_json::json!({ "f": "u", "p": r3v(self.jug.pos), "y": (self.jug.yaw as f64 * 1000.0).round() / 1000.0 }));
         if let Some(k) = ARMAS.iter().position(|d| d.n == "Hands") { self.armas.elegir(&mut self.fis, k); }
     }
     /// cicTerminar: la cámara y el arma como estaban, y 20 s de espera
     fn cic_terminar(&mut self) {
         let Some(u) = self.jg.cic.ult.take() else { return };
+        self.cic_contar(serde_json::json!({ "f": "fin" }));
         self.camara = u.terc; self.jg.cic.espera = ESPERA; self.armas.elegir(&mut self.fis, u.arma);
     }
     /// cicFin: apagar todo (se apagó la Opción, otro mapa)
@@ -111,6 +116,14 @@ impl Juego {
         // (la carga suena mientras dura: un tono que sube)
         if self.jg.cic.apretado && !self.jg.cic.usada { self.sonido.sintetico("CIC_carga", carga_pcm, 48000); self.sonido.bucle("cic_carga", "CIC_carga", 1.0); }
         if self.jg.cic.mia() { self.cic_ult_paso(dt); }
+        // (mi rayo, a la sala cada 0,1 s; los de los demás: su ruido, y se apagan si no llega nada en 2 s)
+        self.jg.cic.t_red -= dt;
+        if let Some(u) = self.jg.cic.ult.as_ref() { if let (Some(h), true) = (u.hit, self.jg.cic.t_red <= 0.0) { let d = u.dir; self.jg.cic.t_red = 0.1;
+            let r4 = |x: f32| (x as f64 * 10000.0).round() / 10000.0; self.cic_contar(serde_json::json!({ "f": "d", "d": [r4(d[0]), r4(d[1]), r4(d[2])], "h": r3v(h) })); } }
+        let mut fuera = vec![];
+        for (id, (hit, edad)) in self.jg.cic.red.iter_mut() { *edad += dt; if *edad > 2.0 || self.en_red.red.remoto(id).is_none() { fuera.push(id.clone()); continue; }
+            if let (Some(_), Some(r)) = (hit, self.en_red.red.remoto(id)) { let o = [r.pos[0] as f32, r.pos[1] as f32 + 0.75, r.pos[2] as f32]; self.sonido.sintetico("CIC_rayo", rayo_pcm, 48000); self.sonido.bucle_ex(&format!("cic_rayo{id}"), "CIC_rayo", 1.2, 1.0, 0.0, Some(o)); } }
+        for id in fuera { self.jg.cic.red.remove(&id); }
         self.jg.cic.rayos.retain_mut(|r| { r.2 += dt; r.2 < r.3 });
         // el ambiente rojo (mientras dura la definitiva)
         let meta = self.jg.cic.ult.as_ref().map(|u| { let x = self.jg.t - u.t0; ss(4.8, 6.2, x) * (1.0 - ss(CINE + FURIA - 0.4, CINE + FURIA + 1.2, x)) }).unwrap_or(0.0);
@@ -224,7 +237,7 @@ impl Juego {
     // ---------------- lo que se dibuja ----------------
     /// cicDibujar: los lentes (en la cara, en la mano o en el piso), los ojos que brillan, el rayo grueso y los láseres
     pub(super) fn cic_items(&self, out: &mut Vec<ItemDin>, cam: V) {
-        if !self.cic_hay() && !self.jg.cic.mia() && self.jg.cic.rayos.is_empty() { return; }
+        if !self.cic_hay() && !self.jg.cic.mia() && self.jg.cic.rayos.is_empty() && self.jg.cic.red.is_empty() { return; }
         let ver_cuerpo = self.camara != 0 && self.jg.nat.rag.is_none();
         if let (Some(h), true, true) = (self.cic_cabeza(), ver_cuerpo, self.pj.as_ref().map_or(false, |p| p.skin == "Ciclope")) {
             let x = self.jg.cic.ult.as_ref().map(|u| self.jg.t - u.t0).unwrap_or(-1.0);
@@ -248,6 +261,8 @@ impl Juego {
         if let Some(u) = &self.jg.cic.ult { let x = self.jg.t - u.t0; if x >= 5.4 { if let Some(hit) = u.hit {
             let k = ss(5.4, 5.75, x) * (1.0 - ss(CINE + FURIA - 0.4, CINE + FURIA, x));
             if k > 0.01 { haz(self.cic_origen(), hit, (0.42 + 0.06 * (self.jg.t * 37.0).sin()) * k, k, self.jg.t, cam, out); } } } }
+        // las definitivas de los demás: desde sus ojos (más o menos) hasta donde pegan
+        for (id, (hit, _)) in &self.jg.cic.red { if let (Some(h), Some(r)) = (hit, self.en_red.red.remoto(id)) { let o = [r.pos[0] as f32, r.pos[1] as f32 + 0.75, r.pos[2] as f32]; haz(o, *h, 0.42 + 0.06 * (self.jg.t * 37.0).sin(), 1.0, self.jg.t, cam, out); } }
         // los láseres suaves
         for r in &self.jg.cic.rayos { let k = 1.0 - r.2 / r.3; haz(r.0, r.1, 0.06 * k + 0.02, k * 0.8, self.jg.t, cam, out); }
     }
@@ -317,7 +332,23 @@ fn rayo_pcm() -> Vec<f32> {
 fn laser_pcm() -> Vec<f32> { let sr = 48000.0f64; let (mut p1, mut p2) = (0.0f64, 0.0f64); (0..(0.3 * sr) as usize).map(|i| { let t = i as f64 / sr; let k = (t / 0.24).min(1.0); let (f1, f2) = (1500.0 * (220.0f64 / 1500.0).powf(k), 1520.0 * (230.0f64 / 1520.0).powf(k)); p1 += f1 / sr; p2 += f2 / sr;
     let g = if t < 0.012 { 0.0001 * (0.4f64 / 0.0001).powf(t / 0.012) } else { 0.4 * (0.0001f64 / 0.4).powf(((t - 0.012) / (0.28 - 0.012)).min(1.0)) };
     ((2.0 * (p1 - (p1 + 0.5).floor()) + if p2.fract() < 0.5 { 1.0 } else { -1.0 }) * g * 0.5) as f32 }).collect() }
-impl Juego { fn cic_son_laser(&mut self, o: V) { self.sonido.sintetico("CIC_laser", laser_pcm, 48000); self.sonido.tocar("CIC_laser", 1.0, 1.0, Some(o)); } }
+fn r3v(v: V) -> [f64; 3] { [(v[0] as f64 * 1000.0).round() / 1000.0, (v[1] as f64 * 1000.0).round() / 1000.0, (v[2] as f64 * 1000.0).round() / 1000.0] }
+impl Juego {
+    /// lo mío del Cíclope, a la sala («cic»: f = l láser, u definitiva, d rayo, fin)
+    fn cic_contar(&mut self, mut d: serde_json::Value) { if self.en_red.en_sala() { d["k"] = "cic".into(); self.en_red.red.publicar("a", &d.to_string(), false); } }
+    /// cicRed: el láser y la definitiva de otro de la sala
+    pub(crate) fn cic_red(&mut self, de: &str, d: &serde_json::Value) {
+        let v = |k: &str, lim: f32| -> Option<V> { let a = d.get(k)?.as_array()?; if a.len() < 3 { return None; } let f = |i: usize| a[i].as_f64().filter(|x| x.is_finite()).unwrap_or(0.0).clamp(-lim as f64, lim as f64) as f32; Some([f(0), f(1), f(2)]) };
+        match d.get("f").and_then(|x| x.as_str()).unwrap_or("") {
+            "l" => { let (Some(o), Some(p)) = (v("o", 1e5), v("p", 1e5)) else { return }; if dist(o, p) > 200.0 { return; }
+                self.jg.cic.rayos.push((o, p, 0.0, 0.3)); self.cic_son_laser(o); let n = norm(sub(o, p)); self.ef.impacto(p, n, Sup::Mundo); self.ef.luz_temporal(p, 5.0, [8.0, 0.6, 0.3], 0.25); }
+            "u" => { if self.en_red.red.remoto(de).is_some() { self.jg.cic.red.insert(de.to_string(), (None, 0.0)); } }
+            "d" => { if let (Some(h), true) = (v("h", 1e5), self.en_red.red.remoto(de).is_some()) { self.jg.cic.red.insert(de.to_string(), (Some(h), 0.0)); } }
+            "fin" => { self.jg.cic.red.remove(de); }
+            _ => {}
+        }
+    }
+    fn cic_son_laser(&mut self, o: V) { self.sonido.sintetico("CIC_laser", laser_pcm, 48000); self.sonido.tocar("CIC_laser", 1.0, 1.0, Some(o)); } }
 
 /// cicPoseDef: de rodillas, agachado con las manos en el piso, la mano a la cara (los lentes), brazos abiertos y el grito;
 /// la cabeza sigue al rayo (en el espacio del personaje: adelante +Z, la izquierda +X)

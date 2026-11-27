@@ -23,6 +23,9 @@ impl Reloj {
     pub unsafe fn nuevo(gl: &glow::Context) -> Option<Reloj> {
         if std::env::var_os("JXM_SIN_RELOJ").is_some() { return None; }
         let ext = gl.supported_extensions();
+        // (los Mali dicen que tienen los medidores pero devuelven cualquier cosa —un Mali-G51 marcaba 3900 ms por cuadro andando
+        // a 60—: con eso la resolución dinámica se iba al piso y se prendía JX Turbo sin hacer falta. Ahí se mide esperando)
+        if gl.get_parameter_string(glow::RENDERER).to_lowercase().contains("mali") { return None; }
         if !(ext.contains("GL_EXT_disjoint_timer_query") || ext.contains("GL_ARB_timer_query") || ext.contains("GL_EXT_timer_query")) { return None; }
         let mut qs = vec![];
         for _ in 0..N { qs.push((gl.create_query().ok()?, false, false)); }
@@ -52,7 +55,8 @@ impl Reloj {
             if !perdida && self.disjunto { perdida = gl.get_parameter_i32(GPU_DISJOINT) != 0; }
             let ns = gl.get_query_parameter_u32(q, glow::QUERY_RESULT) as f32;
             self.qs[k].1 = false;
-            if perdida || ns <= 0.0 { continue; }
+            // (más de 1 s en un cuadro que se mostró: el medidor se equivocó)
+            if perdida || ns <= 0.0 || ns > 1e9 { continue; }
             let ms = ns / 1e6; let x = if inter { &mut self.inter_ms } else { &mut self.real_ms };
             *x = if *x == 0.0 { ms } else { *x * 0.85 + ms * 0.15 };
             self.n += 1;

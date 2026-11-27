@@ -707,6 +707,12 @@ impl Juego {
             "jnt" | "jntP" | "jntS" => self.juntos_red(de, d),
             "animq" | "anim" => self.emo_red(de, d),
             "echar" => self.celu_echado(de, d),
+            "pta" | "mio" => self.mapas_red(k, d),
+            "nk" | "nkarm" => self.nuk_red(k, d),
+            "bocina" | "turbo" => self.red_auto(k, d),
+            "cic" => self.cic_red(de, d),
+            "catap" | "omega" | "omegab" => self.art_red(k, d),
+            "jalar" => self.nat_red(d),
             _ => {}
         }
     }

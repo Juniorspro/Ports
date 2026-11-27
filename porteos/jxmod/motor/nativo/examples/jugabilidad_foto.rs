@@ -219,6 +219,54 @@ fn main() {
         paso(&mut j, &mut m, 40); println!("tele: {} videos · error {:?}", j.med.res.len(), j.med.error); foto(&mut m, "tele_panel");
         j.ini.panel = None; j.ini.desde_juego = false;
     }
+    if hace("mali") {
+        // (el medidor de la placa que miente —JXM_PLACA_FALSA—: qué hacen la resolución dinámica y JX Turbo, y cómo se ve)
+        j.aj.dinamica = true; j.aj.res = 0; j.aj.turbo = true;
+        j.poner_mapa("RB_Flatgrass"); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 60); j.jug.noclip = false;
+        for k in 0..8 { paso(&mut j, &mut m, 40); println!("t{k}: placa {:.0} ms · drs {:.2} · turbo {}", j.placa_ms, j.drs, j.turbo_activo()); }
+        foto(&mut m, "mali");
+    }
+    if hace("red") {
+        // (lo de los demás de la sala, sin broker: un jugador «B1» al lado que pone un piano y una radio con emisora, tira el
+        // láser y la definitiva del Cíclope y una nuclear chica lejos; y lo mío que se cuenta a la sala)
+        j.gmod.http_bin = Some(std::sync::Arc::new(|u: &str| { let o = std::process::Command::new("curl").args(["-s", "--max-time", "30", "-w", "\n%{http_code}", u]).output().map_err(|e| e.to_string())?;
+            let mut b = o.stdout; let i = b.iter().rposition(|c| *c == b'\n').unwrap_or(0); let cod: u16 = String::from_utf8_lossy(&b[i + 1..]).trim().parse().unwrap_or(0); b.truncate(i); Ok((cod, b)) }));
+        j.poner_mapa("RB_Flatgrass"); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 60); j.jug.noclip = false; paso(&mut j, &mut m, 20);
+        let jp = j.jug.pos; let f = [j.jug.yaw.sin(), 0.0, j.jug.yaw.cos()];
+        let r = &mut j.en_red.red; r.prueba_en_sala("prueba"); let _ = r.ordenes();
+        let llega = |j: &mut Juego, sub: &str, d: serde_json::Value| { let mut d = d; d["i"] = "B1".into(); j.en_red.red.mensaje(jxjuego::red::Con::Sala, &format!("prueba/{sub}"), d.to_string().as_bytes()); };
+        let bp = [jp[0] + f[0] * 4.0 + f[2] * 2.0, jp[1], jp[2] + f[2] * 4.0 - f[0] * 2.0];
+        llega(&mut j, "e", serde_json::json!({ "n": "Bea", "k": "Hero", "p": [bp[0], bp[1], bp[2]], "y": 0, "t": 0, "v": [0, 0, 0], "f": 5, "vz": 1 }));
+        // (una emisora de verdad de la tienda para su radio)
+        let est = std::process::Command::new("curl").args(["-s", "--max-time", "30", &format!("{}radio?tag=lofi", jxmod::comun::gmod_juego::TIENDA_URL)]).output().ok().and_then(|o| serde_json::from_slice::<serde_json::Value>(&o.stdout).ok()).and_then(|v| v["items"][0]["id"].as_str().map(String::from)).unwrap_or_default();
+        println!("emisora de prueba: {est}");
+        let piso = jp[1] - 0.98;
+        llega(&mut j, "a", serde_json::json!({ "k": "ent", "n": 7, "d": { "t": "piano", "p": [bp[0] + f[2] * 3.0, piso, bp[2] - f[0] * 3.0], "yaw": 0.3 } }));
+        llega(&mut j, "a", serde_json::json!({ "k": "ent", "n": 8, "d": { "t": "radio", "p": [bp[0] - f[2] * 1.5, piso, bp[2] + f[0] * 1.5], "yaw": 0.0 } }));
+        llega(&mut j, "a", serde_json::json!({ "k": "radio", "n": 8, "v": format!("rb:{est}"), "s": 0, "t": "Lofi de prueba" }));
+        llega(&mut j, "a", serde_json::json!({ "k": "cic", "f": "l", "o": [bp[0], bp[1] + 0.7, bp[2]], "p": [jp[0] + f[0] * 12.0, piso, jp[2] + f[2] * 12.0] }));
+        llega(&mut j, "a", serde_json::json!({ "k": "cic", "f": "u", "p": [bp[0], bp[1], bp[2]], "y": 0 }));
+        llega(&mut j, "a", serde_json::json!({ "k": "cic", "f": "d", "d": [0, 0, 1], "h": [bp[0] + f[0] * 20.0, piso, bp[2] + f[2] * 20.0] }));
+        llega(&mut j, "a", serde_json::json!({ "k": "nk", "n": "NK_littleboy", "p": [jp[0] + f[0] * 400.0, piso, jp[2] + f[2] * 400.0] }));
+        // (cosas raras que no tienen que romper nada)
+        llega(&mut j, "a", serde_json::json!({ "k": "ent", "n": 9, "d": { "t": "zona_muerte", "p": [0, 0, 0] } }));
+        llega(&mut j, "a", serde_json::json!({ "k": "nk", "n": "NK_nada", "p": [1e30, 0, 0] }));
+        llega(&mut j, "a", serde_json::json!({ "k": "pta", "n": 9999, "a": 1 })); llega(&mut j, "a", serde_json::json!({ "k": "jalar", "to": "otro" }));
+        unsafe { j.red_eventos_prueba(&mut m); }
+        let t0 = std::time::Instant::now(); while j.med.radios.is_empty() && t0.elapsed().as_secs() < 20 { paso(&mut j, &mut m, 1); std::thread::sleep(std::time::Duration::from_millis(50)); }
+        paso(&mut j, &mut m, 6);
+        let de_b: Vec<String> = j.jg.ents.lista.iter().filter(|e| e.dueno.is_some()).map(|e| e.t.clone()).collect();
+        println!("entidades de B1: {:?} · radios sonando: {:?} · nucleares vivas: {} · definitivas de otros: {}", de_b, j.med.radios.values().map(|r| r.1.clone()).collect::<Vec<_>>(), j.jg.nuk_vivas(), j.jg.cic_red());
+        mirar(&mut j, [jp[0] - f[0] * 2.0, jp[1] + 1.5, jp[2] - f[2] * 2.0], [bp[0], piso + 0.6, bp[2]]); paso(&mut j, &mut m, 2); foto(&mut m, "red_de_otro");
+        // (que se fue: sus entidades también)
+        llega(&mut j, "a", serde_json::json!({ "k": "chau" })); unsafe { j.red_eventos_prueba(&mut m); } paso(&mut j, &mut m, 3);
+        println!("después de irse: {} entidades de B1", j.jg.ents.lista.iter().filter(|e| e.dueno.is_some()).count());
+        // (lo mío: pongo el piano de las Opciones —se cuenta «ent»—; nadie más contesta)
+        let _ = j.en_red.red.ordenes(); j.jg.ents.poner = Some("piano"); paso(&mut j, &mut m, 3);
+        let mias: Vec<String> = j.en_red.red.ordenes().into_iter().filter_map(|o| match o { jxjuego::red::Orden::Publicar { topic, payload, .. } if topic == "prueba/a" => Some(payload), _ => None }).collect();
+        println!("lo que conté a la sala: {:?}", mias.iter().map(|p| p.chars().take(90).collect::<String>()).collect::<Vec<_>>());
+        j.en_red.red.sala = None; j.en_red.red.room.clear();
+    }
     if hace("voz") {
         // (la voz por cercanía en una sala: el botón del micrófono al lado del chat, prendido, y la ficha de «vos» hablando con
         // un micrófono de mentira que da sílabas)

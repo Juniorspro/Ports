@@ -490,6 +490,8 @@ impl Juego {
             // (los cuerpos de choque, donde quedó cada puerta)
             for i in 0..p.l.len() { if !p.l[i].sucio { continue; } p.l[i].sucio = false; for &(id, c) in &self.mj.pj[i].cuerpos { let (pp, q) = p.pos_cuerpo(i, [c[0] as f32, c[1] as f32, c[2] as f32]); self.fis.poner(id, [pp[0] as f64, pp[1] as f64, pp[2] as f64], [q[0] as f64, q[1] as f64, q[2] as f64, q[3] as f64]); } }
             for e in std::mem::take(&mut p.ev) { self.mapas_evento(e); }
+            // (lo que se abrió o se apretó acá: a la sala, como la web)
+            let sala = std::mem::take(&mut p.sala); if self.en_red.en_sala() { for d in sala { self.en_red.red.publicar("a", &d.to_string(), false); } }
             self.mj.pta = Some(p);
         }
         // las puertas portal (en un vehículo no: el addon lleva a las personas)
@@ -525,6 +527,18 @@ impl Juego {
         match u { Usar::Puerta(i) => p.usar_puerta(i, self.jug.pos), Usar::Boton(b) => p.usar_boton(b, &jug) }
         let ev = std::mem::take(&mut p.ev); for e in ev { self.mapas_evento(e); }
         true
+    }
+    /// una puerta o un botón del mapa de otro de la sala («pta» y «mio»)
+    pub(crate) fn mapas_red(&mut self, k: &str, d: &serde_json::Value) {
+        let jug = Jug { pos: self.jug.pos, radio: self.jug.radio, vivo: self.jug.vida > 0.0, noclip: self.jug.noclip, cam: self.ojos_ult };
+        let Some(p) = self.mj.pta.as_mut() else { return };
+        let n = |c: &str| d.get(c).and_then(|v| v.as_f64()).filter(|x| x.is_finite() && *x >= 0.0).map(|x| x as usize);
+        match k {
+            "pta" => if let Some(i) = n("n") { p.red_puerta(i, jxjuego::red::verdad(d.get("a")), d.get("s").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32, jug.pos); },
+            "mio" => if let Some(b) = n("b") { p.red_boton(b, &jug); },
+            _ => return,
+        }
+        let ev = std::mem::take(&mut p.ev); for e in ev { self.mapas_evento(e); }
     }
     /// lo que se dibuja de las puertas (donde quedó cada una)
     pub(crate) fn mapas_items(&self, items: &mut Vec<ItemDin>) {

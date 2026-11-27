@@ -313,7 +313,11 @@ struct Parte { nodo: usize, cuerpo: u32, off: M4 }
 /// el muñeco de trapo (P.rag): sus partes, cuál es la cadera y la raíz del último cuadro animado
 #[derive(Clone, Debug)]
 pub struct Rag { partes: Vec<Parte>, cadera: Option<usize>, raiz: M4 }
-impl Rag { pub fn cuerpos(&self) -> impl Iterator<Item = u32> + '_ { self.partes.iter().map(|p| p.cuerpo) } }
+impl Rag {
+    pub fn cuerpos(&self) -> impl Iterator<Item = u32> + '_ { self.partes.iter().map(|p| p.cuerpo) }
+    /// el cuerpo del hueso `n` (P.rag.cuerpos.get(n)) o, si no tiene, el de la cadera
+    pub fn cuerpo_de(&self, n: usize) -> Option<u32> { self.partes.iter().find(|p| p.nodo == n).or_else(|| self.cadera.and_then(|c| self.partes.get(c))).map(|p| p.cuerpo) }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Libre { No, Si, Saltar }

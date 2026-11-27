@@ -71,6 +71,8 @@ pub struct Puertas {
     pub snd: Vec<Snd>, relay: Vec<(String, Vec<Sal>, bool)>, pend: Vec<(f32, Sal, bool)>, t: f32, veces: HashMap<usize, i32>, sig: usize,
     /// lo que pasó (sonidos): lo saca el juego cada cuadro
     pub ev: Vec<Ev>,
+    /// lo que hay que contarle a la sala (puertaAlternar y mioBoton de acá): {k:"pta",n,a,s} y {k:"mio",b}; lo saca el juego
+    pub sala: Vec<serde_json::Value>,
 }
 
 /// una puerta para armar: su definición, su eje, su giro inicial, su casco (en su espacio), su caja y el tren de cascos
@@ -135,7 +137,9 @@ impl Puertas {
     /// dónde va el cuerpo de choque de la puerta (su casco está centrado en `c`)
     pub fn pos_cuerpo(&self, i: usize, c: V) -> (V, Q) { let d = &self.l[i]; (add(d.pos, q_rot(d.q, c)), d.q) }
     /// puertaAlternar: abrir o cerrar (sin decir cuál, lo contrario)
-    pub fn alternar(&mut self, i: usize, abrir: Option<bool>, jug: V) {
+    pub fn alternar(&mut self, i: usize, abrir: Option<bool>, jug: V) { self.alternar_red(i, abrir, jug, false); }
+    /// puertaAlternar(D, abrir, red): la de otro de la sala no se vuelve a contar
+    fn alternar_red(&mut self, i: usize, abrir: Option<bool>, jug: V, red: bool) {
         let d = &mut self.l[i];
         let abrir = abrir.unwrap_or(d.meta < 0.5);
         if abrir && d.def.giro && !d.def.una_via && d.k < 0.02 {
@@ -145,6 +149,8 @@ impl Puertas {
             d.sentido = if dot(sub(girada, cerrada), sub(jug, cerrada)) > 0.0 { -1.0 } else { 1.0 };
         }
         d.meta = if abrir { 1.0 } else { 0.0 }; d.t = 0.0;
+        if !red { let s = d.sentido; self.sala.push(serde_json::json!({ "k": "pta", "n": i, "a": abrir as i32, "s": s })); }
+        let d = &mut self.l[i];
         if !d.def.silencio { let p = if d.con_cuerpo { add(d.pos, q_rot(d.q, d.c)) } else { d.piv }; self.ev.push(Ev::Juego { n: "fn_puerta", p, vol: 0.55 }); }
     }
     /// puertasPaso: cada cuadro, lo que gira, las que se mueven, se cierran solas o se abren al tocarlas, y las zonas.
@@ -208,6 +214,14 @@ impl Puertas {
         let ab = self.l[i].meta > 0.5;
         for x in self.l[i].grupo.clone() { if (self.l[x].meta > 0.5) != ab { self.alternar(x, Some(ab), jug); } }
     }
+    /// puertaRed: una puerta que abrió o cerró otro de la sala (su lado de giro, y se mueve sin volver a contarlo)
+    pub fn red_puerta(&mut self, n: usize, abrir: bool, s: f32, jug: V) {
+        if n >= self.l.len() { return; }
+        if s != 0.0 { self.l[n].sentido = if s > 0.0 { 1.0 } else { -1.0 }; }
+        self.alternar_red(n, Some(abrir), jug, true);
+    }
+    /// mioRed: un botón del mapa que apretó otro (lo que hace a las puertas, cada uno lo hace por su lado)
+    pub fn red_boton(&mut self, b: usize, jug: &Jug) { if b < self.bot.len() { self.boton(b, false, Some(jug)); } }
     /// puertaUsar de un botón (con su ruido)
     pub fn usar_boton(&mut self, b: usize, jug: &Jug) {
         let c = esc(add(self.bot[b].lo, self.bot[b].hi), 0.5); self.ev.push(Ev::Juego { n: "fn_puerta", p: c, vol: 0.25 });
@@ -217,6 +231,7 @@ impl Puertas {
     fn boton(&mut self, b: usize, local: bool, jug: Option<&Jug>) {
         let bb = self.bot[b].clone();
         if bb.bloq { self.disparar(&bb.l, !local, jug); return; }
+        if local { self.sala.push(serde_json::json!({ "k": "mio", "b": b })); }
         self.disparar(&bb.p, !local, jug);
         if bb.tog { self.bot[b].est = !self.bot[b].est; let l = if self.bot[b].est { bb.i } else { bb.o }; self.disparar(&l, !local, jug); }
         else { self.disparar(&bb.i, !local, jug); }
@@ -402,6 +417,30 @@ mod prueba {
         assert!(p.l[0].k > 0.99 && (p.l[0].pos[1] - p.l[0].recorrido).abs() < 1e-3);
         for _ in 0..200 { p.paso(0.01, &j, &mut no); }
         assert_eq!(p.l[0].meta, 0.0);
+    }
+    /// en una sala (puertas.js y mapaio.js): lo que se aprieta y se abre acá se cuenta («mio», «pta»); lo que llega de otro
+    /// hace lo mismo pero no se vuelve a contar (si no, rebotaría entre los dos)
+    #[test]
+    fn puertas_en_la_sala() {
+        let def = PuertaDef { cl: "func_door".into(), usa: true, vel: 100.0, vel_m: 100.0 * GM_S, espera: 1.0, nombre: "p1".into(), dir: [0.0, 1.0, 0.0], sentido: 1.0, ..Default::default() };
+        let mk = || { let ini = PuertaIni { def: def.clone(), piv: [0.0; 3], q0: [0.0, 0.0, 0.0, 1.0], caja: Some(([-1.0, 0.0, -0.1], [1.0, 2.5, 0.1])), casco: vec![], padre: String::new() };
+            let b = BotonBsp { c: ([1.0, 1.0, 1.0], [1.2, 1.2, 1.2]), p: vec![Salida { t: "p1".into(), i: "open".into(), v: String::new(), d: 0.0, n: -1 }], ..Default::default() };
+            Puertas::nuevo(vec![ini], &[b], &[], &[], &Io::default()) };
+        let (mut a, mut b) = (mk(), mk()); let j = jug(); let mut no = |_: usize, _: f32| false;
+        // (A aprieta el botón: cuenta «mio» y, al abrirse la puerta, «pta»)
+        a.usar_boton(0, &j); let sala_a = std::mem::take(&mut a.sala);
+        assert!(sala_a.iter().any(|d| d["k"] == "mio" && d["b"] == 0), "{sala_a:?}");
+        assert!(sala_a.iter().any(|d| d["k"] == "pta" && d["n"] == 0 && d["a"] == 1), "{sala_a:?}");
+        // (a B le llega: la puerta se abre igual y B no cuenta nada)
+        for d in &sala_a { match d["k"].as_str().unwrap() { "mio" => b.red_boton(d["b"].as_u64().unwrap() as usize, &j), "pta" => b.red_puerta(d["n"].as_u64().unwrap() as usize, d["a"] == 1, d["s"].as_f64().unwrap() as f32, j.pos), _ => {} } }
+        assert!(b.sala.is_empty(), "B no rebota: {:?}", b.sala); assert_eq!(b.l[0].meta, 1.0);
+        for _ in 0..120 { a.paso(0.01, &j, &mut no); b.paso(0.01, &j, &mut no); }
+        assert!((a.l[0].k - b.l[0].k).abs() < 1e-4 && b.l[0].k > 0.99, "las dos abiertas igual");
+        // (se cierra sola en A —cuenta «pta» a=0— y en B también por su lado)
+        a.sala.clear(); for _ in 0..200 { a.paso(0.01, &j, &mut no); b.paso(0.01, &j, &mut no); }
+        assert!(a.sala.iter().any(|d| d["k"] == "pta" && d["a"] == 0)); assert_eq!(b.l[0].meta, 0.0);
+        // (un número que no existe no rompe nada)
+        b.red_puerta(99, true, 1.0, j.pos); b.red_boton(99, &j);
     }
     /// un ascensor (func_tracktrain de orientación fija) que sube al apretar un botón y se para en el piso de arriba (OnPass
     /// "ascensor,Stop"), llevando al que está parado arriba

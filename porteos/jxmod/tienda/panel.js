@@ -26,7 +26,7 @@ import { bajaEnlace } from './cuenta.js';
 const VIVO_PUB = 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEiUteKCCZn1+v7no/VloHzEYu1X0Cwqglqy7JmwI9NiiX6O1GGtOVfXqPST8OxETNBf7PUMqUBzTgEvh2uZkvAg==';
 const MIN = 60e3, HORA = 3600e3, DIA = 86400e3;
 const PARTE = 1572864, MEDIA_MAX = 24 * 1048576, MEDIA_DIA = 120 * 1048576, MIMES = /^(image\/(jpeg|png|webp|gif)|video\/(mp4|webm|quicktime))$/;
-const ESTADOS = ['nuevo', 'visto', 'en_curso', 'hecho', 'no'], TIPOS_PUB = ['bug', 'sug'], TIPOS_ADMIN = ['bug', 'sug', 'idea', 'nota'];
+const ESTADOS = ['nuevo', 'visto', 'en_curso', 'hecho', 'no'], TIPOS_PUB = ['bug', 'cel', 'sug'], TIPOS_ADMIN = ['bug', 'cel', 'sug', 'idea', 'nota'];   // (cel: lo de cada celular —cómo anda, qué falla en ése—)
 const ORDENES = ['aviso', 'cielo', 'cine', 'ir', 'guion', 'quitar'];
 const enc = new TextEncoder();
 const hex = (u8) => [...u8].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -289,16 +289,18 @@ export async function panelRutas(req, env, url, r, ip, json, cuentaUsuario, cuen
   if (!r.startsWith('/api/panel/')) return null;
   await tablas(env);
   const ahora = Date.now(); let m;
-  // quien publica desde el juego: la cuenta de Google (si están encendidas) o el aparato
-  const usuario = async () => { const u = cuentaUsuario ? await cuentaUsuario(req, env) : null; if (u) return { id: 'u:' + u.id, nombre: u.nombre }; return cuentaActiva && cuentaActiva(env) ? null : { id: 'ip:' + ip, nombre: '' }; };
+  // quien publica desde el juego: la cuenta (si inició sesión) o, si no, el aparato por su IP —sin cuenta también se publica,
+  // con los mismos límites: una cada 3 minutos, 4 por hora y 10 por día—
+  const usuario = async () => { const u = cuentaUsuario ? await cuentaUsuario(req, env) : null; if (u) return { id: 'u:' + u.id, nombre: u.nombre }; return { id: 'ip:' + ip, nombre: '' }; };
   if (req.method === 'GET' && r === '/api/panel/posts') {
     const tipo = TIPOS_PUB.includes(url.searchParams.get('tipo')) ? url.searchParams.get('tipo') : 'bug', p = Math.max(0, Math.min(200, parseInt(url.searchParams.get('p'), 10) || 0));
     const orden = url.searchParams.get('orden') === 'pop' ? 'likes DESC, creado DESC' : 'creado DESC';
-    const f = await env.DB.prepare(`SELECT * FROM pn_posts WHERE tipo = ?1 AND oculto = 0 AND privado = 0 ORDER BY ${orden} LIMIT 20 OFFSET ${p * 20}`).bind(tipo).all();
+    // (Bugs y sugerencias es sólo de la app de Rust: lo que se publicó desde la web ya no se muestra —queda guardado para el panel del dueño—)
+    const f = await env.DB.prepare(`SELECT * FROM pn_posts WHERE tipo = ?1 AND oculto = 0 AND privado = 0 AND version LIKE 'nativo%' ORDER BY ${orden} LIMIT 20 OFFSET ${p * 20}`).bind(tipo).all();
     return json({ posts: f.results.map((x) => postPublico(x, false)) });
   }
   if (req.method === 'GET' && (m = /^\/api\/panel\/post\/([a-z0-9]{8})$/.exec(r))) {
-    const f = await env.DB.prepare('SELECT * FROM pn_posts WHERE id = ?1 AND oculto = 0 AND privado = 0').bind(m[1]).first();
+    const f = await env.DB.prepare("SELECT * FROM pn_posts WHERE id = ?1 AND oculto = 0 AND privado = 0 AND version LIKE 'nativo%'").bind(m[1]).first();
     return f ? json({ post: postPublico(f, true) }) : json({ error: 'no existe' }, 404);
   }
   if (req.method === 'POST' && r === '/api/panel/post') {
@@ -309,6 +311,10 @@ export async function panelRutas(req, env, url, r, ip, json, cuentaUsuario, cuen
     if (h && h.hora >= 4) return json({ error: 'publicaste mucho esta hora: esperá un rato', espera: 900 }, 429);
     if (h && h.dia >= 10) return json({ error: 'llegaste al máximo de hoy: seguí mañana', espera: 3600 }, 429);
     const d = await req.json().catch(() => ({}));
+    // (sólo desde la app de Rust: la web ya no publica)
+    if (!/^nativo/.test(String(d.version || ''))) return json({ error: 'Bugs y sugerencias es sólo desde la app JXMod' }, 403);
+    // (sin cuenta se publica igual, pero con un nombre de usuario)
+    if (!u.id.startsWith('u:') && linea(d.nombre, 30).length < 2) return json({ error: 'poné un nombre de usuario', nombre: true }, 400);
     const igual = await env.DB.prepare('SELECT id FROM pn_posts WHERE autor = ?1 AND lower(titulo) = lower(?2) AND creado > ?3').bind(u.id, linea(d.titulo, 90), ahora - 7 * DIA).first();
     if (igual) return json({ error: 'ya publicaste eso: está en la lista (si querés, sumale algo con otra publicación más adelante)' }, 409);
     const res = await postNuevo(env, d, u.id, u.nombre || d.nombre, ip, false); return json(res, res.error ? 400 : 200);

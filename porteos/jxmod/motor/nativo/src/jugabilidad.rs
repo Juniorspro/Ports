@@ -177,6 +177,9 @@ impl Jugabilidad {
         match it { "opc:piano" => "Piano gigante", "opc:radio" => "Radio", "opc:volar" => "Volar", "opc:ragdoll" => "Muñeco de trapo", "opc:scp" => "SCP en cuatro patas", "opc:ciclope" => "Cíclope", _ => self.nombres.get(it).map(|s| s.as_str()).unwrap_or(it) }
     }
     pub fn activo(&self, k: &str) -> bool { self.mods.contains(&k) }
+    /// (pruebas) las nucleares que están explotando y las definitivas del Cíclope de los demás
+    pub fn nuk_vivas(&self) -> usize { self.nuk.vivas() }
+    pub fn cic_red(&self) -> usize { self.cic.de_otros() }
 }
 
 impl Juego {
@@ -319,7 +322,10 @@ impl Juego {
     pub(super) fn jg_usar(&mut self) -> bool {
         if self.vehs.jugador.is_some() { return false; }
         // (la radio —una entidad— y la tele —el objeto TV—: su panel)
-        if let Some((id, t)) = self.ent_mirada() { if t == "radio" { self.med_abrir(false, id); return true; } }
+        if let Some((id, t)) = self.ent_mirada() { if t == "radio" {
+            // (la de otro de la sala la maneja su dueño)
+            if self.jg.ents.lista.iter().any(|e| e.id == id && e.dueno.is_some()) { self.avisar("Es la radio de otro: la maneja él".into()); return true; }
+            self.med_abrir(false, id); return true; } }
         let Some(i) = self.mirado() else { return false };
         if self.es_tele(&self.objs[i].nombre) { let id = self.objs[i].id; self.med_abrir(true, id); return true; }
         self.nuk_usar(i) || self.art_usar(i)

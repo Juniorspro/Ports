@@ -18,7 +18,7 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | linterna.js | ◐ | nativo/jugabilidad.rs (sin el Lua de GMod ni la de los demás de la sala; en OpenGL 2, una luz donde pega) |
 | puertas.js, mapaio.js | ✔ (sin avisarle a la sala) | juego/puertas.rs, nativo/mapas_juego.rs |
 | portales.js | ◐ (se cruza; falta ver a través de la puerta) | juego/portales.rs |
-| entidades.js (piano, radio, mega rampa… de los mapas de la comunidad y los mods) | ◐ | radio (Props → Opciones → Radio: emisoras de Radio Browser por la tienda, volumen por oído según el lugar y las paredes); falta piano, mega rampa |
+| entidades.js (piano, radio, mega rampa… de los mapas de la comunidad y los mods) | ✔ | nativo/ent_juego.rs + medios_juego.rs; en la sala, el piano y la radio de las Opciones de cada uno («ent», «entb», «radio» y ROOM/w), con su emisora; falta «musica» (la música de fondo de un mapa) |
 | gmod_bsp.js (mapas del Workshop) | ✔ (sin el contenido de HL2 que la web trae de Steam —gmod_steam.js— ni la luz por lugar de las manos) | juego/bsp.rs, nativo/mapas_juego.rs; prueba: examples/mapas_foto.rs |
 
 ## Jugador, personajes, NPC, vehículos
@@ -46,7 +46,7 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | armas.js, armasjx.js, vista.js | ✔ | nativo/armas.rs, combate.rs, juego/vista.rs |
 | herramientas.js | ✔ | nativo/herramientas.rs |
 | armaaj.js | ✔ | nativo/personajes.rs |
-| nucleares.js, artefactos.js, ciclope.js | ◐ | juego/nucleares.rs, nativo/nuk_juego.rs, cic_juego.rs (sin lo de la red) |
+| nucleares.js, artefactos.js, ciclope.js | ✔ | juego/nucleares.rs, nativo/nuk_juego.rs, cic_juego.rs; en la sala: «nk»/«nkarm», «catap»/«omega»/«omegab» y el láser y la definitiva del Cíclope («cic»), de ida y vuelta (lo de otro lo explota su dueño) |
 | nuclear_vol.js | ✔ | jxmotor/hongo.rs (el mismo sombreador y el mismo ruido 3D; OpenGL 3 y OpenGL 2 —el ruido en un mosaico 2D—; Vulkan y Patata, con los carteles), juego/nucleares.rs (nv_estado, probado contra la web) |
 | celumano.js, celular.js, celulares.js | ✔ (los memes del celular sin sonido; la app de cámara espera la Camera nativa) | juego/celu_ik.rs, celu_pj.rs, celu_vista.rs, celulares.rs, nativo/celu_juego.rs |
 
@@ -72,7 +72,7 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | gmod_modos.js, gmod_server.js, gmod_pipe.js, gmod_steam.js, gmod_cola.js | ✘ | |
 | gmod_personal.js (el menú de GMod de la personal) | ◐ (pestañas, spawnlists, íconos, listas del Lua de GMod; faltan emotes, packs del Workshop, búsqueda) | nativo/gmod_menu.rs, gmod_base.rs |
 | pillpacks.js, pill_gmod.js | ◐ (los propios y los de los Pill Packs del Workshop —pk_pills—: el cuerpo, la vida, la velocidad, el salto, la cámara y las habilidades con la barra de poder; sin niveles, red ni ajustes) | nativo/gmod_pill.rs, gmod/pills.rs |
-| nativos.js | ◐ | nativo/nat_juego.rs (sin lo de la red: que otro jugador te agarre) |
+| nativos.js | ◐ | nativo/nat_juego.rs; en la sala, que otro te agarre el muñeco («jalar»); falta agarrar el de otro desde acá |
 | modmenu.js | ◐ | nativo/jugabilidad.rs (el menú MOD y las Opciones de los mods nativos) |
 | acciones.js (y las teclas de las armas de controles.js) | ✔ | nativo/teclas_mod.rs: con un arma de un addon en la mano se lee su Lua y el de sus bases (Gmod::fuentes_arma) y sus teclas (IN_*, KEY_*) pasan a hasta 4 botones en arco arriba del disparo, con el ícono de lo que hacen (la tabla de acciones.js sacada con herramientas/acciones_nativo.mjs → acciones_web.json); examples/teclas_mods.rs las lista para una carpeta de .gma |
 | smods.js | ✘ | |

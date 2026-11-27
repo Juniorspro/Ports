@@ -1025,6 +1025,9 @@ impl Juego {
             } else if let Some(c) = k.strip_prefix("cu:") {
                 // (la cuenta y lo social)
                 self.cu_llego(c, r);
+            } else if k == "bugpub" {
+                // (lo que contestó el servidor al publicar en Bugs y sugerencias)
+                self.bug_llego(r);
             } else if let Some(n) = k.strip_prefix("bugs:") {
                 // (lo publicado en Bugs y sugerencias)
                 self.bugs_llegaron(n.parse().unwrap_or(0), r);

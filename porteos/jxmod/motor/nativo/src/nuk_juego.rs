@@ -33,6 +33,7 @@ pub struct Nuk {
     /// los sonidos que vienen después (el rumor y el «después»): cuándo, cuál y el volumen
     luego: Vec<(f32, &'static str, f32)>,
 }
+impl Nuk { /** (pruebas) cuántas están explotando */ pub fn vivas(&self) -> usize { self.vivas.len() } }
 
 const CAT_REPOSO: f32 = -0.3; const CAT_TIRO: f32 = 1.5; const CAT_SUELTA: f32 = 0.8; const CAT_VEL: f32 = 17.0;
 const OMEGA_CUENTA: f32 = 5.0;
@@ -52,6 +53,8 @@ pub struct Art {
     /// el destello verde (y dónde fue)
     pub flash: f32, pub flash_p: Option<V>,
     pub panel: Option<PanelOmega>,
+    /// (lo que se está haciendo llegó de otro de la sala: no se vuelve a contar)
+    desde_red: bool,
 }
 
 impl Juego {
@@ -78,7 +81,25 @@ impl Juego {
         self.nuk_precargar();
         self.jg.nuk.armadas.push(Armada { id, t: cuenta, bip: cuenta.ceil(), v_ant: None, bum: false });
         self.sonido.tocar("NK_sirena", 1.2, 1.0, Some(p)); self.avisar(format!("¡Armada! Explota en {} s · {}", cuenta.ceil(), b.ficha()));
+        if self.en_red.en_sala() { let o = self.en_red.clave_obj(id); self.en_red.red.publicar("a", &serde_json::json!({ "k": "nkarm", "o": o, "c": cuenta }).to_string(), false); }
         true
+    }
+    /// nukeRed: la bomba que explotó otro de la sala («nk») o la que armó («nkarm»: la cuenta acá también; explota su dueño)
+    pub(crate) fn nuk_red(&mut self, k: &str, d: &serde_json::Value) {
+        if k == "nk" {
+            let (Some(n), Some(p)) = (d.get("n").and_then(|v| v.as_str()), d.get("p").and_then(|v| v.as_array())) else { return };
+            if p.len() < 3 || self.nuk_bomba(n).is_none() { return; }
+            let f = |i: usize| p[i].as_f64().filter(|x| x.is_finite()).unwrap_or(0.0).clamp(-1e5, 1e5) as f32;
+            let n = n.to_string(); self.nuk_explotar([f(0), f(1), f(2)], &n);
+        } else if k == "nkarm" {
+            let Some(id) = d.get("o").and_then(|v| v.as_str()).and_then(|c| self.en_red.id_de(c)) else { return };
+            let Some(o) = self.objs.iter().find(|o| o.id == id) else { return };
+            if self.nuk_bomba(&o.nombre).is_none() || self.jg.nuk.armadas.iter().any(|a| a.id == id) { return; }
+            let cuenta = d.get("c").and_then(|v| v.as_f64()).filter(|x| x.is_finite()).unwrap_or(10.0).clamp(1.0, 30.0) as f32; let p = o.pos;
+            self.nuk_precargar();
+            self.jg.nuk.armadas.push(Armada { id, t: cuenta, bip: cuenta.ceil(), v_ant: None, bum: false });
+            self.sonido.tocar("NK_sirena", 1.2, 1.0, Some(p)); self.avisar(format!("¡Armada! Explota en {} s", cuenta.ceil()));
+        }
     }
     /// nukePaso: las armadas (cuenta regresiva o un golpe fuerte), las que explotaron (la onda y el viento), la radiación y
     /// el destello que se apaga
@@ -90,10 +111,14 @@ impl Juego {
             let (p, v) = (self.objs[i].pos, self.objs[i].cuerpo.and_then(|c| self.fis.cuerpo(c)).map(|b| largo(v32(b.vel))).unwrap_or(0.0));
             let a = &mut self.jg.nuk.armadas[k]; a.t -= dt; let golpe = a.v_ant.map_or(false, |va| va - v > 9.0); a.v_ant = Some(v);
             let mut bip = None; if a.t < a.bip - 1.0 { a.bip = a.t.ceil(); bip = Some(if a.t < 3.0 { 1.6 } else { 1.2 }); }
-            let bum = (a.t <= 0.0 || golpe) && !a.bum; if bum { a.bum = true; }
+            // (la de otro de la sala la explota su dueño: acá sólo la cuenta, hasta que llega «nk»)
+            let ajena = self.en_red.es_de_otro(id); let a = &mut self.jg.nuk.armadas[k];
+            let bum = (a.t <= 0.0 || golpe) && !a.bum && !ajena; if bum { a.bum = true; }
             if let Some(t) = bip { self.sonido.tocar("UI_blip", 0.9, t, Some(p)); }
             if bum { let nombre = self.objs[i].nombre.clone(); let c = self.objs[i].cuerpo.and_then(|c| self.fis.cuerpo(c)).map(|b| v32(b.pos)).unwrap_or(p);
-                self.jg.nuk.armadas.remove(k); self.borrar_obj(i); self.nuk_explotar(c, &nombre); continue; }
+                self.jg.nuk.armadas.remove(k); self.borrar_obj(i); self.nuk_explotar(c, &nombre);
+                if self.en_red.en_sala() { let r = |x: f32| (x as f64 * 1000.0).round() / 1000.0; self.en_red.red.publicar("a", &serde_json::json!({ "k": "nk", "n": nombre, "p": [r(c[0]), r(c[1]), r(c[2])] }).to_string(), false); }
+                continue; }
             k += 1;
         }
         let mut i = self.jg.nuk.vivas.len();
@@ -331,6 +356,8 @@ impl Juego {
         if self.art_brazo().is_none() { return; } let t = self.jg.t;
         let Some(c) = self.art_cat(id) else { return }; if c.tiro || t - c.t < 1.2 { return; }
         c.tiro = true; c.t = t; c.lanzo = false;
+        // (la de uno mismo, a la sala: artCatapultaTirar con local; la tirada que llega de otro no se vuelve a contar)
+        if !self.jg.art.desde_red && !self.en_red.es_de_otro(id) && self.en_red.en_sala() { let o = self.en_red.clave_obj(id); self.en_red.red.publicar("a", &serde_json::json!({ "k": "catap", "o": o }).to_string(), false); }
         let p = self.objs.iter().find(|o| o.id == id).map(|o| o.pos);
         self.sonido.tocar("CB_Swing", 0.9, 0.55, p); self.sonido.tocar("PS_wood2", 0.8, 0.7, p);
     }
@@ -371,8 +398,28 @@ impl Juego {
         let mut lista: Vec<(String, bool)> = hay.iter().map(|s| (s.clone(), true)).collect(); for s in todos { if !hay.contains(&s) { lista.push((s, false)); } }
         self.jg.art.panel = Some(PanelOmega { obj: id, lista, atlas: false, atlas_h: 0 }); self.jg.scroll = 0.0; self.menu = None;
     }
+    /// artRed: la catapulta que tiró otro, la bomba de Rick Prime que armó y la que le explotó
+    pub(crate) fn art_red(&mut self, k: &str, d: &serde_json::Value) {
+        let id = d.get("o").and_then(|v| v.as_str()).and_then(|c| self.en_red.id_de(c));
+        let nombre = id.and_then(|id| self.objs.iter().find(|o| o.id == id)).map(|o| o.nombre.clone()).unwrap_or_default();
+        let skin_ok = |s: &str| self.paq.as_ref().and_then(|p| p.d["chars"].as_array()).map_or(false, |a| a.iter().any(|x| x.as_str() == Some(s)));
+        self.jg.art.desde_red = true;
+        match k {
+            "catap" => if let (Some(id), Some("catapulta")) = (id, self.art_tipo(&nombre)) { self.art_tirar(id); },
+            "omega" => if let (Some(id), Some("omega"), Some(s)) = (id, self.art_tipo(&nombre), d.get("s").and_then(|v| v.as_str())) { if skin_ok(s) && !self.jg.art.omega.contains_key(&id) { let s = s.to_string(); self.art_omega_armar(id, &s); } },
+            "omegab" => if let (Some(s), Some(p)) = (d.get("s").and_then(|v| v.as_str()), d.get("p").and_then(|v| v.as_array())) { if skin_ok(s) && p.len() >= 3 {
+                let f = |i: usize| p[i].as_f64().filter(|x| x.is_finite()).unwrap_or(0.0).clamp(-1e4, 1e4) as f32; let p = [f(0), f(1), f(2)];
+                let fuera: Vec<u32> = self.jg.art.omega.iter().filter(|(oid, o)| o.skin == s && self.objs.iter().find(|x| x.id == **oid).map_or(true, |x| dist(x.pos, p) < 3.0)).map(|(oid, _)| *oid).collect();
+                for oid in fuera { self.jg.art.omega.remove(&oid); }
+                let s = s.to_string(); self.art_omega_efecto(p, &s);
+            } },
+            _ => {}
+        }
+        self.jg.art.desde_red = false;
+    }
     pub(super) fn art_omega_armar(&mut self, id: u32, skin: &str) {
         self.jg.art.omega.insert(id, Omega { skin: skin.to_string(), cuenta: OMEGA_CUENTA, ult: 99 });
+        if !self.jg.art.desde_red && !self.en_red.es_de_otro(id) && self.en_red.en_sala() { let o = self.en_red.clave_obj(id); self.en_red.red.publicar("a", &serde_json::json!({ "k": "omega", "o": o, "s": skin }).to_string(), false); }
         self.avisar(format!("Bomba armada: {}", npc::skin_nom(skin)));
     }
     /// artOmegaEfecto: el destello verde que elimina a todos los de ese personaje (y a vos si sos ese)
@@ -411,7 +458,9 @@ impl Juego {
             if seg != s.ult { s.ult = seg; if seg > 0 { bip = Some(1.0 + (OMEGA_CUENTA - seg as f32) * 0.12); } }
             let fin = s.cuenta <= 0.0; let skin = s.skin.clone();
             if let Some(t) = bip { self.sonido.tocar("UI_blip", 0.9, t, Some(p)); }
-            if fin { self.jg.art.omega.remove(&id); self.borrar_obj(i); self.art_omega_efecto(p, &skin); }
+            // (la de otro de la sala la explota su dueño: acá espera el «omegab»)
+            if fin && !self.en_red.es_de_otro(id) { self.jg.art.omega.remove(&id); self.borrar_obj(i); self.art_omega_efecto(p, &skin);
+                if self.en_red.en_sala() { let r = |x: f32| (x as f64 * 1000.0).round() / 1000.0; self.en_red.red.publicar("a", &serde_json::json!({ "k": "omegab", "s": skin, "p": [r(p[0]), r(p[1]), r(p[2])] }).to_string(), false); } }
         }
         if self.jg.art.flash > 0.0 { self.jg.art.flash = (self.jg.art.flash - dt * 0.7).max(0.0); }
         // (el panel: los retratos de los personajes en un atlas, una vez)

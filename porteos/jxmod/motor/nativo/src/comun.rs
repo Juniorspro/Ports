@@ -91,7 +91,7 @@ pub struct PanelNpc { pub npc: Option<u32>, pub est: String }
 pub enum BtnNpc { Rapida(usize), Arma(Option<npc::Arma>), SkinAnt, SkinSig, Escribir, Borrar, BorrarTodos, Cerrar }
 /// para qué se pidió escribir (el cuadro de texto de Android)
 #[derive(Clone, Debug)]
-pub enum Escribir { /** lo buscado en la radio o la tele */ Med, /** la cuenta y lo social (social_juego.rs): 0 Gmail, 1 código, 2 nombre, 3 ID, 4 mensaje, 5 grupo */ Soc(u8), Chat, Clave(jxjuego::red::Sala), Nombre, Actitud, Pj, SrvNombre, SrvClave, Buscar, /** un cuadro de texto de un menú de un addon (DTextEntry) */ Vgui, /** un cuadro de texto de las opciones de un mod (la opción y el control) */ OpcMod(usize, usize), /** la Workshop: lo buscado y un link o número */ WsBuscar, WsLink }
+pub enum Escribir { /** lo buscado en la radio o la tele */ Med, /** Bugs y sugerencias (bugs_juego.rs): 0 nombre, 1 título, 2 descripción */ Bug(u8), /** la cuenta y lo social (social_juego.rs): 0 Gmail, 1 código, 2 nombre, 3 ID, 4 mensaje, 5 grupo */ Soc(u8), Chat, Clave(jxjuego::red::Sala), Nombre, Actitud, Pj, SrvNombre, SrvClave, Buscar, /** un cuadro de texto de un menú de un addon (DTextEntry) */ Vgui, /** un cuadro de texto de las opciones de un mod (la opción y el control) */ OpcMod(usize, usize), /** la Workshop: lo buscado y un link o número */ WsBuscar, WsLink }
 /// pedir texto (título, lo que ya hay, hasta cuántas letras, si es contraseña; con un número) y levantar lo escrito
 /// (número y texto, o None si se canceló): en Android, el cuadro de Juego.java (red_android::Teclado)
 pub struct Teclado { pub pedir: Box<dyn Fn(i32, &str, &str, i32, bool)>, pub tomar: Box<dyn Fn() -> Option<(i32, Option<String>)>> }
@@ -353,6 +353,8 @@ pub struct Juego {
     pub soc: paneles_juego::social::Social,
     /// la radio y la tele (medios_juego.rs)
     pub med: paneles_juego::medios::Medios,
+    /// el nombre de la placa de video (para Celulares en Bugs y sugerencias)
+    pub placa_nombre: String,
     /// la voz por cercanía (vozcerca.rs)
     pub vz: vozcerca::VozCerca,
     /// escribir (sin teclado —en la compu—, no se puede) y lo que se está esperando
@@ -401,7 +403,7 @@ impl Juego {
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3], acu_d: [crate::acustica::LEJOS; 14], acu_i: 0, acu_t: 0.0,
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
             npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), ondas: Vec::new(), onda_t: 0.0, gi: Default::default(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
-            her: Herramientas::default(), soc: Default::default(), med: Default::default(), vz: Default::default(), en_red, gmod, gb: Default::default(), vr: Default::default(), grabar_pedido: None, grabando: false, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), banco: Default::default(), musica: Default::default(), ed: hud_web::Editor::default(), tut: Default::default(), gr: Default::default(), cont: Default::default(), poner_congelado: false, pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
+            her: Herramientas::default(), soc: Default::default(), med: Default::default(), vz: Default::default(), placa_nombre: String::new(), en_red, gmod, gb: Default::default(), vr: Default::default(), grabar_pedido: None, grabando: false, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), banco: Default::default(), musica: Default::default(), ed: hud_web::Editor::default(), tut: Default::default(), gr: Default::default(), cont: Default::default(), poner_congelado: false, pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
             armas_ico: false, armas_ico_h: 256, hud_ico: false, aero: None, aero_tiro: 9.0, aero_abre: 0.0, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         // los mapas: todos los de la web (DATA.esc), primero los RB (los de la versión personal); empieza en el último elegido
@@ -620,6 +622,7 @@ impl Juego {
         match que {
             Escribir::WsBuscar | Escribir::WsLink => {}
             Escribir::Soc(k) => self.soc_escrito(k, t),
+            Escribir::Bug(k) => self.bug_escrito(k, t),
             Escribir::Med => self.med_escrito(t),
             Escribir::Vgui | Escribir::OpcMod(..) => {}
             Escribir::Chat => { if self.en_red.en_sala() { self.en_red.red.chat(&t, None); let n = self.en_red.red.nombre.clone(); self.en_red.al_chat(format!("{n}: {t}")); } }
@@ -1037,12 +1040,15 @@ impl Juego {
         if medir { m.esperar(); }
         if reloj { m.reloj_empezar(); }
         let t = Instant::now();
+        if self.placa_nombre != placa_txt { self.placa_nombre = placa_txt.to_string(); }
         let r = self.cuadro_dentro(m, w, h, placa_txt);
         // (lo que tardó la CPU en armarlo, sin la espera a la pantalla: con el ritmo parejo de JX Turbo cada cuadro dura lo mismo)
         { let x = t.elapsed().as_secs_f32() * 1000.0; let c = if self.fue_inter { &mut self.cpu_inter } else { &mut self.cpu_real }; *c = if *c == 0.0 { x } else { *c * 0.9 + x * 0.1 }; }
         if reloj { m.reloj_terminar(self.fue_inter); if let Some((re, it)) = m.reloj() { self.placa_ms = re; self.placa_inter = it; } }
         if medir { m.esperar(); if !self.fue_inter { let x = t.elapsed().as_secs_f32() * 1000.0; self.placa_ms = if self.placa_ms == 0.0 { x } else { self.placa_ms * 0.5 + x * 0.5 }; } }
         if let Some((tot, det)) = m.tiempos() { self.placa_ms = tot; self.detalle = det; }
+        // (para probar en la compu lo que hace un medidor de la placa que miente, como el de algunos Mali)
+        if let Some(x) = std::env::var("JXM_PLACA_FALSA").ok().and_then(|v| v.parse::<f32>().ok()) { if en_juego { self.placa_ms = x; self.placa_inter = x; self.reloj_ok = true; } }
         r
     }
     unsafe fn cuadro_dentro(&mut self, m: &mut Motor3d, w: i32, h: i32, placa_txt: &str) -> Result<(), String> {
@@ -1400,9 +1406,12 @@ impl Juego {
         // (los motores de los vehículos prendidos y el cohete de la bici)
         for b in self.vehs.bucles(&self.fis) { self.sonido.bucle(&b.clave, b.nombre, b.vol as f32); }
         // (la bocina mientras se aprieta: sintetizada como en la web, bocina_pcm; la bici, su timbre)
-        if let Some((tipo, _)) = self.vehs.bocina(&self.fis, self.apretado(Boton::Bocina)) {
+        let mia = self.vehs.bocina(&self.fis, self.apretado(Boton::Bocina));
+        if let Some((tipo, _)) = mia {
             let n = format!("JX_bocina_{tipo}"); self.sonido.sintetico(&n, || veh::bocina_pcm(tipo, 44100), 44100); self.sonido.bucle("bocina", &n, 1.0);
         }
+        // (las de los demás de la sala, y contarles la mía)
+        self.red_autos_paso(dt, mia.is_some());
         self.sonido.fin_bucles();
         let (suelo, nada, noclip, agua) = (self.jug.suelo, self.jug.nada, self.jug.noclip, self.jug.nada || self.jug.hondo > 0.25);
         let (saltos, ahogos) = (self.jug.saltos, self.jug.ahogos);
@@ -1788,6 +1797,8 @@ impl Juego {
     /// cuándo sale en la pantalla y al girar se ve a los saltos —medido en una simulación del camino CPU, placa y pantalla: con
     /// uno, el desfase queda en 0-2 ms; con tres, 4-15 ms—. Para más intermedios hay que repartir el cuadro real en pedazos)
     fn turbo_tope(&self) -> f32 { 1.0 }
+    /// (pruebas) JX Turbo armando intermedios ahora
+    pub fn turbo_activo(&self) -> bool { self.turbo_on }
     /// lo que cuesta un cuadro de verdad y uno intermedio (ms): con los medidores, lo más lento entre la placa y la CPU; sin
     /// ellos, la placa medida cada tanto (o el tiempo entre cuadros)
     fn costos(&self) -> (f32, f32) {

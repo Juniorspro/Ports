@@ -47,6 +47,8 @@ public class Juego extends NativeActivity {
         } catch (Throwable t) { }
     }
 
+    // (el video que se eligió para Bugs y sugerencias: Archivo.java)
+    @Override protected void onActivityResult(int pedido, int res, android.content.Intent data) { super.onActivityResult(pedido, res, data); Archivo.llego(this, pedido, res, data); }
     @Override protected void onResume() { super.onResume(); Actualizar.alVolver(this); Voz.volver(this); Medios.volver(); }
     // (en segundo plano: el micrófono se suelta y la radio y la tele se pausan; al volver, siguen)
     @Override protected void onPause() { Voz.pausar(); Medios.pausar(); super.onPause(); }

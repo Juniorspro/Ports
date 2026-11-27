@@ -467,7 +467,7 @@ impl Juego {
             Pieza::Avisos => self.pn_abrir(P::Avisos),
             Pieza::Bugs => self.pn_abrir(P::Bugs { tab: 0, scroll: 0.0 }),
             Pieza::Grieta => self.pn_abrir(P::Grieta),
-            Pieza::Novedades => self.pn_abrir(P::Bugs { tab: 2, scroll: 0.0 }),
+            Pieza::Novedades => self.pn_abrir(P::Bugs { tab: 3, scroll: 0.0 }),
             Pieza::Contenido => self.cont_abrir(),
             Pieza::Actualizar => { if let Some(f) = &self.ini.act_pedir { f(); } self.ini.act_t = 0.0; }
         }

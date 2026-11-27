@@ -9,6 +9,7 @@ use super::inicio_juego::{bezier, prog, Nivel};
 use super::aero::{self, blanco, negro, Aero, OpVentana};
 use crate::pincel::{self, rgba, con_a, Cara, Col, Pincel};
 #[path = "social_juego.rs"] pub mod social;
+#[path = "bugs_juego.rs"] pub mod bugs;
 #[path = "medios_juego.rs"] pub mod medios;
 
 // —— los colores de los paneles (--pn…) ——
@@ -44,6 +45,8 @@ pub enum Acc { Volver, Cerrar, Cat(usize), Mapa(String), Empezar, Hora, Mods, Vr
     CrearBase(String), CrearEmpezar, AjTab(usize), Aj(usize, usize), Listo, AjCancelar, AjAplicar, Idioma(usize), GMod, CuentaNo, NovVer, Nada,
     /// Bugs y sugerencias: abrir o cerrar uno (por su id) y volver a pedir la lista
     BugVer(String), BugRecargar,
+    /// publicar en Bugs y sugerencias (bugs_juego.rs): «nuevo», «nombre», «titulo», «texto», «video», «sacar», «publicar», «cancelar»
+    Bug(String),
     /// Crear server: el nombre, la clave, el modo (PvP o no), prender PvP / RPG / nextbots (0, 1, 2), los topes (0 props,
     /// 1 autos: más o menos un paso) y crearlo
     SrvNombre, SrvClave, SrvModo(bool), SrvTg(u8), SrvPaso(u8, i32), SrvCrear,
@@ -113,7 +116,9 @@ pub struct EstPaneles { pub zonas: Vec<([f32; 4], Acc)>, pub t0: f32, dedo: Opti
     pub srv: SrvForm,
     /// Bugs y sugerencias: lo publicado de cada pestaña (bug, sug) que llegó del servidor, si se está pidiendo, el error y el
     /// abierto (para leerlo entero)
-    pub bugs: [Option<Vec<PostBug>>; 2], pub bugs_pidiendo: [bool; 2], pub bugs_error: Option<String>, pub bug_abierto: Option<String>,
+    pub bugs: [Option<Vec<PostBug>>; 3], pub bugs_pidiendo: [bool; 3], pub bugs_error: Option<String>, pub bug_abierto: Option<String>,
+    /// el formulario para publicar y el selector del video (bugs_juego.rs)
+    pub bf: bugs::Bugs,
     /// la ventana del panel de este cuadro (la flecha para volver y la X)
     pub chrome: std::cell::Cell<Option<aero::Ventana>>,
     /// los ajustes como estaban al abrir Opciones (para Cancelar)
@@ -200,9 +205,10 @@ impl Juego {
             (_, Acc::WsMas) => self.ws_buscar(false),
             (Some(PanelIni::Tienda { tab, .. }), Acc::Cat(k)) => self.ini.panel = Some(PanelIni::Tienda { tab, cat: k }),
             (Some(PanelIni::Personajes { .. }), Acc::Tab(k)) => self.ini.panel = Some(PanelIni::Personajes { tab: k, scroll: 0.0 }),
-            (Some(PanelIni::Bugs { .. }), Acc::Tab(k)) => { self.ini.panel = Some(PanelIni::Bugs { tab: k, scroll: 0.0 }); self.ini.pn.bug_abierto = None; }
+            (Some(PanelIni::Bugs { .. }), Acc::Tab(k)) => { self.ini.panel = Some(PanelIni::Bugs { tab: k, scroll: 0.0 }); self.ini.pn.bug_abierto = None; if self.ini.pn.bf.form.as_ref().map_or(false, |f| !f.enviando) { self.ini.pn.bf.form = None; } }
             (_, Acc::BugVer(id)) => { self.ini.pn.bug_abierto = if self.ini.pn.bug_abierto.as_deref() == Some(id.as_str()) { None } else { Some(id) }; }
-            (_, Acc::BugRecargar) => { self.ini.pn.bugs = [None, None]; self.ini.pn.bugs_error = None; }
+            (_, Acc::BugRecargar) => { self.ini.pn.bugs = [None, None, None]; self.ini.pn.bugs_error = None; }
+            (_, Acc::Bug(s)) => self.bug_accion(&s),
             (_, Acc::Skin(s)) => { self.skin = s.clone(); if let Some(d) = &self.datos { let _ = std::fs::write(d.join("skin.txt"), &s); } self.ini.cuerpo_nuevo = true; }
             (_, Acc::CrearBase(m)) => self.ini.pn.base = Some(m),
             (_, Acc::CrearEmpezar) => { let m = self.ini.pn.base.clone().unwrap_or_default(); self.ini_empezar(&m); self.jug.noclip = true; self.avisar("Volá libre y armá tu mapa con el menú de props".into()); }
@@ -1027,31 +1033,36 @@ impl Juego {
         if self.ini.pn.bugs[k].is_some() || self.ini.pn.bugs_pidiendo[k] || self.ini.pn.bugs_error.is_some() { return; }
         let Some(h) = self.gmod.http_bin.clone() else { self.ini.pn.bugs_error = Some("sin conexión".into()); return };
         self.ini.pn.bugs_pidiendo[k] = true; let tx = self.gmod.tx.clone();
-        let url = format!("{}panel/posts?tipo={}&orden=nuevo&p=0", super::gmod_juego::TIENDA_URL, if k == 0 { "bug" } else { "sug" });
+        let url = format!("{}panel/posts?tipo={}&orden=nuevo&p=0", super::gmod_juego::TIENDA_URL, bugs::TIPOS[k.min(2)].0);
         std::thread::spawn(move || { let r = h(&url).and_then(|(c, b)| if c == 200 { Ok(b) } else { Err(format!("HTTP {c}")) }); let _ = tx.send((format!("bugs:{k}"), r)); });
     }
     /// llegó lo publicado de una pestaña
     pub(super) fn bugs_llegaron(&mut self, k: usize, r: Result<Vec<u8>, String>) {
-        let k = k.min(1); self.ini.pn.bugs_pidiendo[k] = false;
+        let k = k.min(2); self.ini.pn.bugs_pidiendo[k] = false;
         match r.and_then(|b| posts_de(&b)) { Ok(l) => self.ini.pn.bugs[k] = Some(l), Err(e) => self.ini.pn.bugs_error = Some(e) }
     }
     /// Bugs y sugerencias (panel_juego.js): las pestañas Bugs, Sugerencias y Novedades (el registro de novedades.js); los
     /// publicados necesitan la tienda en línea
     fn pn_bugs(&mut self, p: &mut Pincel, m: &Pm, tab: usize, scroll: f32, t: f32, z: &mut Vec<([f32; 4], Acc)>) {
         let notas = novedades();
-        if tab < 2 { self.bugs_pedir(tab); }
+        if tab < 3 { self.bugs_pedir(tab); }
+        self.bug_paso();
         let (alto, cont) = self.pn_marco(p, m, t, |p, c| {
             let (xt, hc) = self.pn_cabecera(p, m, c, "!", Some(("bicho", AMA)), "Bugs y sugerencias", t);
-            let tabs = [("Bugs", "bicho"), ("Sugerencias", "foco"), ("Novedades", "estrella")]; let mut x = xt + m.u; let ty = c[1] + (hc - 1.0 - m.ph) / 2.0;
+            let tabs = [("Bugs", "bicho"), ("Celulares", "celular"), ("Sugerencias", "foco"), ("Novedades", "estrella")]; let mut x = xt + m.u; let ty = c[1] + (hc - 1.0 - m.ph) / 2.0;
             for (k, (n, ic)) in tabs.iter().enumerate() { let w = self.pn_pestana_ancho(p, m, n, None, true); if x + w > c[0] + c[2] - 16.0 { break; } self.pn_pestana(p, m, [x, ty, w, m.ph], n, None, Some(ic), k == tab, Acc::Tab(k), z); x += w + 4.0; }
             let pie_h = m.ph + 2.0 + m.u * 1.5 + 1.0; let pie = self.pn_pie(p, m, c, pie_h, t, z);
-            if tab < 2 { let s = if tab == 0 { "Contar un bug" } else { "Dar una idea" }; let wp = self.pn_principal_ancho(p, m, s); let pby = pie[1] + 1.0 + (pie_h - 1.0 - m.ph) / 2.0;
-                self.pn_principal(p, m, [pie[0] + pie[2] - m.u * 1.5 - wp, pby - 1.0, wp, m.ph + 2.0], s, "mas", Acc::CuentaNo, z);
-                let wa = self.pn_boton_ancho(p, m, "Actualizar", true, false); self.pn_boton(p, m, [pie[0] + pie[2] - m.u * 1.5 - wp - m.u - wa, pby, wa, m.ph], "Actualizar", Some("girar"), false, Acc::BugRecargar, z); }
+            let form = self.ini.pn.bf.form.is_some();
+            if tab < 3 { let pby = pie[1] + 1.0 + (pie_h - 1.0 - m.ph) / 2.0;
+                let (s, a) = if form { ("Publicar", Acc::Bug("publicar".into())) } else { ([("Contar un bug"), ("Contar de tu celular"), ("Dar una idea")][tab], Acc::Bug("nuevo".into())) };
+                let wp = self.pn_principal_ancho(p, m, s); self.pn_principal(p, m, [pie[0] + pie[2] - m.u * 1.5 - wp, pby - 1.0, wp, m.ph + 2.0], s, if form { "si" } else { "mas" }, a, z);
+                let (sb, ib, ab) = if form { ("Cancelar", "x", Acc::Bug("cancelar".into())) } else { ("Actualizar", "girar", Acc::BugRecargar) };
+                let wa = self.pn_boton_ancho(p, m, sb, true, false); self.pn_boton(p, m, [pie[0] + pie[2] - m.u * 1.5 - wp - m.u - wa, pby, wa, m.ph], sb, Some(ib), false, ab, z); }
             let cu = [c[0], c[1] + hc, c[2], pie[1] - c[1] - hc]; let u = m.u; let mut alto = 0.0;
             p.con_recorte(cu, |p| {
                 let x0 = cu[0] + u * 1.4; let w = cu[2] - u * 2.8; let mut y = cu[1] + u - scroll;
-                if tab == 2 { for (i, n) in notas.iter().enumerate() {
+                if form && tab < 3 { y += self.pn_bug_form(p, m, [cu[0], y, cu[2], cu[3]], t, z); }
+                else if tab == 3 { for (i, n) in notas.iter().enumerate() {
                     let rs = p.at.renglones(Cara::S4, m.fs, 0.0, &n.es, w - u * 2.0); let h = u * 1.2 + m.ft * 1.3 + rs.len() as f32 * m.fs * 1.4 + u;
                     if y + h > cu[1] && y < cu[1] + cu[3] { self.pn_cascada(p, t, i.min(12), |p| {
                         p.rect(x0, y, w, h, if i == 0 { rgba(0x2a2410, 0.9) } else { PN_PL2 }); p.borde(x0, y, w, h, 1.0, if i == 0 { con_a(AMA, 0.6) } else { PN_LIN });
@@ -1064,11 +1075,11 @@ impl Juego {
                 } else {
                     // (lo publicado, del servidor —lo mismo que se ve en la web—: el título, el estado, quién y cuándo, el texto —tocándolo,
                     // entero— y la respuesta si hay)
-                    let k = tab.min(1);
+                    let k = tab.min(2);
                     match (&self.ini.pn.bugs[k], &self.ini.pn.bugs_error) {
                         (None, Some(e)) => { p.texto_max(Cara::S4, m.ft, x0, y + m.ft * 1.2, PN_T2, 0.0, &format!("No se pudo traer lo publicado ({e}). Tocá Actualizar."), w); y += m.ft * 2.0; }
                         (None, None) => { p.texto(Cara::S4, m.ft, x0, y + m.ft * 1.2, PN_T2, 0.0, "Cargando lo publicado…"); y += m.ft * 2.0; }
-                        (Some(l), _) if l.is_empty() => { p.texto(Cara::S4, m.ft, x0, y + m.ft * 1.2, PN_T2, 0.0, if tab == 0 { "Todavía no hay bugs publicados." } else { "Todavía no hay sugerencias publicadas." }); y += m.ft * 2.0; }
+                        (Some(l), _) if l.is_empty() => { p.texto(Cara::S4, m.ft, x0, y + m.ft * 1.2, PN_T2, 0.0, ["Todavía no hay bugs publicados: contá el primero.", "Todavía nadie contó cómo le anda en su celular.", "Todavía no hay sugerencias publicadas."][tab.min(2)]); y += m.ft * 2.0; }
                         (Some(l), _) => {
                             let ahora = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as f64).unwrap_or(0.0);
                             for (i, b) in l.iter().enumerate() {

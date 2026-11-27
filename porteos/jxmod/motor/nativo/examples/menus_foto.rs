@@ -227,6 +227,23 @@ fn main() {
             if let Some(r) = j.ini_zona(Pieza::Idioma) { let (x, y) = centro(r); tocar(&mut j, &mut m, x, y); paso(&mut j, &mut m, 60); foto(&mut m, "idioma");
                 if let Some((r, _)) = j.ini.pn.zonas.iter().find(|z| z.1 == jxmod::comun::paneles_juego::Acc::Volver).cloned() { let (x, y) = centro(r); tocar(&mut j, &mut m, x, y); } paso(&mut j, &mut m, 30); }
         }
+        if hace("bugsform") {
+            // (publicar en Celulares sin cuenta: el formulario, el nombre que falta y la respuesta del servidor —el de la compu:
+            // JXM_PANEL_URL—)
+            if let Some(r) = j.ini_zona(Pieza::Bugs) { let (x, y) = centro(r); tocar(&mut j, &mut m, x, y); paso(&mut j, &mut m, 40); }
+            if let Some((r, _)) = j.ini.pn.zonas.iter().find(|z| z.1 == jxmod::comun::paneles_juego::Acc::Tab(1)).cloned() { let (x, y) = centro(r); tocar(&mut j, &mut m, x, y); paso(&mut j, &mut m, 40); }
+            foto(&mut m, "bugs_celulares");
+            if let Some((r, _)) = j.ini.pn.zonas.iter().find(|z| z.1 == jxmod::comun::paneles_juego::Acc::Bug("nuevo".into())).cloned() { let (x, y) = centro(r); tocar(&mut j, &mut m, x, y); paso(&mut j, &mut m, 20); }
+            foto(&mut m, "bugs_form_vacio");
+            j.bug_escrito(1, "Pantalla negra al entrar a gm_flatgrass".into()); j.bug_escrito(2, format!("{}La pantalla queda negra y se ven pedazos del menú.", j.ini.pn.bf.form.as_ref().map(|f| f.texto.clone()).unwrap_or_default()));
+            paso(&mut j, &mut m, 10); foto(&mut m, "bugs_form_lleno");
+            // (Publicar sin nombre: lo pide; con el nombre, sigue solo)
+            j.bug_accion("publicar"); println!("sin nombre: {:?}", j.ini.pn.bf.form.as_ref().map(|f| f.estado.clone()));
+            j.bug_escrito(0, "Probador".into());
+            let t0 = std::time::Instant::now(); while j.ini.pn.bf.form.is_some() && t0.elapsed().as_secs() < 20 { paso(&mut j, &mut m, 2); std::thread::sleep(std::time::Duration::from_millis(50)); }
+            println!("después de publicar: formulario {} · {:?}", if j.ini.pn.bf.form.is_some() { "abierto" } else { "cerrado (publicado)" }, j.ini.pn.bf.form.as_ref().map(|f| f.estado.clone()));
+            paso(&mut j, &mut m, 10); foto(&mut m, "bugs_publicado");
+        }
         if hace("pausa") {
             // (empezar la partida desde «Empezar partida nueva»: la pantalla de carga, el juego con el botón de pausa y la pausa)
             if let Some(b) = j.ini_zona(Pieza::Op(0)) { let (x, y) = centro(b); tocar(&mut j, &mut m, x, y); } paso(&mut j, &mut m, 30);

@@ -343,3 +343,10 @@ impl crate::comun::vozcerca::Micro for Teclado {
         }).unwrap_or_default()
     }
 }
+/// el video para Bugs y sugerencias (Archivo.java)
+impl crate::comun::paneles_juego::bugs::ArchivoApp for Teclado {
+    fn elegir(&self) { let a = self.act.clone(); let _ = con_java(&self.vm, |env| { let c = env.find_class(jni_str!("com/jxmod/nativo/Archivo"))?; env.call_static_method(&c, jni_str!("elegir"), jni_sig!("(Landroid/app/Activity;)V"), &[JValue::Object(a.as_obj())])?; Ok(()) }); }
+    fn estado(&self) -> String { con_java(&self.vm, |env| { let c = env.find_class(jni_str!("com/jxmod/nativo/Archivo"))?; let r = env.call_static_method(&c, jni_str!("estado"), jni_sig!("()Ljava/lang/String;"), &[])?.l()?; if r.is_null() { return Ok(String::new()); } env.cast_local::<JString>(r)?.try_to_string(env) }).unwrap_or_default() }
+    fn subir(&self, base: &str) { let _ = con_java(&self.vm, |env| { let c = env.find_class(jni_str!("com/jxmod/nativo/Archivo"))?; let b = env.new_string(base)?; env.call_static_method(&c, jni_str!("subir"), jni_sig!("(Ljava/lang/String;)V"), &[JValue::Object(&b)])?; Ok(()) }); }
+    fn olvidar(&self) { let _ = con_java(&self.vm, |env| { let c = env.find_class(jni_str!("com/jxmod/nativo/Archivo"))?; env.call_static_method(&c, jni_str!("olvidar"), jni_sig!("()V"), &[])?; Ok(()) }); }
+}

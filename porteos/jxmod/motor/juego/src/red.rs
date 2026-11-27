@@ -525,6 +525,10 @@ impl Red {
 
     fn pub_(&mut self, con: Con, topic: String, payload: String, retain: bool) { self.ordenes.push(Orden::Publicar { con, topic, payload, retain }); }
     /// un pedazo de mi voz (ROOM/v/ID, binario; sin retener)
+    /// (para las pruebas: como si ya estuviera conectado a la sala `room`, sin broker)
+    #[doc(hidden)] pub fn prueba_en_sala(&mut self, room: &str) { self.sala = Some(Sala::oficial("RB_Flatgrass")); self.room = room.into(); self.on = true; self.sala_abierta = true; }
+    /// (RED.wSucio = true) mandar de nuevo ROOM/w/ID: cambiaron mis entidades o mis mods
+    pub fn mundo_sucio(&mut self) { self.w_sucio = true; }
     pub fn publicar_voz(&mut self, datos: Vec<u8>) { if !self.on || datos.is_empty() { return; } let topic = format!("{}/v/{}", self.room, self.id); self.ordenes.push(Orden::PublicarBin { con: Con::Sala, topic, payload: datos }); }
     /// publicar() de red.js: en ROOM/canal, con mi número al final; `cuerpo` es un objeto JSON
     pub fn publicar(&mut self, canal: &str, cuerpo: &str, retain: bool) {

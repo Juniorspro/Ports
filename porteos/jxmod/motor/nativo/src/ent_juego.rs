@@ -47,6 +47,8 @@ pub struct Tecla { blanca: bool, midi: i32, x: f32, w: f32, y0: f32, h: f32, z: 
 #[derive(Default)]
 pub struct Ent {
     pub t: String, pub p: V, pub yaw: f32, pub q: Q, pub prm: Value, pub id: u32, pub de_mod: bool,
+    /// de otro de la sala (entidadRemota): su ID y el número que tiene allá; None: mía
+    pub dueno: Option<(String, u32)>,
     cuerpos: Vec<u32>, rad: f32,
     // (el piano: sus teclas, ancho, largo y lo que mide cada blanca)
     teclas: Vec<Tecla>, blancas: Vec<usize>, w: f32, l: f32, a: f32,
@@ -275,6 +277,76 @@ impl Juego {
         let e = self.jg.ents.lista.remove(i);
         for id in e.cuerpos { self.fis.quitar(id); }
     }
+    /// entidadDatos: lo de una entidad para la sala ({t, p, yaw, prm})
+    fn ent_datos(e: &Ent) -> Value { let r = |x: f32| (x as f64 * 1000.0).round() / 1000.0; json!({ "t": e.t, "p": [r(e.p[0]), r(e.p[1]), r(e.p[2])], "yaw": r(e.yaw), "prm": e.prm }) }
+    /// entidadRed: las mías que puso una Opción, a la sala («ent» la entidad, «entb» se fue, «radio» su emisora)
+    pub(crate) fn ent_contar(&mut self, k: &str, id: u32) {
+        if !self.en_red.en_sala() { return; }
+        let d = match k {
+            "entb" => json!({ "k": "entb", "n": id }),
+            "ent" => { let Some(e) = self.jg.ents.lista.iter().find(|e| e.id == id && e.de_mod && e.dueno.is_none()) else { return }; json!({ "k": "ent", "n": id, "d": Self::ent_datos(e) }) }
+            _ => { let (v, t) = self.med.radios.get(&id).map(|r| (format!("rb:{}", r.0), r.1.chars().take(100).collect::<String>())).unwrap_or_default(); json!({ "k": "radio", "n": id, "v": v, "s": 0, "t": t }) }
+        };
+        self.en_red.red.publicar("a", &d.to_string(), false); self.en_red.red.mundo_sucio();
+    }
+    /// entidadesMias: las mías de las Opciones para ROOM/w/ID (el que entra las recibe)
+    pub(crate) fn ent_mias_json(&self) -> String {
+        let l: Vec<Value> = self.jg.ents.lista.iter().filter(|e| e.de_mod && e.dueno.is_none()).map(|e| {
+            let (v, tt) = self.med.radios.get(&e.id).map(|r| (format!("rb:{}", r.0), r.1.chars().take(100).collect::<String>())).unwrap_or_default();
+            json!({ "n": e.id, "d": Self::ent_datos(e), "v": v, "s": 0, "tt": tt }) }).collect();
+        if l.is_empty() { String::new() } else { Value::Array(l).to_string() }
+    }
+    /// entidadRemota: una entidad de otro de la sala (el piano y la radio de sus Opciones): crearla o moverla, y su emisora
+    pub(crate) unsafe fn ent_remota(&mut self, m: &mut Motor3d, de: &str, x: &Value) -> Option<u32> {
+        let n = x.get("n").and_then(|v| v.as_u64()).filter(|n| *n < 1 << 31)? as u32; let d = x.get("d")?;
+        let t = d.get("t").and_then(|v| v.as_str())?; if !matches!(t, "piano" | "radio") { return None; }
+        let p = pv3(d.get("p")?)?; if p.iter().any(|c| !c.is_finite() || c.abs() > 1e4) { return None; }
+        let yaw = d.get("yaw").and_then(|v| v.as_f64()).filter(|y| y.is_finite()).unwrap_or(0.0) as f32;
+        let ya = self.jg.ents.lista.iter().position(|e| e.dueno.as_ref().map_or(false, |(o, k)| o == de && *k == n));
+        // (se movió o cambió: se arma de nuevo en su lugar)
+        let id = match ya {
+            Some(i) if dist(self.jg.ents.lista[i].p, p) < 0.05 && (self.jg.ents.lista[i].yaw - yaw).abs() < 0.01 && self.jg.ents.lista[i].t == t => self.jg.ents.lista[i].id,
+            _ => {
+                let emisora = ya.and_then(|i| self.med.radios.get(&self.jg.ents.lista[i].id).map(|r| (r.0.clone(), r.1.clone())));
+                if let Some(i) = ya { self.ent_quitar(i); }
+                let prm = d.get("prm").filter(|v| v.is_object()).cloned().unwrap_or(json!({}));
+                let id = self.ent_crear(m, &json!({ "t": t, "p": [p[0], p[1], p[2]], "yaw": yaw, "prm": prm }))?;
+                if let Some(e) = self.jg.ents.lista.iter_mut().find(|e| e.id == id) { e.de_mod = true; e.dueno = Some((de.to_string(), n)); }
+                if let Some((u, tt)) = emisora { self.med_poner_radio(id, u, tt); }
+                id
+            }
+        };
+        if let Some(v) = x.get("v").and_then(|v| v.as_str()) { self.ent_radio_remota(id, v, x.get("tt").or(x.get("t")).and_then(|v| v.as_str()).unwrap_or("")); }
+        Some(id)
+    }
+    /// la emisora que puso otro en su radio («rb:» + la de Radio Browser; los videos de YouTube en la radio, todavía no)
+    fn ent_radio_remota(&mut self, id: u32, v: &str, t: &str) {
+        let uuid = v.strip_prefix("rb:").filter(|u| u.len() == 36 && u.chars().all(|c| c.is_ascii_hexdigit() || c == '-'));
+        match uuid {
+            Some(u) => { if self.med.radios.get(&id).map_or(true, |r| r.0 != u) { let t = crate::comun::paneles_juego::medios::limpio(t); self.med_poner_radio(id, u.to_string(), t.chars().take(100).collect()); } }
+            None => { if v.is_empty() { self.med_quitar_radio(id); } }
+        }
+    }
+    /// lo que llegó de la sala sobre las entidades: «ent», «entb», «radio» o la lista de su ROOM/w/ID (None en `k`)
+    pub(crate) unsafe fn ent_red(&mut self, m: &mut Motor3d, de: &str, k: Option<&str>, d: &Value) {
+        let n = d.get("n").and_then(|v| v.as_u64()).map(|n| n as u32);
+        let buscar = |s: &Self, n: u32| s.jg.ents.lista.iter().position(|e| e.dueno.as_ref().map_or(false, |(o, k)| o == de && *k == n));
+        match k {
+            Some("ent") => { self.ent_remota(m, de, d); }
+            Some("entb") => if let Some(i) = n.and_then(|n| buscar(self, n)) { self.ent_quitar(i); },
+            Some("radio") => if let Some(i) = n.and_then(|n| buscar(self, n)) { let id = self.jg.ents.lista[i].id; let v = d.get("v").and_then(|v| v.as_str()).unwrap_or("").to_string(); let t = d.get("t").and_then(|v| v.as_str()).unwrap_or("").to_string(); self.ent_radio_remota(id, &v, &t); },
+            None => {
+                let mut vivas = vec![];
+                if let Some(l) = d.as_array() { for x in l.iter().take(300) { if let Some(id) = self.ent_remota(m, de, x) { vivas.push(id); } } }
+                while let Some(i) = self.jg.ents.lista.iter().position(|e| e.dueno.as_ref().map_or(false, |(o, _)| o == de) && !vivas.contains(&e.id)) { self.ent_quitar(i); }
+            }
+            _ => {}
+        }
+    }
+    /// entidadesDe: las de uno que se fue de la sala
+    pub(crate) fn ent_quitar_de(&mut self, de: &str) {
+        while let Some(i) = self.jg.ents.lista.iter().position(|e| e.dueno.as_ref().map_or(false, |(o, _)| o == de)) { self.ent_quitar(i); }
+    }
     /// entidadesCargar: las de un mapa
     pub(super) unsafe fn ent_cargar(&mut self, m: &mut Motor3d, lista: &[Value]) { for d in lista { self.ent_crear(m, d); } self.jg.ents.t0 = self.jg.t; }
     /// un mapa de la Comunidad sobre el mapa base ya armado: las entidades, el lugar donde aparecés y el aviso
@@ -290,8 +362,14 @@ impl Juego {
         let f = [self.jug.yaw.sin(), 0.0, self.jug.yaw.cos()]; let d = if t == "piano" { 3.0 } else { 1.6 }; let mut p = add(self.jug.pos, esc(f, d));
         let piso = self.mapa.as_ref().and_then(|mp| mp.mundo.rayo([p[0], self.jug.pos[1] + 1.0, p[2]], [0.0, -1.0, 0.0], 40.0)).map(|g| self.jug.pos[1] + 1.0 - g.t);
         p[1] = piso.unwrap_or(self.jug.pos[1] - 1.0);
-        if let Some(i) = self.jg.ents.lista.iter().position(|e| e.t == t && e.de_mod) { self.ent_quitar(i); }
-        if let Some(id) = self.ent_crear(m, &json!({ "t": t, "p": [p[0], p[1], p[2]], "yaw": self.jug.yaw })) { if let Some(e) = self.jg.ents.lista.iter_mut().find(|e| e.id == id) { e.de_mod = true; } }
+        // (la radio que ya tenía sigue con su emisora en la nueva; a la sala: la vieja se va y llega la nueva)
+        let mut emisora = None;
+        if let Some(i) = self.jg.ents.lista.iter().position(|e| e.t == t && e.de_mod && e.dueno.is_none()) { let viejo = self.jg.ents.lista[i].id; emisora = self.med.radios.get(&viejo).map(|r| (r.0.clone(), r.1.clone())); self.ent_quitar(i); self.ent_contar("entb", viejo); }
+        if let Some(id) = self.ent_crear(m, &json!({ "t": t, "p": [p[0], p[1], p[2]], "yaw": self.jug.yaw })) {
+            if let Some(e) = self.jg.ents.lista.iter_mut().find(|e| e.id == id) { e.de_mod = true; }
+            self.ent_contar("ent", id);
+            if let Some((u, tt)) = emisora { self.med_poner_radio(id, u, tt); }
+        }
     }
 
     // ---------------- cada cuadro ----------------

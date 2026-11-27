@@ -100,14 +100,18 @@ impl Juego {
             "poner" => { let Some(it) = self.med.res.get(b.parse::<usize>().unwrap_or(usize::MAX)).cloned() else { return };
                 let (id, t) = (it["id"].as_str().unwrap_or("").to_string(), it["t"].as_str().unwrap_or("").to_string()); let cual = self.med.cual;
                 if self.med.modo == 1 { if let Some(a) = &self.med.app { a.tele_poner(cual as i32, &id); } self.med.teles.insert(cual, (id, t, 0.8, -1)); }
-                else { let vol = self.med.radios.get(&cual).map(|r| r.2).unwrap_or(0.8); self.med.radios.insert(cual, (id.clone(), t, vol, 0.0));
-                    if let Some(h) = self.gmod.http_bin.clone() { let (tx, url, k) = (self.gmod.tx.clone(), format!("{}radio/u/{id}", gmod_juego::TIENDA_URL), format!("med:u:{cual}:{id}"));
-                        std::thread::spawn(move || { let r = h(&url).and_then(|(c, b)| if c == 200 { Ok(b) } else { Err(format!("HTTP {c}")) }); let _ = tx.send((k, r)); }); } } }
-            "apagar" => { let c = self.med.cual; if self.med.modo == 1 { self.med.teles.remove(&c); if let Some(a) = &self.med.app { a.tele_parar(c as i32); } } else { self.med.radios.remove(&c); if let Some(a) = &self.med.app { a.radio_parar(c as i32); } } }
+                else { self.med_poner_radio(cual, id, t); self.ent_contar("radio", cual); } }
+            "apagar" => { let c = self.med.cual; if self.med.modo == 1 { self.med.teles.remove(&c); if let Some(a) = &self.med.app { a.tele_parar(c as i32); } } else { self.med.radios.remove(&c); if let Some(a) = &self.med.app { a.radio_parar(c as i32); } self.ent_contar("radio", c); } }
             "vol" => { let d: f32 = b.parse().unwrap_or(0.0); let c = self.med.cual;
                 if self.med.modo == 1 { if let Some(t) = self.med.teles.get_mut(&c) { t.2 = (t.2 + d).clamp(0.0, 1.0); t.3 = -1; } } else if let Some(r) = self.med.radios.get_mut(&c) { r.2 = (r.2 + d).clamp(0.0, 1.0); } }
             _ => {}
         }
+    }
+    /// una emisora de Radio Browser (su uuid) en la radio `cual`: se pide su dirección a la tienda y suena
+    pub(crate) fn med_poner_radio(&mut self, cual: u32, id: String, t: String) {
+        let vol = self.med.radios.get(&cual).map(|r| r.2).unwrap_or(0.8); self.med.radios.insert(cual, (id.clone(), t, vol, 0.0));
+        if let Some(h) = self.gmod.http_bin.clone() { let (tx, url, k) = (self.gmod.tx.clone(), format!("{}radio/u/{id}", gmod_juego::TIENDA_URL), format!("med:u:{cual}:{id}"));
+            std::thread::spawn(move || { let r = h(&url).and_then(|(c, b)| if c == 200 { Ok(b) } else { Err(format!("HTTP {c}")) }); let _ = tx.send((k, r)); }); }
     }
     pub(crate) fn med_escrito(&mut self, t: String) { self.med.q = t.chars().take(80).collect(); self.med.tag.clear(); if self.med.modo == 1 && yt_malo(&self.med.q) { self.avisar("Esa búsqueda no va".into()); self.med.res.clear(); return; } self.med_buscar(); }
     /// la radio que se quita (la entidad ya no está)

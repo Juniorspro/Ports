@@ -18,6 +18,8 @@ pub struct Nat {
     pub volando: bool, pub scp: bool,
     /// tirado como muñeco: el NPC muñeco con el cuerpo (o pedido, esperando el cuadro: None con `pedir_rag`)
     pub rag: Option<u32>, pedir_rag: bool,
+    /// otro de la sala me tira del muñeco (natRed «jalar»): el cuerpo, adónde y cuándo llegó
+    jalado: Option<(u32, V, f32)>,
     /// la cámara antes del mod (natTercera), el reloj de los pasos del mod
     terc: Option<u8>, acum: f32,
     /// el SCP: arriba (la normal de la superficie), adelante, si está pegado y cuánto falta para volver a pegarse
@@ -50,6 +52,16 @@ impl Juego {
         let n = &mut self.jg.nat; n.scp = si; n.up = [0.0, 1.0, 0.0]; n.pegado = false; n.suelta = 0.0; n.patas.clear();
         if si { n.fw = [self.jug.yaw.sin(), 0.0, self.jug.yaw.cos()]; self.jug.noclip = false; } else { self.jug.pos[1] += 0.5; }
         self.nat_tercera(si);
+    }
+    /// natRed: otro de la sala me agarró el muñeco (adónde me lleva) o me soltó (con qué velocidad)
+    pub(crate) fn nat_red(&mut self, d: &serde_json::Value) {
+        if d.get("to").and_then(|v| v.as_str()) != Some(self.en_red.red.id.as_str()) { return; }
+        let Some(id) = self.jg.nat.rag else { return };
+        let h = d.get("h").and_then(|v| v.as_i64()).unwrap_or(-1).max(0) as usize;
+        let Some(c) = self.npcs.get(id).and_then(|n| n.rag.as_ref()).and_then(|r| r.cuerpo_de(h)) else { return };
+        let v3 = |k: &str, lim: f64| -> Option<[f64; 3]> { let a = d.get(k)?.as_array()?; if a.len() < 3 { return None; } let f = |i: usize| a[i].as_f64().filter(|x| x.is_finite()).unwrap_or(0.0).clamp(-lim, lim); Some([f(0), f(1), f(2)]) };
+        if jxjuego::red::verdad(d.get("fin")) { self.jg.nat.jalado = None; if let (Some(v), Some(b)) = (v3("v", 80.0), self.fis.cuerpo_mut(c)) { b.vel = v; b.despertar(); } return; }
+        if let Some(p) = v3("p", 1e4) { self.jg.nat.jalado = Some((c, [p[0] as f32, p[1] as f32, p[2] as f32], self.jg.t)); }
     }
     /// natRag: tirarse como muñeco (en el cuadro se arma el muñeco con tu cuerpo) o levantarse donde quedó la cadera
     pub(super) fn nat_rag(&mut self, si: bool) {
@@ -92,7 +104,12 @@ impl Juego {
         if let Some(id) = self.jg.nat.rag {
             let Some(n) = self.npcs.get(id) else { self.jg.nat.rag = None; self.nat_tercera(false); return };
             let h = n.pos(); let v = n.cuerpo.and_then(|c| self.fis.cuerpo(c)).map(|b| v32(b.vel)).unwrap_or([0.0; 3]);
-            self.jug.pos = add(h, [0.0, 0.15, 0.0]); self.jug.vel = v; self.jug.suelo = false; return;
+            self.jug.pos = add(h, [0.0, 0.15, 0.0]); self.jug.vel = v; self.jug.suelo = false;
+            // (te tiran de un lado del cuerpo desde otro juego: resorte hacia donde te llevan)
+            if let Some((c, p, t)) = self.jg.nat.jalado { if self.jg.t - t < 0.45 { if let Some(b) = self.fis.cuerpo_mut(c) {
+                let d = [p[0] as f64 - b.pos[0], p[1] as f64 - b.pos[1], p[2] as f64 - b.pos[2]]; let mut v = [d[0] * 12.0, d[1] * 12.0, d[2] * 12.0]; let l = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt(); if l > 45.0 { for e in 0..3 { v[e] *= 45.0 / l; } }
+                for e in 0..3 { b.vel[e] += (v[e] - b.vel[e]) * 0.6; } b.despertar(); } } }
+            return;
         }
         let ent = self.jg.ent; let paso = 1.0 / 120.0;
         self.jg.nat.acum = (self.jg.nat.acum + dt).min(paso * 12.0);

@@ -33,6 +33,8 @@ pub struct EnRed {
     datos: Option<std::path::PathBuf>,
     /// el chat de la sala (abajo a la izquierda, como el de la web): lo que dijeron y cuándo (tiempo del juego)
     chat: Vec<(String, f64)>,
+    /// las bocinas de los autos de los demás (cuerpo del auto → hace cuánto llegó) y si la mía / mi turbo ya se contaron
+    bocinas: HashMap<u32, f32>, boc_mia: bool, turbo_env: bool,
 }
 
 /// lo que se toca en el panel de salas
@@ -65,7 +67,7 @@ impl EnRed {
         if let Some(d) = datos { let _ = std::fs::write(d.join("red_id.txt"), &red.id); }
         if let Some(s) = leer("salas.json") { red.poner_mias_json(&s); }
         EnRed { red, puente: None, local: Local::default(), cuerpos: HashMap::new(), emotes: HashMap::new(), cosas: HashMap::new(), de_otros: HashSet::new(), panel: false, scroll: 0.0,
-            empezar: false, habia_mapa: false, reloj: 0.0, listo: false, firma: (0, 0), desde_red: false, datos: datos.map(|d| d.to_path_buf()), chat: vec![] }
+            empezar: false, habia_mapa: false, reloj: 0.0, listo: false, firma: (0, 0), desde_red: false, datos: datos.map(|d| d.to_path_buf()), chat: vec![], bocinas: HashMap::new(), boc_mia: false, turbo_env: false }
     }
     /// ¿estoy en una sala?
     pub fn en_sala(&self) -> bool { self.red.sala.is_some() && self.red.room.len() > 0 }
@@ -74,12 +76,45 @@ impl EnRed {
     /// un renglón en el chat (quedan los últimos 6)
     pub(super) fn al_chat(&mut self, t: String) { let ahora = self.red.t; self.chat.push((t, ahora)); if self.chat.len() > 6 { self.chat.remove(0); } }
     /// la cosa de otro que es este Obj (su clave)
+    /// es de otro de la sala (la simula su dueño)
+    pub(super) fn es_de_otro(&self, id: u32) -> bool { self.de_otros.contains(&id) }
+    /// la cosa de esta clave (claveObj de la web: «ID:n», la mía o la de otro), si está acá
+    pub(super) fn id_de(&self, clave: &str) -> Option<u32> { self.cosas.get(clave).copied().or_else(|| clave.strip_prefix(&format!("{}:", self.red.id)).and_then(|n| n.parse().ok())) }
+    /// claveObj: la clave de una cosa para la sala
+    pub(super) fn clave_obj(&self, id: u32) -> String { self.clave_de(id).cloned().unwrap_or_else(|| self.red.clave_propia(id)) }
     fn clave_de(&self, id: u32) -> Option<&String> { self.cosas.iter().find(|(_, v)| **v == id).map(|(k, _)| k) }
     /// se borró el Obj `id`: si era de otro, se olvida y da su clave
     pub(super) fn olvidar_cosa(&mut self, id: u32) -> Option<String> { if !self.de_otros.remove(&id) { return None; } let c = self.clave_de(id).cloned()?; self.cosas.remove(&c); Some(c) }
 }
 
 impl Juego {
+    /// bocinaRed y turboRed: la bocina y el cohete del auto de otro de la sala
+    pub(crate) fn red_auto(&mut self, k: &str, d: &serde_json::Value) {
+        let Some(id) = d.get("o").and_then(|v| v.as_str()).and_then(|c| self.en_red.id_de(c)) else { return };
+        let Some(c) = self.objs.iter().find(|o| o.id == id).and_then(|o| o.cuerpo) else { return };
+        let on = jxjuego::red::verdad(d.get("on"));
+        if k == "bocina" { if on { self.en_red.bocinas.insert(c, 0.0); } else { self.en_red.bocinas.remove(&c); } }
+        else if let Some(v) = self.vehs.de_mut(c) { v.turbo = on; }
+    }
+    /// cada cuadro, con los sonidos: las bocinas de los demás (hasta 6 s si no llega el «soltó») y contarle a la sala la mía
+    /// y mi turbo cuando cambian
+    pub(super) fn red_autos_paso(&mut self, dt: f32, mia: bool) {
+        let mut fuera = vec![];
+        for (c, t) in self.en_red.bocinas.iter_mut() {
+            *t += dt; let tipo = self.vehs.de(*c).and_then(|v| v.bocina_tipo()); let p = self.fis.cuerpo(*c).map(|b| [b.pos[0] as f32, b.pos[1] as f32, b.pos[2] as f32]);
+            match (tipo, p) { (Some(tipo), Some(p)) if *t < 6.0 => { let n = format!("JX_bocina_{tipo}"); self.sonido.sintetico(&n, || jxjuego::vehiculo::bocina_pcm(tipo, 44100), 44100); self.sonido.bucle_ex(&format!("bocina{c}"), &n, 1.0, 1.0, 0.0, Some(p)); } _ => fuera.push(*c) }
+        }
+        for c in fuera { self.en_red.bocinas.remove(&c); }
+        if !self.en_red.en_sala() { self.en_red.bocinas.clear(); return; }
+        let Some((c, _)) = self.vehs.jugador else { if self.en_red.boc_mia { self.en_red.boc_mia = false; } return };
+        let Some(oid) = self.objs.iter().find(|o| o.cuerpo == Some(c)).map(|o| o.id) else { return };
+        let turbo = self.vehs.de(c).map_or(false, |v| v.turbo);
+        for (k, ahora, antes) in [("bocina", mia, self.en_red.boc_mia), ("turbo", turbo, self.en_red.turbo_env)] {
+            if ahora == antes { continue; }
+            let o = self.en_red.clave_obj(oid); self.en_red.red.publicar("a", &serde_json::json!({ "k": k, "o": o, "on": ahora as i32 }).to_string(), false);
+        }
+        self.en_red.boc_mia = mia; self.en_red.turbo_env = turbo;
+    }
     /// abrir el panel de salas (conectarse a la lista)
     pub fn abrir_salas(&mut self) {
         self.en_red.panel = true; self.en_red.scroll = 0.0; self.menu = None;
@@ -167,6 +202,8 @@ impl Juego {
         l.jug = red::Jugador { skin: self.skin.clone(), gorro: self.pjs.prefs.gorro.clone(), gorro_aj: self.pjs.prefs.gorro_aj.as_ref().map(|g| g.json().to_string()).unwrap_or_default(), acc: self.pjs.prefs.acc.as_ref().map(|a| a.json().to_string()).unwrap_or_default(), pos: p64(j.pos), yaw: j.yaw as f64, pitch: -j.pitch as f64, vel: p64(j.vel),
             suelo: j.suelo, agachado: j.agachado, vivo: !self.muerto, bits: if j.noclip { 16 } else { 0 }, arma: Some(self.armas.def().n.to_string()), emote: self.emote.clone(), vida: j.vida as f64,
             vehiculo: veh, reloj: self.en_red.reloj, voz: self.aj.voces, ..Default::default() };
+        // (mis entidades de las Opciones, para el que entra: ROOM/w/ID)
+        l.entidades = self.ent_mias_json();
         l.objs.clear(); l.simulo.clear();
         let (mut n, mut cong) = (0, 0);
         for o in &self.objs {
@@ -224,13 +261,15 @@ impl Juego {
     }
 
     /// lo que pasó en la red
+    /// (para las pruebas: lo que llegó a la sala, sin el puente del broker)
+    #[doc(hidden)] pub unsafe fn red_eventos_prueba(&mut self, m: &mut Motor3d) { for e in self.en_red.red.eventos() { self.red_evento(m, e); } }
     unsafe fn red_evento(&mut self, m: &mut Motor3d, e: Evento) {
         match e {
             Evento::Conectado { sala } => self.en_red.al_chat(format!("Conectado: {sala}")),
             Evento::Desconectado => self.avisar("Se cortó la conexión (reconectando…)".into()),
             // (lo que escriben y los nombres de los demás, con la censura de la web: censura.js)
             Evento::Entro { nombre, .. } => self.en_red.al_chat(format!("{} entró", censurar(&nombre))),
-            Evento::Salio { nombre, id } => { self.en_red.cuerpos.remove(&id); self.en_red.al_chat(format!("{} salió", censurar(&nombre))); }
+            Evento::Salio { nombre, id } => { self.en_red.cuerpos.remove(&id); self.ent_quitar_de(&id); self.en_red.al_chat(format!("{} salió", censurar(&nombre))); }
             Evento::Chat { nombre, texto, .. } => self.en_red.al_chat(format!("{}: {}", censurar(&nombre), censurar(&texto))),
             Evento::Aviso(t) => self.avisar(t),
             Evento::Disparo { arma, o, dir, .. } => {
@@ -272,7 +311,9 @@ impl Juego {
             }
             Evento::NpcAct { n, a, .. } => { let act = npc::Actitud::normal(&a, None); self.npcs.aplicar(n as u32, act); }
             Evento::NpcFin { clave } => { self.en_red.cuerpos.remove(&format!("npc:{clave}")); }
+            Evento::Hecho { de, k, d } if matches!(k.as_str(), "ent" | "entb" | "radio") => self.ent_red(m, &de, Some(&k), &d),
             Evento::Hecho { de, k, d } => self.pjs_hecho(&de, &k, &d),
+            Evento::Entidades { de, e } => self.ent_red(m, &de, None, &e),
             Evento::Voz { de, datos } => self.vz_llego(&de, &datos),
             Evento::SalaCreada { sala } => { let s = sala.clone();
                 // (creada desde el formulario del inicio: se cierra el menú y se entra, como al tocar Entrar)
