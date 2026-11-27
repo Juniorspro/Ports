@@ -1,9 +1,9 @@
 {
- "codigo": 26112710,
- "version": "0.43",
+ "codigo": 26112711,
+ "version": "0.44",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 75757830,
- "sha256": "904192ad49cd09438cc8d59fa9130896510ead466388a9e9c94dfdaf0167ca9c",
- "notas_es": "Al bajar algo de la Workshop también se bajan solos los addons que necesita (sus «Required items»: bases de armas, texturas aparte, etc.).",
- "notas_en": "Downloading something from the Workshop now also downloads the addons it needs (its Required items: weapon bases, separate textures, etc.)."
+ "tam": 75946246,
+ "sha256": "5150168091e321ebd2c681718877b935dddf99f664dba45d243cff266705fd6f",
+ "notas_es": "Si el juego se cierra al entrar a una partida, la próxima vez entra solo con gráficos más livianos (y apaga el mod que se estaba cargando). En celulares de 4 GB la calidad automática no pasa de Medio. Los mapas bajados del Workshop aparecen en Partida nueva (pestaña Descargados, con su foto). Guardar y Cargar partida, Nextbot en la Tool Gun, modo VR, Grabar la partida con sonido, playermodels sin placas rotas y el NPC primero en el menú del addon.",
+ "notas_en": "If the game closes while entering a match, next time it starts with lighter graphics (and turns off the mod that was loading). On 4 GB phones automatic quality stays at Medium or below. Downloaded Workshop maps show up in New game (Downloaded tab, with picture). Save/Load game, Tool Gun Nextbot, VR mode, gameplay recording with sound, fixed broken playermodels and NPC first in the addon menu."
 }
