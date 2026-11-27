@@ -214,6 +214,20 @@ impl Fluido {
         }
     }
 
+    /// un tiro de o hacia d (de largo 1) hasta `largo` m: lo que toca sale empujado (en la dirección del tiro y un poco
+    /// hacia afuera); devuelve dónde tocó la primera
+    pub fn tiro(&mut self, o: V, d: V, largo_max: f32) -> Option<V> {
+        let mut primero: Option<(f32, V)> = None;
+        for i in 0..self.x.len() {
+            let w = sub(self.x[i], o); let t = dot(w, d); if t < 0.0 || t > largo_max { continue; }
+            let lado = sub(w, esc(d, t)); let l = largo(lado); if l > 0.16 { continue; }
+            let k = 1.0 - l / 0.16; let afuera = if l > 1e-4 { esc(lado, 3.0 * k / l) } else { [0.0; 3] };
+            self.v[i] = add(self.v[i], add(esc(d, 7.0 * k), add(afuera, [0.0, 1.5 * k, 0.0])));
+            if primero.map_or(true, |p| t < p.0) { primero = Some((t, self.x[i])); }
+        }
+        primero.map(|p| p.1)
+    }
+
     fn emitir(&mut self, dt: f32) {
         let mut fs = std::mem::take(&mut self.fuentes);
         for f in fs.iter_mut() {

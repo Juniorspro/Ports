@@ -90,6 +90,9 @@ fn main() {
     }
     // ---------------- el agua de partículas (agua_juego.rs) ----------------
     if hace("agua") {
+        { let k = ["bottle", "botella", "bucket", "balde", "bathtub", "tub", "trash", "can", "lata", "mug", "taza", "cup", "vaso", "pot", "olla", "bowl", "vase", "kettle", "jar", "barrel", "barril", "carton", "jug", "pail", "sink"];
+          let mut hay = vec![]; for (cat, its) in &j.catalogo { for it in its { let l = it.to_lowercase(); if k.iter().any(|x| l.contains(x)) { hay.push(format!("{cat}/{it}")); } } }
+          println!("recipientes en el catálogo ({}): {:?}", hay.len(), hay); }
         for v in &j.aguas.vols { println!("agua del mapa: centro ({:.1}, {:.1}) medio ({:.1}, {:.1}) de {:.2} a {:.2}", v.cx, v.cz, v.hx, v.hz, v.y0, v.y1); }
         j.jug.noclip = false; paso(&mut j, &mut m, 30);
         let b0 = j.jug.pos; let fw = [j.jug.yaw.sin(), 0.0, j.jug.yaw.cos()]; let pie = b0[1] - 0.95;
@@ -129,6 +132,22 @@ fn main() {
             // abajo del agua: las burbujas
             mirar(&mut j, [cx + 1.5, (y1 - 0.8).max(v.y0 as f32 + 0.3), cz + 1.5], [cx, y1 - 0.6, cz]); let _ = j.crear_en(&mut m, "Box2", [cx + 0.3, y1 + 2.0, cz], 0.0);
             for k in 0..90 { paso(&mut j, &mut m, 1); if k == 62 { foto(&mut m, "agua_burbujas"); } if k == 80 { foto(&mut m, "agua_burbujas2"); } }
+        }
+        // 6) los huecos en el agua del mapa: una botella y un florero que caen (se llenan, burbujas, se hunden o flotan)
+        if let Some(v) = j.aguas.vols.iter().max_by(|a, b| (a.hx * a.hz).partial_cmp(&(b.hx * b.hz)).unwrap()).cloned() {
+            let (cx, cz, y1) = (v.cx as f32 - 3.0, v.cz as f32 + 3.0, v.y1 as f32);
+            let mut ids = vec![];
+            for (k, n) in ["bottle3", "Vase"].iter().enumerate() { let _ = j.crear_en(&mut m, n, [cx + k as f32 * 1.5, y1 + 1.5, cz], 0.0); if let Some(id) = j.objs.last().and_then(|o| o.cuerpo) { ids.push((n.to_string(), id)); } }
+            for (n, id) in &ids { if let Some(h) = j.aguas.cuerpos.get(id).and_then(|f| f.hueco.as_ref()) { println!("{n}: hueco cavidad {:.0} % de {:.2} L, boca r {:.3} m, eje {:?}", h.cav * 100.0, h.v_cav * 1000.0, h.boca_r, h.eje); } else { println!("{n}: NO es hueco"); } }
+            mirar(&mut j, [cx + 4.5, y1 + 1.2, cz + 3.5], [cx + 0.7, y1 - 0.2, cz]);
+            let mut bur = 0usize;
+            for k in 0..420 { let antes = j.ef.cuantas(); paso(&mut j, &mut m, 1); bur += j.ef.cuantas().saturating_sub(antes);
+                if k % 60 == 59 { let t: Vec<String> = ids.iter().map(|(n, id)| format!("{n}: y {:.2} lleno {:.0} %", j.fis.cuerpo(*id).map_or(0.0, |b| b.pos[1] - v.y1), j.aguas.lleno(*id).unwrap_or(-1.0) * 100.0)).collect(); println!("  t {:.0} s · {}", (k + 1) as f32 / 60.0, t.join(" · ")); }
+                if k == 40 { foto(&mut m, "hueco_cae"); } }
+            foto(&mut m, "hueco_final");
+            // abajo del agua, mirando el florero
+            if let Some(b) = ids.get(1).and_then(|(_, id)| j.fis.cuerpo(*id)) { let p = b.pos; mirar(&mut j, [p[0] as f32 + 1.2, (p[1] as f32 + 0.3).min(y1 - 0.4), p[2] as f32 + 1.0], [p[0] as f32, p[1] as f32, p[2] as f32]); paso(&mut j, &mut m, 2); foto(&mut m, "hueco_abajo"); }
+            println!("huecos: burbujas y gotas nuevas en 7 s: {bur}");
         }
         j.agua_poner("secar");
     }
