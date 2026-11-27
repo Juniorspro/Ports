@@ -111,45 +111,10 @@ impl Mundo {
     #[inline] pub fn normal(&self, t: u32) -> V { let o = t as usize * 3; [self.tn[o], self.tn[o + 1], self.tn[o + 2]] }
 
     /// el punto del triángulo más cercano a p (Ericson, «Real-Time Collision Detection»: como triCercano)
-    pub fn tri_cercano(&self, t: u32, p: V) -> V {
-        let (a, b, c) = (self.vert(t, 0), self.vert(t, 1), self.vert(t, 2));
-        let (ab, ac, ap) = (sub(b, a), sub(c, a), sub(p, a));
-        let (d1, d2) = (dot(ab, ap), dot(ac, ap)); if d1 <= 0.0 && d2 <= 0.0 { return a; }
-        let bp = sub(p, b); let (d3, d4) = (dot(ab, bp), dot(ac, bp)); if d3 >= 0.0 && d4 <= d3 { return b; }
-        let vc = d1 * d4 - d3 * d2; if vc <= 0.0 && d1 >= 0.0 && d3 <= 0.0 { let v = d1 / (d1 - d3); return add(a, esc(ab, v)); }
-        let cp = sub(p, c); let (d5, d6) = (dot(ab, cp), dot(ac, cp)); if d6 >= 0.0 && d5 <= d6 { return c; }
-        let vb = d5 * d2 - d1 * d6; if vb <= 0.0 && d2 >= 0.0 && d6 <= 0.0 { let w = d2 / (d2 - d6); return add(a, esc(ac, w)); }
-        let va = d3 * d6 - d5 * d4; if va <= 0.0 && (d4 - d3) >= 0.0 && (d5 - d6) >= 0.0 { let w = (d4 - d3) / ((d4 - d3) + (d5 - d6)); return add(b, esc(sub(c, b), w)); }
-        let den = 1.0 / (va + vb + vc); let (v, w) = (vb * den, vc * den);
-        add(a, add(esc(ab, v), esc(ac, w)))
-    }
+    pub fn tri_cercano(&self, t: u32, p: V) -> V { punto_tri(self.vert(t, 0), self.vert(t, 1), self.vert(t, 2), p) }
 
     /// cuánto hay que correr una esfera (centro c, radio r) para sacarla de un cuerpo fijo: la normal y lo hundido
-    pub fn fuera_de_cuerpo(&self, b: usize, c: V, r: f32) -> Option<(V, f32)> {
-        match &self.cuerpos[b].f {
-            Forma::Caja { c: cc, e, h } => {
-                // (en las coordenadas de la caja: el punto más cercano es el centro recortado a la caja; si el centro está adentro, se
-                // sale por la cara más cercana —como hullClosest de fisica.js—)
-                let d = sub(c, *cc); let l = [dot(d, e[0]), dot(d, e[1]), dot(d, e[2])];
-                let dentro = (0..3).all(|k| l[k].abs() <= h[k]);
-                if dentro {
-                    let mut mejor = 0; let mut s = f32::MAX;
-                    for k in 0..3 { let x = h[k] - l[k].abs(); if x < s { s = x; mejor = k; } }
-                    let n = esc(e[mejor], if l[mejor] < 0.0 { -1.0 } else { 1.0 });
-                    return Some((n, s + r));
-                }
-                let q = [l[0].clamp(-h[0], h[0]), l[1].clamp(-h[1], h[1]), l[2].clamp(-h[2], h[2])];
-                let p = add(*cc, add(esc(e[0], q[0]), add(esc(e[1], q[1]), esc(e[2], q[2]))));
-                let dd = sub(c, p); let ll = largo(dd); if ll >= r || ll < 1e-6 { return None; }
-                Some((esc(dd, 1.0 / ll), r - ll))
-            }
-            Forma::Esfera { c: cc, r: rr } => { let dd = sub(c, *cc); let ll = largo(dd); let rt = rr + r; if ll >= rt || ll < 1e-6 { return None; } Some((esc(dd, 1.0 / ll), rt - ll)) }
-            Forma::Capsula { a, b, r: rr } => {
-                let ab = sub(*b, *a); let t = (dot(sub(c, *a), ab) / dot(ab, ab).max(1e-9)).clamp(0.0, 1.0); let p = add(*a, esc(ab, t));
-                let dd = sub(c, p); let ll = largo(dd); let rt = rr + r; if ll >= rt || ll < 1e-6 { return None; } Some((esc(dd, 1.0 / ll), rt - ll))
-            }
-        }
-    }
+    pub fn fuera_de_cuerpo(&self, b: usize, c: V, r: f32) -> Option<(V, f32)> { fuera_de(&self.cuerpos[b], c, r) }
 
     /// un rayo desde o en la dirección d (de largo 1) hasta `max`: lo primero que toca del mapa (mundoRayo)
     pub fn rayo(&self, o: V, d: V, max: f32) -> Option<Golpe> {
@@ -204,6 +169,44 @@ impl Mundo {
     }
 }
 
+/// el punto del triángulo a, b, c más cercano a p (Ericson, «Real-Time Collision Detection»)
+pub fn punto_tri(a: V, b: V, c: V, p: V) -> V {
+        let (ab, ac, ap) = (sub(b, a), sub(c, a), sub(p, a));
+        let (d1, d2) = (dot(ab, ap), dot(ac, ap)); if d1 <= 0.0 && d2 <= 0.0 { return a; }
+        let bp = sub(p, b); let (d3, d4) = (dot(ab, bp), dot(ac, bp)); if d3 >= 0.0 && d4 <= d3 { return b; }
+        let vc = d1 * d4 - d3 * d2; if vc <= 0.0 && d1 >= 0.0 && d3 <= 0.0 { let v = d1 / (d1 - d3); return add(a, esc(ab, v)); }
+        let cp = sub(p, c); let (d5, d6) = (dot(ab, cp), dot(ac, cp)); if d6 >= 0.0 && d5 <= d6 { return c; }
+        let vb = d5 * d2 - d1 * d6; if vb <= 0.0 && d2 >= 0.0 && d6 <= 0.0 { let w = d2 / (d2 - d6); return add(a, esc(ac, w)); }
+        let va = d3 * d6 - d5 * d4; if va <= 0.0 && (d4 - d3) >= 0.0 && (d5 - d6) >= 0.0 { let w = (d4 - d3) / ((d4 - d3) + (d5 - d6)); return add(b, esc(sub(c, b), w)); }
+        let den = 1.0 / (va + vb + vc); let (v, w) = (vb * den, vc * den);
+        add(a, add(esc(ab, v), esc(ac, w)))
+}
+/// cuánto hay que correr una esfera (centro c, radio r) para sacarla del cuerpo fijo `cu`: la normal y lo hundido
+pub fn fuera_de(cu: &Cuerpo, c: V, r: f32) -> Option<(V, f32)> {
+        match &cu.f {
+            Forma::Caja { c: cc, e, h } => {
+                // (en las coordenadas de la caja: el punto más cercano es el centro recortado a la caja; si el centro está adentro, se
+                // sale por la cara más cercana —como hullClosest de fisica.js—)
+                let d = sub(c, *cc); let l = [dot(d, e[0]), dot(d, e[1]), dot(d, e[2])];
+                let dentro = (0..3).all(|k| l[k].abs() <= h[k]);
+                if dentro {
+                    let mut mejor = 0; let mut s = f32::MAX;
+                    for k in 0..3 { let x = h[k] - l[k].abs(); if x < s { s = x; mejor = k; } }
+                    let n = esc(e[mejor], if l[mejor] < 0.0 { -1.0 } else { 1.0 });
+                    return Some((n, s + r));
+                }
+                let q = [l[0].clamp(-h[0], h[0]), l[1].clamp(-h[1], h[1]), l[2].clamp(-h[2], h[2])];
+                let p = add(*cc, add(esc(e[0], q[0]), add(esc(e[1], q[1]), esc(e[2], q[2]))));
+                let dd = sub(c, p); let ll = largo(dd); if ll >= r || ll < 1e-6 { return None; }
+                Some((esc(dd, 1.0 / ll), r - ll))
+            }
+            Forma::Esfera { c: cc, r: rr } => { let dd = sub(c, *cc); let ll = largo(dd); let rt = rr + r; if ll >= rt || ll < 1e-6 { return None; } Some((esc(dd, 1.0 / ll), rt - ll)) }
+            Forma::Capsula { a, b, r: rr } => {
+                let ab = sub(*b, *a); let t = (dot(sub(c, *a), ab) / dot(ab, ab).max(1e-9)).clamp(0.0, 1.0); let p = add(*a, esc(ab, t));
+                let dd = sub(c, p); let ll = largo(dd); let rt = rr + r; if ll >= rt || ll < 1e-6 { return None; } Some((esc(dd, 1.0 / ll), rt - ll))
+            }
+        }
+}
 fn rayo_esfera(o: V, d: V, c: V, r: f32, max: f32) -> Option<Golpe> {
     let oc = sub(o, c); let b = dot(oc, d); let cc = dot(oc, oc) - r * r; let disc = b * b - cc;
     if disc < 0.0 { return None; }
