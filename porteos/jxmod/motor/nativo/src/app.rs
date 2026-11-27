@@ -223,6 +223,13 @@ fn abrir(win: android_activity::ndk::native_window::NativeWindow, j: &mut Juego,
         Ok((m, b, w, h, placa)) => {
             log(&format!("OpenGL 3: {w}×{h} · {placa}"));
             j.en_uso = Placa::Gl3; j.al_abrir();
+            // (los Mali con OpenGL 3: en algunos la imagen queda negra con pedazos del menú —un Huawei con Mali-G51— y con OpenGL 2
+            // andan bien y más rápido. Si el jugador no eligió motor, la primera vez se pasa a OpenGL 2; queda guardado y se puede
+            // volver a elegir OpenGL 3 en Opciones → Motor)
+            if placa.to_lowercase().contains("mali") && j.datos_dir().map_or(false, |d| !d.join("motor.txt").exists()) {
+                if let Some(d) = j.datos_dir() { let _ = std::fs::write(d.join("motor.txt"), Placa::Gl2.clave()); }
+                j.placa = Placa::Gl2; j.cambiar_motor = true; log("Mali: se pasa a OpenGL 2");
+            }
             Some(Ventana { m: Motor3d::Gl(m, None), gl: Some(b), w, h, placa, _win: win })
         }
         Err(e) => { log(&format!("no se pudo abrir OpenGL 3: {e}")); if let Some(m) = marca { let _ = std::fs::write(m, format!("no pudo abrir OpenGL 3: {e}")); } None }

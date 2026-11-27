@@ -438,6 +438,8 @@ impl Juego {
     /// un aviso de unos segundos en el medio de la pantalla
     pub fn avisar(&mut self, t: String) { self.aviso = Some((t, Instant::now())); }
     /// el motor que pidió el jugador y el que se puede usar (OpenGL 2 todavía no: OpenGL 3)
+    /// la carpeta de datos de la app (si hay)
+    pub fn datos_dir(&self) -> Option<std::path::PathBuf> { self.datos.clone() }
     pub fn motor_pedido(&self) -> Placa { if self.placa.hecha() { self.placa } else { Placa::Gl3 } }
     /// con ventana nueva (el motor nuevo): se carga todo de nuevo
     pub fn al_abrir(&mut self) { self.recargar = true; self.ef.reenviar_marcas(); self.ini_texturas_perdidas(); }
@@ -1041,6 +1043,8 @@ impl Juego {
         if reloj { m.reloj_empezar(); }
         let t = Instant::now();
         if self.placa_nombre != placa_txt { self.placa_nombre = placa_txt.to_string(); }
+        // (Ajustes → Límite de NPC; sin límite: 0)
+        self.npcs.max = if self.aj.npc_max == 0 { 100_000 } else { self.aj.npc_max };
         let r = self.cuadro_dentro(m, w, h, placa_txt);
         // (lo que tardó la CPU en armarlo, sin la espera a la pantalla: con el ritmo parejo de JX Turbo cada cuadro dura lo mismo)
         { let x = t.elapsed().as_secs_f32() * 1000.0; let c = if self.fue_inter { &mut self.cpu_inter } else { &mut self.cpu_real }; *c = if *c == 0.0 { x } else { *c * 0.9 + x * 0.1 }; }
