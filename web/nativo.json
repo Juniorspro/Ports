@@ -1,9 +1,9 @@
 {
- "codigo": 26112706,
- "version": "0.39",
+ "codigo": 26112707,
+ "version": "0.40",
  "apk": "jxmod/JXModNativo.apk",
  "tam": 75700486,
- "sha256": "0a8ad12e9774c2bc47c3a96787618dc78f904e0b9757e62d1efd8d1de49372da",
- "notas_es": "Mapas del Workshop con las texturas y modelos de HL2 y CS:S (se bajan de Steam la primera vez, con la barra de carga). Los props se dejan de dibujar a la distancia que eligió el mapa (mucho más liviano en mapas grandes como gm_fork). Texturas con tope según la calidad. Rayos de sol a la mitad.",
- "notas_en": "Workshop maps now get their HL2 and CS:S textures and models (downloaded from Steam the first time, with a loading bar). Props stop drawing at the map's own fade distance (much lighter on big maps like gm_fork). Texture budget per quality. Sun rays halved."
+ "sha256": "6897269e4af6de8f10aa22d05ae85884365334e5faaebe1f719ad4416cf420df",
+ "notas_es": "El agua de los mapas del Workshop se arma entera (el mar de gm_fork ya aparece completo, con reflejo). El agua de materiales con patch también se reconoce.",
+ "notas_en": "Workshop map water is now built whole (gm_fork's sea shows complete, with reflections). Patched water materials are recognized too."
 }
