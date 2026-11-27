@@ -177,6 +177,39 @@ impl Teclado {
             Ok(())
         });
     }
+    /// Grabar (Grabar.java): empieza la grabación y devuelve la ventana nativa del codificador (ANativeWindow*), o el motivo
+    pub fn grabar_empezar(&self, w: i32, h: i32, fps: i32, rate: i32) -> Result<*mut std::ffi::c_void, String> {
+        #[link(name = "android")] extern "C" { fn ANativeWindow_fromSurface(env: *mut jni::sys::JNIEnv, s: jni::sys::jobject) -> *mut std::ffi::c_void; }
+        let a = self.act.clone();
+        con_java(&self.vm, |env| {
+            let c = env.find_class(jni_str!("com/jxmod/nativo/Grabar"))?;
+            let sup = env.call_static_method(&c, jni_str!("empezar"), jni_sig!("(Landroid/app/Activity;IIII)Landroid/view/Surface;"), &[JValue::Object(a.as_obj()), JValue::Int(w), JValue::Int(h), JValue::Int(fps), JValue::Int(rate)])?.l()?;
+            if sup.is_null() {
+                let e = env.call_static_method(&c, jni_str!("error"), jni_sig!("()Ljava/lang/String;"), &[])?.l()?;
+                return Ok(Err(env.cast_local::<JString>(e)?.try_to_string(env)?));
+            }
+            Ok(Ok(unsafe { ANativeWindow_fromSurface(env.get_raw(), sup.as_raw()) }))
+        }).map_err(|e| e.to_string())?
+    }
+    /// el sonido del juego para la grabación (estéreo intercalado, 16 bits)
+    pub fn grabar_audio(&self, pcm: &[i16]) {
+        if pcm.is_empty() { return; }
+        let _ = con_java(&self.vm, |env| {
+            let c = env.find_class(jni_str!("com/jxmod/nativo/Grabar"))?;
+            let a = env.new_short_array(pcm.len())?; a.set_region(env, 0, pcm)?;
+            env.call_static_method(&c, jni_str!("audio"), jni_sig!("([SI)V"), &[JValue::Object(&a), JValue::Int(pcm.len() as i32)])?;
+            Ok(())
+        });
+    }
+    /// termina la grabación: dónde quedó (o «!» y el motivo)
+    pub fn grabar_terminar(&self) -> String {
+        con_java(&self.vm, |env| {
+            let c = env.find_class(jni_str!("com/jxmod/nativo/Grabar"))?;
+            let r = env.call_static_method(&c, jni_str!("terminar"), jni_sig!("()Ljava/lang/String;"), &[])?.l()?;
+            if r.is_null() { return Ok(String::from("!")); }
+            env.cast_local::<JString>(r)?.try_to_string(env)
+        }).unwrap_or_else(|e| format!("!{e}"))
+    }
     /// lo escrito, si ya llegó: (id, Some(texto)) aceptado o (id, None) cancelado
     pub fn tomar(&self) -> Option<(i32, Option<String>)> {
         let a = self.act.clone();

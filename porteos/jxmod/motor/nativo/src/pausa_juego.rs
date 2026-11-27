@@ -188,7 +188,7 @@ impl Juego {
             Pz::Guardar => { self.ini.pz.abierta = false; self.pz_guardar(); }
             Pz::Cargar => { self.ini.pz.abierta = false; self.pz_cargar(); }
             Pz::Vr => { self.ini.pz.abierta = false; self.vr_alternar(); }
-            Pz::Grabar => self.avisar("Grabar todavía no está en la versión nativa".into()),
+            Pz::Grabar => { self.ini.pz.abierta = false; self.grabar_pedido = Some(!self.grabando); }
         }
     }
     /// el archivo de lo guardado de este mapa (guardarConstruccion de la web: jx_save_<mapa>)

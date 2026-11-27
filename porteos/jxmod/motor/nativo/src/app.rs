@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 type Egl = egl::DynamicInstance<egl::EGL1_4>;
 
 /// lo de EGL (sólo con OpenGL)
-struct BaseGl { e: Egl, d: egl::Display, ctx: egl::Context, s: egl::Surface }
+struct BaseGl { e: Egl, d: egl::Display, ctx: egl::Context, s: egl::Surface, cfg: egl::Config }
 /// lo que dura mientras haya ventana: el motor (y EGL si es OpenGL), el tamaño y la placa
 struct Ventana { m: Motor3d, gl: Option<BaseGl>, w: i32, h: i32, placa: String, _win: android_activity::ndk::native_window::NativeWindow }
 
@@ -78,6 +78,8 @@ fn android_main(app: AndroidApp) {
             let f = std::fs::File::open(p).ok()?; let mut v = vec![0u8; len]; f.read_exact_at(&mut v, o).ok()?; Some(v)
         }))); }
     j.bajas = Some(bajas);
+    // (Juego.java también graba: Grabar.java)
+    let mut java: Option<crate::red_android::Teclado> = None;
     // (escribir: el cuadro de texto de Juego.java)
     if let Some(t) = unsafe { crate::red_android::Teclado::nuevo(app.vm_as_ptr(), app.activity_as_ptr()) } {
         // (el refresco de la pantalla: los gráficos automáticos buscan los cuadros que da —120 en una de 120 Hz—)
@@ -86,6 +88,7 @@ fn android_main(app: AndroidApp) {
         { let t4 = t.clone(); j.lan.candado = Some(Box::new(move || t4.candado_multicast())); }
         // (la actualización de la app, en el inicio: Actualizar.java la busca al abrir, la baja y la instala encima)
         { let (t5, t6) = (t.clone(), t.clone()); j.ini.act_estado = Some(Box::new(move || t5.estado_actualizacion())); j.ini.act_pedir = Some(Box::new(move || t6.actualizar_ahora())); }
+        java = Some(t.clone());
         let (t1, t2) = (t.clone(), t);
         j.teclado = Some(crate::comun::Teclado { pedir: Box::new(move |id, ti, ini, max, cl| t1.pedir(id, ti, ini, max, cl)), tomar: Box::new(move || t2.tomar()) });
     }
@@ -107,6 +110,7 @@ fn android_main(app: AndroidApp) {
     if vk_cayo.is_some() || j.placa == Placa::Vulkan { j.placa = Placa::Gl3; if let Some(d) = vk_prueba().as_deref().and_then(|p| p.parent()) { let _ = std::fs::write(d.join("motor.txt"), Placa::Gl3.clave()); } }
     let mut v: Option<Ventana> = None;
     let mut salir = false;
+    let mut grab: Option<Grab> = None;
     let mut t_ritmo = Instant::now();
     while !salir {
         // (JX Turbo: un cuadro por cada refresco de la pantalla, a ritmo parejo, y el toque leído justo antes. Sin esto los
@@ -122,7 +126,7 @@ fn android_main(app: AndroidApp) {
             if let PollEvent::Main(me) = ev {
                 match me {
                     MainEvent::InitWindow { .. } => { crate::caja_negra::paso("abrir la ventana"); if let Some(w) = app.native_window() { v = abrir(w, &mut j, marca.as_deref()); } crate::caja_negra::a_la_vista(v.is_some()); }
-                    MainEvent::TerminateWindow { .. } => { crate::caja_negra::a_la_vista(false); crate::caja_negra::paso("cerrar la ventana"); if let Some(x) = v.take() { cerrar(x); } vk_prueba_fin(); }
+                    MainEvent::TerminateWindow { .. } => { if let (Some(g), Some(t), Some(x)) = (grab.take(), &java, v.as_ref()) { if let Some(b) = &x.gl { let _ = grab_terminar(g, t, b, &x.m, &j); } j.grabando = false; } crate::caja_negra::a_la_vista(false); crate::caja_negra::paso("cerrar la ventana"); if let Some(x) = v.take() { cerrar(x); } vk_prueba_fin(); }
                     MainEvent::Destroy => { salir = true; }
                     _ => {}
                 }
@@ -147,6 +151,12 @@ fn android_main(app: AndroidApp) {
                 None => if let Some((w, h)) = x.m.tam() { x.w = w as i32; x.h = h as i32; },
             }
             if let Err(e) = unsafe { j.cuadro(&mut x.m, x.w, x.h, &x.placa) } { log(&format!("cuadro: {e}")); if j.error.is_none() { j.error = Some(format!("el motor: {e}")); } }
+            // (Grabar: empezar o terminar, y este cuadro al codificador)
+            if let Some(p) = j.grabar_pedido.take() {
+                if p && grab.is_none() { match (&java, &x.gl) { (Some(t), Some(b)) => match grab_empezar(t, b, &x.m, x.w, x.h, &j) { Ok(g) => { grab = Some(g); j.grabando = true; j.avisar("Grabando… (la pausa → Grabar lo termina)".into()); } Err(e) => j.avisar(format!("No se pudo grabar: {e}")) }, _ => j.avisar("Grabar necesita OpenGL 3 u OpenGL 2".into()) } }
+                else if !p { if let (Some(g), Some(t), Some(b)) = (grab.take(), &java, &x.gl) { let r = grab_terminar(g, t, b, &x.m, &j); j.grabando = false; j.avisar(if let Some(e) = r.strip_prefix('!') { format!("No se pudo guardar el video: {e}") } else { format!("Video guardado: {r}") }); } else { j.grabando = false; } }
+            }
+            if let (Some(g), Some(b), Some(t)) = (grab.as_mut(), &x.gl, &java) { grab_cuadro(g, b, &x.m, x.w, x.h); grab_audio(t, &j); }
             if let Some(b) = &x.gl { let _ = b.e.swap_buffers(b.d, b.s); }
             j.medir(t0.elapsed().as_secs_f32() * 1000.0);
             crate::caja_negra::latido();
@@ -238,7 +248,7 @@ fn abrir_gl(win: *mut c_void, version: i32) -> Result<(glow::Context, BaseGl, i3
     std::mem::forget(lib);   // (la biblioteca de GL queda abierta mientras viva la app)
     let placa = unsafe { use glow::HasContext; gl.get_parameter_string(glow::RENDERER) };
     let w = e.query_surface(d, s, egl::WIDTH).unwrap_or(1); let h = e.query_surface(d, s, egl::HEIGHT).unwrap_or(1);
-    Ok((gl, BaseGl { e, d, ctx, s }, w, h, placa))
+    Ok((gl, BaseGl { e, d, ctx, s, cfg }, w, h, placa))
 }
 
 /// cierra el motor (y EGL): la ventana queda libre para el otro motor
@@ -246,5 +256,76 @@ fn cerrar(v: Ventana) {
     let Ventana { mut m, gl, .. } = v;
     unsafe { m.vaciar(); }
     drop(m);
-    if let Some(BaseGl { e, d, ctx, s }) = gl { let _ = e.make_current(d, None, None, None); let _ = e.destroy_surface(d, s); let _ = e.destroy_context(d, ctx); let _ = e.terminate(d); }
+    if let Some(BaseGl { e, d, ctx, s, .. }) = gl { let _ = e.make_current(d, None, None, None); let _ = e.destroy_surface(d, s); let _ = e.destroy_context(d, ctx); let _ = e.terminate(d); }
+}
+
+
+// ---------------- Grabar (Grabar.java): cada cuadro de la pantalla al codificador ----------------
+/// la grabación en curso: la ventana del codificador y su superficie de EGL, su tamaño, la textura donde se copia la
+/// pantalla, el programa que la dibuja, cuándo empezó y el último cuadro mandado
+struct Grab { win: *mut c_void, surf: egl::Surface, w: i32, h: i32, tex: glow::Texture, tw: i32, th: i32, prog: glow::Program, vbo: glow::Buffer, t0: Instant, ult: f32, pres: Option<unsafe extern "system" fn(*mut c_void, *mut c_void, i64) -> u32> }
+#[link(name = "android")] extern "C" { fn ANativeWindow_release(w: *mut c_void); }
+fn gl_de(m: &Motor3d) -> Option<&glow::Context> { match m { Motor3d::Gl(m, _) => Some(&m.gl), Motor3d::Gl2(m, _) => Some(&m.gl), #[allow(unreachable_patterns)] _ => None } }
+fn grab_empezar(t: &crate::red_android::Teclado, b: &BaseGl, m: &Motor3d, w: i32, h: i32, j: &Juego) -> Result<Grab, String> {
+    use glow::HasContext;
+    let gl = gl_de(m).ok_or("sin OpenGL")?;
+    // (hasta 1280 del lado mayor, múltiplos de 16: lo que aguantan los codificadores de todos los celulares)
+    let k = (1280.0 / w.max(h).max(1) as f32).min(1.0); let gw = (((w as f32 * k) as i32) & !15).max(16); let gh = (((h as f32 * k) as i32) & !15).max(16);
+    let rate = j.sonido.mezcla.lock().map(|x| x.rate).unwrap_or(48000) as i32;
+    let win = t.grabar_empezar(gw, gh, 30, rate)?;
+    let surf = match unsafe { b.e.create_window_surface(b.d, b.cfg, win as egl::NativeWindowType, None) } { Ok(s) => s, Err(e) => { unsafe { ANativeWindow_release(win); } let _ = t.grabar_terminar(); return Err(format!("superficie: {e}")); } };
+    unsafe {
+        let tex = gl.create_texture()?; gl.bind_texture(glow::TEXTURE_2D, Some(tex));
+        gl.tex_image_2d(glow::TEXTURE_2D, 0, glow::RGB as i32, w, h, 0, glow::RGB, glow::UNSIGNED_BYTE, glow::PixelUnpackData::Slice(None));
+        for (a, v) in [(glow::TEXTURE_MIN_FILTER, glow::LINEAR), (glow::TEXTURE_MAG_FILTER, glow::LINEAR), (glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE), (glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE)] { gl.tex_parameter_i32(glow::TEXTURE_2D, a, v as i32); }
+        let prog = gl.create_program()?;
+        for (k, src) in [(glow::VERTEX_SHADER, "attribute vec2 p; varying vec2 v; void main() { v = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }"), (glow::FRAGMENT_SHADER, "precision mediump float; varying vec2 v; uniform sampler2D t; void main() { gl_FragColor = texture2D(t, v); }")] {
+            let sh = gl.create_shader(k)?; gl.shader_source(sh, src); gl.compile_shader(sh); gl.attach_shader(prog, sh);
+        }
+        gl.bind_attrib_location(prog, 0, "p"); gl.link_program(prog);
+        if !gl.get_program_link_status(prog) { return Err(gl.get_program_info_log(prog)); }
+        let vbo = gl.create_buffer()?; gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
+        let tri: [f32; 6] = [-1.0, -1.0, 3.0, -1.0, -1.0, 3.0]; let by: Vec<u8> = tri.iter().flat_map(|x| x.to_le_bytes()).collect();
+        gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, &by, glow::STATIC_DRAW); gl.bind_buffer(glow::ARRAY_BUFFER, None);
+        let pres = b.e.get_proc_address("eglPresentationTimeANDROID").map(|f| std::mem::transmute::<_, unsafe extern "system" fn(*mut c_void, *mut c_void, i64) -> u32>(f));
+        if let Ok(mut mz) = j.sonido.mezcla.lock() { mz.grab = Some(vec![]); }
+        Ok(Grab { win, surf, w: gw, h: gh, tex, tw: w, th: h, prog, vbo, t0: Instant::now(), ult: -1.0, pres })
+    }
+}
+/// este cuadro (a 30 por segundo como mucho): la pantalla a la textura, y de ahí dibujada en la superficie del codificador
+fn grab_cuadro(g: &mut Grab, b: &BaseGl, m: &Motor3d, w: i32, h: i32) {
+    use glow::HasContext;
+    let t = g.t0.elapsed().as_secs_f32(); if t - g.ult < 1.0 / 30.0 - 0.003 { return; } g.ult = t;
+    let Some(gl) = gl_de(m) else { return };
+    let es3 = matches!(m, Motor3d::Gl(..));
+    unsafe {
+        gl.bind_framebuffer(glow::FRAMEBUFFER, None); gl.active_texture(glow::TEXTURE0); gl.bind_texture(glow::TEXTURE_2D, Some(g.tex));
+        if (w, h) != (g.tw, g.th) { gl.tex_image_2d(glow::TEXTURE_2D, 0, glow::RGB as i32, w, h, 0, glow::RGB, glow::UNSIGNED_BYTE, glow::PixelUnpackData::Slice(None)); g.tw = w; g.th = h; }
+        gl.copy_tex_sub_image_2d(glow::TEXTURE_2D, 0, 0, 0, 0, 0, w, h);
+        if b.e.make_current(b.d, Some(g.surf), Some(g.surf), Some(b.ctx)).is_err() { return; }
+        gl.viewport(0, 0, g.w, g.h); gl.disable(glow::DEPTH_TEST); gl.disable(glow::BLEND); gl.disable(glow::SCISSOR_TEST); gl.disable(glow::CULL_FACE);
+        if es3 { gl.bind_vertex_array(None); }
+        gl.use_program(Some(g.prog)); gl.uniform_1_i32(gl.get_uniform_location(g.prog, "t").as_ref(), 0);
+        gl.bind_buffer(glow::ARRAY_BUFFER, Some(g.vbo)); gl.enable_vertex_attrib_array(0); gl.vertex_attrib_pointer_f32(0, 2, glow::FLOAT, false, 8, 0);
+        gl.draw_arrays(glow::TRIANGLES, 0, 3);
+        gl.disable_vertex_attrib_array(0); gl.bind_buffer(glow::ARRAY_BUFFER, None);
+        if let Some(f) = g.pres { f(b.d.as_ptr(), g.surf.as_ptr(), (t as f64 * 1e9) as i64); }
+        let _ = b.e.swap_buffers(b.d, g.surf);
+        let _ = b.e.make_current(b.d, Some(b.s), Some(b.s), Some(b.ctx));
+        gl.viewport(0, 0, w, h);
+    }
+}
+/// el sonido que mezcló el juego desde el cuadro anterior, al codificador de audio (16 bits)
+fn grab_audio(t: &crate::red_android::Teclado, j: &Juego) {
+    let Some(f) = j.sonido.mezcla.lock().ok().and_then(|mut m| m.grab.as_mut().map(std::mem::take)) else { return };
+    let pcm: Vec<i16> = f.iter().map(|x| (x * 32767.0) as i16).collect(); t.grabar_audio(&pcm);
+}
+fn grab_terminar(g: Grab, t: &crate::red_android::Teclado, b: &BaseGl, m: &Motor3d, j: &Juego) -> String {
+    use glow::HasContext;
+    grab_audio(t, j); if let Ok(mut mz) = j.sonido.mezcla.lock() { mz.grab = None; }
+    let _ = b.e.destroy_surface(b.d, g.surf);
+    if let Some(gl) = gl_de(m) { unsafe { gl.delete_texture(g.tex); gl.delete_program(g.prog); gl.delete_buffer(g.vbo); } }
+    let r = t.grabar_terminar();
+    unsafe { ANativeWindow_release(g.win); }
+    r
 }

@@ -15,7 +15,7 @@ pub fn achicar(p: Pcm) -> Pcm {
     else { Pcm { rate: p.rate, ch: 1, datos: (0..n).map(|i| mezcla(i) as i16).collect() } }
 }
 struct Voz { pcm: Arc<Pcm>, pos: f64, paso: f64, vi: f32, vd: f32, /** los que se repiten (el ambiente): su número */ lazo: u64, /** desde dónde vuelve (en muestras) */ ini: f64 }
-pub struct Mezcla { voces: Vec<Voz>, pub rate: u32 }
+pub struct Mezcla { voces: Vec<Voz>, pub rate: u32, /** grabando: lo que sale (estéreo intercalado), hasta que el juego lo lleve */ pub grab: Option<Vec<f32>> }
 impl Mezcla {
     /// mezcla `n` cuadros estéreo en float (la salida los pide)
     pub fn llenar(&mut self, out: &mut [f32], n: usize) {
@@ -34,6 +34,7 @@ impl Mezcla {
             true
         });
         for x in out.iter_mut().take(n * 2) { *x = x.clamp(-1.0, 1.0); }
+        if let Some(g) = self.grab.as_mut() { if g.len() < 48000 * 2 * 4 { g.extend_from_slice(&out[..(n * 2).min(out.len())]); } }
     }
 }
 
@@ -54,7 +55,7 @@ pub struct Sonido {
 impl Sonido {
     /// sin salida (la compu)
     pub fn mudo() -> Sonido {
-        Sonido { mezcla: Arc::new(Mutex::new(Mezcla { voces: vec![], rate: 48000 })), cache: HashMap::new(), #[cfg(target_os = "android")] fuente: None, idx: HashMap::new(),
+        Sonido { mezcla: Arc::new(Mutex::new(Mezcla { voces: vec![], rate: 48000, grab: None })), cache: HashMap::new(), #[cfg(target_os = "android")] fuente: None, idx: HashMap::new(),
             #[cfg(target_os = "android")] _salida: None, oyente: ([0.0; 3], 0.0), volumen: 1.0, bucles: HashMap::new(), prox: 1 }
     }
     /// con el pk.bin de la APK (descriptor y comienzo) y su índice: abre la salida de AAudio
