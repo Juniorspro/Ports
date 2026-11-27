@@ -1050,7 +1050,8 @@ impl Juego {
         // (lo de Ajustes, cada cuadro: la calidad al motor y el volumen al mezclador)
         // (JX Turbo prendido en el motor sólo cuando hace falta —los reales no llegan al refresco—: si no, ni guarda la imagen)
         { let mut op = self.aj.opciones(); op.escala *= self.drs; op.turbo = self.aj.turbo && self.turbo_on;
-          if self.aj.dinamica { let a = self.antilag; if a >= 1 { op.rayos = false; op.aaa = false; } if a >= 2 { op.ao = false; } if a >= 3 { op.reflejo = false; } if a >= 4 { op.sombras = false; } }
+          // (el antilag ya no apaga efectos: los reflejos, la luz global y las sombras se eligen con la calidad; sólo baja la
+          // resolución —self.drs, más abajo—)
           m.opciones(&op); } self.sonido.volumen = self.aj.volumen();
         if self.ajustes.is_some() { self.acum = 0.0; }
         else if let Some(mp) = &self.mapa {
@@ -1453,7 +1454,7 @@ impl Juego {
         if self.aj.fps && !self.ed.activo && self.menu.is_none() && self.ajustes.is_none() && !self.ini.pz.abierta && self.ini.panel.is_none() {
             // (debajo de los botones de arriba a la izquierda; en el editor no, que ahí va su ayuda)
             let y0 = hud_web::bajo_izq(wf, hf);
-            let (ew, eh) = ((wf * self.aj.res as f32 / 100.0).round(), (hf * self.aj.res as f32 / 100.0).round());
+            let re = self.aj.res_efectiva() as f32 / 100.0 * self.drs; let (ew, eh) = ((wf * re).round(), (hf * re).round());
             l.texto_sombra(&mut u, t * 0.5, y0 + t * 0.5, t, bl, &format!("{:.0} fps · cuadro {:.1} ms · placa {:.1} ms · {}×{}", self.fps, self.ms, self.placa_ms, ew, eh));
             l.texto_sombra(&mut u, t * 0.5, y0 + t * 1.75, t * 0.7, [1.0, 1.0, 1.0, 0.85], &format!("JXMod nativo (Rust) · {} · {}{} · {}", usa.nombre(), self.calidad_txt(), if self.drs < 1.0 { format!(" · dinámica {:.0} %", self.drs * 100.0) } else { String::new() }, placa_txt));
             l.texto_sombra(&mut u, t * 0.5, y0 + t * 2.7, t * 0.7, [1.0, 1.0, 1.0, 0.85], &format!("{} · {} · vida {:.0}", self.mapas[self.mapa_i], if self.jug.noclip { "volando" } else if self.jug.nada { "nadando" } else if self.jug.suelo { "en el piso" } else { "en el aire" }, self.jug.vida));
@@ -1665,7 +1666,7 @@ impl Juego {
     }
 
     /// la calidad, para el HUD
-    fn calidad_txt(&self) -> String { if self.aj.calidad < ajustes::PERSONAL { format!("{} {}%", ajustes::CALIDADES[self.aj.calidad], self.aj.res) } else { format!("personal {}%", self.aj.res) } }
+    fn calidad_txt(&self) -> String { if self.aj.calidad < ajustes::PERSONAL { format!("{} {}%", ajustes::CALIDADES[self.aj.calidad], self.aj.res_efectiva()) } else { format!("personal {}%", self.aj.res_efectiva()) } }
     /// lo que tardó el cuadro entero (ms, con la espera a la pantalla) y los cuadros por segundo
     pub fn medir(&mut self, ms: f32) {
         self.ms = if self.cuenta == 0 { ms } else { self.ms * 0.9 + ms * 0.1 }; self.cuenta += 1; self.n_med += 1;
@@ -1682,22 +1683,24 @@ impl Juego {
         // pantalla, y la placa terminarlo antes de que la pantalla se quede sin búfer —2 cuadros menos lo de la CPU—; si no, la
         // pantalla repite cuadros y al girar se ve a los saltos. Con un margen del 8 %)
         let (ms, obj_turbo) = if turbo { (cr, ((2.0 * t - (if ci > 0.0 { ci } else { t * 0.35 }).max(self.cpu_real)) * 0.92).max(t)) } else { (self.ms, 0.0) };
-        // (la resolución dinámica: cada cuarto de segundo, si el cuadro tarda más que el de la pantalla —60, 90 o 120 por segundo;
-        // como mucho 90—, menos píxeles —lo que cuesta va con el cuadrado de la escala—; si sobra, de a poco hasta la elegida.
-        // En pasos de 5 %, entre 50 % y 100 %)
-        if self.aj.dinamica && self.mapa.is_some() && !self.ini.abierto && !self.recargar {
+        // (la resolución dinámica —sólo con la resolución en Automática: la elegida a mano queda fija—: cada medio segundo se
+        // mira el cuadro contra el de la pantalla —60, 90 o 120 por segundo; como mucho 90—; si tarda, un escalón de 5 % menos;
+        // si sobra un buen rato —2 s seguidos—, uno más. De a un escalón, con el reescalado del motor no se notan los saltos.
+        // Entre 50 % y 100 % de la de la calidad; el antilag —grabando, un mapa pesado, el celu caliente— deja bajar hasta 35 %
+        // sin apagar ningún efecto)
+        if self.aj.dinamica && self.aj.res == 0 && self.mapa.is_some() && !self.ini.abierto && !self.recargar {
             self.drs_t += ms;
-            if self.drs_t >= 250.0 {
+            if self.drs_t >= 500.0 {
                 self.drs_t = 0.0; let obj = if turbo { obj_turbo } else { 1000.0 / self.refresco.clamp(45.0, 90.0) };
-                if ms > obj * 1.06 { self.drs = ((self.drs * (obj / ms).sqrt().max(0.85) * 20.0).floor() / 20.0).max(0.5); }
-                else if ms < obj * 0.78 { self.drs = (((self.drs + 0.05) * 20.0).round() / 20.0).min(1.0); }
-                // el antilag: con la resolución ya en el piso y todavía trabado (grabando la pantalla, un mapa pesado, el celu
-                // caliente), se apagan efectos de a uno —rayos, oclusión, reflejo, sombras— cada segundo trabado; vuelven de a uno
-                // después de 6 s estable
-                if self.drs <= 0.5 && ms > obj * 1.15 { self.antilag_mal += 250.0; self.antilag_ok = 0.0; if self.antilag_mal >= 1000.0 && self.antilag < 4 { self.antilag += 1; self.antilag_mal = 0.0; } }
-                else if ms < obj * 0.8 { self.antilag_ok += 250.0; self.antilag_mal = 0.0; if self.antilag_ok >= 6000.0 && self.antilag > 0 { self.antilag -= 1; self.antilag_ok = 0.0; } }
+                let piso = if self.antilag > 0 { 0.35 } else { 0.5 };
+                if ms > obj * 1.08 { self.drs = (((self.drs - 0.05) * 20.0).round() / 20.0).max(piso); self.antilag_ok = 0.0; }
+                else if ms < obj * 0.75 { self.antilag_ok += 500.0; if self.antilag_ok >= 2000.0 { self.antilag_ok = 0.0; self.drs = (((self.drs + 0.05) * 20.0).round() / 20.0).min(1.0); } }
+                else { self.antilag_ok = 0.0; }
+                // (el antilag: con la resolución en el piso y todavía trabado 1 s, el piso baja; vuelve cuando sobra)
+                if self.drs <= 0.5 && ms > obj * 1.15 { self.antilag_mal += 500.0; if self.antilag_mal >= 1000.0 { self.antilag = 1; self.antilag_mal = 0.0; } }
+                else if self.drs >= 0.6 { self.antilag = 0; self.antilag_mal = 0.0; }
             }
-        } else if !self.aj.dinamica { self.drs = 1.0; }
+        } else { self.drs = 1.0; self.antilag = 0; }
         self.fps_paso();
     }
     fn fps_paso(&mut self) { let e = self.t_med.elapsed().as_secs_f32(); if e >= 0.5 { self.fps = self.n_med as f32 / e; self.n_med = 0; self.t_med = Instant::now(); } }

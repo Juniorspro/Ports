@@ -18,6 +18,44 @@ pub struct HerrAddon {
     pub convars: Vec<(String, String)>,
 }
 
+/// un control del panel de opciones de un addon (spawnmenu.AddToolMenuOption), con su valor de ahora
+#[derive(Clone, Debug, PartialEq)]
+pub enum Control {
+    /// una casilla (prendida o no)
+    Check { txt: String, on: bool },
+    /// un deslizador: el valor, el mínimo, el máximo y los decimales
+    Slider { txt: String, v: f64, min: f64, max: f64, dec: u32 },
+    /// un texto de ayuda o un título
+    Ayuda(String),
+    /// un botón
+    Boton(String),
+    /// una lista para elegir: las opciones y la elegida (desde 1; 0 ninguna)
+    Combo { txt: String, ops: Vec<String>, sel: usize },
+    /// un cuadro de texto y lo que dice
+    Texto { txt: String, v: String },
+}
+impl Control {
+    /// de la lista que devuelve __JXM_OpcArmar / __JXM_OpcLeer (derma.lua)
+    pub(crate) fn de_lista(v: Option<&Valor>) -> Vec<Control> {
+        let Some(Valor::Tabla(t)) = v else { return vec![] };
+        let mut out = vec![];
+        for i in 1..=t.borrow().len() {
+            let Valor::Tabla(d) = t.borrow().get(&Valor::Num(i as f64)) else { continue };
+            let s = |k: &str| { let x = d.borrow().get_str(k); if x.es_nil() { String::new() } else { js_str(&x) } };
+            let n = |k: &str| match d.borrow().get_str(k) { Valor::Num(x) => x, _ => 0.0 };
+            out.push(match s("t").as_str() {
+                "check" => Control::Check { txt: s("txt"), on: d.borrow().get_str("on").es_verdad() },
+                "slider" => Control::Slider { txt: s("txt"), v: n("v"), min: n("min"), max: n("max"), dec: n("dec").clamp(0.0, 6.0) as u32 },
+                "combo" => { let ops = match d.borrow().get_str("ops") { Valor::Tabla(o) => (1..=o.borrow().len()).map(|k| js_str(&o.borrow().get(&Valor::Num(k as f64)))).collect(), _ => vec![] }; Control::Combo { txt: s("txt"), ops, sel: n("sel").max(0.0) as usize } }
+                "texto" => Control::Texto { txt: s("txt"), v: s("v") },
+                "boton" => Control::Boton(s("txt")),
+                _ => Control::Ayuda(s("txt")),
+            });
+        }
+        out
+    }
+}
+
 thread_local! { static ACTIVA: RefCell<Option<String>> = const { RefCell::new(None) }; }
 
 /// las tablas TOOL de cada lado (las guarda el montaje)

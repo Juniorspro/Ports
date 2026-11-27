@@ -770,7 +770,7 @@ impl Motor {
             }
         } else { let p = self.propia.as_ref().unwrap(); (0, p.fb, vk::Extent2D { width: p.img.w, height: p.img.h }, 0) };
         // (la escena se dibuja a la escala elegida —la resolución de Ajustes— y la pasada final la estira a la pantalla)
-        let (w, h) = { let (tw, th) = self.tam(); let e = self.op.escala.clamp(0.25, 1.0); (((tw as f32 * e).round() as u32).max(16), ((th as f32 * e).round() as u32).max(16)) };
+        let (w, h) = { let (tw, th) = self.tam(); let e = self.op.escala.clamp(0.1, 1.0); (((tw as f32 * e).round() as u32).max(16), ((th as f32 * e).round() as u32).max(16)) };
         self.destinos(w, h)?;
         ve(self.dev.reset_fences(&[listo]), "valla")?;
         let cb = self.marcos[mi].cb;

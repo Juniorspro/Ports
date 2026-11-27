@@ -9,7 +9,11 @@ use jxmotor::gpu::Opciones;
 pub const CALIDADES: [&str; 6] = ["Patata", "Bajo", "Medio", "Alto", "Ultra", "Definitivo"];
 /// la calidad «Personal»: se tocó algo a mano
 pub const PERSONAL: usize = 6;
-pub const RES: [u32; 5] = [50, 67, 75, 85, 100];
+/// la resolución de la escena (% de la pantalla): aparte de la calidad —tocarla no cambia la luz ni pasa a «Personal»—; 0 es
+/// Automática (la de cada calidad: RES_CALIDAD). Con menos de 100 la imagen se estira con el filtro de reescalado del motor
+pub const RES: [u32; 11] = [0, 10, 20, 30, 40, 50, 60, 67, 75, 85, 100];
+/// la resolución de cada calidad con la resolución en Automática (Patata, Bajo, Medio, Alto, Ultra, Definitivo, Personal)
+pub const RES_CALIDAD: [u32; 7] = [50, 67, 85, 100, 100, 100, 100];
 pub const SENS: [u32; 6] = [4, 8, 12, 16, 20, 26];
 /// el campo de visión (grados de alto de la imagen, como CAM.fov: 70 el de siempre; la web va de 50 a 110)
 pub const FOV: [u32; 6] = [60, 70, 80, 90, 100, 110];
@@ -26,7 +30,7 @@ pub const HORAS: [(&str, f32); 4] = [("Amanecer", 7.0), ("Día", 12.0), ("Atarde
 pub struct Ajustes {
     /// 0 patata … 4 ultra (o PERSONAL)
     pub calidad: usize,
-    /// la resolución de la escena (% de la pantalla)
+    /// la resolución de la escena (% de la pantalla; 0: Automática, la de la calidad) — `res_efectiva`
     pub res: u32,
     pub sombras: bool, pub ao: bool, pub reflejo: bool, pub retoque: bool,
     /// la sensibilidad al mirar (12, la de la web)
@@ -62,7 +66,7 @@ pub struct Ajustes {
     pub menus: u32,
 }
 impl Default for Ajustes {
-    fn default() -> Self { Ajustes { calidad: 4, res: 100, sombras: true, ao: true, reflejo: true, retoque: true, sens: 12, fov: 70, fps: true, vol: 80, ambiente: true, hora: 12.0, ciclo: false, auto: true, medido: None, hud: 80, pal: 100, hud_pos: String::new(), tut: false, cont: false, dinamica: true, turbo: true, idioma: None, musica: true, menus: 80 } }
+    fn default() -> Self { Ajustes { calidad: 4, res: 0, sombras: true, ao: true, reflejo: true, retoque: true, sens: 12, fov: 70, fps: true, vol: 80, ambiente: true, hora: 12.0, ciclo: false, auto: true, medido: None, hud: 80, pal: 100, hud_pos: String::new(), tut: false, cont: false, dinamica: true, turbo: true, idioma: None, musica: true, menus: 80 } }
 }
 
 /// lo que se puede tocar en el menú, un renglón cada uno
@@ -102,7 +106,8 @@ impl Ajustes {
                 // (calidad: la de antes de Definitivo, con Personal en 5; calidad2: la de ahora, que va después y manda)
                 "calidad" => if let Some(n) = n { a.calidad = if n >= 5 { PERSONAL } else { n as usize } },
                 "calidad2" => if let Some(n) = n { a.calidad = (n as usize).min(PERSONAL) },
-                "res" => if let Some(n) = n { a.res = n.clamp(25, 100) },
+                // («res» era la de la calidad —la ponía cada calidad—: ahora va aparte en «res2»; la de antes queda en Automática)
+                "res2" => if let Some(n) = n { a.res = if n == 0 { 0 } else { n.clamp(10, 100) } },
                 "sombras" => a.sombras = b, "ao" => a.ao = b, "reflejo" => a.reflejo = b, "retoque" => a.retoque = b,
                 "sens" => if let Some(n) = n { a.sens = n.clamp(1, 40) },
                 "fov" => if let Some(n) = n { a.fov = n.clamp(50, 110) },
@@ -118,7 +123,7 @@ impl Ajustes {
     }
     pub fn texto(&self) -> String {
         let b = |x: bool| if x { 1 } else { 0 };
-        let mut t = format!("calidad={}\nres={}\nsombras={}\nao={}\nreflejo={}\nretoque={}\nsens={}\nfov={}\nfps={}\nvol={}\nambiente={}\nauto={}\n",
+        let mut t = format!("calidad={}\nres2={}\nsombras={}\nao={}\nreflejo={}\nretoque={}\nsens={}\nfov={}\nfps={}\nvol={}\nambiente={}\nauto={}\n",
             if self.calidad >= 5 { if self.calidad == PERSONAL { 5 } else { 4 } } else { self.calidad }, self.res, b(self.sombras), b(self.ao), b(self.reflejo), b(self.retoque), self.sens, self.fov, b(self.fps), self.vol, b(self.ambiente), b(self.auto));
         if let Some((q, g)) = &self.medido { t += &format!("medido={q}|{}\n", g.replace('\n', " ")); }
         t += &format!("hud={}\npal={}\ntut={}\ncont={}\ndin2={}\nturbo={}\nmusica={}\nmenus={}\n", self.hud, self.pal, b(self.tut), b(self.cont), b(self.dinamica), b(self.turbo), b(self.musica), self.menus); if !self.hud_pos.is_empty() { t += &format!("hudpos={}\n", self.hud_pos.replace('\n', "")); }
@@ -128,15 +133,18 @@ impl Ajustes {
         t
     }
     /// pone una calidad entera (como gfx de la web: cada una con su resolución y sus pasadas)
+    /// (la resolución queda como está: va aparte)
     pub fn poner_calidad(&mut self, k: usize) {
-        let (res, so, ao, re, rt) = match k { 0 => (50, false, false, false, false), 1 => (67, false, false, true, false), 2 => (85, true, false, true, true), 3 => (100, true, false, true, true), _ => (100, true, true, true, true) };
-        self.calidad = k.min(CALIDADES.len() - 1); self.res = res; self.sombras = so; self.ao = ao; self.reflejo = re; self.retoque = rt;
+        let (so, ao, re, rt) = match k { 0 => (false, false, false, false), 1 => (false, false, true, false), 2 => (true, false, true, true), 3 => (true, false, true, true), _ => (true, true, true, true) };
+        self.calidad = k.min(CALIDADES.len() - 1); self.sombras = so; self.ao = ao; self.reflejo = re; self.retoque = rt;
     }
+    /// la resolución con la que se dibuja la escena (% de la pantalla): la elegida o, en Automática, la de la calidad
+    pub fn res_efectiva(&self) -> u32 { if self.res == 0 { RES_CALIDAD[self.calidad.min(RES_CALIDAD.len() - 1)] } else { self.res.clamp(10, 100) } }
     /// lo que va al motor: con calidad media o menos, la sombra de 1024 y el reflejo a un cuarto; hasta Ultra la sombra y el
     /// reflejo se rehacen un cuadro sí y uno no (los celulares flojos: el TCL 20 SE); Definitivo, todo cada cuadro
     pub fn opciones(&self) -> Opciones {
         let flojo = self.calidad <= 2; let muy = self.calidad <= 1;
-        Opciones { escala: self.res as f32 / 100.0, sombras: self.sombras, sombra_px: if flojo { 1024 } else { 2048 }, sombra_cada: if self.calidad == 5 { 1 } else { 2 }, sombra_radio: if flojo { 35.0 } else if self.calidad == 5 { 60.0 } else { 45.0 },
+        Opciones { escala: self.res_efectiva() as f32 / 100.0, sombras: self.sombras, sombra_px: if flojo { 1024 } else { 2048 }, sombra_cada: if self.calidad == 5 { 1 } else { 2 }, sombra_radio: if flojo { 35.0 } else if self.calidad == 5 { 60.0 } else { 45.0 },
             reflejo: self.reflejo, reflejo_div: if muy { 4 } else if self.calidad == 5 { 2 } else { 3 }, reflejo_cada: if self.calidad == 5 { 1 } else { 2 }, ao: self.ao, ao_fuerza: if self.calidad == 5 { 1.0 } else { 0.6 }, retoque: self.retoque, adapta: self.retoque, prepaso: true, rayos: self.calidad >= 4, hongo: self.calidad.min(4) as u8, aaa: self.calidad == 5, turbo: self.turbo }
     }
     /// el volumen para el mezclador (80, el de fábrica, es 1: como quedó medido contra la web)
@@ -147,7 +155,7 @@ impl Ajustes {
         match c {
             // (como el selector de la web: Automático primero y después las cinco)
             Clave::Calidad => std::iter::once("Automático").chain(CALIDADES).map(|s| s.to_string()).collect(),
-            Clave::Res => num(&RES, "%"), Clave::Sens => num(&SENS, ""), Clave::Fov => num(&FOV, "°"), Clave::Vol => num(&VOL, "%"),
+            Clave::Res => RES.iter().map(|x| if *x == 0 { "Automática".to_string() } else { format!("{x}%") }).collect(), Clave::Sens => num(&SENS, ""), Clave::Fov => num(&FOV, "°"), Clave::Vol => num(&VOL, "%"),
             Clave::Dinamica | Clave::Turbo | Clave::Sombras | Clave::Ao | Clave::Reflejo | Clave::Retoque | Clave::Fps | Clave::Ambiente | Clave::Musica | Clave::Ciclo => NO_SI.iter().map(|s| s.to_string()).collect(),
             Clave::Hora => HORAS.iter().map(|h| h.0.to_string()).collect(),
             Clave::TamMenus => num(&TAM_MENUS, "%"), Clave::TamBotones => num(&TAM_HUD, "%"), Clave::TamPalanca => num(&TAM_PAL, "%"),
@@ -173,10 +181,11 @@ impl Ajustes {
     }
     /// elige el valor `k` de un renglón (tocar algo de la calidad a mano la deja en «Personal»)
     pub fn elegir(&mut self, c: Clave, k: usize) {
-        let toma = |v: &[u32]| v[k.min(v.len() - 1)];
+        let toma = |v: &[u32]| v[k.min(v.len() - 1)]; let antes = self.calidad;
         match c {
             Clave::Calidad => if k == 0 { self.auto = true } else { self.auto = false; self.poner_calidad(k - 1) },
-            Clave::Res => { self.res = toma(&RES); self.calidad = PERSONAL; self.auto = false; }
+            // (la resolución va aparte: no toca la calidad ni Automático)
+            Clave::Res => self.res = toma(&RES),
             Clave::Dinamica => self.dinamica = k == 1,
             Clave::Turbo => self.turbo = k == 1,
             Clave::Sombras => { self.sombras = k == 1; self.calidad = PERSONAL; self.auto = false; }
@@ -193,7 +202,10 @@ impl Ajustes {
         }
         // (si lo tocado a mano coincide con una calidad entera, vuelve a ser esa)
         if self.calidad == PERSONAL {
-            for q in 0..CALIDADES.len() { let mut p = self.clone(); p.poner_calidad(q); let mut yo = self.clone(); yo.calidad = q; if p == yo { self.calidad = q; break; } }
+            // (primero la que estaba; si no, de la más alta a la más baja —Medio y Alto prenden lo mismo, cambia el tamaño de la sombra
+            // y del reflejo: queda Alto—; Definitivo sólo si era Definitivo: prende lo mismo que Ultra y pesa más)
+            let orden = std::iter::once(antes).filter(|q| *q < CALIDADES.len()).chain((0..CALIDADES.len() - 1).rev());
+            for q in orden { let mut p = self.clone(); p.poner_calidad(q); let mut yo = self.clone(); yo.calidad = q; if p == yo { self.calidad = q; break; } }
         }
     }
 }
@@ -205,8 +217,13 @@ mod pruebas {
     fn ida_y_vuelta() {
         let mut a = Ajustes::default(); a.elegir(Clave::Sens, 4); a.elegir(Clave::Ao, 0); a.elegir(Clave::Vol, 1);
         assert_eq!(a.calidad, 3, "ultra sin oclusión es alto"); let b = Ajustes::leer(Some(&a.texto())); assert_eq!(a, b);
-        a.elegir(Clave::Res, 0); assert_eq!(a.calidad, PERSONAL);
-        assert_eq!(Ajustes::leer(Some("basura\nres=999\nfov=5")).res, 100);
+        // (la resolución va aparte: tocarla no cambia la calidad; 10 % es lo menos; Automática es la de la calidad)
+        let q = a.calidad; a.elegir(Clave::Res, 1); assert_eq!((a.calidad, a.res, a.res_efectiva()), (q, 10, 10)); assert_eq!(Ajustes::leer(Some(&a.texto())).res, 10);
+        a.elegir(Clave::Calidad, 1); assert_eq!(a.res_efectiva(), 10, "la calidad no pisa la resolución elegida");
+        a.elegir(Clave::Res, 0); assert_eq!(a.res_efectiva(), 50); a.elegir(Clave::Calidad, 5); assert_eq!(a.res_efectiva(), 100);
+        let mut x = Ajustes::default(); x.elegir(Clave::Calidad, 6); x.elegir(Clave::Res, 3); assert_eq!(x.calidad, 5, "Definitivo sigue siendo Definitivo");
+        let mut y = Ajustes::default(); y.elegir(Clave::Calidad, 5); y.elegir(Clave::Ao, 0); y.elegir(Clave::Ao, 1); assert_eq!(y.calidad, 4, "Ultra no pasa a Definitivo");
+        assert_eq!(Ajustes::leer(Some("basura\nres2=999\nfov=5")).res, 100); assert_eq!(Ajustes::leer(Some("res=67")).res, 0); assert_eq!(Ajustes::leer(Some("res2=5")).res, 10);
         // (Automático: viene prendido, el que no lo tenía guardado pasa a Automático, tocar una calidad lo apaga)
         assert!(Ajustes::default().auto && Ajustes::leer(Some("calidad=2")).auto);
         let mut c = Ajustes::default(); c.elegir(Clave::Calidad, 3); assert!(!c.auto && c.calidad == 2 && c.elegido(Clave::Calidad) == Some(3));

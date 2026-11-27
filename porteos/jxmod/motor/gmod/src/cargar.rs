@@ -129,6 +129,22 @@ impl Gmod {
     pub fn herramienta_activa(&mut self, modo: Option<&str>) { self.activar(); crate::herramientas::activar(&mut self.lua, modo) }
     /// usar la herramienta de un addon: «LeftClick», «RightClick» o «Reload» (con el mundo prestado: traza)
     pub fn herramienta_usar(&mut self, modo: &str, met: &str) -> bool { self.activar(); crate::herramientas::usar(&mut self.lua, modo, met) }
+    /// las opciones de los addons (spawnmenu.AddToolMenuOption): (pestaña, categoría, nombre —con su frase—, addon)
+    pub fn opciones_menu(&mut self) -> Vec<(String, String, String, String)> {
+        self.activar(); let v: Vec<(String, String, String, String)> = g(|g| g.opciones_menu.iter().map(|x| (x.0.clone(), x.1.clone(), x.3.clone(), x.5.clone())).collect());
+        v.into_iter().map(|(t, c, n, a)| { let f = |s: &str, gm: &mut Gmod| if let Some(k) = s.strip_prefix('#') { gm.frase(k).unwrap_or_else(|| k.to_string()) } else { s.to_string() }; let (t2, c2, n2) = (f(&t, self), f(&c, self), f(&n, self)); (t2, c2, n2, a) }).collect()
+    }
+    /// arma el panel de la opción `i` con su función (escondido) y devuelve sus controles
+    pub fn opcion_armar(&mut self, i: usize) -> Vec<crate::Control> {
+        self.activar(); let Some((f, n)) = g(|g| g.opciones_menu.get(i).map(|x| (x.4.clone(), x.3.clone()))) else { return vec![] };
+        let r = llamar_global(&mut self.lua, "__JXM_OpcArmar", &[Valor::Num(i as f64 + 1.0), f, cad(&n)]); crate::Control::de_lista(r.first())
+    }
+    /// los controles de la opción `i` con sus valores de ahora (sin rearmar el panel)
+    pub fn opcion_leer(&mut self, i: usize) -> Vec<crate::Control> { self.activar(); let r = llamar_global(&mut self.lua, "__JXM_OpcLeer", &[Valor::Num(i as f64 + 1.0)]); crate::Control::de_lista(r.first()) }
+    /// tocar el control `k` de la opción `i`: el valor (el número del deslizador, el texto, la opción del combo desde 1)
+    pub fn opcion_tocar(&mut self, i: usize, k: usize, v: Valor) { self.activar(); llamar_global(&mut self.lua, "__JXM_OpcTocar", &[Valor::Num(i as f64 + 1.0), Valor::Num(k as f64 + 1.0), v]); }
+    /// el valor de una ConVar (None si no existe)
+    pub fn cvar_leer(&self, n: &str) -> Option<String> { self.activar(); g(|g| g.cvars.get(n).map(|c| c.borrow().v.clone())) }
     /// poner una ConVar (los ajustes de las herramientas de los addons: «<modo>_<nombre>»)
     pub fn cvar_poner(&mut self, n: &str, v: &str) { self.activar(); crate::motor::cvar_poner(&mut self.lua, n, v) }
     /// la HUD de los addons (gmaHUDPaso): HUDPaint y el DrawHUD del arma, como órdenes de dibujo al juego
@@ -521,7 +537,7 @@ fn montar_lua(e: &mut Estado, a: &Rc<RefCell<Addon>>) {
     // 4) las bases que se registraron después de sus hijas
     enlazar_todo(e);
     // 5) lo que GMod corre al arrancar, para los hooks nuevos de este addon
-    for ev in ["PreGamemodeLoaded", "OnGamemodeLoaded", "PostGamemodeLoaded", "Initialize", "InitPostEntity"] { hooks_nuevos(e, &antes, ev, &[]); }
+    for ev in ["PreGamemodeLoaded", "OnGamemodeLoaded", "PostGamemodeLoaded", "Initialize", "InitPostEntity", "AddToolMenuTabs", "AddToolMenuCategories", "PopulateToolMenu", "PostReloadToolsMenu"] { hooks_nuevos(e, &antes, ev, &[]); }
     let jug = g(|g| g.jug.clone());
     hooks_nuevos(e, &antes, "PlayerInitialSpawn", &[jug.clone(), Valor::Bool(false)]);
     hooks_nuevos(e, &antes, "PlayerSpawn", &[jug.clone(), Valor::Bool(false)]);

@@ -276,6 +276,9 @@ pub(crate) struct Gma {
     pub modelo_jug: String,
     /// las herramientas de la Tool Gun de los addons (sus modos, en el orden en que se montaron)
     pub tools_addon: Vec<String>,
+    /// las opciones de los addons (spawnmenu.AddToolMenuOption: la pestaña, la categoría, la clase, el nombre, la función que
+    /// arma su panel y el addon), en el orden en que se registraron
+    pub opciones_menu: Vec<(String, String, String, String, Valor, String)>,
     /// el modo de juego puesto (gamemodes/: gmod_modos.js)
     pub modo: Option<crate::modos::ModoActivo>,
 }
@@ -337,7 +340,7 @@ impl Gma {
             part_cola: Vec::new(), umsg_h: HashMap::new(), pts: Vec::new(), dls: Orden::default(), pp: None,
             dib: Dib { col: [255.0; 4], tcol: [255.0; 4], mat: Valor::Nil, fuente: "13px Tahoma, sans-serif".into(), tx: 0.0, ty: 0.0, alfa: None },
             dibujo_hud: false, en_hud_paint: false, hud_n: 0, mov_lua: 0.0, activo: false, cb_n: 0, snd_n: 0, saliente: None, lectura: None, um: None,
-            ancho_cache: HashMap::new(), tools_addon: Vec::new(), cargado_prelude: false, herencias: Vec::new(), luz_pedida: HashMap::new(), obj_prefab: HashMap::new(), muerte_muda: false, hud_sucio: false, mov_n: 0, modelos_faltan: Default::default(), fantasmas: HashMap::new(), dos_lados: HashMap::new(), listas_addon: HashMap::new(), pmodels: Vec::new(), pmanos: Vec::new(), pm_v: 0, modelo_jug: String::new(),
+            ancho_cache: HashMap::new(), tools_addon: Vec::new(), opciones_menu: Vec::new(), cargado_prelude: false, herencias: Vec::new(), luz_pedida: HashMap::new(), obj_prefab: HashMap::new(), muerte_muda: false, hud_sucio: false, mov_n: 0, modelos_faltan: Default::default(), fantasmas: HashMap::new(), dos_lados: HashMap::new(), listas_addon: HashMap::new(), pmodels: Vec::new(), pmanos: Vec::new(), pm_v: 0, modelo_jug: String::new(),
         }
     }
     pub fn ent_get(&self, id: i64) -> Option<Valor> { self.ents_idx.get(&id).and_then(|&i| self.ents[i].as_ref().map(|x| x.1.clone())) }

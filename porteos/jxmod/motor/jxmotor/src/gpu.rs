@@ -633,12 +633,28 @@ const FS_FINAL: &str = r#"#version 300 es
 precision highp float; uniform highp sampler2D uEsc; uniform sampler2D uRay, uBlo; uniform highp sampler2D uAd; uniform float uRetoque, uFuerza, uRayK, uBloomK; uniform vec4 uAdapta; uniform vec2 uInv; in vec2 vP; out vec4 o;
 float dec16(vec4 t) { return (floor(t.r * 255.0 + 0.5) + floor(t.g * 255.0 + 0.5) / 256.0) * (4.0 / 255.0); }
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
+// el reescalado (la escena a menos píxeles que la pantalla —la resolución de Ajustes, hasta 10 %, o la dinámica—): Catmull-Rom
+// en 5 lecturas bilineales (sin las esquinas, que casi no pesan) y recortado entre lo más oscuro y lo más claro que leyó —sin
+// halos en los bordes—; mucho más nítido que estirar con el bilineal y sin escalones
+vec3 subir(vec2 uv, float borde) {
+  vec2 tam = 1.0 / uInv; vec2 p = uv * tam; vec2 tc = floor(p - 0.5) + 0.5; vec2 f = p - tc;
+  vec2 w0 = f * (-0.5 + f * (1.0 - 0.5 * f)), w1 = 1.0 + f * f * (-2.5 + 1.5 * f), w2 = f * (0.5 + f * (2.0 - 1.5 * f)), w3 = f * f * (-0.5 + 0.5 * f);
+  vec2 w12 = w1 + w2; vec2 t0 = (tc - 1.0) * uInv, t3 = (tc + 2.0) * uInv, t12 = (tc + w2 / w12) * uInv;
+  vec3 a = texture(uEsc, vec2(t12.x, t0.y)).rgb, b = texture(uEsc, vec2(t0.x, t12.y)).rgb, c = texture(uEsc, t12).rgb, d = texture(uEsc, vec2(t3.x, t12.y)).rgb, e = texture(uEsc, vec2(t12.x, t3.y)).rgb;
+  float ka = w12.x * w0.y, kb = w0.x * w12.y, kc = w12.x * w12.y, kd = w3.x * w12.y, ke = w12.x * w3.y;
+  vec3 r = (a * ka + b * kb + c * kc + d * kd + e * ke) / (ka + kb + kc + kd + ke);
+  r = clamp(r, min(min(a, b), min(min(c, d), e)), max(max(a, b), max(max(c, d), e)));
+  // (los bordes en escalera de la escena chica: se promedia a lo largo del borde —como FXAA—, más cuanto más chica)
+  if (borde > 0.0) { vec3 L = vec3(0.299, 0.587, 0.114); vec2 gr = vec2(dot(d, L) - dot(b, L), dot(e, L) - dot(a, L)); float gm = length(gr);
+    if (gm > 0.02) { vec2 dir = vec2(-gr.y, gr.x) / gm * uInv * 1.25; vec3 s = 0.5 * (texture(uEsc, uv + dir).rgb + texture(uEsc, uv - dir).rgb); r = mix(r, 0.5 * (r + s), clamp(gm * 4.0, 0.0, 1.0) * borde * 1.6); } }
+  return r;
+}
 void main() {
   // (texture y no texelFetch aunque la escena sea del tamaño de la pantalla: en llvmpipe texelFetch es más lento)
   vec2 uv = vP * 0.5 + 0.5;
   // (con los ojos bajo el agua, la imagen se ondula apenas, como en HL2)
   if (uAdapta.y > 0.5) uv += vec2(sin(uv.y * 23.0 + uAdapta.z * 2.1), cos(uv.x * 19.0 + uAdapta.z * 1.7)) * 0.0028;
-  vec3 c = texture(uEsc, uv).rgb;
+  vec3 c = uAdapta.w > 0.5 ? subir(uv, uAdapta.w - 1.0) : texture(uEsc, uv).rgb;
   // (la escena a menos píxeles —la resolución dinámica—: un poco de nitidez, contra lo de alrededor —dos lecturas a medio
   // píxel en diagonal, cada una el promedio de cuatro—)
   if (uFuerza > 0.0) { vec3 b = 0.5 * (texture(uEsc, uv + uInv * 0.5).rgb + texture(uEsc, uv - uInv * 0.5).rgb); c = clamp(c + (c - b) * uFuerza, 0.0, 1.0); }
@@ -2120,14 +2136,15 @@ impl Motor {
         if self.vx == 0 { gl.invalidate_framebuffer(glow::FRAMEBUFFER, todo); }
         gl.disable(glow::DEPTH_TEST); gl.depth_mask(false);
         let p = &self.p_final; gl.use_program(Some(p.p)); gl.uniform_1_f32(p.u(U::Retoque), if self.op.retoque { 1.0 } else { 0.0 });
-        let nit = if self.op.escala < 0.97 { ((1.0 - self.op.escala) * 1.4).min(0.6) } else { 0.0 };
+        // (con la escena a menos píxeles: el reescalado —subir()— y un poco de nitidez encima, más cuanto más chica)
+        let sube = ew < w - 1 || eh < h - 1; let nit = if self.op.escala < 0.97 { ((1.0 - self.op.escala) * 0.6).min(0.45) } else { 0.0 };
         gl.uniform_1_f32(p.u(U::Fuerza), nit); gl.uniform_2_f32(p.u(U::Inv), 1.0 / ew as f32, 1.0 / eh as f32);
         gl.active_texture(glow::TEXTURE11); gl.bind_texture(glow::TEXTURE_2D, Some(col));
         gl.uniform_1_f32(p.u(U::RayK), rayos.map_or(0.0, |r| r.1)); gl.uniform_1_f32(p.u(U::BloomK), if brillo.is_some() { 0.45 } else { 0.0 });
         gl.active_texture(glow::TEXTURE10); gl.bind_texture(glow::TEXTURE_2D, Some(brillo.unwrap_or(self.blanca)));
         gl.active_texture(glow::TEXTURE15); gl.bind_texture(glow::TEXTURE_2D, Some(rayos.map_or(self.blanca, |r| r.0)));
         gl.active_texture(glow::TEXTURE13); gl.bind_texture(glow::TEXTURE_2D, Some(adapta.unwrap_or(self.blanca))); let bajo = self.c.as_ref().and_then(|c| c.efectos.iter().find(|e| e.0 == EF_ONDAS)).map_or(false, |e| e.1.first().copied().unwrap_or(0.0) > 0.5);
-        gl.uniform_4_f32(p.u(U::Adapta), if adapta.is_some() { 1.0 } else { 0.0 }, if bajo { 1.0 } else { 0.0 }, self.c.as_ref().map_or(0.0, |c| c.tiempo), 0.0);
+        gl.uniform_4_f32(p.u(U::Adapta), if adapta.is_some() { 1.0 } else { 0.0 }, if bajo { 1.0 } else { 0.0 }, self.c.as_ref().map_or(0.0, |c| c.tiempo), if sube { 1.0 + ((0.9 - self.op.escala) / 0.4).clamp(0.0, 1.0) } else { 0.0 });
         gl.active_texture(glow::TEXTURE11);
         gl.bind_vertex_array(None); gl.draw_arrays(glow::TRIANGLES, 0, 3);
         gl.bind_texture(glow::TEXTURE_2D, None); gl.active_texture(glow::TEXTURE0);

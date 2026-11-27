@@ -65,7 +65,7 @@ impl Juego {
         let mapa = self.mapas.get(self.mapa_i).cloned().unwrap_or_default();
         let mods = self.gmod.addons.iter().filter(|a| a.prendido).count();
         let cab = format!("se cerró entrando a la partida (mapa {mapa}, {}, calidad {}, resolución {} %, {mods} mods prendidos)", self.placa.nombre(),
-            ajustes::CALIDADES.get(self.aj.calidad).copied().unwrap_or("Personal"), self.aj.res);
+            ajustes::CALIDADES.get(self.aj.calidad).copied().unwrap_or("Personal"), self.aj.res_efectiva());
         crate::caja_negra::partida_entrando(d.join("entrando.txt"), cab);
     }
     /// la vez anterior se cerró entrando a una partida (lo que no deja «se cerró»: el sistema la cerró por memoria o se cayó

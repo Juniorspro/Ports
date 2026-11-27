@@ -19,6 +19,7 @@ mod dibujo;
 mod entidades;
 mod herramientas;
 pub use herramientas::HerrAddon;
+pub use herramientas::Control;
 pub mod jugadores;
 mod libs;
 mod matriz;

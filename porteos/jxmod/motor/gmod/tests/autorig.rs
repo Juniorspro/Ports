@@ -19,7 +19,7 @@ fn mdl(pos: Vec<[f32; 3]>) -> Mdl {
     let n = pos.len();
     let v = Vertices { n, nor: vec![[0.0, 0.0, 1.0]; n], uv: vec![[0.0; 2]; n], hb: vec![[0; 3]; n], w: vec![[1.0, 0.0, 0.0]; n], pos };
     Mdl { version: 48, nombre: "prueba".into(), hull: [[-20.0, -20.0, 0.0], [20.0, 20.0, 72.0]], flags: 0, huesos: vec![], texturas: vec![], carpetas: vec![], pieles: vec![], adjuntos: vec![], cuerpos: vec![],
-        anims: vec![], secuencias: vec![], pose_params: vec![], pose_rangos: vec![], ani_nom: String::new(), bloques: vec![], b: Rc::from(vec![0u8; 4].into_boxed_slice()), ani: None, v: Some(v), mallas: vec![] }
+        anims: vec![], secuencias: vec![], pose_params: vec![], pose_rangos: vec![], ani_nom: String::new(), bloques: vec![], b: Rc::from(vec![0u8; 4].into_boxed_slice()), ani: None, v: Some(v), mallas: vec![], mallas_lejos: vec![] }
 }
 /// una persona de 72 pulgadas (1,83 m) mirando a +x
 fn persona() -> Mdl {

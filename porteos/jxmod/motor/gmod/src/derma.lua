@@ -844,7 +844,24 @@ function DFORM:Help(t) local l = vgui.Create("DLabel", self) l:SetText(t) l:SetD
 function DFORM:ControlHelp(t) local l = self:Help(t) l:SetTextColor(Color(80, 80, 140)) return l end
 function DFORM:PanelSelect() local p = vgui.Create("DPanel", self) self:AddItem(p) return p end function DFORM:PropSelect(t) return self:Help(t or "") end function DFORM:MatSelect() return self:PanelSelect() end
 function DFORM:KeyBinder(t) return self:Help(t or "") end function DFORM:ColorPicker(t) return self:Help(t or "") end function DFORM:SetSpacing() end function DFORM:SetAutoSize() end
-function DFORM:ClearControls() for _, c in ipairs(self:GetChildren()) do if c ~= rg(self, "__cab") then c:Remove() end end end function DFORM:AddControl(t, d) return self:Help(tostring(d and (d.Label or d.label or d.Text) or t)) end
+function DFORM:ClearControls() for _, c in ipairs(self:GetChildren()) do if c ~= rg(self, "__cab") then c:Remove() end end end -- AddControl (la forma vieja de armar los paneles de opciones: casillas, deslizadores, combos con sus ConVars)
+function DFORM:AddControl(t, d)
+  d = istable(d) and d or {} local tl = string.lower(tostring(t or "")) local lab = tostring(d.Label or d.label or d.Text or d.text or "") local cmd = d.Command or d.command
+  if tl == "checkbox" or tl == "toggle" then return self:CheckBox(lab, cmd)
+  elseif tl == "slider" then return self:NumSlider(lab, cmd, tonumber(d.Min or d.min) or 0, tonumber(d.Max or d.max) or 100, string.lower(tostring(d.Type or d.type or "")) == "float" and 2 or 0)
+  elseif tl == "header" then return self:Help(tostring(d.Description or d.description or lab))
+  elseif tl == "label" then return self:Help(lab)
+  elseif tl == "button" then return self:Button(lab, cmd)
+  elseif tl == "textbox" then return self:TextEntry(lab, cmd)
+  elseif tl == "combobox" or tl == "listbox" then
+    local c = self:ComboBox(lab) local ops = istable(d.Options or d.options) and (d.Options or d.options) or {}
+    local ns = {} for k in pairs(ops) do ns[#ns + 1] = tostring(k) end table.sort(ns)
+    for _, k in ipairs(ns) do c:AddChoice(k, ops[k]) end
+    c.OnSelect = function(_, i, tx, dd) if istable(dd) then for cv, v in pairs(dd) do RunConsoleCommand(cv, tostring(v)) end end end
+    return c
+  end
+  return self:Help(lab ~= "" and lab or tostring(t))
+end
 function DFORM:SetHeight() end function DFORM:FillViaParent() end
 derma.DefineControl("DForm", "", DFORM, "DCollapsibleCategory")
 vgui.Register("ControlPanel", {}, "DForm")
@@ -990,3 +1007,71 @@ function Derma_StringRequest(titulo, t, def, ok, cancel, okt, cant) local f = vg
   local b = vgui.Create("DButton", f) b:SetText(okt or "OK") b:Dock(BOTTOM) b.DoClick = function() f:Close() if ok then ok(e:GetValue()) end end e.OnEnter = b.DoClick local c = vgui.Create("DButton", f) c:SetText(cant or "Cancelar") c:Dock(BOTTOM) c.DoClick = function() f:Close() if cancel then cancel(e:GetValue()) end end return f end
 function Derma_DrawBackgroundBlur(p, t) surface.SetDrawColor(0, 0, 0, 160) surface.DrawRect(0, 0, ScrW(), ScrH()) end
 function Derma_Install_Convar_Functions(t) t.SetConVar = PM.SetConVar t.ConVarChanged = PM.ConVarChanged end
+-- las opciones de los addons (spawnmenu.AddToolMenuOption: deslizarse, el cuerpo en primera persona…): su panel de
+-- controles (ControlPanel, el DForm de GMod) armado con su función, escondido; el juego lo lee como una lista de controles
+-- y lo dibuja a su manera (la ventana Herramientas), y le pasa los toques. Los valores salen de las ConVars.
+__JXM_OPC, __JXM_OPC_CTL = __JXM_OPC or {}, __JXM_OPC_CTL or {}
+local function txt_de(p) if p and p.GetText then local ok, t = pcall(p.GetText, p) if ok and t ~= nil then return tostring(t) end end return "" end
+local function cv_de(p) local c = rg(p, "__convar") if (not c or c == "") and rg(p, "__caja") then c = rg(rg(p, "__caja"), "__convar") end if c and c ~= "" then return c end end
+-- (¿es de esa clase o de una que sale de ella? los métodos no sirven para saberlo: Set*, Get*, Do* existen en todos)
+local function de_clase(p, n) local c, b, vistos = rg(p, "__clase"), registro[n], {} if not b then return false end
+  while c and not vistos[c] do if c == b then return true end vistos[c] = true c = registro[rawget(c, "Base")] end return false end
+local function controles(p, out)
+  local ant = nil
+  for _, c in ipairs(hijos(p)) do
+    local d
+    if c == rg(p, "__cab") or not rg(c, "__vis") then
+    elseif de_clase(c, "DCheckBoxLabel") or de_clase(c, "DCheckBox") then d = { t = "check", txt = de_clase(c, "DCheckBoxLabel") and txt_de(c) or "", p = c }
+    elseif de_clase(c, "DComboBox") then d = { t = "combo", txt = "", p = c }
+    elseif de_clase(c, "DNumSlider") or de_clase(c, "DNumberWang") then d = { t = "slider", txt = de_clase(c, "DNumSlider") and txt_de(c) or "", p = c }
+    elseif de_clase(c, "DTextEntry") then d = { t = "texto", txt = "", p = c }
+    elseif de_clase(c, "DButton") then local t = txt_de(c) if t ~= "" then d = { t = "boton", txt = t, p = c } end
+    elseif de_clase(c, "DLabel") then local t = txt_de(c) if t ~= "" then d = { t = "ayuda", txt = t, p = c } end
+    end
+    if d then
+      -- (la etiqueta de al lado —ComboBox, TextEntry, NumberWang del DForm—: es el nombre del control)
+      if (d.t == "combo" or d.t == "texto" or (d.t == "slider" and d.txt == "")) and ant and ant.t == "ayuda" and #ant.txt <= 60 and out[#out] == ant then d.txt = ant.txt out[#out] = nil end
+      out[#out + 1] = d ant = d
+    elseif c ~= rg(p, "__cab") and rg(c, "__vis") then controles(c, out) end
+  end
+end
+local function leer(o)
+  local r = {}
+  for k, d in ipairs(o) do
+    local p, x = d.p, { t = d.t, txt = d.txt }
+    local cv = cv_de(p)
+    if d.t == "check" then local v = cv and GetConVarString(cv) x.on = (v ~= nil and v ~= "" and v ~= "0") if not cv then local caja = rg(p, "__caja") or p x.on = rg(caja, "__marcado") == true end
+    elseif d.t == "slider" then x.min = tonumber(rg(p, "__min")) or 0 x.max = tonumber(rg(p, "__max")) or 1 x.dec = tonumber(rg(p, "__dec")) or 0 x.v = tonumber(cv and GetConVarString(cv) or nil) or tonumber(rg(p, "__valor")) or 0
+    elseif d.t == "combo" then x.ops = {} for i, t in ipairs(rg(p, "__ops") or {}) do x.ops[i] = tostring(t) end x.sel = rg(p, "__elegido") or 0
+      if cv then local v = GetConVarString(cv) for i, dd in pairs(rg(p, "__datos") or {}) do if tostring(dd) == v then x.sel = i end end end
+    elseif d.t == "texto" then x.v = cv and GetConVarString(cv) or tostring(p.GetValue and p:GetValue() or "") end
+    r[k] = x
+  end
+  return r
+end
+-- arma (o rearma) el panel de la opción i con su función: los controles
+function __JXM_OpcArmar(i, f, nombre)
+  local viejo = __JXM_OPC[i] if IsValid(viejo) then viejo:Remove() end
+  local p = vgui.Create("ControlPanel") p:SetVisible(false) p:SetSize(320, 2000) p:SetLabel(nombre or "")
+  if isfunction(f) then local ok, e = pcall(f, p) if not ok then ErrorNoHalt("opciones " .. tostring(nombre) .. ": " .. tostring(e) .. "\n") end end
+  __JXM_OPC[i] = p local o = {} controles(p, o) __JXM_OPC_CTL[i] = o
+  return leer(o)
+end
+-- los controles con sus valores de ahora (sin rearmar)
+function __JXM_OpcLeer(i) local o = __JXM_OPC_CTL[i] if not o then return {} end return leer(o) end
+-- un toque en el control k: el check se da vuelta, el deslizador y el texto toman v, el combo elige la opción v, el botón se aprieta
+function __JXM_OpcTocar(i, k, v)
+  local o = __JXM_OPC_CTL[i] local d = o and o[k] if not d then return end local p = d.p
+  if d.t == "check" then
+    local caja = rg(p, "__caja") or p local cv = cv_de(p) local on = rg(caja, "__marcado") == true
+    if cv then local s = GetConVarString(cv) on = s ~= nil and s ~= "" and s ~= "0" end
+    rs(caja, "__marcado", on) caja:SetChecked(not on) if caja.DoClick then pcall(caja.DoClick, caja) end
+  elseif d.t == "slider" then rs(p, "__valor", -1e30) p:SetValue(tonumber(v) or 0)
+  elseif d.t == "combo" then p:ChooseOptionID(tonumber(v) or 1)
+  elseif d.t == "texto" then p:SetValue(tostring(v or "")) if p.OnValueChange then pcall(p.OnValueChange, p, tostring(v or "")) end if p.OnEnter then pcall(p.OnEnter, p, tostring(v or "")) end
+  elseif d.t == "boton" then
+    if rg(p, "__esalternar") and p.Toggle then p:Toggle() end
+    if p.DoClick then local ok, e = pcall(p.DoClick, p) if not ok then ErrorNoHalt("DoClick: " .. tostring(e) .. "\n") end end
+    local cmd = rg(p, "__consola") if cmd then RunConsoleCommand(cmd[1], cmd[2]) end
+  end
+end

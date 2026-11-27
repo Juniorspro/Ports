@@ -592,12 +592,35 @@ const FS_PASAR: &str = r#"
 precision mediump float; uniform sampler2D uT; varying vec2 vU;
 void main() { gl_FragColor = texture2D(uT, vU); }"#;
 const FS_COPIA: &str = r#"
-precision mediump float; uniform sampler2D uT, uRay, uBlo, uAd, uAO; uniform float uRayK, uBloomK; uniform vec4 uAdapta, uAOk; varying vec2 vU;
+precision mediump float; uniform sampler2D uT, uRay, uBlo, uAd, uAO; uniform float uRayK, uBloomK, uNit, uBorde; uniform vec4 uAdapta, uAOk; varying vec2 vU;
 float dec16(vec4 t) { return (floor(t.r * 255.0 + 0.5) + floor(t.g * 255.0 + 0.5) / 256.0) * (4.0 / 255.0); }
+// el reescalado (la escena a menos píxeles que la pantalla: la resolución de Ajustes —hasta 10 %— o la dinámica): Catmull-Rom en
+// 5 lecturas bilineales, recortado entre lo que leyó (sin halos), con la cuenta en highp (en mediump los píxeles de una escena
+// de más de 1024 no se distinguen); sin highp, el bilineal de siempre
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+uniform highp vec2 uInvE;
+vec3 subir(highp vec2 uv) {
+  highp vec2 tam = 1.0 / uInvE; highp vec2 p = uv * tam; highp vec2 tc = floor(p - 0.5) + 0.5; highp vec2 f = p - tc;
+  highp vec2 w0 = f * (-0.5 + f * (1.0 - 0.5 * f)), w1 = 1.0 + f * f * (-2.5 + 1.5 * f), w2 = f * (0.5 + f * (2.0 - 1.5 * f)), w3 = f * f * (-0.5 + 0.5 * f);
+  highp vec2 w12 = w1 + w2; highp vec2 t0 = (tc - 1.0) * uInvE, t3 = (tc + 2.0) * uInvE, t12 = (tc + w2 / w12) * uInvE;
+  vec3 a = texture2D(uT, vec2(t12.x, t0.y)).rgb, b = texture2D(uT, vec2(t0.x, t12.y)).rgb, c = texture2D(uT, t12).rgb, d = texture2D(uT, vec2(t3.x, t12.y)).rgb, e = texture2D(uT, vec2(t12.x, t3.y)).rgb;
+  highp float ka = w12.x * w0.y, kb = w0.x * w12.y, kc = w12.x * w12.y, kd = w3.x * w12.y, ke = w12.x * w3.y;
+  vec3 r = (a * ka + b * kb + c * kc + d * kd + e * ke) / (ka + kb + kc + kd + ke);
+  r = clamp(r, min(min(a, b), min(min(c, d), e)), max(max(a, b), max(max(c, d), e)));
+  // (los bordes en escalera de la escena chica: se promedia a lo largo del borde —como FXAA—, más cuanto más chica)
+  if (uBorde > 0.0) { vec3 L = vec3(0.299, 0.587, 0.114); highp vec2 gr = vec2(dot(d, L) - dot(b, L), dot(e, L) - dot(a, L)); float gm = length(gr);
+    if (gm > 0.02) { highp vec2 dir = vec2(-gr.y, gr.x) / gm * uInvE * 1.25; vec3 s = 0.5 * (texture2D(uT, uv + dir).rgb + texture2D(uT, uv - dir).rgb); r = mix(r, 0.5 * (r + s), clamp(gm * 4.0, 0.0, 1.0) * uBorde * 1.6); } }
+  // (y un poco de nitidez, contra el promedio de lo leído alrededor)
+  if (uNit > 0.0) { vec3 m = (a + b + d + e) * 0.25; r = clamp(r + (r - m) * uNit, 0.0, 1.0); }
+  return r;
+}
+#else
+vec3 subir(vec2 uv) { return texture2D(uT, uv).rgb; }
+#endif
 void main() {
   // (con los ojos bajo el agua, la imagen se ondula apenas, como en HL2)
   vec2 uv = vU; if (uAdapta.y > 0.5) uv += vec2(sin(uv.y * 23.0 + uAdapta.z * 2.1), cos(uv.x * 19.0 + uAdapta.z * 1.7)) * 0.0028;
-  vec3 c = texture2D(uT, uv).rgb;
+  vec3 c = uAdapta.w > 0.5 ? subir(uv) : texture2D(uT, uv).rgb;
   // (Definitivo: la oclusión ambiental —4 lecturas— sobre lo que está a la sombra: como OpenGL 3, que la pone sólo en la luz de
   // todos lados; sobre lo que da el sol casi nada —si no, junto a cada pilar de una pared al sol salía una raya oscura—)
   if (uAOk.z > 0.0) { float a = 0.25 * (texture2D(uAO, uv + vec2(-uAOk.x, -uAOk.y)).r + texture2D(uAO, uv + vec2(uAOk.x, -uAOk.y)).r + texture2D(uAO, uv + vec2(-uAOk.x, uAOk.y)).r + texture2D(uAO, uv + uAOk.xy).r);
@@ -752,7 +775,7 @@ const BRILLO_PISO: f32 = 0.72;
 const AGUA_LEJOS: f32 = 10.0;
 
 const U_LUZ: [&str; 39] = ["uTam", "uBan", "uBan2", "uTi", "uTi2", "uTi3", "uVP", "uM", "uMn", "uSc", "uSt", "uT", "uT1", "uT2", "uT3", "uLM", "uS1", "uS3", "uC", "uSol", "uSolC", "uAmbS", "uAmbG", "uNieC", "uNieS", "uCam", "uEm", "uMat", "uNie", "uExpo", "uModo", "uLP", "uLC", "uLN", "uIVP", "uTop", "uMid", "uBot", "uExp"];
-const U_OTROS: [&str; 51] = ["uVPa", "uGI", "uGIo", "uGIn", "uAOk", "uProf", "uRadio", "uRay0", "uRayX", "uRayY", "uZl", "uFuerza", "uAO", "uOnd", "uOndN", "uCaus", "uCausB", "uEsc", "uAd", "uAdapta", "uNubes", "uBlo", "uBloomK", "uVol", "uAlfaD", "uCieloA", "uRay", "uRayK", "uRayP", "uTiene", "uCieloK", "uInv", "uRet", "uTinte", "uDia", "uCubo", "uN", "uF", "uH", "uS", "uTiempo", "uSolC", "uSuma", "uSVP", "uSom", "uSomP", "uClip", "uR", "uRP", "uSVP2", "uSomP2"];
+const U_OTROS: [&str; 54] = ["uInvE", "uNit", "uBorde", "uVPa", "uGI", "uGIo", "uGIn", "uAOk", "uProf", "uRadio", "uRay0", "uRayX", "uRayY", "uZl", "uFuerza", "uAO", "uOnd", "uOndN", "uCaus", "uCausB", "uEsc", "uAd", "uAdapta", "uNubes", "uBlo", "uBloomK", "uVol", "uAlfaD", "uCieloA", "uRay", "uRayK", "uRayP", "uTiene", "uCieloK", "uInv", "uRet", "uTinte", "uDia", "uCubo", "uN", "uF", "uH", "uS", "uTiempo", "uSolC", "uSuma", "uSVP", "uSom", "uSomP", "uClip", "uR", "uRP", "uSVP2", "uSomP2"];
 
 unsafe fn programa(gl: &glow::Context, vs: &str, fs: &str, atrs: &[&str]) -> Result<Prog2, String> {
     let p = gl.create_program()?;
@@ -1199,7 +1222,11 @@ impl Motor {
                 None => gl.uniform_4_f32(self.p_copia.u("uAOk"), 0.0, 0.0, 0.0, 0.0),
             }
             gl.uniform_1_i32(self.p_copia.u("uAd"), 3); let bajo = self.c.as_ref().and_then(|c| c.efectos.iter().find(|e| e.0 == crate::escena::EF_ONDAS)).map_or(false, |e| e.1.first().copied().unwrap_or(0.0) > 0.5);
-            gl.uniform_4_f32(self.p_copia.u("uAdapta"), if adapta.is_some() { 1.0 } else { 0.0 }, if bajo { 1.0 } else { 0.0 }, self.c.as_ref().map_or(0.0, |c| c.tiempo), 0.0);
+            // (con la escena a menos píxeles: el reescalado —subir()— con algo de nitidez, más cuanto más chica)
+            let sube = ew < w - 1 || eh < h - 1;
+            gl.uniform_4_f32(self.p_copia.u("uAdapta"), if adapta.is_some() { 1.0 } else { 0.0 }, if bajo { 1.0 } else { 0.0 }, self.c.as_ref().map_or(0.0, |c| c.tiempo), if sube { 1.0 } else { 0.0 });
+            gl.uniform_2_f32(self.p_copia.u("uInvE"), 1.0 / ew as f32, 1.0 / eh as f32); gl.uniform_1_f32(self.p_copia.u("uNit"), if sube { ((1.0 - self.op.escala) * 0.6).clamp(0.0, 0.45) } else { 0.0 });
+            gl.uniform_1_f32(self.p_copia.u("uBorde"), if sube { ((0.9 - self.op.escala) / 0.4).clamp(0.0, 1.0) } else { 0.0 });
             gl.active_texture(glow::TEXTURE3); gl.bind_texture(glow::TEXTURE_2D, Some(adapta.unwrap_or(self.blanca))); gl.active_texture(glow::TEXTURE0);
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.tri)); gl.enable_vertex_attrib_array(0); gl.vertex_attrib_pointer_f32(0, 2, glow::FLOAT, false, 8, 0);
             gl.draw_arrays(glow::TRIANGLES, 0, 3);

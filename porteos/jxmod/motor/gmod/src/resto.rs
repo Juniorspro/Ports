@@ -654,6 +654,15 @@ pub(crate) fn instalar(e: &mut Estado) {
     let sm = l("spawnmenu");
     def(&sm, "GetTools", |_, _, o| ok1(o, tnueva()));
     def(&sm, "GetToolMenu", move |_, _, o| ok1(o, panel_libre()));
+    // (las opciones de los addons: van a la ventana Herramientas del juego —Gmod::opciones_menu—; la misma clase en la misma
+    // pestaña reemplaza a la anterior, como en GMod)
+    def(&sm, "AddToolMenuOption", |_, a, _| {
+        let (tab, cat, clase, nombre) = (js_str(&ar(a, 0)), js_str(&ar(a, 1)), js_str(&ar(a, 2)), js_str(&ar(a, 3)));
+        let f = ar(a, 6); let addon = g(|g| g.addon_actual.as_ref().map(|x| x.borrow().nombre.clone())).unwrap_or_default();
+        g(|g| match g.opciones_menu.iter_mut().find(|x| x.0 == tab && x.2 == clase) { Some(x) => *x = (tab, cat, clase, nombre, f, addon), None => g.opciones_menu.push((tab, cat, clase, nombre, f, addon)) });
+        Ok(())
+    });
+    for k in ["AddToolTab", "AddToolCategory", "AddCreationTab", "AddPropMenuOption", "ActivateTool", "ActivateToolPanel", "SwitchCreationTab", "AddContentType", "AddPathToFolder"] { if sm.borrow().get_str(k).es_nil() { def(&sm, k, nada); } }
     def(&l("util"), "IsValidPhysicsObject", |_, a, o| { let x = ar(a, 0); b(o, es_ent(&x) && ent_valida(&x) && (es_jug(&x) || ce(&x, |y| y.o.is_some()).unwrap_or(false))) });
     def(&l("engine"), "IsMounted", |_, a, o| { let k = js_str(&ar(a, 0)).to_lowercase(); b(o, ["hl2", "cstrike", "garrysmod"].contains(&k.as_str())) });
     if gl.borrow().get_str("gameevent").es_nil() { gl.borrow_mut().set_str("gameevent", tnueva()); }
