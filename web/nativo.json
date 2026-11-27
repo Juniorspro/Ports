@@ -1,9 +1,9 @@
 {
- "codigo": 26112704,
- "version": "0.37",
+ "codigo": 26112705,
+ "version": "0.38",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 75495686,
- "sha256": "9cb0496a9c5408024ebbdbc2371441bc7637b78e946e5b4cf936b5396b90e8a6",
- "notas_es": "JXMod Nativo 0.37 — El agua de Half-Life 2 de verdad, la de Source: gm_construct usa su material original (los canales de HL2: verde oscura y turbia, con su reflejo, su refracción y la textura animada de Valve) y los demás mapas, la de la costa. La textura se baja sola una vez (10 MB) y queda guardada; sin internet se ve el agua de antes. Además, las bibliotecas ya cargan en los celulares nuevos con páginas de 16 KB.",
- "notas_en": "JXMod Native 0.37 — The real Half-Life 2 water, Source's: gm_construct uses its original material (HL2's canals: dark, murky green, with its reflection, refraction and Valve's animated texture) and the other maps use the coast one. The texture downloads once by itself (10 MB) and stays saved; without internet the previous water is shown. Also, the libraries now load on new phones with 16 KB pages."
+ "tam": 75544838,
+ "sha256": "86b81acb836300a957b73442a55fc7d050759d50ac13a6048f1dbd60d475d90e",
+ "notas_es": "JXMod Nativo 0.38 — El agua de los mapas ahora tiene olas de verdad, simuladas: lo que cae, entra o se mueve en el agua hace olas que viajan, rebotan en la orilla y mueven lo que flota. Los autos que caen al agua flotan un rato, se llenan por las rendijas largando burbujas y se hunden; el cartón, los colchones y los sillones se empapan y se hunden; al sacarlos, chorrean. Arreglado: la categoría Agua del menú de Props (al lado de Opciones) ahora tiene el balde, el montón, la canilla, la manguera y secar, además de la cubeta, la tina y las bañeras, que se llenan de agua.",
+ "notas_en": "JXMod Native 0.38 — Map water now has real, simulated waves: whatever falls, enters or moves in the water makes waves that travel, bounce off the shore and move floating things. Cars that fall in the water float for a while, fill up through the gaps releasing bubbles and sink; cardboard, mattresses and sofas soak and sink; when pulled out, they drip. Fixed: the Water category in the Props menu (next to Options) now has the bucket, the pile, the faucet, the hose and dry, plus the bucket, tub and bathtubs, which fill with water."
 }
