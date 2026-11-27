@@ -1,9 +1,9 @@
 {
- "codigo": 26112707,
- "version": "0.40",
+ "codigo": 26112708,
+ "version": "0.41",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 75700486,
- "sha256": "6897269e4af6de8f10aa22d05ae85884365334e5faaebe1f719ad4416cf420df",
- "notas_es": "El agua de los mapas del Workshop se arma entera (el mar de gm_fork ya aparece completo, con reflejo). El agua de materiales con patch también se reconoce.",
- "notas_en": "Workshop map water is now built whole (gm_fork's sea shows complete, with reflections). Patched water materials are recognized too."
+ "tam": 75725062,
+ "sha256": "e593bc7f7cc748aa6f729ee510f427da858b1f940e6c0967635a6a626863255b",
+ "notas_es": "Los botones de volumen del celu andan de nuevo. Paneles al tamaño del celular (la Workshop ya no parece de compu: tarjetas y letras más grandes). Props lejanos con su versión simple (mapas grandes mucho más livianos). Antilag: si el juego se traba (por ejemplo grabando la pantalla), apaga efectos de a uno y los devuelve cuando se estabiliza.",
+ "notas_en": "Phone volume buttons work again. Panels sized for phones (the Workshop no longer looks like a PC: bigger cards and text). Far props use their simple version (big maps much lighter). Antilag: if the game stutters (e.g. while screen recording), effects turn off one by one and come back when stable."
 }
