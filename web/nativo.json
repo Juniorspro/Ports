@@ -1,9 +1,9 @@
 {
- "codigo": 26112726,
- "version": "0.59",
+ "codigo": 26112727,
+ "version": "0.60",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 77216336,
- "sha256": "5a0937134c60dcfc7823e66a7638cf5aaf8bac0572f1468d91176ef3e41e7304",
- "notas_es": "Opciones nuevas: Mostrar quién habla (Sonido), Distancia de dibujo (Gráficos, más liviano en mapas grandes) y El botón de emotes abre la ruleta (Controles).",
- "notas_en": "New options: Show who is talking, Draw distance and Emote button opens the wheel."
+ "tam": 77236816,
+ "sha256": "fa1a5eae43bf97f6e613c9190cd31ef7bc3e7e62f8784339da4ea119732a9148",
+ "notas_es": "Munición: en Props → Munición están las cajas de cada tipo y el cajón con todo. Munición limitada (como en GMod): cada tipo tiene su reserva, se gasta al recargar y vuelve al reaparecer.",
+ "notas_en": "Ammo: ammo boxes in Props → Ammo, and optional limited ammo like GMod."
 }
