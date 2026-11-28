@@ -1,9 +1,9 @@
 {
- "codigo": 26112733,
- "version": "0.66",
+ "codigo": 26112734,
+ "version": "0.67",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 77302352,
- "sha256": "cb6cd02efb3d519fbc193529008a6d52b986e17600b2b4a970160346a88db70c",
- "notas_es": "Mods de la tienda en la nativa: en Props → Mods de la tienda están los mods publicados; tocás uno y se prende o se apaga (también en una sala, cada uno los suyos). Se aplican gravedad, velocidad, salto, munición infinita, invencible y hora. Los marcados con * traen código que la nativa todavía no corre.",
- "notas_en": "Store mods: Props → Store mods, toggle them on/off (gravity, speed, jump, infinite ammo, invincible, time of day)."
+ "tam": 77331024,
+ "sha256": "c64d9e5ac836967d6bafa3037c623794464c947870417b82e27f5fccb1bd547b",
+ "notas_es": "Modo construcción (Props → Opciones): volás libre con una cuadrícula; lo que soltás con la Physics Gun queda acomodado; con la Tool Gun le pegás a un prop y aparece su holograma: Z, X, Y lo mueven en ese eje, ZXY libre, y con Repetir cada disparo pone la siguiente en orden. Crear server ya no se traba y tiene Mi mundo (carga lo que guardaste). Sin límite de props. Reconstrucción temporal en OpenGL 3: la resolución baja se ve más nítida.",
+ "notas_en": "Build mode, server creation fixes, temporal reconstruction for low resolution."
 }
