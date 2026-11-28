@@ -1,9 +1,9 @@
 {
- "codigo": 26112732,
- "version": "0.65",
+ "codigo": 26112733,
+ "version": "0.66",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 77269584,
- "sha256": "20f41efd774f688e2eb1c8ef08d5dd1d121ab1c57574edec72b8b9bb47cf2b91",
- "notas_es": "Ajustes → Controles → Tu logo → Acceso directo: pone en la pantalla de inicio un ícono con tu logo que abre el juego.",
- "notas_en": "Your logo → Shortcut: adds a home screen icon with your logo."
+ "tam": 77302352,
+ "sha256": "cb6cd02efb3d519fbc193529008a6d52b986e17600b2b4a970160346a88db70c",
+ "notas_es": "Mods de la tienda en la nativa: en Props → Mods de la tienda están los mods publicados; tocás uno y se prende o se apaga (también en una sala, cada uno los suyos). Se aplican gravedad, velocidad, salto, munición infinita, invencible y hora. Los marcados con * traen código que la nativa todavía no corre.",
+ "notas_en": "Store mods: Props → Store mods, toggle them on/off (gravity, speed, jump, infinite ammo, invincible, time of day)."
 }
