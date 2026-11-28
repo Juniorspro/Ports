@@ -1,9 +1,9 @@
 {
- "codigo": 26112734,
- "version": "0.67",
+ "codigo": 26112735,
+ "version": "0.68",
  "apk": "jxmod/JXModNativo.apk",
  "tam": 77331024,
- "sha256": "c64d9e5ac836967d6bafa3037c623794464c947870417b82e27f5fccb1bd547b",
- "notas_es": "Modo construcción (Props → Opciones): volás libre con una cuadrícula; lo que soltás con la Physics Gun queda acomodado; con la Tool Gun le pegás a un prop y aparece su holograma: Z, X, Y lo mueven en ese eje, ZXY libre, y con Repetir cada disparo pone la siguiente en orden. Crear server ya no se traba y tiene Mi mundo (carga lo que guardaste). Sin límite de props. Reconstrucción temporal en OpenGL 3: la resolución baja se ve más nítida.",
- "notas_en": "Build mode, server creation fixes, temporal reconstruction for low resolution."
+ "sha256": "e97099ab4b928eb2e75e34a72691856710a90487cec315de7cbdb6fc88ebb8c3",
+ "notas_es": "Modo construcción: el holograma ahora es la copia transparente del prop (celeste), dentro de su contorno.",
+ "notas_en": "Build mode: the hologram is now a translucent copy of the prop."
 }
