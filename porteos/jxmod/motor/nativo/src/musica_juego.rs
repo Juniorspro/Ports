@@ -56,6 +56,8 @@ impl Juego {
     pub fn musica_paso(&mut self) {
         let ahora = Instant::now(); let dt = self.musica.t.map(|t| (ahora - t).as_secs_f32().min(0.2)).unwrap_or(0.0); self.musica.t = Some(ahora);
         let quiere = self.aj.musica && !self.med.musica_on && self.ini.abierto && !self.ini.desde_juego && !self.recargar && self.sonido.suena();
+        // (con internet, la estación Frutiger Aero por YouTube; sin internet, la de música libre del paquete)
+        let quiere = quiere && !self.med_frutiger(quiere, dt);
         let m = &mut self.musica;
         m.gan = if quiere { (m.gan + dt / FUNDIDO_S).min(1.0) } else { (m.gan - dt / FUNDIDO_S).max(0.0) };
         // (el paquete: si no está, se pide —se baja en otro hilo—; se mira cada 2 s)

@@ -26,6 +26,8 @@ MANIFIESTO = """<?xml version="1.0" encoding="utf-8"?>
   <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
   <!-- (la voz por cercanía: el micrófono, se pide al prender el botón; y los efectos de voz del celular) -->
   <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+  <!-- (si hay internet: la música del menú por YouTube o la del paquete) -->
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
   <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
   <application android:label="%s" android:icon="@mipmap/ic_launcher" android:hasCode="true" android:extractNativeLibs="false"
       android:isGame="true" android:appCategory="game" android:allowBackup="false">

@@ -54,6 +54,10 @@ public class Medios {
     /** «cargando», «sonando», «error» o "" */
     public static synchronized String radioEstado(int id) { String s = estado.get(id); return s == null ? "" : s; }
 
+    /** si hay internet (para la música del menú por YouTube) */
+    public static boolean hayRed(Activity a) {
+        try { android.net.ConnectivityManager cm = (android.net.ConnectivityManager) a.getSystemService(android.content.Context.CONNECTIVITY_SERVICE); android.net.NetworkInfo n = cm.getActiveNetworkInfo(); return n != null && n.isConnected(); } catch (Throwable t) { return false; }
+    }
     // —— la tele ——
     private static String html(String vid) {
         return "<!doctype html><html><head><meta name=viewport content='width=device-width,initial-scale=1'><style>html,body,#p{margin:0;width:100%;height:100%;background:#000;overflow:hidden}</style></head><body><div id=p></div>"

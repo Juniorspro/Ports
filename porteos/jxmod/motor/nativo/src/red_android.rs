@@ -324,6 +324,7 @@ impl crate::comun::paneles_juego::medios::MediosApp for Teclado {
     fn tele_poner(&self, id: i32, vid: &str) { self.medios(|env, c, a| { let v = env.new_string(vid)?; env.call_static_method(c, jni_str!("telePoner"), jni_sig!("(Landroid/app/Activity;ILjava/lang/String;)V"), &[JValue::Object(a), JValue::Int(id), JValue::Object(&v)])?; Ok(()) }); }
     fn tele_lugar(&self, id: i32, r: [i32; 4], ve: bool) { self.medios(|env, c, a| { env.call_static_method(c, jni_str!("teleLugar"), jni_sig!("(Landroid/app/Activity;IIIIIZ)V"), &[JValue::Object(a), JValue::Int(id), JValue::Int(r[0]), JValue::Int(r[1]), JValue::Int(r[2]), JValue::Int(r[3]), JValue::Bool(ve)])?; Ok(()) }); }
     fn tele_vol(&self, id: i32, v: i32) { self.medios(|env, c, a| { env.call_static_method(c, jni_str!("teleVol"), jni_sig!("(Landroid/app/Activity;II)V"), &[JValue::Object(a), JValue::Int(id), JValue::Int(v)])?; Ok(()) }); }
+    fn hay_red(&self) -> bool { self.medios(|env, c, a| env.call_static_method(c, jni_str!("hayRed"), jni_sig!("(Landroid/app/Activity;)Z"), &[JValue::Object(a)])?.z()).unwrap_or(false) }
     fn tele_parar(&self, id: i32) { self.medios(|env, c, a| { env.call_static_method(c, jni_str!("teleParar"), jni_sig!("(Landroid/app/Activity;I)V"), &[JValue::Object(a), JValue::Int(id)])?; Ok(()) }); }
 }
 /// el micrófono de la voz por cercanía (Voz.java)

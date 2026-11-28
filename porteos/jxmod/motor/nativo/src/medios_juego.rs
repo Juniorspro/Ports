@@ -19,7 +19,9 @@ fn qrot(q: [f32; 4], v: V) -> V { let u = [q[0], q[1], q[2]]; let c = |a: V, b: 
 /// lo que la app de Android hace por la radio y la tele (Medios.java)
 pub trait MediosApp {
     fn radio_poner(&self, id: i32, url: &str); fn radio_vol(&self, id: i32, l: f32, r: f32); fn radio_parar(&self, id: i32); fn radio_estado(&self, id: i32) -> String;
-    fn tele_poner(&self, id: i32, vid: &str); fn tele_lugar(&self, id: i32, r: [i32; 4], ve: bool); fn tele_vol(&self, id: i32, v: i32); fn tele_parar(&self, id: i32);
+    fn tele_poner(&self, id: i32, vid: &str);
+    /// si el celular tiene internet ahora
+    fn hay_red(&self) -> bool; fn tele_lugar(&self, id: i32, r: [i32; 4], ve: bool); fn tele_vol(&self, id: i32, v: i32); fn tele_parar(&self, id: i32);
 }
 
 /// los géneros de la radio (RADIO_GENEROS)
@@ -44,6 +46,9 @@ pub fn yt_malo(t: &str) -> bool {
 pub fn limpio(t: &str) -> String { t.chars().filter(|&c| { let u = c as u32; !(0x1F000..=0x1FFFF).contains(&u) && !(0x2600..=0x27BF).contains(&u) && !(0xFE00..=0xFE0F).contains(&u) && u != 0x200D && !(0x2B00..=0x2BFF).contains(&u) && !(0xE000..=0xF8FF).contains(&u) }).collect::<String>().split_whitespace().collect::<Vec<_>>().join(" ") }
 /// el número de «Mi música» para Medios.java (no es ninguna tele del mundo)
 pub const MUSICA: u32 = 0x7fff_fff0;
+/// la estación del menú: Frutiger Aero por YouTube (25 videos, con internet; sin internet suena la de música libre del paquete)
+pub const FRUTIGER: u32 = 0x7fff_fff1;
+const FRUTIGER_IDS: &str = "0yiwxIuXmdk,5Z49H3clU6U,7b38dMKXYkw,9c9JcWbY_zU,BAyOWCjraGc,Bz0r-JfhYJo,Cz2YCRmDOFk,J_BwEIjCGHc,MY_B_4zMusU,NoWJIeNtFds,NxD2ek_IgxE,QlHZGltRC5M,QwvkPVWrifE,Xu6RwsWqg6M,iFZoDfcRFUQ,kmRVciDPa00,lCuS4oFKBtM,mqpgTLH9UP0,pGt37zt_2oY,qQzvkyGHtl0,qztkto5N1Wg,uOJ_SBCPsZk,vOJjh13Z9uY,xYufIVoCJgU,zlM4cKcqTSI";
 /// el estado de la radio y la tele
 #[derive(Default)]
 pub struct Medios {
@@ -51,6 +56,8 @@ pub struct Medios {
     /// el panel: 0 radio, 1 tele; de cuál (el número de la entidad o del objeto); lo encontrado, lo buscado y el género
     /// Mi música: la lista (id y título), si está sonando y su volumen
     pub lista: Option<Vec<(String, String)>>, pub musica_on: bool, pub musica_vol: f32,
+    /// la estación Frutiger Aero del menú: sonando, si hay internet y cuándo se miró
+    pub frutiger_on: bool, red: bool, red_t: f32,
     pub modo: u8, pub cual: u32, pub res: Vec<Value>, pub q: String, pub tag: String, pub cargando: bool, pub error: Option<String>,
     /// lo que suena en cada radio: entidad → (emisora, nombre, volumen 0..1, lo tapado 0..1)
     pub radios: HashMap<u32, (String, String, f32, f32)>,
@@ -109,6 +116,19 @@ impl Juego {
         let l = self.med.lista.clone().unwrap_or_default();
         if let Some(d) = &self.datos { let _ = std::fs::write(d.join("mimusica.txt"), l.iter().map(|(a, b)| format!("{a}\t{}\n", b.replace(['\t', '\n'], " "))).collect::<String>()); }
         if let Some(a) = &self.med.app { if l.is_empty() || !self.med.musica_on { a.tele_parar(MUSICA as i32); } else { a.tele_poner(MUSICA as i32, &l.iter().map(|x| x.0.as_str()).collect::<Vec<_>>().join(",")); a.tele_lugar(MUSICA as i32, [-4000, -4000, 220, 220], true); a.tele_vol(MUSICA as i32, (self.med.musica_vol * 100.0) as i32); } }
+    }
+    /// la música del menú por YouTube (Frutiger Aero) si hay internet: true si suena (entonces la del paquete se calla)
+    pub(crate) fn med_frutiger(&mut self, quiere: bool, dt: f32) -> bool {
+        let Some(a) = &self.med.app else { return false };
+        self.med.red_t -= dt; if self.med.red_t <= 0.0 { self.med.red_t = 10.0; self.med.red = a.hay_red(); }
+        let si = quiere && self.med.red;
+        if si && !self.med.frutiger_on {
+            // (empieza en uno al azar de los 25 y sigue con los demás)
+            let l: Vec<&str> = FRUTIGER_IDS.split(',').collect(); let k = (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0) as usize) % l.len();
+            let orden: Vec<&str> = l[k..].iter().chain(l[..k].iter()).copied().collect();
+            a.tele_poner(FRUTIGER as i32, &orden.join(",")); a.tele_lugar(FRUTIGER as i32, [-4000, -4000, 220, 220], true); a.tele_vol(FRUTIGER as i32, 55); self.med.frutiger_on = true;
+        } else if !si && self.med.frutiger_on { a.tele_parar(FRUTIGER as i32); self.med.frutiger_on = false; }
+        si
     }
     pub(super) fn med_accion(&mut self, s: &str) {
         let (a, b) = s.split_once('|').unwrap_or((s, ""));
