@@ -30,6 +30,8 @@ pub const CAJA: i64 = ID_JG - 1;
 pub const MAT_MARCO: i64 = ID_JG - 10;
 /// los de brillo variable van de a 4 niveles (mat_nivel): lentes, ojos, el núcleo del rayo y las dos capas del haz
 pub const MAT_LENTE: i64 = ID_JG - 20; pub const MAT_OJO: i64 = ID_JG - 30; pub const MAT_NUCLEO: i64 = ID_JG - 40; pub const MAT_HAZ: i64 = ID_JG - 50; pub const MAT_HAZ2: i64 = ID_JG - 60;
+/// el holograma del modo construcción: celeste, transparente y sin luz
+pub const MAT_HOLO: i64 = ID_JG - 70;
 /// la textura de los retratos del panel de la bomba de Rick Prime
 pub const TEX_OMEGA: i64 = ID_JG - 100;
 /// las mallas de las copias abolladas: ID_DES − 4096·lugar − nodo
@@ -205,7 +207,7 @@ impl Juego {
         let malla = Malla { id: CAJA, v: 24, mn: [-0.5; 3], sc: [1.0; 3], i32: 0, ni: 36, vo: 0, io, lo: -1, so: -1, lm: -1 };
         let mat = |id: i64, c: [f32; 4], pbr: [f32; 3], em: [f32; 3], unlit: u8, add: u8, blend: u8| Mat { ti: [0.0; 12], pbr, fol: 0, id, t2: -1, terr: None, c, st: [1.0, 1.0, 0.0, 0.0], t: -1, blend, cut: 0, unlit, add, agua: 0, em };
         // (los de ciclope.js: marco, lentes rubí, los ojos que brillan, el núcleo blanco del rayo y el haz rojo que suma luz)
-        let mut mats = vec![mat(MAT_MARCO, [0.06, 0.06, 0.07, 1.0], [0.3, 0.8, 0.05], [0.0; 3], 0, 0, 0)];
+        let mut mats = vec![mat(MAT_MARCO, [0.06, 0.06, 0.07, 1.0], [0.3, 0.8, 0.05], [0.0; 3], 0, 0, 0), mat(MAT_HOLO, [0.55, 0.9, 1.0, 0.38], [0.5, 0.0, 0.04], [0.0; 3], 1, 0, 1)];
         for (j, f) in [0.1f32, 0.4, 0.7, 1.0].into_iter().enumerate() { let j = j as i64; let b = 3.9 * f;
             mats.push(mat(MAT_LENTE - j, [0.45, 0.02, 0.03, 1.0], [0.08, 0.2, 0.06], [1.4 * b, 0.08 * b, 0.06 * b], 0, 0, 0));
             mats.push(mat(MAT_OJO - j, [1.0, 0.4, 0.35, 1.0], [0.5, 0.0, 0.04], [3.6 * f, 0.35 * f, 0.22 * f], 1, 0, 0));

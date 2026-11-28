@@ -11,7 +11,9 @@ use super::herramientas::{Logica, Valor};
 
 /// lo que se copia: el nombre del prop, su giro, su tamaño, desde dónde sale la próxima y su lógica (las de la Tool Gun)
 #[derive(Clone)]
-pub struct Fuente { pub nombre: String, pub q: [f32; 4], pub tam: [f32; 3], pub base: [f32; 3], pub log: Option<(String, HashMap<String, Valor>)> }
+pub struct Fuente { pub nombre: String, pub q: [f32; 4], pub tam: [f32; 3], pub base: [f32; 3], pub log: Option<(String, HashMap<String, Valor>)>,
+    /// de su centro a la raíz del modelo (donde se pone) y lo del modelo para dibujarlo (como matriz_obj)
+    pub off: [f32; 3], cap: [f32; 4], c: [f32; 3] }
 
 #[derive(Default)]
 pub struct Cons {
@@ -119,7 +121,7 @@ impl Juego {
         if !self.cons.activo { return false; }
         if alt { if self.cons.fuente.take().is_some() { self.cons.holo = None; self.avisar("Copia soltada".into()); return true; } return false; }
         if let (Some(f), Some(p)) = (self.cons.fuente.clone(), self.cons.holo) {
-            match self.crear(m, &f.nombre, p, f.q, true, true) {
+            match self.crear(m, &f.nombre, [p[0] + f.off[0], p[1] + f.off[1], p[2] + f.off[2]], f.q, true, true) {
                 Ok(Some(k)) => {
                     if let Some((t, pr)) = f.log { self.objs[k].logica = Some(Logica { tipo: t, params: pr, entradas: vec![], salida: false, t: 0.0, luz: false, texto: String::new(), color: String::new() }); }
                     let dl = [p[0] - f.base[0], p[1] - f.base[1], p[2] - f.base[2]];
@@ -140,7 +142,8 @@ impl Juego {
         let a = b.aabb();
         let f = Fuente { nombre: self.objs[i].nombre.clone(), q: q_recto([b.q[0] as f32, b.q[1] as f32, b.q[2] as f32, b.q[3] as f32]),
             tam: [(a[3] - a[0]) as f32, (a[4] - a[1]) as f32, (a[5] - a[2]) as f32], base: [((a[0] + a[3]) * 0.5) as f32, ((a[1] + a[4]) * 0.5) as f32, ((a[2] + a[5]) * 0.5) as f32],
-            log: self.objs[i].logica.as_ref().map(|l| (l.tipo.clone(), l.params.clone())) };
+            log: self.objs[i].logica.as_ref().map(|l| (l.tipo.clone(), l.params.clone())),
+            off: [(b.pos[0] - (a[0] + a[3]) * 0.5) as f32, (b.pos[1] - (a[1] + a[4]) * 0.5) as f32, (b.pos[2] - (a[2] + a[5]) * 0.5) as f32], cap: self.objs[i].cap_inv, c: self.objs[i].c };
         let n = self.jg.nombre_item(&f.nombre).to_string(); self.cons.paso = f.tam; self.cons.fuente = Some(f); self.cons.delta = None; if self.cons.eje < 3 { let e = self.cons.eje; self.cons_eje(e); }
         self.avisar(format!("Copiando {n}: elegí el eje y disparo pone"));
         true
@@ -159,6 +162,13 @@ impl Juego {
             }
         }
         if let (Some(f), Some(p)) = (self.cons.fuente.as_ref(), self.cons.holo) {
+            // (la copia transparente: la malla del prop con el material del holograma, sin sombra)
+            if let Some(pf) = self.prefabs.get(&f.nombre) {
+                let r = [p[0] + f.off[0], p[1] + f.off[1], p[2] + f.off[2]];
+                let b = mapa::trs(r, qmul32(f.q, f.cap), [1.0; 3]); let mm = m4::mul(&b, &mapa::trs([-f.c[0], -f.c[1], -f.c[2]], [0.0, 0.0, 0.0, 1.0], [1.0; 3]));
+                let n0 = items.len(); pf.items(&mm, items);
+                for it in items[n0..].iter_mut() { it.mat = super::jugabilidad::MAT_HOLO; it.fl |= jxmotor::escena::FL_SIN_SOMBRA; }
+            }
             let h = [f.tam[0] * 0.5, f.tam[1] * 0.5, f.tam[2] * 0.5];
             let v = |sx: f32, sy: f32, sz: f32| [p[0] + sx * h[0], p[1] + sy * h[1], p[2] + sz * h[2]];
             for (a, b) in [((-1., -1., -1.), (1., -1., -1.)), ((-1., 1., -1.), (1., 1., -1.)), ((-1., -1., 1.), (1., -1., 1.)), ((-1., 1., 1.), (1., 1., 1.)),
