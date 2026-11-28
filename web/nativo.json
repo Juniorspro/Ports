@@ -1,9 +1,9 @@
 {
- "codigo": 26112736,
- "version": "0.69",
+ "codigo": 26112737,
+ "version": "0.70",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 77363792,
- "sha256": "387e3918fa38b849791042f88056d661e957cf6ff9cbf35ea44b1e51fa3f448f",
- "notas_es": "Gráficos estilo Hyper Sandbox en todas las calidades: Simple con sombra dura de una cascada (20 m), luces por calidad, recorte de lo chico y lejano, Bajo sin reflejo y Definitivo más liviano. Modo construcción: las paredes copiadas ya no flotan ni quedan torcidas, Duplicate anda sin el modo construcción y ya no se vuela.",
- "notas_en": "Hyper Sandbox-style graphics on every preset: Simple with single-cascade hard shadows (20 m), per-quality light limits, culling of small far objects, Low without floor reflections and a lighter Ultimate. Build mode: copied walls no longer float or tilt, Duplicate works outside build mode and no more flying."
+ "tam": 77367888,
+ "sha256": "ac2b4f776f7dd2337831163e59eeed1c609306149104f5cf4f7657b7123cb5d8",
+ "notas_es": "Cielo Frutiger Aero propio: degradé azul, sol con halo y rayos, nubes y burbujas de vidrio que suben (de noche se apaga). En Opciones → Cielo: Automático (va solo en los mapas con el fondo de Windows 7), El del mapa o Frutiger.",
+ "notas_en": "Our own Frutiger Aero sky: blue gradient, sun with halo and rays, clouds and rising glass bubbles (dims at night). Options → Sky: Automatic (on maps with the Windows 7 wallpaper), Map's own or Frutiger."
 }
