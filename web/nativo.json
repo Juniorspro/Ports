@@ -1,9 +1,9 @@
 {
- "codigo": 26112730,
- "version": "0.63",
+ "codigo": 26112731,
+ "version": "0.64",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 77245008,
- "sha256": "b392f312ce3571810a985f1f2e22e9cfb1ffbedb552cdbd417d2cd69edff4f90",
- "notas_es": "Ajustes → Gráficos → Límite de fps: Pantalla (como siempre), 30, 60, 90, 120, 144, 240 o Sin límite. Fuera de Pantalla, el juego no se sincroniza con la pantalla y JX Turbo suma un cuadro intermedio por cada real: los fps pasan los de la pantalla.",
- "notas_en": "Settings → Graphics → FPS limit (Screen, 30-240, Unlimited). Unsynced mode lets JX Turbo go above the screen refresh rate."
+ "tam": 77269584,
+ "sha256": "bd214c835ac17563e4519c86c5a444a26f3559c9d57e612613724498a0438af5",
+ "notas_es": "Ajustes → Controles → Tu logo: elegí una imagen del celular y pasa a ser el logo del menú (El de JXMod lo vuelve a poner).",
+ "notas_en": "Settings → Controls → Your logo: pick an image to use as the menu logo."
 }
