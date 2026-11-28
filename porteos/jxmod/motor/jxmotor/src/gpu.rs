@@ -21,6 +21,8 @@ pub struct Opciones {
     /// cuántas cascadas de sombra: 2 (cerca fina + lejos) o 1 —como Hyper Sandbox: un solo mapa centrado en la cámara que
     /// cubre todo el radio; la mitad de dibujo de sombras—
     pub cascadas: u8,
+    /// el cielo Frutiger Aero propio en lugar del del mapa (FRUTIGER_GLSL)
+    pub cielo_frutiger: bool,
     pub reflejo: bool, pub reflejo_div: i32, pub reflejo_cada: u32,
     /// la vista que se acostumbra (exposición automática): al entrar a la sombra todo se aclara de a poco; al salir, encandila y
     /// se acomoda
@@ -47,12 +49,12 @@ pub struct Opciones {
     pub simple: bool,
 }
 impl Default for Opciones {
-    fn default() -> Self { Opciones { escala: 1.0, sombras: true, sombra_px: 2048, sombra_cada: 1, sombra_radio: 45.0, cascadas: 2, reflejo: true, reflejo_div: 2, reflejo_cada: 1, adapta: true, ao: true, ao_fuerza: 0.6, retoque: true, prepaso: true, rayos: false, hongo: 3, aaa: false, turbo: false, taa: false, simple: false } }
+    fn default() -> Self { Opciones { escala: 1.0, sombras: true, sombra_px: 2048, sombra_cada: 1, sombra_radio: 45.0, cascadas: 2, cielo_frutiger: false, reflejo: true, reflejo_div: 2, reflejo_cada: 1, adapta: true, ao: true, ao_fuerza: 0.6, retoque: true, prepaso: true, rayos: false, hongo: 3, aaa: false, turbo: false, taa: false, simple: false } }
 }
 impl Opciones {
     /// lo que se elige para un celular de 1 GB con una placa floja: dos tercios de la resolución, sombra de 1024 cada 2
     /// cuadros y reflejo a un cuarto cada 2
-    pub fn celular_flojo() -> Self { Opciones { escala: 0.67, sombras: true, sombra_px: 1024, sombra_cada: 2, sombra_radio: 35.0, cascadas: 2, reflejo: true, reflejo_div: 4, reflejo_cada: 2, adapta: true, ao: false, ao_fuerza: 0.6, retoque: true, prepaso: true, rayos: false, hongo: 3, aaa: false, turbo: false, taa: false, simple: false } }
+    pub fn celular_flojo() -> Self { Opciones { escala: 0.67, sombras: true, sombra_px: 1024, sombra_cada: 2, sombra_radio: 35.0, cascadas: 2, cielo_frutiger: false, reflejo: true, reflejo_div: 4, reflejo_cada: 2, adapta: true, ao: false, ao_fuerza: 0.6, retoque: true, prepaso: true, rayos: false, hongo: 3, aaa: false, turbo: false, taa: false, simple: false } }
 }
 
 struct MallaGL { vao: glow::VertexArray, bufs: Vec<glow::Buffer>, i32: bool, mn: [f32; 3], sc: [f32; 3], lm: i64, piel: bool, bytes: usize }
@@ -532,6 +534,8 @@ vec3 enc(vec3 x) { x = max(x, 0.0); vec3 a = sqrt(x), b = sqrt(a), c = sqrt(b); 
 @@NUBES@@
 void main() {
   vec4 a = uIVP * vec4(vP, -1.0, 1.0), b = uIVP * vec4(vP, 0.5, 1.0); vec3 d = normalize(b.xyz / b.w - a.xyz / a.w);
+  // (el cielo Frutiger propio, en lugar del del mapa)
+  if (uNubes.z > 0.5) { vec4 n = nubes(d, uSol, uNubes.y, uSolC, vec3(0.1, 0.5, 1.0)); o = vec4(min(frutiger(d, uSol, uNubes.y, n), vec3(1.0)), 1.0); return; }
   if (uTieneCubo > 0) {
     // (el cielo del mapa, como en WebGL: el degradé y la caja —una imagen ya terminada, sin tono— con su tinte)
     bool ar = d.y > 0.0; vec3 g = mix(uMid, ar ? uTop : uBot, pow(abs(d.y), ar ? uExp.x : uExp.y));
@@ -1016,6 +1020,42 @@ pub(crate) const VOL_DENSIDAD: f32 = 0.0006; pub(crate) const VOL_HACES: f32 = 0
 /// atardecer, oscuras de noche)
 /// el brillo promedio (de los logaritmos, con el medio pesando más) de un exterior de día: con eso la exposición queda en 1
 pub(crate) const ADAPTA_CLAVE: f32 = 0.25;
+/// el cielo Frutiger Aero de JXMod (todo propio, hecho con cuentas): azul intenso arriba que baja a un celeste casi blanco en
+/// el horizonte, el sol con halo ancho y rayos suaves que giran despacio, nubes de algodón y burbujas de vidrio tornasoladas
+/// que suben; de noche se apaga. GLSL que anda en OpenGL 3 y en OpenGL 2. `n`: las nubes de NUBES_GLSL
+pub(crate) const FRUTIGER_GLSL: &str = r#"
+float fru_h(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+// (una capa de burbujas: el cielo en celdas de ángulo —n alrededor—, una burbuja en algunas, dentro de su celda —así no hay
+// cortes—, redonda en pantalla —lo horizontal se achica con la altura— y subiendo con el tiempo)
+vec3 fru_burbujas(vec3 c, float a, float e, float t, float n, float vel, float k) {
+  float cs = 6.2831853 / n; vec2 p = vec2(a, e - t * vel) / cs; vec2 ce = floor(p); vec2 f = p - ce; ce.x = mod(ce.x, n);
+  if (fru_h(ce + k) > 0.3) return c;
+  vec2 o = vec2(0.5 + (fru_h(ce + k + 1.3) - 0.5) * 0.24, 0.5 + (fru_h(ce + k + 2.9) - 0.5) * 0.4); float r = 0.08 + 0.08 * fru_h(ce + k + 4.7);
+  vec2 v = (f - o) / r; v.x *= cos(e); float dd = length(v);
+  if (dd >= 1.0) return c;
+  float borde = smoothstep(0.55, 1.0, dd), aa = 1.0 - smoothstep(0.88, 1.0, dd);
+  vec3 iri = 0.5 + 0.5 * cos(6.2831853 * (dd * 0.8 + v.y * 0.3 + vec3(0.0, 0.33, 0.67)));
+  float br = smoothstep(0.34, 0.0, length(v - vec2(-0.38, 0.42))) + 0.5 * smoothstep(0.18, 0.0, length(v - vec2(0.42, -0.45)));
+  vec3 b = c * 1.06 + mix(vec3(0.9, 0.97, 1.0), iri, 0.45) * borde * borde * 0.6 + vec3(br * 0.85);
+  return mix(c, min(b, vec3(1.0)), aa * smoothstep(0.03, 0.14, e) * (1.0 - smoothstep(0.75, 0.9, e)));
+}
+vec3 frutiger(vec3 d, vec3 s, float t, vec4 n) {
+  float e = asin(clamp(d.y, -1.0, 1.0)), a = atan(d.z, d.x);
+  vec3 cen = vec3(0.0, 0.27, 0.80), med = vec3(0.10, 0.58, 1.0), hor = vec3(0.80, 0.95, 1.0), aba = vec3(0.60, 0.88, 0.82);
+  vec3 c = d.y >= 0.0 ? mix(mix(hor, med, smoothstep(0.0, 0.22, d.y)), cen, smoothstep(0.25, 0.95, d.y)) : mix(hor, aba, smoothstep(0.0, 0.25, -d.y));
+  float k = max(dot(d, s), 0.0), vis = smoothstep(-0.08, 0.05, s.y);
+  c += vec3(1.0, 0.97, 0.86) * vis * (pow(k, 6.0) * 0.30 + pow(k, 48.0) * 0.45);
+  // (los rayos: bandas alrededor del sol, finas y anchas mezcladas)
+  vec3 ej = normalize(cross(s, vec3(0.0, 1.0, 0.0)) + vec3(1e-4, 0.0, 0.0)); vec3 ek = cross(s, ej);
+  float ang = atan(dot(d, ek), dot(d, ej)); float ry = 0.5 + 0.5 * sin(ang * 9.0 + t * 0.04) * sin(ang * 4.0 - t * 0.025 + 1.3); ry *= ry;
+  c += vec3(0.86, 0.95, 1.0) * ry * pow(k, 2.5) * 0.30 * vis * smoothstep(-0.05, 0.1, d.y);
+  c = mix(c, min(n.rgb * 1.08 + vec3(0.04, 0.05, 0.07), vec3(1.0)), n.a);
+  c += vec3(1.0, 0.98, 0.9) * smoothstep(0.9993, 0.9997, k) * 1.4 * vis * (1.0 - n.a * 0.8);
+  if (e > 0.0) { c = fru_burbujas(c, a, e, t, 20.0, 0.010, 0.0); c = fru_burbujas(c, a, e, t, 38.0, 0.016, 17.0); }
+  float dia = smoothstep(-0.12, 0.12, s.y);
+  return mix(c * vec3(0.07, 0.11, 0.24), c, dia);
+}
+"#;
 pub(crate) const NUBES_GLSL: &str = r#"
 float h21(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
 float vr2(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -1198,7 +1238,7 @@ impl Motor {
             gl.bind_vertex_array(None); (vao, vb, ib)
         };
         let p_agua = programa(&gl, VS_LUZ, FS_AGUA, "")?;
-        let p_cielo = programa(&gl, VS_CIELO, &FS_CIELO.replace("@@NUBES@@", NUBES_GLSL), "")?;
+        let p_cielo = programa(&gl, VS_CIELO, &FS_CIELO.replace("@@NUBES@@", &format!("{NUBES_GLSL}\n{FRUTIGER_GLSL}")), "")?;
         let p_ao = programa(&gl, VS_CIELO, FS_AO, "")?;
         let p_ao_poner = programa(&gl, VS_CIELO, FS_AO_PONER, "")?;
         let p_final = programa(&gl, VS_CIELO, FS_FINAL, "")?; let p_taa = programa(&gl, VS_CIELO, FS_TAA, "")?; let p_repro = programa(&gl, VS_CIELO, FS_REPRO, if std::env::var_os("JXM_VER_CORTE").is_some() { "#define VER_CORTE\n" } else { "" })?; let p_copia = programa(&gl, VS_CIELO, FS_COPIA, "")?; let p_adapta = programa(&gl, VS_CIELO, FS_ADAPTA, "")?;
@@ -1547,7 +1587,7 @@ impl Motor {
             None => gl.uniform_1_i32(p.u(U::TieneCubo), 0),
         }
         let t = self.c.as_ref().map_or(0.0, |c| c.tiempo.max(0.0));
-        gl.uniform_4_f32(p.u(U::Nubes), if self.op.aaa { 1.0 } else { 0.0 }, t, 0.0, 0.0); gl.uniform_3_f32(p.u(U::SolC), l.sol_c[0], l.sol_c[1], l.sol_c[2]);
+        gl.uniform_4_f32(p.u(U::Nubes), if self.op.aaa { 1.0 } else { 0.0 }, t, if self.op.cielo_frutiger { 1.0 } else { 0.0 }, 0.0); gl.uniform_3_f32(p.u(U::SolC), l.sol_c[0], l.sol_c[1], l.sol_c[2]);
         if prueba("sin_cielo") { return; }
         gl.depth_mask(false); gl.bind_vertex_array(None); gl.draw_arrays(glow::TRIANGLES, 0, 3); gl.depth_mask(true);
     }

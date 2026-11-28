@@ -256,6 +256,14 @@ fn main() {
             if vuelta == 2 { eprintln!("{n}: {:.1} ms por cuadro", mejor[i]); foto(&mut m, n); }
         } }
     }
+    if hace("frutiger") {
+        // (el cielo Frutiger propio: mirando arriba al sol, de costado y la burbujas, y comparado con el del mapa)
+        j.aj.sin_ui = true; j.aj.fps = false; j.aj.dinamica = false; j.aj.turbo = false; j.aj.auto = false; j.aj.res = 100; j.aj.poner_calidad(std::env::var("JXM_CAL").ok().and_then(|x| x.parse().ok()).unwrap_or(3));
+        j.poner_mapa("RB_Flatgrass"); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 90);
+        for (cielo, pitch, yaw, n) in [(1u8, 0.35f32, 0.0f32, "frutiger_mapa"), (2, 0.35, 0.0, "frutiger_frente"), (2, 0.9, 1.6, "frutiger_arriba"), (2, 0.15, 3.2, "frutiger_horizonte")] {
+            j.aj.cielo = cielo; j.jug.pitch = pitch; j.jug.yaw = yaw; paso(&mut j, &mut m, 8); foto(&mut m, n);
+        }
+    }
     if hace("taa") {
         // (la reconstrucción temporal: la misma vista al 20 % sin y con, contra el 50 % de verdad; quieto, después de juntar)
         j.aj.sin_ui = true; j.aj.fps = false; j.aj.dinamica = false; j.aj.turbo = false; j.aj.auto = false;

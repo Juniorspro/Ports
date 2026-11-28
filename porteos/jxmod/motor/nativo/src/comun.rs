@@ -1105,7 +1105,9 @@ impl Juego {
         if self.emote.is_some() && (ent.x.abs() + ent.y.abs() > 0.15 || ent.saltar) { self.hacer_emote(None); }
         // (lo de Ajustes, cada cuadro: la calidad al motor y el volumen al mezclador)
         // (JX Turbo prendido en el motor sólo cuando hace falta —los reales no llegan al refresco—: si no, ni guarda la imagen)
-        { let mut op = self.aj.opciones(); op.escala *= self.drs; op.turbo = self.aj.turbo && self.turbo_on;
+        { let mut op = self.aj.opciones(); op.escala *= self.drs;
+          // (Automático: el cielo Frutiger propio en los mapas cuyo cielo es el fondo de Windows 7)
+          if self.aj.cielo == 0 { op.cielo_frutiger = self.mapa.is_some() && self.mapas.get(self.mapa_i).map_or(false, |n| n.to_lowercase().contains("win7")); } op.turbo = self.aj.turbo && self.turbo_on;
           // (el antilag ya no apaga efectos: los reflejos, la luz global y las sombras se eligen con la calidad; sólo baja la
           // resolución —self.drs, más abajo—)
           m.opciones(&op); } self.sonido.volumen = self.aj.volumen();

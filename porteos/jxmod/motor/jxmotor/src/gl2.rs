@@ -27,8 +27,8 @@ const MAX_HUESOS2: usize = 56;
 #[derive(Clone, Debug)]
 /// lo que se puede elegir: la fracción de la pantalla, el retoque, la sombra del sol (lado del mapa, cada cuántos cuadros se
 /// rehace y su radio alrededor de la cámara), el reflejo del agua y del piso (a 1/`reflejo_div` del lado) y los rayos del sol
-pub struct Opciones2 { /** el gráfico Simple: sólo el sol con su sombra cercana, el cielo difuso y la niebla (luz_s) */ pub simple: bool, pub escala: f32, pub retoque: bool, pub sombras: bool, pub sombra_px: i32, pub sombra_cada: u32, pub sombra_radio: f32, /** 1: una sola cascada centrada en todo el radio (como Hyper Sandbox) */ pub cascadas: u8, pub reflejo: bool, pub reflejo_div: i32, pub reflejo_piso: bool, pub rayos: bool, pub hongo: u8, pub aaa: bool, pub adapta: bool, pub turbo: bool }
-impl Default for Opciones2 { fn default() -> Self { Opciones2 { escala: 1.0, retoque: true, sombras: true, sombra_px: 1024, sombra_cada: 2, sombra_radio: 60.0, cascadas: 2, reflejo: true, reflejo_div: 3, reflejo_piso: true, rayos: false, hongo: 2, aaa: false, adapta: false, turbo: false, simple: false } } }
+pub struct Opciones2 { /** el gráfico Simple: sólo el sol con su sombra cercana, el cielo difuso y la niebla (luz_s) */ pub simple: bool, pub escala: f32, pub retoque: bool, pub sombras: bool, pub sombra_px: i32, pub sombra_cada: u32, pub sombra_radio: f32, /** 1: una sola cascada centrada en todo el radio (como Hyper Sandbox) */ pub cascadas: u8, /** el cielo Frutiger propio */ pub cielo_frutiger: bool, pub reflejo: bool, pub reflejo_div: i32, pub reflejo_piso: bool, pub rayos: bool, pub hongo: u8, pub aaa: bool, pub adapta: bool, pub turbo: bool }
+impl Default for Opciones2 { fn default() -> Self { Opciones2 { escala: 1.0, retoque: true, sombras: true, sombra_px: 1024, sombra_cada: 2, sombra_radio: 60.0, cascadas: 2, cielo_frutiger: false, reflejo: true, reflejo_div: 3, reflejo_piso: true, rayos: false, hongo: 2, aaa: false, adapta: false, turbo: false, simple: false } } }
 
 struct Malla2 { vb: glow::Buffer, ib: glow::Buffer, lm: Option<glow::Buffer>, i32: bool, mn: [f32; 3], sc: [f32; 3], lm_id: i64, bytes: usize, piel: Option<Box<PielCpu>> }
 /// lo que hace falta para deformar una malla con huesos en la CPU: posición y normal sueltas, huesos y pesos por vértice
@@ -396,6 +396,8 @@ vec3 retoque(vec3 c) {
 }
 void main() {
   vec4 a = uIVP * vec4(vP, -1.0, 1.0), b = uIVP * vec4(vP, 0.5, 1.0); vec3 d = normalize(b.xyz / b.w - a.xyz / a.w);
+  // (el cielo Frutiger propio, en lugar del del mapa)
+  if (uNubes.z > 0.5) { vec4 n = nubes(d, uSol, uNubes.y, uSolC, vec3(0.1, 0.5, 1.0)); gl_FragColor = vec4(retoque(min(frutiger(d, uSol, uNubes.y, n), vec3(1.0))), uCieloA); return; }
   if (uTiene > 0.5) {
     bool ar = d.y > 0.0; vec3 g = mix(uMid, ar ? uTop : uBot, pow(abs(d.y), ar ? uExp.x : uExp.y));
     vec3 cc = g; if (uTiene > 1.5) cc = mix(g, textureCube(uCubo, d).rgb * uTinte, uDia);
@@ -944,7 +946,7 @@ impl Motor {
         let p_luz_rc = programa(&gl, VS_LUZ, &format!("#define CLIP\n#define CORTE\n{FS_LUZ}"), &["aP", "aN", "aU", "aL"])?;
         let p_som = programa(&gl, VS_SOM, FS_SOM, &["aP", "aN", "aU"])?; let p_prof_ao = programa(&gl, VS_SOM, FS_PROF_AO, &["aP", "aN", "aU"])?;
         let p_som_c = programa(&gl, VS_SOM, &format!("#define CORTE\n{FS_SOM}"), &["aP", "aN", "aU"])?;
-        let p_cielo = programa(&gl, VS_CIELO, &FS_CIELO.replace("@@NUBES@@", crate::gpu::NUBES_GLSL), &["aP"])?;
+        let p_cielo = programa(&gl, VS_CIELO, &FS_CIELO.replace("@@NUBES@@", &format!("{}\n{}", crate::gpu::NUBES_GLSL, crate::gpu::FRUTIGER_GLSL)), &["aP"])?;
         let p_ui = programa(&gl, VS_UI, FS_UI, &["aP", "aU", "aC"])?;
         let p_copia = programa(&gl, VS_COPIA, FS_COPIA, &["aP"])?; let p_repro = programa(&gl, VS_COPIA, FS_REPRO, &["aP"])?; let p_pasar = programa(&gl, VS_COPIA, FS_PASAR, &["aP"])?; let p_adapta = programa(&gl, VS_COPIA, FS_ADAPTA, &["aP"])?;
         let p_ao = if alta && std::env::var_os("JXM_GL2_SIN_AO").is_none() {
@@ -1897,7 +1899,7 @@ impl Motor {
         // (con los rayos del sol el cielo deja alfa 0: es la máscara de por dónde pasa la luz; si no, 1 —la pantalla no se transparenta—)
         gl.uniform_1_f32(p.u("uCieloA"), if self.alfa_d && !self.refl_activo { 0.0 } else { 1.0 });
         let t = self.c.as_ref().map_or(0.0, |c| c.tiempo.max(0.0));
-        gl.uniform_4_f32(p.u("uNubes"), if self.op.aaa { 1.0 } else { 0.0 }, t, 0.0, 0.0); gl.uniform_3_f32(p.u("uSolC"), l.sol_c[0], l.sol_c[1], l.sol_c[2]);
+        gl.uniform_4_f32(p.u("uNubes"), if self.op.aaa { 1.0 } else { 0.0 }, t, if self.op.cielo_frutiger { 1.0 } else { 0.0 }, 0.0); gl.uniform_3_f32(p.u("uSolC"), l.sol_c[0], l.sol_c[1], l.sol_c[2]);
         gl.uniform_3_f32(p.u("uSol"), s[0], s[1], s[2]); gl.uniform_3_f32(p.u("uNieC"), l.nie.c[0], l.nie.c[1], l.nie.c[2]); gl.uniform_1_f32(p.u("uExpo"), l.expo);
         match &self.cielo {
             Some(c) => {

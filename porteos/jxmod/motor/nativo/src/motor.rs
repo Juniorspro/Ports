@@ -58,7 +58,7 @@ impl Motor3d {
         match self {
             Motor3d::Gl(m, _) => m.op = op.clone(),
             #[cfg(not(target_os = "android"))] Motor3d::Vk(m) => m.op = op.clone(),
-            Motor3d::Gl2(m, _) => { m.op.simple = op.simple; m.op.escala = op.escala; m.op.retoque = op.retoque; m.op.sombras = op.sombras; m.op.sombra_px = op.sombra_px.min(1024); m.op.sombra_cada = op.sombra_cada.max(2); m.op.cascadas = op.cascadas; m.op.sombra_radio = if op.cascadas == 1 { op.sombra_radio.clamp(15.0, 60.0) } else { (op.sombra_radio * 1.35).clamp(30.0, 60.0) }; m.op.reflejo = op.reflejo && op.sombras; m.op.reflejo_div = op.reflejo_div.max(3); m.op.reflejo_piso = std::env::var_os("JXM_GL2_SIN_PISO").is_none(); m.op.rayos = op.rayos && std::env::var_os("JXM_SIN_RAYOS").is_none(); m.op.hongo = op.hongo; m.op.aaa = op.aaa; m.op.adapta = op.adapta && op.rayos; m.op.turbo = op.turbo; }
+            Motor3d::Gl2(m, _) => { m.op.simple = op.simple; m.op.escala = op.escala; m.op.retoque = op.retoque; m.op.sombras = op.sombras; m.op.sombra_px = op.sombra_px.min(1024); m.op.sombra_cada = op.sombra_cada.max(2); m.op.cascadas = op.cascadas; m.op.cielo_frutiger = op.cielo_frutiger; m.op.sombra_radio = if op.cascadas == 1 { op.sombra_radio.clamp(15.0, 60.0) } else { (op.sombra_radio * 1.35).clamp(30.0, 60.0) }; m.op.reflejo = op.reflejo && op.sombras; m.op.reflejo_div = op.reflejo_div.max(3); m.op.reflejo_piso = std::env::var_os("JXM_GL2_SIN_PISO").is_none(); m.op.rayos = op.rayos && std::env::var_os("JXM_SIN_RAYOS").is_none(); m.op.hongo = op.hongo; m.op.aaa = op.aaa; m.op.adapta = op.adapta && op.rayos; m.op.turbo = op.turbo; }
         }
     }
     /// el cuadro entero: la escena (si hay mapa) y el HUD (`ui`: tandas de vértices, cada una con su textura —las letras, los
