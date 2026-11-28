@@ -1,9 +1,9 @@
 {
- "codigo": 26112735,
- "version": "0.68",
+ "codigo": 26112736,
+ "version": "0.69",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 77331024,
- "sha256": "e97099ab4b928eb2e75e34a72691856710a90487cec315de7cbdb6fc88ebb8c3",
- "notas_es": "Modo construcción: el holograma ahora es la copia transparente del prop (celeste), dentro de su contorno.",
- "notas_en": "Build mode: the hologram is now a translucent copy of the prop."
+ "tam": 77363792,
+ "sha256": "387e3918fa38b849791042f88056d661e957cf6ff9cbf35ea44b1e51fa3f448f",
+ "notas_es": "Gráficos estilo Hyper Sandbox en todas las calidades: Simple con sombra dura de una cascada (20 m), luces por calidad, recorte de lo chico y lejano, Bajo sin reflejo y Definitivo más liviano. Modo construcción: las paredes copiadas ya no flotan ni quedan torcidas, Duplicate anda sin el modo construcción y ya no se vuela.",
+ "notas_en": "Hyper Sandbox-style graphics on every preset: Simple with single-cascade hard shadows (20 m), per-quality light limits, culling of small far objects, Low without floor reflections and a lighter Ultimate. Build mode: copied walls no longer float or tilt, Duplicate works outside build mode and no more flying."
 }
