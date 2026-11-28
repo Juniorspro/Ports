@@ -1,9 +1,9 @@
 {
- "codigo": 26112723,
- "version": "0.56",
+ "codigo": 26112724,
+ "version": "0.57",
  "apk": "jxmod/JXModNativo.apk",
  "tam": 76740870,
- "sha256": "00f51e403282b9a55ce939a8d5671853cd21eafbd8fca6cbd4532320c9091d92",
- "notas_es": "Música del menú: estación Frutiger Aero por YouTube cuando hay internet; sin internet, suena la música libre de siempre.",
- "notas_en": "Menu music: Frutiger Aero station via YouTube when online; offline, the usual free music plays."
+ "sha256": "e885a99a1ed85b3166d7519e4f53287f6299a8168fd2ce041262fdc41f7bb9fa",
+ "notas_es": "Opciones → Controles → Ocultar la interfaz: queda sólo la pausa, para capturas y videos.",
+ "notas_en": "Options → Controls → Hide interface: only the pause button stays, for screenshots and videos."
 }
