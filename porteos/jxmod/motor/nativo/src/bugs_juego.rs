@@ -13,6 +13,8 @@ pub trait ArchivoApp {
     fn estado(&self) -> String;
     fn subir(&self, base: &str);
     fn olvidar(&self);
+    /// (Tu logo) la foto elegida, en PNG de hasta 512 px, a `dst`
+    fn png(&self, _dst: &str) -> bool { false }
 }
 
 /// los apartados: tipo en el servidor, nombre e ícono

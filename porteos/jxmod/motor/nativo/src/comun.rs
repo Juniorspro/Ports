@@ -934,6 +934,7 @@ impl Juego {
                         Clave::Motor => self.elegir_motor(k),
                         Clave::Comparar => self.banco_empezar(),
                         Clave::Botones if k == 0 => self.ed_abrir(),
+                        Clave::Logo => self.logo_accion(k),
                         Clave::Mapa => { if k != self.mapa_i { self.mapa_i = k; self.recargar = true; self.ajustes = None; if let Some(d) = &self.datos { let _ = std::fs::write(d.join("mapa.txt"), &self.mapas[k]); } } }
                         _ => { self.aj.elegir(*c, k); if let Some(d) = &self.datos { let _ = std::fs::write(d.join("ajustes.txt"), self.aj.texto()); } }
                     }
@@ -1060,7 +1061,7 @@ impl Juego {
     }
     unsafe fn cuadro_dentro(&mut self, m: &mut Motor3d, w: i32, h: i32, placa_txt: &str) -> Result<(), String> {
         self.cont_paso();
-        self.musica_paso();
+        self.musica_paso(); self.logo_paso();
         aero::ESCALA.store(self.aj.menus, std::sync::atomic::Ordering::Relaxed);
         // (lo que llega de la tienda y de la Workshop también con el menú abierto)
         if self.ini.abierto { self.gmod_tienda_paso(); return self.ini_cuadro(m, w, h); }

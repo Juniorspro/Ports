@@ -49,6 +49,8 @@ pub fn act_de(s: &str) -> Option<Act> {
     }
 }
 pub struct Inicio {
+    /// «Tu logo»: esperando la imagen que se está eligiendo
+    pub logo_elige: bool,
     /// a la vista (el juego no corre) y el panel abierto encima del fondo (None: el menú)
     pub abierto: bool, pub panel: Option<super::paneles_juego::PanelIni>,
     /// la actualización de la app y cómo preguntarle a Java (cada medio segundo) y pedirle que la baje (app.rs)
@@ -89,7 +91,7 @@ impl Default for Inicio {
         let nucleo = include_str!("../../../juego/nucleo.js");
         let version = nucleo.split("const JX_VERSION = '").nth(1).and_then(|r| r.split('\'').next()).unwrap_or("?").to_string();
         let armado = option_env!("JXM_ARMADO").map(|s| s.to_string()).unwrap_or_else(|| super::paneles_juego::novedades().first().map(|n| { let p: Vec<&str> = n.f.split('-').collect(); if p.len() == 3 { format!("{}/{}/{}", p[2], p[1], p[0]) } else { n.f.clone() } }).unwrap_or_default());
-        Inicio { abierto: false, panel: None, act: None, act_estado: None, act_pedir: None, act_t: 0.0, reloj: 0.0, entrada: -10.0, sel: None, sel_t: -10.0, golpe: None, dedo: None, apretado: None,
+        Inicio { logo_elige: false, abierto: false, panel: None, act: None, act_estado: None, act_pedir: None, act_t: 0.0, reloj: 0.0, entrada: -10.0, sel: None, sel_t: -10.0, golpe: None, dedo: None, apretado: None,
             fondos: vec![], fondo: 0, fondo_t: 0.0, fundido: -10.0, ken_t: 0.0, glitch: -10.0, glitch_prox: 14.0, azar: 0x51ed270b, nivel: Nivel::Pleno,
             rec: Recursos::default(), perdidas: Cell::new(false), letras_ok: Cell::new(false), lector: None, version, armado, zonas: vec![], ins: [0.0; 4], desde_juego: false,
             pn: Default::default(), pz: Default::default(), salir: false, cuerpo_nuevo: false, quieto: false,
@@ -159,13 +161,36 @@ impl Juego {
         if let Some(o) = k.strip_prefix("b:") { let (w, h, px) = self.ini_foto_px(o)?; return Some(aero::desenfocar(w, h, px)); }
         let b = if let Some(n) = k.strip_prefix("a:") { self.ini_leer(n)? }
             else if let Some(n) = k.strip_prefix("i:") { let p = self.paq.as_ref()?; let id = p.d["ico"][n].as_str()?; p.parte(&format!("i:{id}"))?.to_vec() }
-            else if k == "logo" { include_bytes!("../../../juego/logo_jxm.webp").to_vec() }
+            // (el logo: el tuyo —Ajustes → Tu logo, logo.png en los datos— o el de JXMod)
+            else if k == "logo" { self.datos.as_ref().and_then(|d| std::fs::read(d.join("logo.png")).ok()).unwrap_or_else(|| include_bytes!("../../../juego/logo_jxm.webp").to_vec()) }
             else { return None };
         let (w, h, px) = pincel::decodificar(&b)?;
         // (las fotos de fondo hasta 1280; los íconos como vienen)
         Some(pincel::achicar(w, h, px, 1280))
     }
     /// una foto lista para dibujar (o None mientras no está: se pide y llega en el cuadro siguiente)
+    /// «Tu logo» (milogo.js): elegir una imagen del celular y que sea el logo del menú; la segunda opción vuelve al de JXMod
+    pub(crate) fn logo_accion(&mut self, k: usize) {
+        if k == 1 { if let Some(d) = &self.datos { let _ = std::fs::remove_file(d.join("logo.png")); } self.ini_sacar_foto("logo"); self.avisar("Volvió el logo de JXMod".into()); return; }
+        let hay = match &self.ini.pn.bf.app { Some(a) => { a.olvidar(); a.elegir(); true } None => false };
+        if hay { self.ini.logo_elige = true; } else { self.avisar("Elegir una imagen sólo anda en el celular".into()); }
+    }
+    /// cada cuadro, mientras se elige: cuando llega la imagen, Android la pasa a PNG, se guarda y pasa a ser el logo
+    pub(crate) fn logo_paso(&mut self) {
+        if !self.ini.logo_elige { return; }
+        let Some(e) = self.ini.pn.bf.app.as_ref().map(|a| a.estado()) else { self.ini.logo_elige = false; return };
+        if e == "eligiendo" { return; }
+        self.ini.logo_elige = false;
+        let Some(d) = self.datos.clone() else { return };
+        let msg = if e.starts_with("listo|") {
+            let dst = d.join("logo_nuevo.png"); let ok = self.ini.pn.bf.app.as_ref().is_some_and(|a| a.png(&dst.to_string_lossy()));
+            let bien = ok && std::fs::read(&dst).ok().and_then(|b| pincel::decodificar(&b)).is_some();
+            if bien { let _ = std::fs::rename(&dst, d.join("logo.png")); self.ini_sacar_foto("logo"); "Listo: ése es tu logo (Ajustes → Tu logo → El de JXMod lo saca)".to_string() }
+            else { let _ = std::fs::remove_file(&dst); "Esa imagen no se pudo usar: elegí una foto (PNG, JPG o WebP)".to_string() }
+        } else if let Some(m) = e.strip_prefix("error|") { format!("No se pudo: {m}") } else if e == "grande" { "La imagen es muy grande".to_string() } else { return };
+        if let Some(a) = &self.ini.pn.bf.app { a.olvidar(); }
+        self.avisar(msg);
+    }
     /// (para las pruebas) ¿ya está esa foto en la placa?
     pub fn ini_foto_lista(&self, k: &str) -> bool { self.ini_foto(k).is_some() }
     pub(super) fn ini_foto(&self, k: &str) -> Option<(i64, f32, f32)> { self.ini.rec.fotos.get(k).filter(|f| f.subida).map(|f| (f.id, f.w as f32, f.h as f32)) }

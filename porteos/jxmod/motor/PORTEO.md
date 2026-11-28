@@ -15,7 +15,7 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | cielo3d.js | ✔ (la maqueta va con la niebla del mapa, no con la de su cámara) | nativo/mapas_juego.rs, jxmotor (FL_CIELO en los tres motores) |
 | noche.js (la noche de FNAF en RB_Pizzeria: un modo de juego, no la luz de la noche) | — (el dueño lo sacó: la pizzería no está en la nativa; FNAF se juega con lo del Workshop) | |
 | vhs.js, vivo.js | — | (el VHS del evento de los 300 y los eventos en vivo, que son JavaScript firmado) |
-| linterna.js | ◐ | nativo/jugabilidad.rs (sin el Lua de GMod ni la de los demás de la sala; en OpenGL 2, una luz donde pega) |
+| linterna.js | ◐ | nativo/jugabilidad.rs (la propia y la de los demás de la sala —bandera 128—; sin el Lua de GMod; en OpenGL 2, una luz donde pega) |
 | puertas.js, mapaio.js | ✔ (sin avisarle a la sala) | juego/puertas.rs, nativo/mapas_juego.rs |
 | portales.js | ◐ (se cruza; falta ver a través de la puerta) | juego/portales.rs |
 | entidades.js (piano, radio, mega rampa… de los mapas de la comunidad y los mods) | ✔ | nativo/ent_juego.rs + medios_juego.rs; en la sala, el piano y la radio de las Opciones de cada uno («ent», «entb», «radio» y ROOM/w), con su emisora; falta «musica» (la música de fondo de un mapa) |
@@ -90,7 +90,8 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | idiomas.js, idiomas3.js | ✔ | `juego/src/idiomas.rs`: los mismos 14 idiomas (los textos de la web —idiomas.js, idiomas3.js, tutorial.js, social.js— con `herramientas/idiomas_nativo.mjs`, más 190 propios de la nativa en `idiomas_nativo.tsv`); las letras de dibujo traducen solas cada texto; japonés, tailandés, árabe (unido y de derecha a izquierda) y cirílico con letras de respaldo en los atlas (`herramientas/letras_extra.py`); se elige en Inicio → Idioma y si no, el del celular |
 | iconos.js, novedades.js | ✔ | nativo/iconos.rs, paneles_juego.rs |
 | musica.js | ◐ | nativo/musica_juego.rs: la estación Casual (los 35 de Kevin MacLeod del paquete a_musica, que se baja una vez y suena sin internet), mezclada y en bucle en el menú, con fundido al jugar, sigue donde iba y la placa de lo que suena con su crédito; se apaga en Opciones → Sonido → Música del menú (las otras estaciones son de YouTube y Mi música pide elegir archivos: no están) |
-| fondovideo.js, milogo.js, iconoapp.js | ✘ | (el fondo del inicio usa las fotos de las escenas, no el video) |
+| milogo.js | ◐ (Ajustes → Controles → Tu logo: elegir una imagen —Android la pasa a PNG de 512 px— y El de JXMod; falta el acceso directo) | nativo/inicio_juego.rs, Archivo.java |
+| fondovideo.js, iconoapp.js | ✘ | (el fondo del inicio usa las fotos de las escenas, no el video) |
 | camlibre.js | ✔ | nativo/jugabilidad.rs |
 | cajanegra.js | ✔ | nativo/caja_negra.rs: el latido de cada cuadro y los pasos riesgosos (abrir un motor, armar un mapa, montar un addon); si pasan 10 s sin cuadros con la app a la vista queda escrito trabado.txt y la próxima vez que abre se muestra, como los errores (que ahora también llevan lo último que hacía) |
 | banco.js | ✔ | nativo/banco_juego.rs (Opciones → Motor → Comparar los motores): cada motor —Vulkan, OpenGL 3, OpenGL 2— se abre en la misma ventana, 3 s para asentarse y 12 s midiendo con la cámara dando una vuelta, con la calidad elegida (Alto si es Automático) y sin la resolución dinámica; vuelve al de antes y muestra la tabla con «Usar» el más rápido |

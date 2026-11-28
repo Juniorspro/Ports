@@ -30,6 +30,21 @@ public class Archivo {
     private static int ancho, alto; private static double dur;
 
     public static synchronized String estado() { return estado; }
+    /** «Tu logo» (milogo.js): la foto elegida pasada a PNG de hasta 512 px en `dst` (Rust sólo lee PNG y WebP) */
+    public static boolean png(String dst) {
+        File f; synchronized (Archivo.class) { f = copia; }
+        if (f == null) return false;
+        try {
+            BitmapFactory.Options o = new BitmapFactory.Options(); o.inJustDecodeBounds = true; BitmapFactory.decodeFile(f.getAbsolutePath(), o);
+            int s = 1; while (Math.max(o.outWidth, o.outHeight) / (s * 2) >= 512) s *= 2;
+            BitmapFactory.Options o2 = new BitmapFactory.Options(); o2.inSampleSize = s; android.graphics.Bitmap b = BitmapFactory.decodeFile(f.getAbsolutePath(), o2);
+            if (b == null) return false;
+            float k = Math.min(1f, 512f / Math.max(b.getWidth(), b.getHeight()));
+            if (k < 1f) b = android.graphics.Bitmap.createScaledBitmap(b, Math.max(1, Math.round(b.getWidth() * k)), Math.max(1, Math.round(b.getHeight() * k)), true);
+            OutputStream out = new FileOutputStream(dst); try { b.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out); } finally { out.close(); }
+            return true;
+        } catch (Throwable t) { return false; }
+    }
     private static synchronized void poner(String s) { estado = s; }
     public static synchronized void olvidar() { estado = ""; if (copia != null) copia.delete(); copia = null; }
 
