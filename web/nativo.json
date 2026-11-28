@@ -1,9 +1,9 @@
 {
- "codigo": 26112727,
- "version": "0.60",
+ "codigo": 26112728,
+ "version": "0.61",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 77236816,
- "sha256": "fa1a5eae43bf97f6e613c9190cd31ef7bc3e7e62f8784339da4ea119732a9148",
- "notas_es": "Munición: en Props → Munición están las cajas de cada tipo y el cajón con todo. Munición limitada (como en GMod): cada tipo tiene su reserva, se gasta al recargar y vuelve al reaparecer.",
- "notas_en": "Ammo: ammo boxes in Props → Ammo, and optional limited ammo like GMod."
+ "tam": 77245008,
+ "sha256": "0942389e12edc0e35a7153a787ce0176823ab306c292d2fcf9c79f455a6e8b77",
+ "notas_es": "En la sala se ve la linterna de los demás (los que tienen esta versión). En Ajustes, Retoque de color ahora se llama Post-procesado.",
+ "notas_en": "You can now see other players' flashlights in the room."
 }
