@@ -29,7 +29,7 @@ MANIFIESTO = """<?xml version="1.0" encoding="utf-8"?>
   <!-- (si hay internet: la música del menú por YouTube o la del paquete) -->
   <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
   <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
-  <application android:label="%s" android:icon="@mipmap/ic_launcher" android:hasCode="true" android:extractNativeLibs="false"
+  <application android:label="%s" android:icon="@mipmap/ic_launcher" android:hasCode="true" android:usesCleartextTraffic="true" android:extractNativeLibs="false"
       android:isGame="true" android:appCategory="game" android:allowBackup="false">
     <activity android:name="%s" android:exported="true" android:screenOrientation="sensorLandscape" android:launchMode="singleTask"
         android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|navigation|uiMode|density"

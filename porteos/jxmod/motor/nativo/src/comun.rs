@@ -1766,7 +1766,7 @@ impl Juego {
         // ritmo parejo es siempre el de la pantalla)
         let t = 1000.0 / self.refresco.max(30.0); let (cr, ci) = self.costos();
         if !self.aj.turbo { self.turbo_on = false; } else if self.mapa.is_some() && !self.recargar && cr > 0.0 {
-            if cr > t * 1.1 { self.turbo_on = true; } else if cr < t * 0.85 { self.turbo_on = false; }
+            if cr > t * 1.25 { self.turbo_on = true; } else if cr < t * 0.95 { self.turbo_on = false; }
         }
         // (con JX Turbo, la resolución dinámica mira el cuadro de verdad: tiene que entrar con su intermedio en dos cuadros de la
         // pantalla, y la placa terminarlo antes de que la pantalla se quede sin búfer —2 cuadros menos lo de la CPU—; si no, la

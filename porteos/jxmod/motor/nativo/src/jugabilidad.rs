@@ -216,6 +216,9 @@ impl Juego {
         let _ = m.cargar(&Escena { c: cab, datos });
         // (las Opciones de JXMod, primeras en Props: ui.js, spawnSubs; las de los mods nativos de esta parte)
         if !self.catalogo.iter().any(|c| c.0 == "Opciones") { self.catalogo.insert(0, ("Opciones".into(), ["opc:volar", "opc:ragdoll", "opc:scp", "opc:ciclope", "opc:piano", "opc:radio"].iter().map(|s| s.to_string()).collect())); }
+        // (la tele —el prop «TV» del menú— también en Opciones, al lado de la radio: se encuentra sin buscarla entre los props)
+        if let Some(tv) = self.catalogo.iter().flat_map(|c| c.1.iter()).find(|x| *x == "TV" || x.starts_with("TV#")).cloned() {
+            if let Some(o) = self.catalogo.iter_mut().find(|c| c.0 == "Opciones") { if !o.1.contains(&tv) { o.1.push(tv); } } }
         // (el agua de partículas: un balde, un montón, una canilla, la manguera y secar)
         // (la categoría Agua de los props ya existe —cubeta, tina, bañeras—: las opciones del agua van primero, y la categoría,
         // al lado de Opciones)

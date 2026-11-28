@@ -59,10 +59,11 @@ public class Medios {
         try { android.net.ConnectivityManager cm = (android.net.ConnectivityManager) a.getSystemService(android.content.Context.CONNECTIVITY_SERVICE); android.net.NetworkInfo n = cm.getActiveNetworkInfo(); return n != null && n.isConnected(); } catch (Throwable t) { return false; }
     }
     // —— la tele ——
+    private static final String ORIGEN = "https://rezobox-tienda.holasoyjuniors365.workers.dev";
     private static String html(String vid) {
-        return "<!doctype html><html><head><meta name=viewport content='width=device-width,initial-scale=1'><style>html,body,#p{margin:0;width:100%;height:100%;background:#000;overflow:hidden}</style></head><body><div id=p></div>"
+        return "<!doctype html><html><head><meta name=viewport content='width=device-width,initial-scale=1'><meta name=referrer content='strict-origin-when-cross-origin'><style>html,body,#p{margin:0;width:100%;height:100%;background:#000;overflow:hidden}</style></head><body><div id=p></div>"
             + "<script src='https://www.youtube.com/iframe_api'></script><script>var pl,vv=100;function onYouTubeIframeAPIReady(){pl=new YT.Player('p',{width:'100%',height:'100%',videoId:'" + vid.split(",")[0]
-            + "',playerVars:{" + (vid.contains(",") ? "playlist:'" + vid.substring(vid.indexOf(',') + 1) + "',loop:1," : "") + "autoplay:1,controls:0,playsinline:1,rel:0,modestbranding:1,iv_load_policy:3,fs:0,disablekb:1},events:{onReady:function(e){e.target.setVolume(vv);e.target.playVideo();},onStateChange:function(e){if(e.data===0&&!e.target.getPlaylist())e.target.playVideo();},onError:function(e){e.target.nextVideo();}}});}"
+            + "',playerVars:{" + (vid.contains(",") ? "playlist:'" + vid.substring(vid.indexOf(',') + 1) + "',loop:1," : "") + "origin:'" + ORIGEN + "',widget_referrer:'" + ORIGEN + "/',autoplay:1,controls:0,playsinline:1,rel:0,modestbranding:1,iv_load_policy:3,fs:0,disablekb:1},events:{onReady:function(e){e.target.setVolume(vv);e.target.playVideo();},onStateChange:function(e){if(e.data===0&&!e.target.getPlaylist())e.target.playVideo();},onError:function(e){e.target.nextVideo();}}});}"
             + "function vol(v){vv=v;if(pl&&pl.setVolume)pl.setVolume(v);}</script></body></html>";
     }
     /** pone el video `vid` (11 letras) en la tele `id` (escondida hasta que Rust diga dónde) */
@@ -74,9 +75,11 @@ public class Medios {
                 WebView w = new WebView(a); w.setBackgroundColor(Color.BLACK);
                 WebSettings s = w.getSettings(); s.setJavaScriptEnabled(true); s.setMediaPlaybackRequiresUserGesture(false); s.setDomStorageEnabled(true);
                 w.setWebChromeClient(new WebChromeClient());
-                w.loadDataWithBaseURL("https://www.youtube-nocookie.com/", html(vid), "text/html", "utf-8", null);
-                PopupWindow p = new PopupWindow(w, 2, 2, false); p.setTouchable(false); p.setFocusable(false); p.setClippingEnabled(false);
-                View raiz = a.getWindow().getDecorView(); p.showAtLocation(raiz, Gravity.TOP | Gravity.LEFT, -10, -10);
+                // (escondida fuera de la pantalla pero de 256 px: YouTube no reproduce en reproductores de menos de 200 px)
+                // (desde una página nuestra de verdad: YouTube ya no deja ver insertados sin el origen —error 153—)
+                w.loadDataWithBaseURL(ORIGEN + "/", html(vid), "text/html", "utf-8", null);
+                PopupWindow p = new PopupWindow(w, 256, 256, false); p.setTouchable(false); p.setFocusable(false); p.setClippingEnabled(false);
+                View raiz = a.getWindow().getDecorView(); p.showAtLocation(raiz, Gravity.TOP | Gravity.LEFT, -4000, -4000);
                 teles.put(id, p); webs.put(id, w);
             } catch (Throwable t) { }
         } });
@@ -85,7 +88,7 @@ public class Medios {
     public static void teleLugar(final Activity a, final int id, final int x, final int y, final int w, final int h, final boolean ve) {
         a.runOnUiThread(new Runnable() { @Override public void run() {
             PopupWindow p = teles.get(id); if (p == null) return;
-            try { if (ve && w > 8 && h > 8) p.update(x, y, w, h); else p.update(-4000, -4000, 2, 2); } catch (Throwable t) { }
+            try { if (ve && w > 8 && h > 8) p.update(x, y, w, h); else p.update(-4000, -4000, 256, 256); } catch (Throwable t) { }
         } });
     }
     /** el volumen (0..100) */

@@ -46,9 +46,12 @@ pub fn yt_malo(t: &str) -> bool {
 pub fn limpio(t: &str) -> String { t.chars().filter(|&c| { let u = c as u32; !(0x1F000..=0x1FFFF).contains(&u) && !(0x2600..=0x27BF).contains(&u) && !(0xFE00..=0xFE0F).contains(&u) && u != 0x200D && !(0x2B00..=0x2BFF).contains(&u) && !(0xE000..=0xF8FF).contains(&u) }).collect::<String>().split_whitespace().collect::<Vec<_>>().join(" ") }
 /// el número de «Mi música» para Medios.java (no es ninguna tele del mundo)
 pub const MUSICA: u32 = 0x7fff_fff0;
-/// la estación del menú: Frutiger Aero por YouTube (25 videos, con internet; sin internet suena la de música libre del paquete)
+/// la estación del menú: Frutiger Aero por YouTube (25 canciones sueltas —no mezclas de horas—, todas probadas que se dejan insertar:
+/// Owl City, Gorillaz, Empire of the Sun, MGMT, Jamiroquai, The Postal Service, Télépopmusik, Eiffel 65, Daft Punk, Röyksopp,
+/// Passion Pit, Kero Kero Bonito, Aphex Twin, frutiger dillon, scizzie, Takeshi Abo y la música de la Wii, la DS y Tomodachi Life);
+/// con internet suena apenas se abre el juego; sin internet, la de música libre del paquete)
 pub const FRUTIGER: u32 = 0x7fff_fff1;
-const FRUTIGER_IDS: &str = "0yiwxIuXmdk,5Z49H3clU6U,7b38dMKXYkw,9c9JcWbY_zU,BAyOWCjraGc,Bz0r-JfhYJo,Cz2YCRmDOFk,J_BwEIjCGHc,MY_B_4zMusU,NoWJIeNtFds,NxD2ek_IgxE,QlHZGltRC5M,QwvkPVWrifE,Xu6RwsWqg6M,iFZoDfcRFUQ,kmRVciDPa00,lCuS4oFKBtM,mqpgTLH9UP0,pGt37zt_2oY,qQzvkyGHtl0,qztkto5N1Wg,uOJ_SBCPsZk,vOJjh13Z9uY,xYufIVoCJgU,zlM4cKcqTSI";
+const FRUTIGER_IDS: &str = "psuRGfAaju4,E9s1ltPGQOo,04mfKJWDSzI,yyjUmv1gJEg,eimgRedLkkU,XdBzSSMyC58,MmZexg8sxyk,2qvAxPqy2wA,4JkIs37a2JE,NoWJIeNtFds,0wrsZog8qXg,iX6ex5fYT7o,vyut3GyQtn0,Bz0r-JfhYJo,68ugkg9RePc,DP3rDP02lE0,FxzBvqY5PP0,UAb6r1HoNf0,iJP73zJbBZg,tjlvmb8SGEs,T0RvPYRRRbE,_leCDwul69I,pIz2K3ArrWk,-yNHlKAzyVA,sOS9aOIXPEk";
 /// el estado de la radio y la tele
 #[derive(Default)]
 pub struct Medios {
