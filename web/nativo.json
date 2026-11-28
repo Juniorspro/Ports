@@ -1,9 +1,9 @@
 {
- "codigo": 26112721,
- "version": "0.54",
+ "codigo": 26112722,
+ "version": "0.55",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 76712198,
- "sha256": "13607b4913d93213bfb88568b01f0cd1e04a952f1c13811e05da29710f535f9c",
- "notas_es": "Cuando el juego anda lento en tu celular, se avisa solo (sin datos personales) para optimizarlo.",
- "notas_en": "When the game runs slow on your phone, it reports it automatically (no personal data) so we can optimize it."
+ "tam": 76736774,
+ "sha256": "408d4d5dbd6fcb94345cd8c8d5b5c5893a830850efc1ffd9f0b1551c94ae0b8f",
+ "notas_es": "Mi música: armá tu lista con canciones de YouTube (Opciones → Sonido → Mi música) y suena de fondo, sin pantalla, en el menú y en tus partidas, solo o en un server.",
+ "notas_en": "My music: build your own YouTube playlist (Options → Sound → My music) and it plays in the background, without a screen, in the menu and in your games, solo or on a server."
 }
