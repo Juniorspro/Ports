@@ -226,6 +226,23 @@ fn main() {
             j.poner_mapa(mp); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 90); j.jug.pitch = 0.05; paso(&mut j, &mut m, 10); foto(&mut m, &format!("fondo_{mp}"));
         }
     }
+    if hace("construir") {
+        // (el modo construcción: la cuadrícula donde se apunta y el holograma de la copia en el eje Z y libre —ZXY—)
+        j.aj.fps = false; j.poner_mapa("RB_Flatgrass"); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 60);
+        let nom = j.catalogo.iter().filter(|c| c.0 != "Opciones" && c.0 != "Munición" && c.0 != "Mundo" && c.0 != "Agua").flat_map(|c| c.1.iter()).find(|x| !x.contains(':')).cloned().expect("un prop");
+        j.jug.yaw = 0.0; j.jug.pitch = -0.25; let pj = j.jug.pos;
+        let _ = unsafe { j.crear(&mut m, &nom, [pj[0], pj[1] + 1.0, pj[2] + 6.0], [0.0, 0.0, 0.0, 1.0], true, false) }; paso(&mut j, &mut m, 60);
+        // (mirando al prop: desde los ojos a su centro)
+        { let (o, b) = (j.jug.pos, j.objs[0].pos); let (dx, dy, dz) = (b[0] - o[0], b[1] - (o[1] + 0.75), b[2] - o[2]); j.jug.yaw = dx.atan2(dz); j.jug.pitch = dy.atan2((dx * dx + dz * dz).sqrt()); }
+        j.cons_alternar(); paso(&mut j, &mut m, 2); foto(&mut m, "construir_grilla");
+        let ok = unsafe { j.cons_disparo(&mut m, false) }; eprintln!("copiar: {ok} {:?}", j.cons.fuente.as_ref().map(|f| (f.nombre.clone(), f.tam)));
+        j.cons_eje(0); j.jug.yaw += 0.3; paso(&mut j, &mut m, 2); foto(&mut m, "construir_z");
+        // (Repetir: la primera copia fija el paso; las siguientes salen solas en orden)
+        for _ in 0..5 { let _ = unsafe { j.cons_disparo(&mut m, false) }; paso(&mut j, &mut m, 2); }
+        j.jug.yaw -= 0.3; paso(&mut j, &mut m, 2); foto(&mut m, "construir_fila");
+        j.cons_eje(3); j.jug.yaw = -0.3; j.jug.pitch = -0.4; paso(&mut j, &mut m, 2); foto(&mut m, "construir_libre");
+        eprintln!("objetos: {}", j.objs.len());
+    }
     if hace("taa") {
         // (la reconstrucción temporal: la misma vista al 20 % sin y con, contra el 50 % de verdad; quieto, después de juntar)
         j.aj.sin_ui = true; j.aj.fps = false; j.aj.dinamica = false; j.aj.turbo = false; j.aj.auto = false;

@@ -117,6 +117,8 @@ impl Juego {
     }
     /// herramientaUsar: el disparo (o el «2», `alt`) de la Tool Gun
     pub(super) unsafe fn herramienta_usar(&mut self, m: &mut Motor3d, alt: bool) {
+        // (el modo construcción: la Tool Gun copia con el holograma)
+        if self.cons_disparo(m, alt) { return; }
         let Some(h) = self.her.lista.get(self.her.sel) else { return };
         let n = h.n.clone();
         let (oj, f) = (self.ojos_ult, self.mira());

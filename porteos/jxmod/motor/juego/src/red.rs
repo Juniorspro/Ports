@@ -472,7 +472,7 @@ pub struct Red {
     remotos: Vec<Remoto>, objs: HashMap<String, ObjRemoto>, seq: u64, propios_auth: HashMap<u32, String>, cedidos: Vec<Cedido>, expl: HashMap<String, f64>,
     npcs_rem: Vec<NpcRemoto>, pres: Vec<(String, Presencia)>, reg: Registro,
     ult_objs: Vec<ObjMin>,
-    ordenes: Vec<Orden>, eventos: Vec<Evento>, http_sig: u32, http_pend: HashMap<u32, QueHttp>, creando: bool, azar: u64,
+    ordenes: Vec<Orden>, eventos: Vec<Evento>, http_sig: u32, http_pend: HashMap<u32, QueHttp>, creando: bool, creando_t: f64, azar: u64,
     /// (pruebas) los números de los servers que se crean, en vez de al azar
     pub ids_prueba: Vec<String>,
 }
@@ -487,7 +487,7 @@ impl Red {
             t: 0.0, ult_e: 0.0, ult_m: 0.0, ult_w: 0.0, w_sucio: false, e_ant: String::new(), ult_p: 0.0, t_vivo: 0.0, t_cfg: 0.0, npc_t: 0.0, lugar: None, antes: None, mapa_va: None,
             remotos: vec![], objs: HashMap::new(), seq: 0, propios_auth: HashMap::new(), cedidos: vec![], expl: HashMap::new(), npcs_rem: vec![], pres: vec![],
             reg: Registro { l: vec![], t: -1e9, dif: 0.0, vacia: 600e3, cargando: false, ok: false }, ult_objs: vec![],
-            ordenes: vec![], eventos: vec![], http_sig: 0, http_pend: HashMap::new(), creando: false, ids_prueba: vec![],
+            ordenes: vec![], eventos: vec![], http_sig: 0, http_pend: HashMap::new(), creando: false, creando_t: 0.0, ids_prueba: vec![],
             azar: (r.epoca_ms as u64) ^ ((r.real * 1e9) as u64).rotate_left(29) ^ 0x9e37_79b9_7f4a_7c15 };
         red.id = match id { Some(i) if es_id(i, 3, 20) => i.into(), _ => { let a = red.azar_b36(6); a + &base36(r.epoca_ms as u64).chars().rev().take(3).collect::<Vec<_>>().into_iter().rev().collect::<String>() } };
         red
@@ -652,7 +652,10 @@ impl Red {
     /// temporal (mientras haya alguien). Llega `SalaCreada` y el juego carga el mapa y llama a `empezar`. `token`: la
     /// sesión de Google (la tienda puede pedirla)
     pub fn crear_servidor(&mut self, c: &NuevaSala, token: Option<&str>) {
-        if self.creando { return; }
+        // (si el pedido anterior no volvió en 12 s —sin respuesta de la tienda—, se puede volver a crear: antes quedaba trabado)
+        let ahora = (self.reloj)().epoca_ms;
+        if self.creando && ahora - self.creando_t < 12000.0 { self.eventos.push(Evento::Aviso("Ya se está creando el server…".into())); return; }
+        self.creando_t = ahora;
         let nom = { let n = limpio_txt(&c.n, 24); if n.is_empty() { format!("{}'s server", self.nombre) } else { n } };
         let clave = limpio_txt(&c.pw, 16);
         let mapa = if self.mapas.contains(&c.m) { c.m.clone() } else if !self.cfg.mapa.is_empty() { self.cfg.mapa.clone() } else { "FlatGrass".into() };

@@ -119,7 +119,7 @@ pub fn dir_al_mundo(base: &M4, d: V) -> V { [base[0] * d[0] + base[4] * d[1] + b
 // ---------------- los botones del HUD ----------------
 /// los botones propios (Boton::Jg): el menú MOD, la linterna, la cámara libre con sus dos modos, la patada y el Cíclope
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Bj { Mod, Linterna, CamLibre, CamL, CamR, Patada, Ciclope, /** las teclas del arma de un mod (teclas_mod.rs) */ Tecla(u8) }
+pub enum Bj { Mod, Linterna, CamLibre, CamL, CamR, Patada, Ciclope, /** los ejes del holograma del modo construcción: Z, X, Y y ZXY */ Eje(u8), /** las teclas del arma de un mod (teclas_mod.rs) */ Tecla(u8) }
 
 /// la patada (PAT de patadas.js): desde cuándo se puede de nuevo y si ya pegó
 #[derive(Default)]
@@ -175,7 +175,7 @@ impl Jugabilidad {
     pub fn nombre_item<'a>(&'a self, it: &'a str) -> &'a str {
         if let Some(m) = MUNDO.iter().find(|m| m.0 == it) { return m.1; }
         if let Some(a) = agua_juego::ITEMS.iter().find(|a| a.0 == it) { return a.1; }
-        match it { "opc:piano" => "Piano gigante", "opc:radio" => "Radio", "opc:volar" => "Volar", "opc:ragdoll" => "Muñeco de trapo", "opc:scp" => "SCP en cuatro patas", "opc:ciclope" => "Cíclope", "mun:todo" => "Cajón de munición (todo)", "mun:limitada" => "Munición limitada (como en GMod)", "mun:pistol" => "Balas de pistola", "mun:smg1" => "Balas de SMG", "mun:ar2" => "Balas de rifle", "mun:buckshot" => "Cartuchos de escopeta", "mun:357" => "Balas .357", "mun:xbowbolt" => "Flechas de ballesta", "mun:rpg_round" => "Cohetes", _ => self.nombres.get(it).map(|s| s.as_str()).unwrap_or(it) }
+        match it { "opc:construir" => "Modo construcción", "opc:piano" => "Piano gigante", "opc:radio" => "Radio", "opc:volar" => "Volar", "opc:ragdoll" => "Muñeco de trapo", "opc:scp" => "SCP en cuatro patas", "opc:ciclope" => "Cíclope", "mun:todo" => "Cajón de munición (todo)", "mun:limitada" => "Munición limitada (como en GMod)", "mun:pistol" => "Balas de pistola", "mun:smg1" => "Balas de SMG", "mun:ar2" => "Balas de rifle", "mun:buckshot" => "Cartuchos de escopeta", "mun:357" => "Balas .357", "mun:xbowbolt" => "Flechas de ballesta", "mun:rpg_round" => "Cohetes", _ => self.nombres.get(it).map(|s| s.as_str()).unwrap_or(it) }
     }
     pub fn activo(&self, k: &str) -> bool { self.mods.contains(&k) }
     /// (pruebas) las nucleares que están explotando y las definitivas del Cíclope de los demás
@@ -215,7 +215,7 @@ impl Juego {
         let cab = Cabecera { mapa: String::new(), w: 0, h: 0, cam: None, luz: None, mallas: vec![malla], mats, texs: vec![], lms: vec![], items: vec![], agua: None, cielo: None };
         let _ = m.cargar(&Escena { c: cab, datos });
         // (las Opciones de JXMod, primeras en Props: ui.js, spawnSubs; las de los mods nativos de esta parte)
-        if !self.catalogo.iter().any(|c| c.0 == "Opciones") { self.catalogo.insert(0, ("Opciones".into(), ["opc:volar", "opc:ragdoll", "opc:scp", "opc:ciclope", "opc:piano", "opc:radio"].iter().map(|s| s.to_string()).collect())); }
+        if !self.catalogo.iter().any(|c| c.0 == "Opciones") { self.catalogo.insert(0, ("Opciones".into(), ["opc:construir", "opc:volar", "opc:ragdoll", "opc:scp", "opc:ciclope", "opc:piano", "opc:radio"].iter().map(|s| s.to_string()).collect())); }
         // (la tele —el prop «TV» del menú— también en Opciones, al lado de la radio: se encuentra sin buscarla entre los props)
         if let Some(tv) = self.catalogo.iter().flat_map(|c| c.1.iter()).find(|x| *x == "TV" || x.starts_with("TV#")).cloned() {
             if let Some(o) = self.catalogo.iter_mut().find(|c| c.0 == "Opciones") { if !o.1.contains(&tv) { o.1.push(tv); } } }
@@ -297,6 +297,7 @@ impl Juego {
             Bj::CamL | Bj::CamR => self.jg.clib.menu,
             Bj::Patada => pie && self.mapa.is_some(),
             Bj::Ciclope => self.jg.activo("ciclope") && pie,
+            Bj::Eje(_) => self.cons.activo && self.cons.fuente.is_some(),
             Bj::Tecla(i) => pie && self.gmod_arma_activa() && (i as usize) < self.gmod.teclas.len(),
         }
     }
@@ -308,6 +309,7 @@ impl Juego {
             Bj::CamL => ("L", self.jg.clib.modo == Some('L')),
             Bj::CamR => ("R", self.jg.clib.modo == Some('R')),
             Bj::Patada => ("Patada", self.jg.pat.activa),
+            Bj::Eje(k) => (["Z", "X", "Y", "ZXY", "Repetir"][(k as usize).min(4)], if k == 4 { self.cons.repetir } else { self.cons.eje == k }),
             Bj::Ciclope => ("Cíclope", self.jg.cic.apretado || self.jg.cic.mia()),
             Bj::Tecla(i) => ("", self.apretado(super::Boton::Jg(Bj::Tecla(i)))),
         }
@@ -319,6 +321,7 @@ impl Juego {
             Bj::CamLibre => { self.jg.clib.menu = !self.jg.clib.menu; if !self.jg.clib.menu { self.clib_elegir(None); } }
             Bj::CamL => self.clib_elegir(Some('L')),
             Bj::CamR => self.clib_elegir(Some('R')),
+            Bj::Eje(k) => self.cons_eje(k),
             Bj::Patada => self.patear(),
             Bj::Ciclope => self.cic_apretar(true),
             // (se aprietan mientras se tocan: teclas_mod_apretadas)
@@ -387,6 +390,7 @@ impl Juego {
         if let Some(k) = nombre.strip_prefix("tmod:") { self.mt_alternar(k); return true; }
         let Some(k) = nombre.strip_prefix("opc:") else { return false };
         // (el piano gigante: se pone delante —o se trae, si ya está—; entidadPonerMod)
+        if k == "construir" { self.cons_alternar(); return true; }
         if k == "radio" { self.jg.ents.poner = Some("radio"); self.avisar("Radio: mirala y tocá Usar para elegir una emisora".into()); return true; }
         if k == "piano" { self.jg.ents.poner = Some("piano"); self.avisar("Piano: pisá las teclas (también con un auto o tirándoles cosas)".into()); return true; }
         let k: &'static str = match k { "volar" => "volar", "ragdoll" => "ragdoll", "scp" => "scp", "ciclope" => "ciclope", _ => return true };

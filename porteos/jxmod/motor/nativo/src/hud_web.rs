@@ -21,10 +21,12 @@ pub fn kb(w: f32, h: f32) -> f32 { ((w / 1280.0) * (h / 720.0)).sqrt() }
 pub fn css(w: f32, h: f32) -> f32 { kb(w, h) / kb(873.0, 393.0) }
 
 /// arriba a la derecha: [x desde el borde derecho, y desde arriba, tamaño, mínimo en px] (HUD_V2.ad; Bajar es #bbajar)
-const AD: [(Boton, [f32; 4]); 9] = [
+const AD: [(Boton, [f32; 4]); 14] = [
     (Boton::Arma, [-66.0, 66.0, 100.0, 48.0]), (Boton::Camara, [-176.0, 66.0, 84.0, 40.0]), (Boton::Emotes, [-278.0, 66.0, 84.0, 40.0]),
     (Boton::Deshacer, [-66.0, 180.0, 88.0, 42.0]), (Boton::Bajar, [-66.0, 180.0, 88.0, 42.0]), (Boton::Jg(Bj::CamLibre), [-176.0, 180.0, 84.0, 40.0]),
     (Boton::Jg(Bj::Linterna), [-278.0, 180.0, 84.0, 40.0]), (Boton::Jg(Bj::CamL), [-226.0, 266.0, 70.0, 34.0]), (Boton::Jg(Bj::CamR), [-126.0, 266.0, 70.0, 34.0]),
+    // (los ejes del holograma del modo construcción, en fila debajo)
+    (Boton::Jg(Bj::Eje(0)), [-300.0, 225.0, 62.0, 34.0]), (Boton::Jg(Bj::Eje(1)), [-232.0, 225.0, 62.0, 34.0]), (Boton::Jg(Bj::Eje(2)), [-164.0, 225.0, 62.0, 34.0]), (Boton::Jg(Bj::Eje(3)), [-86.0, 225.0, 82.0, 34.0]), (Boton::Jg(Bj::Eje(4)), [-386.0, 225.0, 96.0, 34.0]),
 ];
 /// abajo a la derecha: [x desde el borde derecho, y desde abajo, tamaño, mínimo en px] (HUD_V2.ab: volar va donde #bcorrer,
 /// girar donde #brotar y el Cíclope donde #bvolver)
@@ -387,6 +389,7 @@ impl super::Juego {
                 Boton::Jg(Bj::CamLibre) => (Some("camlibre"), "", self.jg_etiqueta(Bj::CamLibre).1),
                 Boton::Jg(Bj::CamL) => (None, "L", self.jg_etiqueta(Bj::CamL).1),
                 Boton::Jg(Bj::CamR) => (None, "R", self.jg_etiqueta(Bj::CamR).1),
+                Boton::Jg(Bj::Eje(k)) => (None, self.jg_etiqueta(Bj::Eje(k)).0, self.jg_etiqueta(Bj::Eje(k)).1),
                 Boton::Jg(Bj::Patada) => (Some("patada"), "", self.jg_etiqueta(Bj::Patada).1),
                 Boton::Jg(Bj::Ciclope) => (Some("ojo"), "", self.jg_etiqueta(Bj::Ciclope).1),
                 // (las teclas de los mods: el ícono de lo que hace o, si no se sabe, su nombre o la letra)

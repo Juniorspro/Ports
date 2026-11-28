@@ -25,6 +25,7 @@ use herramientas::{Herramientas, Logica, Valor};
 #[path = "vozcerca.rs"] pub mod vozcerca;
 #[path = "latido_juego.rs"] pub mod latido_juego;
 #[path = "mods_tienda.rs"] pub mod mods_tienda;
+#[path = "construir_juego.rs"] pub mod construir_juego;
 #[path = "gmod_juego.rs"] pub mod gmod_juego;
 // (los mapas del Workshop —sus puertas, botones, zonas, sonidos, trenes y puertas portal— y la hora del día)
 #[path = "mapas_juego.rs"] pub mod mapas_juego;
@@ -361,6 +362,8 @@ pub struct Juego {
     latido: latido_juego::Latido,
     /// los mods de la tienda (Props → Mods de la tienda)
     pub mt: mods_tienda::ModsT,
+    /// el modo construcción (Props → Opciones → Modo construcción)
+    pub cons: construir_juego::Cons,
     /// la voz por cercanía (vozcerca.rs)
     pub vz: vozcerca::VozCerca,
     /// escribir (sin teclado —en la compu—, no se puede) y lo que se está esperando
@@ -409,7 +412,7 @@ impl Juego {
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3], acu_d: [crate::acustica::LEJOS; 14], acu_i: 0, acu_t: 0.0,
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
             npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), ondas: Vec::new(), onda_t: 0.0, gi: Default::default(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
-            her: Herramientas::default(), soc: Default::default(), med: Default::default(), vz: Default::default(), placa_nombre: String::new(), latido: Default::default(), mt: Default::default(), en_red, gmod, gb: Default::default(), vr: Default::default(), grabar_pedido: None, grabando: false, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), banco: Default::default(), musica: Default::default(), ed: hud_web::Editor::default(), tut: Default::default(), gr: Default::default(), cont: Default::default(), poner_congelado: false, pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
+            her: Herramientas::default(), soc: Default::default(), med: Default::default(), vz: Default::default(), placa_nombre: String::new(), latido: Default::default(), mt: Default::default(), cons: Default::default(), en_red, gmod, gb: Default::default(), vr: Default::default(), grabar_pedido: None, grabando: false, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), banco: Default::default(), musica: Default::default(), ed: hud_web::Editor::default(), tut: Default::default(), gr: Default::default(), cont: Default::default(), poner_congelado: false, pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
             armas_ico: false, armas_ico_h: 256, hud_ico: false, aero: None, aero_tiro: 9.0, aero_abre: 0.0, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         // los mapas: todos los de la web (DATA.esc), primero los RB (los de la versión personal); empieza en el último elegido
@@ -1064,7 +1067,9 @@ impl Juego {
     }
     unsafe fn cuadro_dentro(&mut self, m: &mut Motor3d, w: i32, h: i32, placa_txt: &str) -> Result<(), String> {
         self.cont_paso();
-        self.musica_paso(); self.logo_paso(); self.mt_paso();
+        self.musica_paso(); self.logo_paso(); self.mt_paso(); self.cons_paso();
+        // (el server creado con «Mi mundo»: cuando el mapa ya está, vuelve lo guardado)
+        if self.ini.pn.srv.pend && self.mapa.is_some() && !self.recargar { self.ini.pn.srv.pend = false; self.pz_cargar(); }
         aero::ESCALA.store(self.aj.menus, std::sync::atomic::Ordering::Relaxed);
         // (lo que llega de la tienda y de la Workshop también con el menú abierto)
         if self.ini.abierto { self.gmod_tienda_paso(); return self.ini_cuadro(m, w, h); }
@@ -1348,7 +1353,7 @@ impl Juego {
                 efectos.extend(self.gi.paso(&self.mapas[self.mapa_i], &mp.mundo.t, [self.jug.pos[0], self.jug.pos[1], self.jug.pos[2]], [s[0] / l, s[1] / l, s[2] / l]));
             }
             let mut luces = self.ef.luces(); luces.extend(mp.luces_cerca(ojos, 6));
-            self.herramientas_items(&mut items, &mut luces); luces.truncate(8); self.jg_luces(&mut luces); self.pjs_luces(&mut luces, ojos);
+            self.herramientas_items(&mut items, &mut luces); self.cons_items(&mut items); luces.truncate(8); self.jg_luces(&mut luces); self.pjs_luces(&mut luces, ojos);
             // (el piso de abajo de la cámara, para su reflejo en OpenGL 2: sólo si es casi plano)
             let suelo_y = jxjuego::persona::rayo_mundo(&mp.mundo, jugabilidad::v64(cam), [0.0, -1.0, 0.0], 30.0).filter(|h| h.1[1] > 0.9).map(|h| cam[1] - h.0 as f32);
             let c = Cuadro { vp: m4::mul(&p, &vista), pos: cam, luz, agua_y: mp.agua_y, suelo_y, tiempo: self.t0.elapsed().as_secs_f32(),

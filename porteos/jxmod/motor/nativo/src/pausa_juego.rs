@@ -206,7 +206,7 @@ impl Juego {
         match std::fs::write(&f, serde_json::Value::Array(l).to_string()) { Ok(_) => self.avisar(format!("Guardado ({n} cosas)")), Err(_) => self.avisar("No se pudo guardar".into()) }
     }
     /// Cargar: lo guardado de este mapa vuelve a su lugar (se pone en el cuadro siguiente, con el motor a mano)
-    fn pz_cargar(&mut self) {
+    pub(crate) fn pz_cargar(&mut self) {
         let l: Vec<serde_json::Value> = self.pz_archivo_guardado().and_then(|f| std::fs::read(f).ok()).and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
         let num = |v: &serde_json::Value, k: usize| v.get(k).and_then(|x| x.as_f64()).unwrap_or(0.0) as f32;
         for x in &l { let (Some(n), p, q) = (x["n"].as_str(), &x["p"], &x["q"]) else { continue };

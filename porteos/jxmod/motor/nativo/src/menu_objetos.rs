@@ -21,7 +21,7 @@ const NEG: Col = rgba(0xffffff, 1.0);
 
 const PESTANAS: [(&str, &str); 5] = [("Props", "ico_props"), ("NPCs", "ico_ragdoll"), ("Vehículos", "ico_auto"), ("Herramientas", "ico_herr"), ("Mods", "ico_mod")];
 /// el ícono de color de cada Opción (las de la web: volar, muñeco de trapo, SCP, Cíclope)
-fn ico_opcion(it: &str) -> &'static str { if let Some(a) = crate::comun::jugabilidad::agua_juego::ITEMS.iter().find(|a| a.0 == it) { return a.2; } match it { "opc:volar" => "ico_volar", "opc:ragdoll" => "ico_ragdoll", "opc:scp" => "ico_scp", "opc:ciclope" => "ico_ciclope", "opc:radio" => "radio", "opc:piano" => "ico_piano", x if x.starts_with("mun:") => "ico_balas", x if x.starts_with("tmod:") => "ico_mod", _ => "ico_mod" } }
+fn ico_opcion(it: &str) -> &'static str { if let Some(a) = crate::comun::jugabilidad::agua_juego::ITEMS.iter().find(|a| a.0 == it) { return a.2; } match it { "opc:construir" => "ico_herr", "opc:volar" => "ico_volar", "opc:ragdoll" => "ico_ragdoll", "opc:scp" => "ico_scp", "opc:ciclope" => "ico_ciclope", "opc:radio" => "radio", "opc:piano" => "ico_piano", x if x.starts_with("mun:") => "ico_balas", x if x.starts_with("tmod:") => "ico_mod", _ => "ico_mod" } }
 
 /// las pestañas que se ven en la ventana de objetos (las herramientas tienen su ventana)
 const VISIBLES: [usize; 4] = [0, 1, 2, PESTANA_MODS];

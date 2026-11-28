@@ -60,8 +60,8 @@ pub enum Acc { Volver, Cerrar, Cat(usize), Mapa(String), Empezar, Hora, Mods, Vr
 
 /// lo que se va eligiendo en Crear server (RB.srv de la web: Libre, sin PvP, RPG ni nextbots, 1000 props y 40 autos)
 #[derive(Clone, Debug)]
-pub struct SrvForm { pub n: String, pub pw: String, pub modo_pvp: bool, pub pvp: bool, pub rpg: bool, pub nb: bool, pub mp: u32, pub mv: u32 }
-impl Default for SrvForm { fn default() -> Self { SrvForm { n: String::new(), pw: String::new(), modo_pvp: false, pvp: false, rpg: false, nb: false, mp: 1000, mv: 40 } } }
+pub struct SrvForm { pub n: String, pub pw: String, pub modo_pvp: bool, pub pvp: bool, pub rpg: bool, pub nb: bool, pub mp: u32, pub mv: u32, /** cargar tu mundo guardado de ese mapa al entrar, y si falta hacerlo */ pub mundo: bool, pub pend: bool }
+impl Default for SrvForm { fn default() -> Self { SrvForm { n: String::new(), pw: String::new(), modo_pvp: false, pvp: false, rpg: false, nb: false, mp: 0, mv: 40, mundo: false, pend: false } } }
 
 /// las medidas de los paneles con esta pantalla (las variables --pn… de paneles.css)
 #[derive(Clone, Copy, Debug)]
@@ -171,7 +171,7 @@ impl Juego {
             (_, Acc::SrvNombre) => { let n = self.ini.pn.srv.n.clone(); self.pedir_texto(Escribir::SrvNombre, "Nombre del server", &n, 24, false); }
             (_, Acc::SrvClave) => { let c = self.ini.pn.srv.pw.clone(); self.pedir_texto(Escribir::SrvClave, "Clave (opcional)", &c, 16, true); }
             (_, Acc::SrvModo(pvp)) => { self.ini.pn.srv.modo_pvp = pvp; if pvp { self.ini.pn.srv.pvp = true; } }
-            (_, Acc::SrvTg(k)) => { let f = &mut self.ini.pn.srv; match k { 0 => f.pvp = !f.pvp || f.modo_pvp, 1 => f.rpg = !f.rpg, _ => f.nb = !f.nb } }
+            (_, Acc::SrvTg(k)) => { let f = &mut self.ini.pn.srv; match k { 0 => f.pvp = !f.pvp || f.modo_pvp, 1 => f.rpg = !f.rpg, 2 => f.nb = !f.nb, _ => f.mundo = !f.mundo } }
             (_, Acc::SrvPaso(k, d)) => { let f = &mut self.ini.pn.srv; if k == 0 { f.mp = (f.mp as i32 + d * 100).clamp(0, 5000) as u32; } else { f.mv = (f.mv as i32 + d * 5).clamp(0, 200) as u32; } }
             (_, Acc::SrvCrear) => self.srv_crear(),
             (Some(PanelIni::Nueva { .. }), Acc::Cat(k)) => self.ini.panel = Some(PanelIni::Nueva { cat: k, scroll: 0.0 }),
@@ -577,7 +577,8 @@ impl Juego {
                     zona(p, z, r, Acc::SrvModo(pvp)); }
                 y += m.ph + u; k += 1;
                 // (PvP, RPG y nextbots: casillas que se prenden en amarillo)
-                for (i, (n, on)) in [("PvP", f.pvp || f.modo_pvp), ("RPG", f.rpg), ("Nextbots", f.nb)].into_iter().enumerate() { let r = [x0 + i as f32 * wcol / 3.0, y, wcol / 3.0 - 3.0, m.ph];
+                // (y «Mi mundo»: al entrar se pone lo que guardaste en ese mapa —pausa → Guardar—)
+                for (i, (n, on)) in [("PvP", f.pvp || f.modo_pvp), ("RPG", f.rpg), ("Nextbots", f.nb), ("Mi mundo", f.mundo)].into_iter().enumerate() { let r = [x0 + i as f32 * wcol / 4.0, y, wcol / 4.0 - 3.0, m.ph];
                     self.pn_cascada(p, t, k, |p| { p.rect(r[0], r[1], r[2], r[3], if on { rgba(0x2a2410, 1.0) } else { PN_POZO }); p.borde(r[0], r[1], r[2], r[3], 1.0, if on { AMA } else { PN_LIN2 });
                         let q = fs * 0.9; let cx = r[0] + fs * 0.7; let cy = r[1] + (r[3] - q) / 2.0; p.borde(cx, cy, q, q, 1.5, if on { AMA } else { PN_T3 }); if on { p.rect(cx + 3.0, cy + 3.0, q - 6.0, q - 6.0, AMA); }
                         p.texto_max(Cara::S4, fs, cx + q + fs * 0.5, p.at.base_centrada(Cara::S4, fs, fs, r[1], r[3]), if on { TX } else { PN_T2 }, 0.04, &n, r[2] - q - fs * 1.6); });
@@ -586,7 +587,7 @@ impl Juego {
                 // (los topes: props y autos, con menos y más)
                 for (i, (n, v)) in [("Props", f.mp), ("Autos", f.mv)].into_iter().enumerate() {
                     let yy = y; let r_menos = [x0 + wcol - m.ph * 2.0 - 3.0, y, m.ph, m.ph]; let r_mas = [x0 + wcol - m.ph, y, m.ph, m.ph];
-                    self.pn_cascada(p, t, k, |p| { p.texto(Cara::S4, fs, x0, p.at.base_centrada(Cara::S4, fs, fs, yy, m.ph), PN_T2, 0.06, &format!("{} · {v}", n));
+                    self.pn_cascada(p, t, k, |p| { p.texto(Cara::S4, fs, x0, p.at.base_centrada(Cara::S4, fs, fs, yy, m.ph), PN_T2, 0.06, &if v == 0 { format!("{} · sin límite", n) } else { format!("{} · {v}", n) });
                         for (r, s) in [(r_menos, "−"), (r_mas, "+")] { p.rect(r[0], r[1], r[2], r[3], PN_PL3); p.borde(r[0], r[1], r[2], r[3], 1.0, PN_LIN2); p.texto_c(Cara::S7, m.ft * 1.2, r[0] + r[2] / 2.0, p.at.base_centrada(Cara::S7, m.ft * 1.2, m.ft * 1.2, r[1], r[3]), TX, 0.0, s); } });
                     zona(p, z, r_menos, Acc::SrvPaso(i as u8, -1)); zona(p, z, r_mas, Acc::SrvPaso(i as u8, 1)); y += m.ph + u * 0.6; k += 1;
                 }

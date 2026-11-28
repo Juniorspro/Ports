@@ -315,7 +315,7 @@ impl Juego {
             Evento::Hecho { de, k, d } => self.pjs_hecho(&de, &k, &d),
             Evento::Entidades { de, e } => self.ent_red(m, &de, None, &e),
             Evento::Voz { de, datos } => self.vz_llego(&de, &datos),
-            Evento::SalaCreada { sala } => { let s = sala.clone();
+            Evento::SalaCreada { sala } => { let s = sala.clone(); if self.ini.pn.srv.mundo { self.ini.pn.srv.pend = true; }
                 // (creada desde el formulario del inicio: se cierra el menú y se entra, como al tocar Entrar)
                 if self.ini.abierto || self.ini.panel.is_some() { self.recargar = true; self.ini.abierto = false; self.ini.panel = None; }
                 let _ = self.en_red.red.entrar(&s, Some(&s.clave)); self.entrar_sala(&s); }
