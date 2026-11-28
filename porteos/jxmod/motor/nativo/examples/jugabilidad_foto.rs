@@ -226,6 +226,19 @@ fn main() {
             j.poner_mapa(mp); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 90); j.jug.pitch = 0.05; paso(&mut j, &mut m, 10); foto(&mut m, &format!("fondo_{mp}"));
         }
     }
+    if hace("taa") {
+        // (la reconstrucción temporal: la misma vista al 20 % sin y con, contra el 50 % de verdad; quieto, después de juntar)
+        j.aj.sin_ui = true; j.aj.fps = false; j.aj.dinamica = false; j.aj.turbo = false; j.aj.auto = false;
+        j.poner_mapa("RB_Ciudad"); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 90); j.jug.pitch = 0.05;
+        for (res, taa, n) in [(20u32, false, "taa_20_sin"), (20, true, "taa_20_con"), (50, false, "taa_50_sin"), (10, true, "taa_10_con"), (10, false, "taa_10_sin")] {
+            j.aj.res = res; j.aj.taa = taa; paso(&mut j, &mut m, 72); foto(&mut m, n);
+        }
+        // (girando: la cámara gira de a poco cada cuadro —se buscan fantasmas y borroneo—)
+        for (taa, n) in [(true, "taa_20_gira_con"), (false, "taa_20_gira_sin")] {
+            j.aj.res = 20; j.aj.taa = taa; paso(&mut j, &mut m, 40);
+            for _ in 0..20 { j.jug.yaw += 0.015; paso(&mut j, &mut m, 1); } foto(&mut m, n);
+        }
+    }
     if hace("mali") {
         // (el medidor de la placa que miente —JXM_PLACA_FALSA—: qué hacen la resolución dinámica y JX Turbo, y cómo se ve)
         j.aj.dinamica = true; j.aj.res = 0; j.aj.turbo = true;

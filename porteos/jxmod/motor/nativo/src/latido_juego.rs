@@ -8,7 +8,7 @@
 use super::*;
 
 /// la versión de la app (la del APK)
-pub const VERSION: &str = "0.66";
+pub const VERSION: &str = "0.67";
 
 #[derive(Default)]
 pub struct Latido { t: f32, cuadros: u32, tiempo: f32, peor: f32, aparato: String, /** segundos seguidos con fps bajos y si ya se avisó este bajón */ bajo: f32, avisado: bool }
