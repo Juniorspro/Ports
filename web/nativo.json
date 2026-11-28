@@ -1,9 +1,9 @@
 {
- "codigo": 26112719,
- "version": "0.52",
+ "codigo": 26112720,
+ "version": "0.53",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 76704006,
- "sha256": "f213958488665892aa4813d7e87b244b8ff454c0256f0b7c9379a0d32f408ceb",
- "notas_es": "Celulares con Mali: arranca con OpenGL 2 (en algunos OpenGL 3 dejaba la pantalla negra). Arreglo del cielo lleno de rayos en OpenGL 2. Vuelve el Límite de NPC en Opciones → Gráficos.",
- "notas_en": "Phones with Mali GPUs start with OpenGL 2 (OpenGL 3 left a black screen on some). Fixed the sky full of light rays in OpenGL 2. NPC limit is back in Options → Graphics."
+ "tam": 76712198,
+ "sha256": "279637c09fcc9b5ef42694ba2d09d21055d20835d3cb02db515da01974b5f6d9",
+ "notas_es": "La app avisa con qué celular jugás y cómo te anda (fps), sin datos personales: así se optimiza para los celulares que más lo necesitan.",
+ "notas_en": "The app reports which phone you play on and how it runs (fps), with no personal data, so we can optimize for the phones that need it most."
 }
