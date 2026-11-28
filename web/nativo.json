@@ -1,9 +1,9 @@
 {
- "codigo": 26112724,
- "version": "0.57",
+ "codigo": 26112725,
+ "version": "0.58",
  "apk": "jxmod/JXModNativo.apk",
- "tam": 76740870,
- "sha256": "e885a99a1ed85b3166d7519e4f53287f6299a8168fd2ce041262fdc41f7bb9fa",
- "notas_es": "Opciones → Controles → Ocultar la interfaz: queda sólo la pausa, para capturas y videos.",
- "notas_en": "Options → Controls → Hide interface: only the pause button stays, for screenshots and videos."
+ "tam": 77216336,
+ "sha256": "f6df022baf76f6c6ae567d7799d47856f9f5cdba6efd1b79b79c05375079dd8a",
+ "notas_es": "Fondos nuevos del inicio estilo Frutiger Aero: capturas de nuestros mapas mejoradas con IA.",
+ "notas_en": "New Frutiger Aero style menu backgrounds: screenshots of our maps enhanced with AI."
 }
