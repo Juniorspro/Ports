@@ -198,6 +198,7 @@ impl super::Juego {
     /// quién habla (como el panel de la web): arriba al medio, una ficha por cada uno con un punto verde que late; vos
     /// también, mientras tu micrófono manda
     pub(super) fn vz_hud(&self, l: &jxjuego::texto::Letras, u: &mut Vec<f32>, wf: f32, t: f32) {
+        if !self.aj.quien { return; }
         let mut quien: Vec<String> = self.vz.oyendo.iter().filter(|(_, o)| o.habla > 0.0).filter_map(|(id, _)| self.en_red.red.remoto(id).map(|r| jxjuego::censura::censurar(&r.nombre))).collect();
         quien.sort();
         if self.vz.yo_habla > 0.0 { quien.insert(0, format!("{} (vos)", jxjuego::censura::censurar(&self.en_red.red.nombre))); }

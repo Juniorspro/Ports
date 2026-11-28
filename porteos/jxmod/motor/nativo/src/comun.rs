@@ -1293,7 +1293,7 @@ impl Juego {
             if self.ondas.len() > 8 { let sobra = self.ondas.len() - 8; self.ondas.drain(..sobra); }
             // (los props de los mapas del Workshop, hasta su distancia de desvanecido —más cerca en las calidades bajas—)
             let mut items = if mp.lejos_items.len() == mp.items.len() {
-                let k = [0.5f32, 0.6, 0.75, 0.9, 1.0, 1.0][self.aj.calidad.min(5)];
+                let k = [0.5f32, 0.6, 0.75, 0.9, 1.0, 1.0][self.aj.calidad.min(5)] * self.aj.dist as f32 / 100.0;
                 mp.items.iter().zip(&mp.lejos_items).filter(|(it, (c, f))| (*c <= 0.0 && *f <= 0.0) || { let (dx, dy, dz) = (it.esf[0] - cam[0], it.esf[1] - cam[1], it.esf[2] - cam[2]); let d2 = dx * dx + dy * dy + dz * dz; d2 >= (c * k) * (c * k) && (*f <= 0.0 || d2 < (f * k) * (f * k)) }).map(|(it, _)| it.clone()).collect()
             } else { mp.items.clone() };
             // (el cuerpo con el arma en la mano; sentado, en el asiento)

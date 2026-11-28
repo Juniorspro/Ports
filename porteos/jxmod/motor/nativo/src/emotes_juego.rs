@@ -212,9 +212,9 @@ impl Juego {
         while l.len() < 5 { l.push(None); } l
     }
     /// el botón de emotes (emoBoton): un toque abre la ruleta quieta
-    pub(crate) fn emo_boton(&mut self) { self.pjs.emo.rul = Rul { abierto: true, fija: true, sel: -1, ..Default::default() }; }
+    pub(crate) fn emo_boton(&mut self) { if !self.aj.ruleta { self.emo_abrir_panel(); return; } self.pjs.emo.rul = Rul { abierto: true, fija: true, sel: -1, ..Default::default() }; }
     /// el dedo que apretó el botón de emotes (rulApretar): mantener o deslizar la abre para elegir al soltar
-    pub(crate) fn emo_apretar(&mut self, id: i32, x: f32, y: f32) { let t = self.pjs.emo.t; let r = &mut self.pjs.emo.rul; *r = Rul { quien: Some(id), x0: x, y0: y, t0: t, sel: -1, ..Default::default() }; }
+    pub(crate) fn emo_apretar(&mut self, id: i32, x: f32, y: f32) { if !self.aj.ruleta { self.emo_abrir_panel(); return; } let t = self.pjs.emo.t; let r = &mut self.pjs.emo.rul; *r = Rul { quien: Some(id), x0: x, y0: y, t0: t, sel: -1, ..Default::default() }; }
     fn rul_geo(w: f32, h: f32) -> (f32, f32, f32) { let css = h / 393.0; let d = (w.min(h) * 0.8).min(440.0 * css); (w / 2.0, h / 2.0 - if Self::rul_fija_pie() { 24.0 * css } else { 0.0 }, d / 2.0) }
     fn rul_fija_pie() -> bool { true }
     /// el lugar hacia donde va el dedo (rulElegir: en el medio, ninguno)
