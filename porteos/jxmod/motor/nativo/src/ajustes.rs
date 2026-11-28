@@ -53,6 +53,9 @@ pub struct Ajustes {
     pub ruleta: bool,
     /// la munición limitada (como en GMod: Props → Munición)
     pub mun_lim: bool,
+    /// el límite de cuadros por segundo: 0 al ritmo de la pantalla (sincronizado); si no, sin sincronizar y frenado en ese
+    /// número (FPS_MAX; 9999: sin límite —JX Turbo suma un intermedio por cada cuadro real aunque la pantalla no los muestre—)
+    pub fps_max: u32,
     /// la distancia de dibujo de los props de los mapas (%: 50 más liviano … 150 más lejos)
     pub dist: u32,
     /// la hora del día y si avanza sola (como DIA de la web, no se guardan: cada vez empieza a las 12)
@@ -82,18 +85,20 @@ pub struct Ajustes {
     pub menus: u32,
 }
 impl Default for Ajustes {
-    fn default() -> Self { Ajustes { calidad: 4, res: 0, sombras: true, ao: true, reflejo: true, retoque: true, sens: 12, fov: 70, fps: true, vol: 80, ambiente: true, espacial: true, voces: true, npc_max: 24, sin_ui: false, quien: true, ruleta: true, mun_lim: false, dist: 100, hora: 12.0, ciclo: false, auto: true, medido: None, hud: 80, pal: 100, hud_pos: String::new(), tut: false, cont: false, dinamica: true, turbo: true, idioma: None, musica: true, menus: 80 } }
+    fn default() -> Self { Ajustes { calidad: 4, res: 0, sombras: true, ao: true, reflejo: true, retoque: true, sens: 12, fov: 70, fps: true, vol: 80, ambiente: true, espacial: true, voces: true, npc_max: 24, sin_ui: false, quien: true, ruleta: true, mun_lim: false, fps_max: 0, dist: 100, hora: 12.0, ciclo: false, auto: true, medido: None, hud: 80, pal: 100, hud_pos: String::new(), tut: false, cont: false, dinamica: true, turbo: true, idioma: None, musica: true, menus: 80 } }
 }
 
 /// lo que se puede tocar en el menú, un renglón cada uno
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Clave { Calidad, Res, Dinamica, Turbo, Sombras, Ao, Reflejo, Retoque, Sens, Fov, Fps, Vol, Ambiente, Espacial, Voces, Quien, Ruleta, NpcMax, Dist, MiMusica, SinUi, Musica, TamMenus, Motor, Comparar, Mapa, Hora, Ciclo, TamBotones, TamPalanca, Botones }
+pub enum Clave { Calidad, Res, Dinamica, Turbo, FpsMax, Sombras, Ao, Reflejo, Retoque, Sens, Fov, Fps, Vol, Ambiente, Espacial, Voces, Quien, Ruleta, NpcMax, Dist, MiMusica, SinUi, Musica, TamMenus, Motor, Comparar, Mapa, Hora, Ciclo, TamBotones, TamPalanca, Botones }
 /// las pestañas del menú y sus renglones
 pub const DIST: [u32; 4] = [50, 75, 100, 150];
+/// los límites de fps (0: el de la pantalla, sincronizado; 9999: sin límite)
+pub const FPS_MAX: [u32; 8] = [0, 30, 60, 90, 120, 144, 240, 9999];
 pub const PESTANAS: [&str; 6] = ["Gráficos", "Controles", "Sonido", "Motor", "Mapa", "Día"];
 pub fn claves(pestana: usize) -> &'static [Clave] {
     match pestana {
-        0 => &[Clave::Calidad, Clave::Res, Clave::Dinamica, Clave::Turbo, Clave::Sombras, Clave::Ao, Clave::Reflejo, Clave::Retoque, Clave::NpcMax, Clave::Dist],
+        0 => &[Clave::Calidad, Clave::Res, Clave::Dinamica, Clave::Turbo, Clave::FpsMax, Clave::Sombras, Clave::Ao, Clave::Reflejo, Clave::Retoque, Clave::NpcMax, Clave::Dist],
         1 => &[Clave::Sens, Clave::Fov, Clave::Fps, Clave::SinUi, Clave::Ruleta, Clave::TamMenus, Clave::TamBotones, Clave::TamPalanca, Clave::Botones],
         2 => &[Clave::Vol, Clave::MiMusica, Clave::Ambiente, Clave::Espacial, Clave::Voces, Clave::Quien, Clave::Musica],
         3 => &[Clave::Motor, Clave::Comparar],
@@ -105,7 +110,7 @@ pub fn nombre(c: Clave) -> &'static str {
     match c {
         Clave::Calidad => "Calidad", Clave::Res => "Resolución", Clave::Dinamica => "Resolución dinámica", Clave::Turbo => "JX Turbo (más fps)", Clave::Sombras => "Sombras", Clave::Ao => "Oclusión ambiental", Clave::Reflejo => "Reflejos del agua",
         Clave::Retoque => "Post-procesado (retoque de color)", Clave::Sens => "Sensibilidad", Clave::Fov => "Campo de visión", Clave::Fps => "Mostrar fps", Clave::Vol => "Volumen",
-        Clave::Ambiente => "Sonido del ambiente", Clave::Espacial => "Sonido espacial (eco y paredes)", Clave::Voces => "Escuchar la voz de los demás", Clave::NpcMax => "Límite de NPC", Clave::Quien => "Mostrar quién habla", Clave::Ruleta => "El botón de emotes abre la ruleta", Clave::Dist => "Distancia de dibujo", Clave::SinUi => "Ocultar la interfaz (queda la pausa)", Clave::MiMusica => "Mi música (tu lista de YouTube)", Clave::Musica => "Música del menú", Clave::Motor => "Motor", Clave::Comparar => "Comparar los motores", Clave::Mapa => "Mapa", Clave::Hora => "Hora", Clave::Ciclo => "Ciclo (2 horas por minuto)",
+        Clave::Ambiente => "Sonido del ambiente", Clave::Espacial => "Sonido espacial (eco y paredes)", Clave::Voces => "Escuchar la voz de los demás", Clave::NpcMax => "Límite de NPC", Clave::Quien => "Mostrar quién habla", Clave::FpsMax => "Límite de fps", Clave::Ruleta => "El botón de emotes abre la ruleta", Clave::Dist => "Distancia de dibujo", Clave::SinUi => "Ocultar la interfaz (queda la pausa)", Clave::MiMusica => "Mi música (tu lista de YouTube)", Clave::Musica => "Música del menú", Clave::Motor => "Motor", Clave::Comparar => "Comparar los motores", Clave::Mapa => "Mapa", Clave::Hora => "Hora", Clave::Ciclo => "Ciclo (2 horas por minuto)",
         Clave::TamMenus => "Tamaño de los menús", Clave::TamBotones => "Tamaño de los botones", Clave::TamPalanca => "Tamaño de la palanca", Clave::Botones => "Botones de la pantalla",
     }
 }
@@ -128,7 +133,7 @@ impl Ajustes {
                 "sombras" => a.sombras = b, "ao" => a.ao = b, "reflejo" => a.reflejo = b, "retoque" => a.retoque = b,
                 "sens" => if let Some(n) = n { a.sens = n.clamp(1, 40) },
                 "fov" => if let Some(n) = n { a.fov = n.clamp(50, 110) },
-                "fps" => a.fps = b, "musica" => a.musica = b, "menus" => if let Some(n) = n { a.menus = n.clamp(50, 120) }, "vol" => if let Some(n) = n { a.vol = n.min(100) }, "ambiente" => a.ambiente = b, "espacial" => a.espacial = b, "voces" => a.voces = b, "sinui" => a.sin_ui = b, "quien" => a.quien = b, "ruleta" => a.ruleta = b, "munlim" => a.mun_lim = b, "dist" => if let Some(n) = n { a.dist = if DIST.contains(&n) { n } else { 100 } }, "npcmax" => if let Some(n) = n { a.npc_max = if [0, 24, 50, 100, 200].contains(&(n as usize)) { n as usize } else { 24 } },
+                "fps" => a.fps = b, "musica" => a.musica = b, "menus" => if let Some(n) = n { a.menus = n.clamp(50, 120) }, "vol" => if let Some(n) = n { a.vol = n.min(100) }, "ambiente" => a.ambiente = b, "espacial" => a.espacial = b, "voces" => a.voces = b, "sinui" => a.sin_ui = b, "quien" => a.quien = b, "ruleta" => a.ruleta = b, "munlim" => a.mun_lim = b, "fpsmax" => if let Some(n) = n { a.fps_max = if FPS_MAX.contains(&n) { n } else { 0 } }, "dist" => if let Some(n) = n { a.dist = if DIST.contains(&n) { n } else { 100 } }, "npcmax" => if let Some(n) = n { a.npc_max = if [0, 24, 50, 100, 200].contains(&(n as usize)) { n as usize } else { 24 } },
                 "auto" => a.auto = b,
                 "hud" => if let Some(n) = n { a.hud = n.clamp(60, 120) }, "pal" => if let Some(n) = n { a.pal = n.clamp(60, 160) },
                 "hudpos" => a.hud_pos = v.to_string(), "idioma" => if jxjuego::idiomas::de_codigo(v).is_some() { a.idioma = Some(v.to_string()) }, "tut" => a.tut = b, "cont" => a.cont = b, "din2" => a.dinamica = b, "turbo" => a.turbo = b,
@@ -143,7 +148,7 @@ impl Ajustes {
         let mut t = format!("calidad={}\nres2={}\nsombras={}\nao={}\nreflejo={}\nretoque={}\nsens={}\nfov={}\nfps={}\nvol={}\nambiente={}\nauto={}\n",
             if self.calidad >= 5 { if self.calidad == PERSONAL { 5 } else { 4 } } else { self.calidad }, self.res, b(self.sombras), b(self.ao), b(self.reflejo), b(self.retoque), self.sens, self.fov, b(self.fps), self.vol, b(self.ambiente), b(self.auto));
         if let Some((q, g)) = &self.medido { t += &format!("medido={q}|{}\n", g.replace('\n', " ")); }
-        t += &format!("hud={}\npal={}\ntut={}\ncont={}\ndin2={}\nturbo={}\nmusica={}\nmenus={}\n", self.hud, self.pal, b(self.tut), b(self.cont), b(self.dinamica), b(self.turbo), b(self.musica), self.menus); t += &format!("espacial={}\nvoces={}\nnpcmax={}\nsinui={}\nquien={}\ndist={}\nruleta={}\nmunlim={}\n", b(self.espacial), b(self.voces), self.npc_max, b(self.sin_ui), b(self.quien), self.dist, b(self.ruleta), b(self.mun_lim)); if !self.hud_pos.is_empty() { t += &format!("hudpos={}\n", self.hud_pos.replace('\n', "")); }
+        t += &format!("hud={}\npal={}\ntut={}\ncont={}\ndin2={}\nturbo={}\nmusica={}\nmenus={}\n", self.hud, self.pal, b(self.tut), b(self.cont), b(self.dinamica), b(self.turbo), b(self.musica), self.menus); t += &format!("espacial={}\nvoces={}\nnpcmax={}\nsinui={}\nquien={}\ndist={}\nruleta={}\nmunlim={}\nfpsmax={}\n", b(self.espacial), b(self.voces), self.npc_max, b(self.sin_ui), b(self.quien), self.dist, b(self.ruleta), b(self.mun_lim), self.fps_max); if !self.hud_pos.is_empty() { t += &format!("hudpos={}\n", self.hud_pos.replace('\n', "")); }
         if let Some(i) = &self.idioma { t += &format!("idioma={i}\n"); }
         // (la calidad con Definitivo: va al final para mandar sobre «calidad»; ésa queda para las versiones de antes —Personal en 5—)
         t += &format!("calidad2={}\n", self.calidad);
@@ -179,7 +184,7 @@ impl Ajustes {
             // (el primero abre el editor —lo hace el juego—; el segundo vuelve todo a como viene)
             Clave::Botones => vec!["Mover y agrandar".into(), "De fábrica".into()],
             Clave::NpcMax => ["24", "50", "100", "200", "Sin límite"].iter().map(|x| x.to_string()).collect(),
-            Clave::MiMusica => vec!["Abrir".into()], Clave::Dist => num(&DIST, "%"),
+            Clave::MiMusica => vec!["Abrir".into()], Clave::FpsMax => FPS_MAX.iter().map(|x| match *x { 0 => "Pantalla".to_string(), 9999 => "Sin límite".to_string(), n => n.to_string() }).collect(), Clave::Dist => num(&DIST, "%"),
             Clave::Motor | Clave::Mapa => vec![],
             // (la comparación de FPS entre los motores: la arranca el juego, banco_juego.rs)
             Clave::Comparar => vec!["Empezar".into()],
@@ -192,7 +197,7 @@ impl Ajustes {
             Clave::Calidad => if self.auto { Some(0) } else if self.calidad < PERSONAL { Some(self.calidad + 1) } else { None },
             Clave::Res => pos(&RES, self.res), Clave::Sens => pos(&SENS, self.sens), Clave::Fov => pos(&FOV, self.fov), Clave::Vol => pos(&VOL, self.vol),
             Clave::Dinamica => Some(self.dinamica as usize), Clave::Turbo => Some(self.turbo as usize), Clave::Sombras => Some(self.sombras as usize), Clave::Ao => Some(self.ao as usize), Clave::Reflejo => Some(self.reflejo as usize),
-            Clave::Retoque => Some(self.retoque as usize), Clave::Fps => Some(self.fps as usize), Clave::Ambiente => Some(self.ambiente as usize), Clave::Espacial => Some(self.espacial as usize), Clave::Voces => Some(self.voces as usize), Clave::NpcMax => [24usize, 50, 100, 200, 0].iter().position(|x| *x == self.npc_max), Clave::SinUi => Some(self.sin_ui as usize), Clave::Quien => Some(self.quien as usize), Clave::Ruleta => Some(self.ruleta as usize), Clave::Dist => DIST.iter().position(|x| *x == self.dist), Clave::Musica => Some(self.musica as usize),
+            Clave::Retoque => Some(self.retoque as usize), Clave::Fps => Some(self.fps as usize), Clave::Ambiente => Some(self.ambiente as usize), Clave::Espacial => Some(self.espacial as usize), Clave::Voces => Some(self.voces as usize), Clave::NpcMax => [24usize, 50, 100, 200, 0].iter().position(|x| *x == self.npc_max), Clave::SinUi => Some(self.sin_ui as usize), Clave::Quien => Some(self.quien as usize), Clave::FpsMax => FPS_MAX.iter().position(|x| *x == self.fps_max), Clave::Ruleta => Some(self.ruleta as usize), Clave::Dist => DIST.iter().position(|x| *x == self.dist), Clave::Musica => Some(self.musica as usize),
             Clave::Hora => HORAS.iter().position(|h| h.1 == self.hora), Clave::Ciclo => Some(self.ciclo as usize),
             Clave::TamMenus => pos(&TAM_MENUS, self.menus), Clave::TamBotones => pos(&TAM_HUD, self.hud), Clave::TamPalanca => pos(&TAM_PAL, self.pal),
             Clave::Motor | Clave::MiMusica | Clave::Mapa | Clave::Botones | Clave::Comparar => None,
@@ -212,7 +217,7 @@ impl Ajustes {
             Clave::Reflejo => { self.reflejo = k == 1; self.calidad = PERSONAL; self.auto = false; }
             Clave::Retoque => { self.retoque = k == 1; self.calidad = PERSONAL; self.auto = false; }
             Clave::Sens => self.sens = toma(&SENS), Clave::Fov => self.fov = toma(&FOV), Clave::Vol => self.vol = toma(&VOL),
-            Clave::Fps => self.fps = k == 1, Clave::Ambiente => self.ambiente = k == 1, Clave::Espacial => self.espacial = k == 1, Clave::Voces => self.voces = k == 1, Clave::NpcMax => self.npc_max = [24usize, 50, 100, 200, 0][k.min(4)], Clave::SinUi => self.sin_ui = k == 1, Clave::Quien => self.quien = k == 1, Clave::Ruleta => self.ruleta = k == 1, Clave::Dist => self.dist = DIST[k.min(DIST.len() - 1)], Clave::Musica => self.musica = k == 1,
+            Clave::Fps => self.fps = k == 1, Clave::Ambiente => self.ambiente = k == 1, Clave::Espacial => self.espacial = k == 1, Clave::Voces => self.voces = k == 1, Clave::NpcMax => self.npc_max = [24usize, 50, 100, 200, 0][k.min(4)], Clave::SinUi => self.sin_ui = k == 1, Clave::Quien => self.quien = k == 1, Clave::FpsMax => self.fps_max = FPS_MAX[k.min(FPS_MAX.len() - 1)], Clave::Ruleta => self.ruleta = k == 1, Clave::Dist => self.dist = DIST[k.min(DIST.len() - 1)], Clave::Musica => self.musica = k == 1,
             Clave::Hora => self.hora = HORAS[k.min(HORAS.len() - 1)].1, Clave::Ciclo => self.ciclo = k == 1,
             Clave::TamMenus => self.menus = toma(&TAM_MENUS), Clave::TamBotones => self.hud = toma(&TAM_HUD), Clave::TamPalanca => self.pal = toma(&TAM_PAL),
             // (De fábrica: los lugares, el tamaño y la palanca como vienen —hudFab de la web—)

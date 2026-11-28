@@ -126,11 +126,17 @@ fn android_main(app: AndroidApp) {
     let mut salir = false;
     let mut grab: Option<Grab> = None;
     let mut t_ritmo = Instant::now();
+    let mut intervalo = 1;
     while !salir {
         // (JX Turbo: un cuadro por cada refresco de la pantalla, a ritmo parejo, y el toque leído justo antes. Sin esto los
         // intermedios —que cuestan poco— salían uno atrás del otro detrás del real, la pantalla los mostraba separados y al
         // girar la cámara avanzaba a los saltos: el tembleque. Un poco antes del refresco, así nunca se queda sin cuadro)
-        if v.is_some() && j.turbo_on && j.mapa.is_some() {
+        // (el Límite de fps: sin sincronizar, cada cuadro espera lo que le falta para no pasar ese número; JX Turbo con la
+        // pantalla sincronizada va al ritmo del refresco)
+        if v.is_some() && j.aj.fps_max != 0 && j.aj.fps_max < 9999 {
+            let per = 1.0 / j.aj.fps_max as f32; let ya = t_ritmo.elapsed().as_secs_f32();
+            if ya < per { std::thread::sleep(Duration::from_secs_f32(per - ya)); }
+        } else if v.is_some() && j.aj.fps_max == 0 && j.turbo_on && j.mapa.is_some() {
             let per = 0.995 / j.refresco.max(30.0); let ya = t_ritmo.elapsed().as_secs_f32();
             if ya < per { std::thread::sleep(Duration::from_secs_f32(per - ya)); }
         }
@@ -139,7 +145,7 @@ fn android_main(app: AndroidApp) {
         app.poll_events(espera, |ev| {
             if let PollEvent::Main(me) = ev {
                 match me {
-                    MainEvent::InitWindow { .. } => { crate::caja_negra::paso("abrir la ventana"); if let Some(w) = app.native_window() { v = abrir(w, &mut j, marca.as_deref()); } crate::caja_negra::a_la_vista(v.is_some()); }
+                    MainEvent::InitWindow { .. } => { crate::caja_negra::paso("abrir la ventana"); intervalo = 1; if let Some(w) = app.native_window() { v = abrir(w, &mut j, marca.as_deref()); } crate::caja_negra::a_la_vista(v.is_some()); }
                     MainEvent::TerminateWindow { .. } => { if let (Some(g), Some(t), Some(x)) = (grab.take(), &java, v.as_ref()) { if let Some(b) = &x.gl { let _ = grab_terminar(g, t, b, &x.m, &j); } j.grabando = false; } crate::caja_negra::a_la_vista(false); crate::caja_negra::partida_lista(); crate::caja_negra::paso("cerrar la ventana"); if let Some(x) = v.take() { cerrar(x); } vk_prueba_fin(); }
                     MainEvent::Destroy => { salir = true; }
                     _ => {}
@@ -171,7 +177,11 @@ fn android_main(app: AndroidApp) {
                 else if !p { if let (Some(g), Some(t), Some(b)) = (grab.take(), &java, &x.gl) { let r = grab_terminar(g, t, b, &x.m, &j); j.grabando = false; j.avisar(if let Some(e) = r.strip_prefix('!') { format!("No se pudo guardar el video: {e}") } else { format!("Video guardado: {r}") }); } else { j.grabando = false; } }
             }
             if let (Some(g), Some(b), Some(t)) = (grab.as_mut(), &x.gl, &java) { grab_cuadro(g, b, &x.m, x.w, x.h); grab_audio(t, &j); }
-            if let Some(b) = &x.gl { let _ = b.e.swap_buffers(b.d, b.s); }
+            if let Some(b) = &x.gl {
+                // (sincronizado con la pantalla sólo con el Límite de fps en «Pantalla»)
+                let quiere = if j.aj.fps_max == 0 { 1 } else { 0 }; if quiere != intervalo { let _ = b.e.swap_interval(b.d, quiere); intervalo = quiere; }
+                let _ = b.e.swap_buffers(b.d, b.s);
+            }
             j.medir(t0.elapsed().as_secs_f32() * 1000.0);
             crate::caja_negra::latido();
         }

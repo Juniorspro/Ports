@@ -1765,7 +1765,9 @@ impl Juego {
         // titile—. Lo que cuesta: lo de la placa medido sin frenarla —o la CPU, si es más—; no el tiempo entre cuadros, que con el
         // ritmo parejo es siempre el de la pantalla)
         let t = 1000.0 / self.refresco.max(30.0); let (cr, ci) = self.costos();
-        if !self.aj.turbo { self.turbo_on = false; } else if self.mapa.is_some() && !self.recargar && cr > 0.0 {
+        // (sin sincronizar con la pantalla —Límite de fps distinto de «Pantalla»—: JX Turbo va siempre, un intermedio por cada real,
+        // y los cuadros pasan los de la pantalla aunque ella no los muestre todos)
+        if !self.aj.turbo { self.turbo_on = false; } else if self.aj.fps_max != 0 && self.mapa.is_some() { self.turbo_on = true; } else if self.mapa.is_some() && !self.recargar && cr > 0.0 {
             if cr > t * 1.25 { self.turbo_on = true; } else if cr < t * 0.95 { self.turbo_on = false; }
         }
         // (con JX Turbo, la resolución dinámica mira el cuadro de verdad: tiene que entrar con su intermedio en dos cuadros de la
