@@ -57,13 +57,13 @@ public class Medios {
     // —— la tele ——
     private static String html(String vid) {
         return "<!doctype html><html><head><meta name=viewport content='width=device-width,initial-scale=1'><style>html,body,#p{margin:0;width:100%;height:100%;background:#000;overflow:hidden}</style></head><body><div id=p></div>"
-            + "<script src='https://www.youtube.com/iframe_api'></script><script>var pl,vv=100;function onYouTubeIframeAPIReady(){pl=new YT.Player('p',{width:'100%',height:'100%',videoId:'" + vid
-            + "',playerVars:{autoplay:1,controls:0,playsinline:1,rel:0,modestbranding:1,iv_load_policy:3,fs:0,disablekb:1},events:{onReady:function(e){e.target.setVolume(vv);e.target.playVideo();},onStateChange:function(e){if(e.data===0)e.target.playVideo();}}});}"
+            + "<script src='https://www.youtube.com/iframe_api'></script><script>var pl,vv=100;function onYouTubeIframeAPIReady(){pl=new YT.Player('p',{width:'100%',height:'100%',videoId:'" + vid.split(",")[0]
+            + "',playerVars:{" + (vid.contains(",") ? "playlist:'" + vid.substring(vid.indexOf(',') + 1) + "',loop:1," : "") + "autoplay:1,controls:0,playsinline:1,rel:0,modestbranding:1,iv_load_policy:3,fs:0,disablekb:1},events:{onReady:function(e){e.target.setVolume(vv);e.target.playVideo();},onStateChange:function(e){if(e.data===0&&!e.target.getPlaylist())e.target.playVideo();},onError:function(e){e.target.nextVideo();}}});}"
             + "function vol(v){vv=v;if(pl&&pl.setVolume)pl.setVolume(v);}</script></body></html>";
     }
     /** pone el video `vid` (11 letras) en la tele `id` (escondida hasta que Rust diga dónde) */
     public static void telePoner(final Activity a, final int id, final String vid) {
-        if (vid == null || !vid.matches("[A-Za-z0-9_-]{11}")) return;
+        if (vid == null || !vid.matches("[A-Za-z0-9_-]{11}(,[A-Za-z0-9_-]{11}){0,199}")) return;
         a.runOnUiThread(new Runnable() { @Override public void run() {
             teleCerrar(id);
             try {
