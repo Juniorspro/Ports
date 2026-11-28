@@ -1,9 +1,9 @@
 {
- "codigo": 26112728,
- "version": "0.61",
+ "codigo": 26112729,
+ "version": "0.62",
  "apk": "jxmod/JXModNativo.apk",
  "tam": 77245008,
- "sha256": "0942389e12edc0e35a7153a787ce0176823ab306c292d2fcf9c79f455a6e8b77",
- "notas_es": "En la sala se ve la linterna de los demás (los que tienen esta versión). En Ajustes, Retoque de color ahora se llama Post-procesado.",
- "notas_en": "You can now see other players' flashlights in the room."
+ "sha256": "33ff6131f8dd7863f9b0bc1f4c79734321d8944445d46a712c29a500e26e7fda",
+ "notas_es": "Arreglos: las radios (Android bloqueaba las emisoras http), la tele y la música de YouTube (no cargaban). 25 canciones Frutiger Aero que suenan apenas abrís el juego. La tele también en Props → Opciones. JX Turbo ya no se prende si el celular llega solo a los fps de la pantalla.",
+ "notas_en": "Fixes: radios, TV and YouTube music. 25 Frutiger Aero songs on start. JX Turbo no longer lowers fps."
 }
