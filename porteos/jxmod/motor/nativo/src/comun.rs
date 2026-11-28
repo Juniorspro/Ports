@@ -870,7 +870,7 @@ impl Juego {
     fn boton_visible(&self, b: Boton) -> bool {
         // (en el editor: todos los que se mueven en ese modo, aunque el arma o la situación los escondan)
         if self.ed.activo { return b != Boton::Girar && hud_web::clave(b).is_some_and(|c| hud_web::editable(c, self.ed.veh)); }
-        if self.jg.sin_hud() { return false; }
+        if self.jg.sin_hud() || self.aj.sin_ui { return false; }
         // (con la barra de armas abierta, como la web —#arribaDe escondido—: el arma, la cámara y los emotes, que quedan debajo)
         if self.armas.barra_t > 0.0 && matches!(b, Boton::Arma | Boton::Camara | Boton::Emotes) { return false; }
         match b {
