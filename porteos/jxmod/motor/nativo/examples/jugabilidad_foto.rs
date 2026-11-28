@@ -219,6 +219,13 @@ fn main() {
         paso(&mut j, &mut m, 40); println!("tele: {} videos · error {:?}", j.med.res.len(), j.med.error); foto(&mut m, "tele_panel");
         j.ini.panel = None; j.ini.desde_juego = false;
     }
+    if hace("fondos") {
+        // (las fotos para los fondos del inicio: cada mapa desde donde aparecés, sin interfaz)
+        j.aj.sin_ui = true; j.aj.fps = false;
+        for mp in ["RB_Flatgrass", "RB_Ciudad", "RB_Isla", "RB_Desierto", "RB_Colinas", "RB_Llanura"] {
+            j.poner_mapa(mp); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 90); j.jug.pitch = 0.05; paso(&mut j, &mut m, 10); foto(&mut m, &format!("fondo_{mp}"));
+        }
+    }
     if hace("mali") {
         // (el medidor de la placa que miente —JXM_PLACA_FALSA—: qué hacen la resolución dinámica y JX Turbo, y cómo se ve)
         j.aj.dinamica = true; j.aj.res = 0; j.aj.turbo = true;
