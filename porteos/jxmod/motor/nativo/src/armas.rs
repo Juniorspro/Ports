@@ -63,7 +63,13 @@ pub struct Armas {
     /// cada vez que se empieza a apuntar (el arma calcula dónde va con la pose de ese momento: ARM.apTok)
     pub ap_tok: u32,
     azar: u32,
+    /// la munición limitada (como en GMod, municion.js): prendida, cada tipo tiene su reserva (MUN), que se gasta al recargar
+    pub limitada: bool, pub res: [u32; 7],
 }
+/// los tipos de munición de las armas del juego: nombre, cuánto da una caja y con cuánto se empieza (MUN_TIPOS de la web)
+pub const MUN: [(&str, u32, u32); 7] = [("pistol", 20, 60), ("smg1", 45, 90), ("ar2", 20, 60), ("buckshot", 20, 16), ("357", 6, 12), ("xbowbolt", 6, 5), ("rpg_round", 1, 2)];
+/// la munición que usa un arma (MUN_NATIVAS; las otras con cargador, la de SMG)
+pub fn mun_de(d: &DefArma) -> Option<usize> { if d.car == 0 { return None; } Some(match d.n { "Pistol" => 0, "Revolver" => 4, "Smg" => 1, "Akm" | "Sniper" => 2, "Shotgun" => 3, "RPG" => 6, "Crossbow" => 5, _ => 1 }) }
 
 fn v64(a: [f32; 3]) -> V { [a[0] as f64, a[1] as f64, a[2] as f64] }
 fn qconj(q: Q) -> Q { [-q[0], -q[1], -q[2], q[3]] }
@@ -201,7 +207,9 @@ impl Armas {
     /// retroceso y el apuntar (entra y sale en ~0,2 s). Devuelve true si el golpe atrasado (las manos, el bate) pega ahora
     pub fn relojes(&mut self, dt: f32) -> bool {
         self.t -= dt; if self.ocup > 0.0 { self.ocup -= dt; }
-        if self.recargando > 0.0 { self.recargando -= dt; if self.recargando <= 0.0 { let i = self.i; if let Some(b) = self.balas.get_mut(i) { *b = ARMAS[i].car; } } }
+        if self.recargando > 0.0 { self.recargando -= dt; if self.recargando <= 0.0 { let i = self.i; let lim = self.limitada; let m = mun_de(&ARMAS[i]); if let Some(b) = self.balas.get_mut(i) {
+            // (limitada: toma de la reserva lo que falta para llenar el cargador)
+            if let (true, Some(m)) = (lim, m) { let toma = (ARMAS[i].car.saturating_sub(*b)).min(self.res[m]); self.res[m] -= toma; *b += toma; } else { *b = ARMAS[i].car; } } } }
         self.retro *= (-dt * 14.0).exp();
         let d = self.def(); let si = self.apunta && (d.tipo == "bala" || d.tipo == "perdigones") && !d.mira && self.recargando <= 0.0;
         self.ap_k += ((si as u8 as f32) - self.ap_k) * (dt * 14.0).min(1.0); if self.ap_k < 0.002 && !si { self.ap_k = 0.0; }
@@ -212,11 +220,38 @@ impl Armas {
     pub fn recargar(&mut self, dur_clip: f32) {
         let i = self.i; let d = &ARMAS[i];
         if d.car == 0 || self.balas.get(i).copied().unwrap_or(0) >= d.car || self.recargando > 0.0 { return; }
+        if self.limitada && mun_de(d).is_some_and(|m| self.res[m] == 0) { return; }
         self.recargando = if dur_clip > 0.0 { dur_clip } else { 1.2 }.clamp(0.6, 4.0); self.ocup = self.recargando;
         if !d.recarga.is_empty() { self.anim = Some(d.recarga); }
         if !d.s_r.is_empty() { self.son(d.s_r, 0.7); }
     }
+    /// munReiniciar: cada tipo vuelve a lo del principio (al aparecer)
+    pub fn mun_reiniciar(&mut self) { for (k, m) in MUN.iter().enumerate() { self.res[k] = m.2; } }
+    /// una caja de munición: la de un tipo (None: el cajón con todo —tres cajas de cada una—); sin munición limitada, llena el cargador
+    pub fn mun_caja(&mut self, tipo: Option<usize>) {
+        if !self.limitada { let i = self.i; if let Some(b) = self.balas.get_mut(i) { *b = ARMAS[i].car; } return; }
+        for (k, m) in MUN.iter().enumerate() { if tipo.is_none_or(|t| t == k) { self.res[k] = (self.res[k] + m.1 * if tipo.is_none() { 3 } else { 1 }).min(9999); } }
+    }
+    /// lo que se ve al lado del cargador: la reserva, o ∞
+    pub fn mun_texto(&self, i: usize) -> String { match (self.limitada, mun_de(&ARMAS[i])) { (true, Some(m)) => self.res[m].to_string(), _ => "∞".into() } }
     /// un número al azar entre 0 y 1
     pub fn azar01(&mut self) -> f32 { (self.azar() % 10000) as f32 / 10000.0 }
     fn azar(&mut self) -> u32 { self.azar = self.azar.wrapping_mul(1664525).wrapping_add(1013904223); self.azar >> 16 }
+}
+
+#[cfg(test)]
+mod pruebas_municion {
+    use super::*;
+    /// la munición limitada: recargar toma de la reserva lo que falta; sin reserva no recarga; las cajas la llenan
+    #[test]
+    fn municion_limitada() {
+        let mut a = Armas { balas: ARMAS.iter().map(|d| d.car).collect(), ..Default::default() };
+        let i = ARMAS.iter().position(|d| d.n == "Pistol").unwrap(); a.i = i; let car = ARMAS[i].car;
+        a.limitada = true; a.mun_reiniciar(); assert_eq!(a.res[0], 60);
+        a.balas[i] = 2; a.recargar(1.0); for _ in 0..80 { a.relojes(0.02); }
+        assert_eq!(a.balas[i], car); assert_eq!(a.res[0], 60 - (car - 2));
+        a.res[0] = 0; a.balas[i] = 0; a.recargar(1.0); assert!(a.recargando <= 0.0, "sin reserva no recarga");
+        a.mun_caja(Some(0)); assert_eq!(a.res[0], 20); a.mun_caja(None); assert_eq!(a.res[0], 80); assert_eq!(a.res[6], 2 + 3);
+        assert_eq!(a.mun_texto(i), "80"); a.limitada = false; assert_eq!(a.mun_texto(i), "∞");
+    }
 }

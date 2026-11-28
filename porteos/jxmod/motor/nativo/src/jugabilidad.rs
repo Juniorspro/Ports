@@ -7,6 +7,7 @@
 //! `Jugabilidad` (el campo `jg` del juego); las líneas que lo enganchan a comun.rs están en integrar_jugabilidad.py.
 use super::*;
 use jxjuego::jugador::Entrada;
+use crate::armas::MUN;
 use jxmotor::escena::{ItemDin, LuzP, Mat, Malla, FL_SIN_SOMBRA};
 
 #[path = "des_juego.rs"] pub mod des_juego;
@@ -174,7 +175,7 @@ impl Jugabilidad {
     pub fn nombre_item<'a>(&'a self, it: &'a str) -> &'a str {
         if let Some(m) = MUNDO.iter().find(|m| m.0 == it) { return m.1; }
         if let Some(a) = agua_juego::ITEMS.iter().find(|a| a.0 == it) { return a.1; }
-        match it { "opc:piano" => "Piano gigante", "opc:radio" => "Radio", "opc:volar" => "Volar", "opc:ragdoll" => "Muñeco de trapo", "opc:scp" => "SCP en cuatro patas", "opc:ciclope" => "Cíclope", _ => self.nombres.get(it).map(|s| s.as_str()).unwrap_or(it) }
+        match it { "opc:piano" => "Piano gigante", "opc:radio" => "Radio", "opc:volar" => "Volar", "opc:ragdoll" => "Muñeco de trapo", "opc:scp" => "SCP en cuatro patas", "opc:ciclope" => "Cíclope", "mun:todo" => "Cajón de munición (todo)", "mun:limitada" => "Munición limitada (como en GMod)", "mun:pistol" => "Balas de pistola", "mun:smg1" => "Balas de SMG", "mun:ar2" => "Balas de rifle", "mun:buckshot" => "Cartuchos de escopeta", "mun:357" => "Balas .357", "mun:xbowbolt" => "Flechas de ballesta", "mun:rpg_round" => "Cohetes", _ => self.nombres.get(it).map(|s| s.as_str()).unwrap_or(it) }
     }
     pub fn activo(&self, k: &str) -> bool { self.mods.contains(&k) }
     /// (pruebas) las nucleares que están explotando y las definitivas del Cíclope de los demás
@@ -223,6 +224,9 @@ impl Juego {
           let k = self.catalogo.iter().position(|c| c.0 == "Opciones").map_or(0, |i| i + 1);
           self.catalogo.insert(k, ("Agua".into(), its)); }
         // (los ajustes del mundo: la hora del día —tocar una la pone ya— y el ciclo de día y noche)
+        // (la munición: las cajas de cada tipo, el cajón con todo y «Munición limitada»; municion.js)
+        if !self.catalogo.iter().any(|c| c.0 == "Munición") { let k = self.catalogo.iter().position(|c| c.0 == "Opciones").map_or(0, |i| i + 1);
+            self.catalogo.insert(k, ("Munición".into(), std::iter::once("mun:todo".to_string()).chain(MUN.iter().map(|m| format!("mun:{}", m.0))).chain(std::iter::once("mun:limitada".to_string())).collect())); }
         if !self.catalogo.iter().any(|c| c.0 == "Mundo") { let k = self.catalogo.iter().position(|c| c.0 == "Opciones").map_or(0, |i| i + 1);
             self.catalogo.insert(k, ("Mundo".into(), MUNDO.iter().map(|m| m.0.to_string()).collect())); }
         if let Some(paq) = &self.paq { if let Some(pf) = paq.d["pf"].as_object() { for (k, a) in pf { if let Some(b) = jxjuego::nucleares::Bomba::de(&a[0]) { self.jg.nombres.insert(k.split('#').next().unwrap_or(k).to_string(), b.n.clone()); } } } }
@@ -362,10 +366,21 @@ impl Juego {
         }
         if let Some(d) = &self.datos { let _ = std::fs::write(d.join("ajustes.txt"), self.aj.texto()); }
     }
+    /// la munición del menú (munPoner1): una caja de un tipo o el cajón con todo; «Munición limitada» se prende y apaga
+    fn mun_poner(&mut self, k: &str) {
+        if k == "limitada" {
+            self.aj.mun_lim = !self.aj.mun_lim; if let Some(d) = &self.datos { let _ = std::fs::write(d.join("ajustes.txt"), self.aj.texto()); }
+            self.avisar(if self.aj.mun_lim { "Munición limitada: prendida (cada tipo tiene su reserva; se gasta al recargar)".into() } else { "Munición limitada: apagada (reserva infinita)".into() });
+            return;
+        }
+        let tipo = MUN.iter().position(|m| m.0 == k); self.armas.mun_caja(tipo); self.sonido.tocar("UI_blip", 0.35, 1.0, None);
+        self.avisar(if self.armas.limitada { format!("{}: a la reserva", self.jg.nombre_item(&format!("mun:{k}"))) } else { "Cargador lleno (la reserva es infinita; prendé Munición limitada para contarla)".into() });
+    }
     /// poner algo del menú: las Opciones se prenden y apagan (ui.js: modAlternar)
     pub(super) fn jg_poner(&mut self, nombre: &str) -> bool {
         if let Some(k) = nombre.strip_prefix("mundo:") { self.mundo_poner(k); return true; }
         if let Some(k) = nombre.strip_prefix("agua:") { return self.agua_poner(k); }
+        if let Some(k) = nombre.strip_prefix("mun:") { self.mun_poner(k); return true; }
         let Some(k) = nombre.strip_prefix("opc:") else { return false };
         // (el piano gigante: se pone delante —o se trae, si ya está—; entidadPonerMod)
         if k == "radio" { self.jg.ents.poner = Some("radio"); self.avisar("Radio: mirala y tocá Usar para elegir una emisora".into()); return true; }

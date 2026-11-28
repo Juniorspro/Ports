@@ -423,7 +423,7 @@ impl super::Juego {
                 let k = self.armas.i; let lado = bh * 0.56;
                 if self.armas_ico { super::rect_uv(ia, b.x - lado / 2.0, b.y - lado / 2.0 - bh * 0.08, lado, lado, self.uv_arma(k), [1.0; 4]); }
                 if d.car > 0 {
-                    let s = format!("{} | ∞", self.armas.balas.get(k).copied().unwrap_or(d.car)); let tt = 10.0 * c; let an = l.ancho(tt, &s) + 10.0 * c; let ah = tt * 1.35;
+                    let s = format!("{} | {}", self.armas.balas.get(k).copied().unwrap_or(d.car), self.armas.mun_texto(k)); let tt = 10.0 * c; let an = l.ancho(tt, &s) + 10.0 * c; let ah = tt * 1.35;
                     l.caja(u, b.x - an / 2.0, y + bh - 3.0 * c - ah, an, ah, 6.0 * c, [10.0 / 255.0, 11.0 / 255.0, 14.0 / 255.0, 0.78]);
                     l.texto(u, b.x - an / 2.0 + 5.0 * c, y + bh - 3.0 * c - ah + tt * 0.12, tt, [1.0; 4], &s);
                 } else {

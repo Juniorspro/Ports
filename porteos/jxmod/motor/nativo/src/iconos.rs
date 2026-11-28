@@ -273,6 +273,7 @@ pub const COLOR: &[(&str, &str)] = &[
     ("ico_mod", include_str!("../../../juego/iconos/mod.svg")),
     ("ico_animacion", include_str!("../../../juego/iconos/animacion.svg")),
     ("ico_volar", include_str!("../../../juego/iconos/volar.svg")),
+    ("ico_balas", include_str!("../../../juego/iconos/balas.svg")),
     ("ico_ragdoll", include_str!("../../../juego/iconos/ragdoll.svg")),
     ("ico_scp", include_str!("../../../juego/iconos/scp.svg")),
     ("ico_ciclope", include_str!("../../../juego/iconos/ciclope.svg")),

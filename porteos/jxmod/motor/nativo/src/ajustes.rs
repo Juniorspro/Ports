@@ -51,6 +51,8 @@ pub struct Ajustes {
     pub quien: bool,
     /// el botón de emotes abre la ruleta (si no, la lista de emotes)
     pub ruleta: bool,
+    /// la munición limitada (como en GMod: Props → Munición)
+    pub mun_lim: bool,
     /// la distancia de dibujo de los props de los mapas (%: 50 más liviano … 150 más lejos)
     pub dist: u32,
     /// la hora del día y si avanza sola (como DIA de la web, no se guardan: cada vez empieza a las 12)
@@ -80,7 +82,7 @@ pub struct Ajustes {
     pub menus: u32,
 }
 impl Default for Ajustes {
-    fn default() -> Self { Ajustes { calidad: 4, res: 0, sombras: true, ao: true, reflejo: true, retoque: true, sens: 12, fov: 70, fps: true, vol: 80, ambiente: true, espacial: true, voces: true, npc_max: 24, sin_ui: false, quien: true, ruleta: true, dist: 100, hora: 12.0, ciclo: false, auto: true, medido: None, hud: 80, pal: 100, hud_pos: String::new(), tut: false, cont: false, dinamica: true, turbo: true, idioma: None, musica: true, menus: 80 } }
+    fn default() -> Self { Ajustes { calidad: 4, res: 0, sombras: true, ao: true, reflejo: true, retoque: true, sens: 12, fov: 70, fps: true, vol: 80, ambiente: true, espacial: true, voces: true, npc_max: 24, sin_ui: false, quien: true, ruleta: true, mun_lim: false, dist: 100, hora: 12.0, ciclo: false, auto: true, medido: None, hud: 80, pal: 100, hud_pos: String::new(), tut: false, cont: false, dinamica: true, turbo: true, idioma: None, musica: true, menus: 80 } }
 }
 
 /// lo que se puede tocar en el menú, un renglón cada uno
@@ -126,7 +128,7 @@ impl Ajustes {
                 "sombras" => a.sombras = b, "ao" => a.ao = b, "reflejo" => a.reflejo = b, "retoque" => a.retoque = b,
                 "sens" => if let Some(n) = n { a.sens = n.clamp(1, 40) },
                 "fov" => if let Some(n) = n { a.fov = n.clamp(50, 110) },
-                "fps" => a.fps = b, "musica" => a.musica = b, "menus" => if let Some(n) = n { a.menus = n.clamp(50, 120) }, "vol" => if let Some(n) = n { a.vol = n.min(100) }, "ambiente" => a.ambiente = b, "espacial" => a.espacial = b, "voces" => a.voces = b, "sinui" => a.sin_ui = b, "quien" => a.quien = b, "ruleta" => a.ruleta = b, "dist" => if let Some(n) = n { a.dist = if DIST.contains(&n) { n } else { 100 } }, "npcmax" => if let Some(n) = n { a.npc_max = if [0, 24, 50, 100, 200].contains(&(n as usize)) { n as usize } else { 24 } },
+                "fps" => a.fps = b, "musica" => a.musica = b, "menus" => if let Some(n) = n { a.menus = n.clamp(50, 120) }, "vol" => if let Some(n) = n { a.vol = n.min(100) }, "ambiente" => a.ambiente = b, "espacial" => a.espacial = b, "voces" => a.voces = b, "sinui" => a.sin_ui = b, "quien" => a.quien = b, "ruleta" => a.ruleta = b, "munlim" => a.mun_lim = b, "dist" => if let Some(n) = n { a.dist = if DIST.contains(&n) { n } else { 100 } }, "npcmax" => if let Some(n) = n { a.npc_max = if [0, 24, 50, 100, 200].contains(&(n as usize)) { n as usize } else { 24 } },
                 "auto" => a.auto = b,
                 "hud" => if let Some(n) = n { a.hud = n.clamp(60, 120) }, "pal" => if let Some(n) = n { a.pal = n.clamp(60, 160) },
                 "hudpos" => a.hud_pos = v.to_string(), "idioma" => if jxjuego::idiomas::de_codigo(v).is_some() { a.idioma = Some(v.to_string()) }, "tut" => a.tut = b, "cont" => a.cont = b, "din2" => a.dinamica = b, "turbo" => a.turbo = b,
@@ -141,7 +143,7 @@ impl Ajustes {
         let mut t = format!("calidad={}\nres2={}\nsombras={}\nao={}\nreflejo={}\nretoque={}\nsens={}\nfov={}\nfps={}\nvol={}\nambiente={}\nauto={}\n",
             if self.calidad >= 5 { if self.calidad == PERSONAL { 5 } else { 4 } } else { self.calidad }, self.res, b(self.sombras), b(self.ao), b(self.reflejo), b(self.retoque), self.sens, self.fov, b(self.fps), self.vol, b(self.ambiente), b(self.auto));
         if let Some((q, g)) = &self.medido { t += &format!("medido={q}|{}\n", g.replace('\n', " ")); }
-        t += &format!("hud={}\npal={}\ntut={}\ncont={}\ndin2={}\nturbo={}\nmusica={}\nmenus={}\n", self.hud, self.pal, b(self.tut), b(self.cont), b(self.dinamica), b(self.turbo), b(self.musica), self.menus); t += &format!("espacial={}\nvoces={}\nnpcmax={}\nsinui={}\nquien={}\ndist={}\nruleta={}\n", b(self.espacial), b(self.voces), self.npc_max, b(self.sin_ui), b(self.quien), self.dist, b(self.ruleta)); if !self.hud_pos.is_empty() { t += &format!("hudpos={}\n", self.hud_pos.replace('\n', "")); }
+        t += &format!("hud={}\npal={}\ntut={}\ncont={}\ndin2={}\nturbo={}\nmusica={}\nmenus={}\n", self.hud, self.pal, b(self.tut), b(self.cont), b(self.dinamica), b(self.turbo), b(self.musica), self.menus); t += &format!("espacial={}\nvoces={}\nnpcmax={}\nsinui={}\nquien={}\ndist={}\nruleta={}\nmunlim={}\n", b(self.espacial), b(self.voces), self.npc_max, b(self.sin_ui), b(self.quien), self.dist, b(self.ruleta), b(self.mun_lim)); if !self.hud_pos.is_empty() { t += &format!("hudpos={}\n", self.hud_pos.replace('\n', "")); }
         if let Some(i) = &self.idioma { t += &format!("idioma={i}\n"); }
         // (la calidad con Definitivo: va al final para mandar sobre «calidad»; ésa queda para las versiones de antes —Personal en 5—)
         t += &format!("calidad2={}\n", self.calidad);

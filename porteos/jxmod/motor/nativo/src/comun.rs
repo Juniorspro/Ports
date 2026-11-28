@@ -1137,11 +1137,13 @@ impl Juego {
             marca(&mut self.perf, &mut self.perf_t, 1);
             self.npcs.paso(dt, &mp.mundo, &mut self.fis, &Gente::de_jugador(&self.jug), self.ojos_ult);
             marca(&mut self.perf, &mut self.perf_t, 2);
+            // (la munición limitada: al prenderse, cada tipo arranca con lo del principio)
+            if self.armas.limitada != self.aj.mun_lim { self.armas.limitada = self.aj.mun_lim; if self.armas.limitada { self.armas.mun_reiniciar(); } }
             // (se cayó del mapa o se ahogó: vuelve a aparecer)
             if self.jug.pos[1] < mp.mundo.lo[1] - 60.0 || (self.jug.vida <= 0.0 && !self.gmod_retiene_muerte()) {
                 if self.jug.vida <= 0.0 { self.aviso = Some((if self.muerto { "Te moriste".into() } else { "Te ahogaste".into() }, Instant::now())); }
                 self.muerto = false;
-                let sp = self.her.spawn.map(|p| [p[0], p[1] + 0.2, p[2]]).or(mp.spawns.first().map(|s| s.0)).unwrap_or([0.0, 1.0, 0.0]); self.jug.aparecer(&mp.mundo, sp, None); self.jug.vida = 100.0; self.jug.aire = 12.0;
+                let sp = self.her.spawn.map(|p| [p[0], p[1] + 0.2, p[2]]).or(mp.spawns.first().map(|s| s.0)).unwrap_or([0.0, 1.0, 0.0]); self.jug.aparecer(&mp.mundo, sp, None); self.jug.vida = 100.0; self.jug.aire = 12.0; self.armas.mun_reiniciar();
             }
         }
         // lo que pasó en el mundo: los NPC y los vehículos (sonidos, daño, el que sale despedido) y el agua
