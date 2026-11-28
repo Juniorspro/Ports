@@ -1,9 +1,9 @@
 {
- "codigo": 26112731,
- "version": "0.64",
+ "codigo": 26112732,
+ "version": "0.65",
  "apk": "jxmod/JXModNativo.apk",
  "tam": 77269584,
- "sha256": "bd214c835ac17563e4519c86c5a444a26f3559c9d57e612613724498a0438af5",
- "notas_es": "Ajustes → Controles → Tu logo: elegí una imagen del celular y pasa a ser el logo del menú (El de JXMod lo vuelve a poner).",
- "notas_en": "Settings → Controls → Your logo: pick an image to use as the menu logo."
+ "sha256": "20f41efd774f688e2eb1c8ef08d5dd1d121ab1c57574edec72b8b9bb47cf2b91",
+ "notas_es": "Ajustes → Controles → Tu logo → Acceso directo: pone en la pantalla de inicio un ícono con tu logo que abre el juego.",
+ "notas_en": "Your logo → Shortcut: adds a home screen icon with your logo."
 }
