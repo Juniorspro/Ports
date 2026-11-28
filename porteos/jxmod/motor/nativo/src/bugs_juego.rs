@@ -15,6 +15,8 @@ pub trait ArchivoApp {
     fn olvidar(&self);
     /// (Tu logo) la foto elegida, en PNG de hasta 512 px, a `dst`
     fn png(&self, _dst: &str) -> bool { false }
+    /// (Tu logo → Acceso directo) un ícono en la pantalla de inicio con esa imagen
+    fn atajo(&self, _png: &str, _nombre: &str) -> bool { false }
 }
 
 /// los apartados: tipo en el servidor, nombre e ícono

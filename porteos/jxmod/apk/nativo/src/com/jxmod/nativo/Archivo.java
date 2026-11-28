@@ -30,6 +30,26 @@ public class Archivo {
     private static int ancho, alto; private static double dur;
 
     public static synchronized String estado() { return estado; }
+    /** «Tu logo» → Acceso directo (milogo.js): un ícono en la pantalla de inicio con tu logo que abre el juego (Android 8 o más
+     * nuevo pregunta dónde ponerlo; Android 7 lo pone solo) */
+    @SuppressWarnings("deprecation")
+    public static boolean atajo(Activity a, String png, String nombre) {
+        try {
+            android.graphics.Bitmap b = BitmapFactory.decodeFile(png); if (b == null) return false;
+            Intent abrir = a.getPackageManager().getLaunchIntentForPackage(a.getPackageName()); if (abrir == null) return false;
+            abrir.setAction(Intent.ACTION_MAIN);
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                android.content.pm.ShortcutManager sm = a.getSystemService(android.content.pm.ShortcutManager.class);
+                if (sm == null || !sm.isRequestPinShortcutSupported()) return false;
+                android.content.pm.ShortcutInfo si = new android.content.pm.ShortcutInfo.Builder(a, "jx_logo_" + (System.currentTimeMillis() / 1000)).setShortLabel(nombre)
+                    .setIcon(android.graphics.drawable.Icon.createWithBitmap(b)).setIntent(abrir).build();
+                return sm.requestPinShortcut(si, null);
+            }
+            Intent i = new Intent("com.android.launcher.action.INSTALL_SHORTCUT");
+            i.putExtra(Intent.EXTRA_SHORTCUT_INTENT, abrir); i.putExtra(Intent.EXTRA_SHORTCUT_NAME, nombre); i.putExtra(Intent.EXTRA_SHORTCUT_ICON, b);
+            a.sendBroadcast(i); return true;
+        } catch (Throwable t) { return false; }
+    }
     /** «Tu logo» (milogo.js): la foto elegida pasada a PNG de hasta 512 px en `dst` (Rust sólo lee PNG y WebP) */
     public static boolean png(String dst) {
         File f; synchronized (Archivo.class) { f = copia; }

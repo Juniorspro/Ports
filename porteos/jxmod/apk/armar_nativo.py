@@ -24,6 +24,7 @@ MANIFIESTO = """<?xml version="1.0" encoding="utf-8"?>
   <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
   <!-- (las versiones nuevas se bajan desde la app y se instalan encima: Actualizar.java) -->
   <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+  <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT"/>
   <!-- (la voz por cercanía: el micrófono, se pide al prender el botón; y los efectos de voz del celular) -->
   <uses-permission android:name="android.permission.RECORD_AUDIO"/>
   <!-- (si hay internet: la música del menú por YouTube o la del paquete) -->

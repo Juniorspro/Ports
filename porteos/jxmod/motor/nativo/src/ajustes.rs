@@ -184,7 +184,7 @@ impl Ajustes {
             // (el primero abre el editor —lo hace el juego—; el segundo vuelve todo a como viene)
             Clave::Botones => vec!["Mover y agrandar".into(), "De fábrica".into()],
             Clave::NpcMax => ["24", "50", "100", "200", "Sin límite"].iter().map(|x| x.to_string()).collect(),
-            Clave::MiMusica => vec!["Abrir".into()], Clave::Logo => vec!["Elegir una imagen".into(), "El de JXMod".into()], Clave::FpsMax => FPS_MAX.iter().map(|x| match *x { 0 => "Pantalla".to_string(), 9999 => "Sin límite".to_string(), n => n.to_string() }).collect(), Clave::Dist => num(&DIST, "%"),
+            Clave::MiMusica => vec!["Abrir".into()], Clave::Logo => vec!["Elegir una imagen".into(), "El de JXMod".into(), "Acceso directo".into()], Clave::FpsMax => FPS_MAX.iter().map(|x| match *x { 0 => "Pantalla".to_string(), 9999 => "Sin límite".to_string(), n => n.to_string() }).collect(), Clave::Dist => num(&DIST, "%"),
             Clave::Motor | Clave::Mapa => vec![],
             // (la comparación de FPS entre los motores: la arranca el juego, banco_juego.rs)
             Clave::Comparar => vec!["Empezar".into()],

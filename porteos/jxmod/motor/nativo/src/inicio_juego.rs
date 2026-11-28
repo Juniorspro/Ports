@@ -172,6 +172,12 @@ impl Juego {
     /// «Tu logo» (milogo.js): elegir una imagen del celular y que sea el logo del menú; la segunda opción vuelve al de JXMod
     pub(crate) fn logo_accion(&mut self, k: usize) {
         if k == 1 { if let Some(d) = &self.datos { let _ = std::fs::remove_file(d.join("logo.png")); } self.ini_sacar_foto("logo"); self.avisar("Volvió el logo de JXMod".into()); return; }
+        // (el acceso directo con tu logo en la pantalla de inicio: el celular pregunta dónde ponerlo)
+        if k == 2 {
+            let Some(p) = self.datos.as_ref().map(|d| d.join("logo.png")).filter(|p| p.exists()) else { self.avisar("Primero elegí tu logo (Elegir una imagen)".into()); return };
+            let ok = self.ini.pn.bf.app.as_ref().is_some_and(|a| a.atajo(&p.to_string_lossy(), "JXMod"));
+            self.avisar(if ok { "Acceso directo: confirmá en el aviso del celular dónde ponerlo".into() } else { "Este celular no deja agregar accesos directos".into() }); return;
+        }
         let hay = match &self.ini.pn.bf.app { Some(a) => { a.olvidar(); a.elegir(); true } None => false };
         if hay { self.ini.logo_elige = true; } else { self.avisar("Elegir una imagen sólo anda en el celular".into()); }
     }
