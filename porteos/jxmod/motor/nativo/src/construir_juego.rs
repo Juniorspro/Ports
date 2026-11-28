@@ -60,9 +60,9 @@ impl Juego {
     /// prender o apagar el modo construcción (Props → Opciones)
     pub fn cons_alternar(&mut self) {
         let c = &mut self.cons;
-        if c.activo { c.activo = false; self.jug.noclip = c.noclip_antes; c.fuente = None; c.holo = None; self.avisar("Modo construcción: apagado".into()); }
+        if c.activo { c.activo = false; c.fuente = None; c.holo = None; self.avisar("Modo construcción: apagado".into()); }
         else {
-            c.activo = true; c.repetir = true; c.noclip_antes = self.jug.noclip; self.jug.noclip = true; if c.paso[0] <= 0.0 { c.paso = [1.0; 3]; }
+            c.activo = true; c.repetir = true; if c.paso[0] <= 0.0 { c.paso = [1.0; 3]; }
             self.avisar("Construcción: la Physics Gun acomoda, la Tool Gun copia".into());
         }
     }
@@ -75,26 +75,34 @@ impl Juego {
     }
     /// cada cuadro: acomodar lo que se soltó con la Physics Gun y llevar el holograma
     pub(crate) fn cons_paso(&mut self) {
-        if !self.cons.activo { return; }
-        if self.mapa.is_none() { self.cons.activo = false; return; }
-        self.jug.noclip = true;
-        let ahora = self.armas.agarre.as_ref().map(|a| a.id);
-        if let Some(id) = ahora { if let Some(b) = self.fis.cuerpo(id) { let a = b.aabb(); self.cons.paso = [(a[3] - a[0]) as f32, (a[4] - a[1]) as f32, (a[5] - a[2]) as f32]; } }
-        if let Some(id) = self.cons.tenido.filter(|t| Some(*t) != ahora) { self.cons_acomodar(id); }
-        self.cons.tenido = ahora;
+        if self.mapa.is_none() { self.cons.activo = false; }
+        // (la Tool Gun en Duplicate copia con el holograma también fuera del modo construcción)
+        let dup = self.cons_dup();
+        if !self.cons.activo && !dup { if self.cons.fuente.take().is_some() { self.cons.holo = None; } return; }
+        if self.cons.activo {
+            let ahora = self.armas.agarre.as_ref().map(|a| a.id);
+            if let Some(id) = ahora { if let Some(b) = self.fis.cuerpo(id) { let a = b.aabb(); self.cons.paso = [(a[3] - a[0]) as f32, (a[4] - a[1]) as f32, (a[5] - a[2]) as f32]; } }
+            if let Some(id) = self.cons.tenido.filter(|t| Some(*t) != ahora) { self.cons_acomodar(id); }
+            self.cons.tenido = ahora;
+        }
         let (o, d) = (self.ojos_ult, self.mira());
         self.cons.punto = self.mapa.as_ref().and_then(|mp| self.fis.rayo(&mp.mundo, [o[0] as f64, o[1] as f64, o[2] as f64], [d[0] as f64, d[1] as f64, d[2] as f64], 60.0, &[]))
             .map(|g| ([g.p[0] as f32, g.p[1] as f32, g.p[2] as f32], [g.n[0] as f32, g.n[1] as f32, g.n[2] as f32]));
         self.cons.holo = self.cons_holo();
     }
-    /// un prop a la cuadrícula: derecho, de a 90°, sus bordes en las líneas y congelado
+    /// la Tool Gun en la mano con Duplicate elegida
+    fn cons_dup(&self) -> bool { self.armas.def().n == "ToolBaton" && self.her.lista.get(self.her.sel).is_some_and(|h| h.n == "Duplicate") }
+    /// un prop a la cuadrícula: derecho, de a 90°, sus bordes en las líneas y congelado; la altura no se redondea (si no, una pared
+    /// alta quedaba flotando): si abajo hay piso o un prop a menos de 1 m, se apoya ahí
     fn cons_acomodar(&mut self, id: u32) {
         let Some(b) = self.fis.cuerpo_mut(id) else { return };
         let q = q_recto([b.q[0] as f32, b.q[1] as f32, b.q[2] as f32, b.q[3] as f32]);
         b.q = [q[0] as f64, q[1] as f64, q[2] as f64, q[3] as f64]; b.vel = [0.0; 3]; b.ang = [0.0; 3]; b.actualizar();
         let a = b.aabb(); let tam = [(a[3] - a[0]) as f32, (a[4] - a[1]) as f32, (a[5] - a[2]) as f32];
         let (cx, cz) = (((a[0] + a[3]) * 0.5) as f32, ((a[2] + a[5]) * 0.5) as f32); let abajo = a[1] as f32;
-        let (nx, nz, ny) = (a_grilla(cx, tam[0]), a_grilla(cz, tam[2]), a_grilla_y(abajo, tam[1]));
+        let (nx, nz) = (a_grilla(cx, tam[0]), a_grilla(cz, tam[2]));
+        let ny = self.mapa.as_ref().and_then(|mp| self.fis.rayo(&mp.mundo, [nx as f64, abajo as f64 + 0.02, nz as f64], [0.0, -1.0, 0.0], 1.0, &[id])).map(|g| g.p[1] as f32).unwrap_or(abajo);
+        let Some(b) = self.fis.cuerpo_mut(id) else { return };
         b.pos = [b.pos[0] + (nx - cx) as f64, b.pos[1] + (ny - abajo) as f64, b.pos[2] + (nz - cz) as f64];
         b.prev_pos = b.pos; b.prev_q = b.q; b.congelado = true; b.actualizar();
         self.cons.paso = tam; self.sonido.tocar("Click", 0.35, 1.2, None);
@@ -112,13 +120,13 @@ impl Juego {
         let (p, n) = self.cons.punto?;
         // (apoyado en la cara que apuntás, corrido medio prop hacia afuera)
         let c = [p[0] + n[0] * f.tam[0] * 0.5, p[1] + n[1] * f.tam[1] * 0.5, p[2] + n[2] * f.tam[2] * 0.5];
-        let abajo = a_grilla_y(c[1] - f.tam[1] * 0.5, f.tam[1]);
+        let abajo = c[1] - f.tam[1] * 0.5;
         Some([a_grilla(c[0], f.tam[0]), abajo + f.tam[1] * 0.5, a_grilla(c[2], f.tam[2])])
     }
     /// la Tool Gun en el modo construcción: el primer disparo elige qué copiar; los siguientes ponen la copia en el holograma;
     /// el «2» la suelta. true si lo usó
     pub unsafe fn cons_disparo(&mut self, m: &mut Motor3d, alt: bool) -> bool {
-        if !self.cons.activo { return false; }
+        if !self.cons.activo && !self.cons_dup() { return false; }
         if alt { if self.cons.fuente.take().is_some() { self.cons.holo = None; self.avisar("Copia soltada".into()); return true; } return false; }
         if let (Some(f), Some(p)) = (self.cons.fuente.clone(), self.cons.holo) {
             match self.crear(m, &f.nombre, [p[0] + f.off[0], p[1] + f.off[1], p[2] + f.off[2]], f.q, true, true) {
@@ -138,20 +146,20 @@ impl Juego {
         let Some(mp) = self.mapa.as_ref() else { return true };
         let r = self.fis.rayo(&mp.mundo, [o[0] as f64, o[1] as f64, o[2] as f64], [d[0] as f64, d[1] as f64, d[2] as f64], 80.0, &[]);
         let Some(i) = r.and_then(|g| g.cuerpo).and_then(|c| self.objs.iter().position(|x| x.cuerpo == Some(c))) else { self.avisar("Pegale a un prop para copiarlo".into()); return true };
-        let Some(b) = self.objs[i].cuerpo.and_then(|c| self.fis.cuerpo(c)) else { return true };
-        let a = b.aabb();
-        let f = Fuente { nombre: self.objs[i].nombre.clone(), q: q_recto([b.q[0] as f32, b.q[1] as f32, b.q[2] as f32, b.q[3] as f32]),
+        let Some(cid) = self.objs[i].cuerpo else { return true };
+        let (qr, a, pos) = { let Some(b) = self.fis.cuerpo_mut(cid) else { return true }; let q0 = b.q; let qr = q_recto([q0[0] as f32, q0[1] as f32, q0[2] as f32, q0[3] as f32]);
+            b.q = [qr[0] as f64, qr[1] as f64, qr[2] as f64, qr[3] as f64]; b.actualizar(); let a = b.aabb(); let pos = b.pos; b.q = q0; b.actualizar(); (qr, a, pos) };
+        let f = Fuente { nombre: self.objs[i].nombre.clone(), q: qr,
             tam: [(a[3] - a[0]) as f32, (a[4] - a[1]) as f32, (a[5] - a[2]) as f32], base: [((a[0] + a[3]) * 0.5) as f32, ((a[1] + a[4]) * 0.5) as f32, ((a[2] + a[5]) * 0.5) as f32],
             log: self.objs[i].logica.as_ref().map(|l| (l.tipo.clone(), l.params.clone())),
-            off: [(b.pos[0] - (a[0] + a[3]) * 0.5) as f32, (b.pos[1] - (a[1] + a[4]) * 0.5) as f32, (b.pos[2] - (a[2] + a[5]) * 0.5) as f32], cap: self.objs[i].cap_inv, c: self.objs[i].c };
+            off: [(pos[0] - (a[0] + a[3]) * 0.5) as f32, (pos[1] - (a[1] + a[4]) * 0.5) as f32, (pos[2] - (a[2] + a[5]) * 0.5) as f32], cap: self.objs[i].cap_inv, c: self.objs[i].c };
         let n = self.jg.nombre_item(&f.nombre).to_string(); self.cons.paso = f.tam; self.cons.fuente = Some(f); self.cons.delta = None; if self.cons.eje < 3 { let e = self.cons.eje; self.cons_eje(e); }
         self.avisar(format!("Copiando {n}: elegí el eje y disparo pone"));
         true
     }
     /// lo que se ve: la cuadrícula donde apuntás, y el holograma (el contorno de la copia) con la línea desde donde sale
     pub(super) fn cons_items(&self, items: &mut Vec<jxmotor::escena::ItemDin>) {
-        if !self.cons.activo { return; }
-        {
+        if self.cons.activo {
             if let Some((g, _)) = self.cons.punto {
                 let s = self.cons.paso; let (sx, sz) = (s[0].max(0.25), s[2].max(0.25)); let y = g[1] + 0.015;
                 let (bx, bz) = ((g[0] / sx).floor() * sx, (g[2] / sz).floor() * sz); const N: i32 = 6;

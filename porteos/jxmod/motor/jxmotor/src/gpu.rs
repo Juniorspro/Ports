@@ -18,6 +18,9 @@ pub struct Opciones {
     /// fracción del tamaño de la pantalla a la que se dibuja la escena (0,5 = la cuarta parte de los píxeles)
     pub escala: f32,
     pub sombras: bool, pub sombra_px: i32, pub sombra_cada: u32, pub sombra_radio: f32,
+    /// cuántas cascadas de sombra: 2 (cerca fina + lejos) o 1 —como Hyper Sandbox: un solo mapa centrado en la cámara que
+    /// cubre todo el radio; la mitad de dibujo de sombras—
+    pub cascadas: u8,
     pub reflejo: bool, pub reflejo_div: i32, pub reflejo_cada: u32,
     /// la vista que se acostumbra (exposición automática): al entrar a la sombra todo se aclara de a poco; al salir, encandila y
     /// se acomoda
@@ -40,14 +43,16 @@ pub struct Opciones {
     pub turbo: bool,
     /// la reconstrucción temporal: con la escena a menos píxeles que la pantalla, juntar varios cuadros corridos (pasada_taa)
     pub taa: bool,
+    /// el gráfico Simple: el sombreado de luz sin lo caro (FS_LUZ con SIMPLE)
+    pub simple: bool,
 }
 impl Default for Opciones {
-    fn default() -> Self { Opciones { escala: 1.0, sombras: true, sombra_px: 2048, sombra_cada: 1, sombra_radio: 45.0, reflejo: true, reflejo_div: 2, reflejo_cada: 1, adapta: true, ao: true, ao_fuerza: 0.6, retoque: true, prepaso: true, rayos: false, hongo: 3, aaa: false, turbo: false, taa: false } }
+    fn default() -> Self { Opciones { escala: 1.0, sombras: true, sombra_px: 2048, sombra_cada: 1, sombra_radio: 45.0, cascadas: 2, reflejo: true, reflejo_div: 2, reflejo_cada: 1, adapta: true, ao: true, ao_fuerza: 0.6, retoque: true, prepaso: true, rayos: false, hongo: 3, aaa: false, turbo: false, taa: false, simple: false } }
 }
 impl Opciones {
     /// lo que se elige para un celular de 1 GB con una placa floja: dos tercios de la resolución, sombra de 1024 cada 2
     /// cuadros y reflejo a un cuarto cada 2
-    pub fn celular_flojo() -> Self { Opciones { escala: 0.67, sombras: true, sombra_px: 1024, sombra_cada: 2, sombra_radio: 35.0, reflejo: true, reflejo_div: 4, reflejo_cada: 2, adapta: true, ao: false, ao_fuerza: 0.6, retoque: true, prepaso: true, rayos: false, hongo: 3, aaa: false, turbo: false, taa: false } }
+    pub fn celular_flojo() -> Self { Opciones { escala: 0.67, sombras: true, sombra_px: 1024, sombra_cada: 2, sombra_radio: 35.0, cascadas: 2, reflejo: true, reflejo_div: 4, reflejo_cada: 2, adapta: true, ao: false, ao_fuerza: 0.6, retoque: true, prepaso: true, rayos: false, hongo: 3, aaa: false, turbo: false, taa: false, simple: false } }
 }
 
 struct MallaGL { vao: glow::VertexArray, bufs: Vec<glow::Buffer>, i32: bool, mn: [f32; 3], sc: [f32; 3], lm: i64, piel: bool, bytes: usize }
@@ -222,6 +227,11 @@ float pcf(vec3 q, float k, float b) {
 }
 float sombra(float nd) {
   if (uSombra < 0.5) return 1.0;
+#ifdef SIMPLE
+  // (Simple, como el de Hyper Sandbox: sombra dura —una lectura con comparación— y sólo la cercana)
+  { vec3 q = vS; if (max(abs(q.x - 0.5), abs(q.y - 0.5)) >= 0.485 || q.z >= 1.0) return 1.0;
+    return texture(uSM, vec3(q.x * 0.5, q.y, q.z - uSesgo.x * (1.0 + 2.0 * (1.0 - nd)))); }
+#endif
   float inc = 1.0 + 2.0 * (1.0 - nd);
 #ifdef SOMBRA_PX
   vec3 nn = normalize(vN + vec3(1e-6)); vec3 q0 = (uSVP * vec4(vW + nn * uSesgo.y, 1.0)).xyz, q1 = (uSVP2 * vec4(vW + nn * uSesgo2.y, 1.0)).xyz;
@@ -298,13 +308,20 @@ void main() {
     else { sh = nl > 0.0 ? sombra(max(nl, 0.0)) : 0.0; col = brdf(n, v, uSol, dif, f0, a) * uSolC * sh; }
 #endif
     if (fol) { float tr = max(dot(-v, uSol), 0.0); tr *= tr; col += dif * uSolC * (tr * tr) * 0.6 * sh; }   // (luz que atraviesa las hojas)
+#ifndef SIMPLE
     if (uCaus.y > 0.0 && vW.y < uCaus.x && vW.x > uCausB.x && vW.x < uCausB.z && vW.z > uCausB.y && vW.z < uCausB.w && uSol.y > 0.0) {
       float hondo = uCaus.x - vW.y;
       float k = causticas(vW.xz * 1.1 + uSol.xz * hondo * 0.6, uCaus.z * 0.9) * exp(-hondo * 0.18) * smoothstep(0.0, 0.35, hondo) * (0.3 + 0.7 * max(n.y, 0.0)) * uCaus.y;
       col += dif * uSolC * k * (lm ? 0.3 : 0.15 + 0.4 * sh);
     }
+#endif
     // (lo plano a esa altura —la normal sin el relieve—; el relieve del material ondula el reflejo, como un piso mojado de HL2)
-    if (uRP.z > 0.5 && ng.y > 0.94 && abs(vW.y - uRP.w) < 0.08) { float fr = 1.0 - max(dot(n, v), 0.0); fr *= fr; rk = smoothstep(0.82, 0.3, min(rough, 0.68)) * mix(0.3, 1.0, fr * fr); rRough = rough; rOnd = (n.xz - ng.xz) * 0.06; }
+#ifdef SIMPLE
+    if (false) {
+#else
+    if (uRP.z > 0.5 && ng.y > 0.94 && abs(vW.y - uRP.w) < 0.08) {
+#endif
+      float fr = 1.0 - max(dot(n, v), 0.0); fr *= fr; rk = smoothstep(0.82, 0.3, min(rough, 0.68)) * mix(0.3, 1.0, fr * fr); rRough = rough; rOnd = (n.xz - ng.xz) * 0.06; }
 #ifndef DBG_SIN_LUCES
     for (int i = 0; i < 12; i++) {
       if (i >= uLN) break;
@@ -326,7 +343,12 @@ void main() {
 #endif
     float hor = clamp(1.0 + 1.3 * dot(rf, ng), 0.0, 1.0); env *= hor * hor;
     // (Definitivo: la luz global —adentro de una casa la luz del cielo se apaga; la del sol que entra rebota y la ilumina—)
-    if (uGIn.w > 0.5 && !lm) { vec2 gi = luzGlobal(vW + ng * 0.6, ng);
+#ifdef SIMPLE
+    if (false) {
+#else
+    if (uGIn.w > 0.5 && !lm) {
+#endif
+      vec2 gi = luzGlobal(vW + ng * 0.6, ng);
       // (el cielo que ve esa cara: adentro, poco —por la puerta, la pared de enfrente—; el rebote del sol y del cielo en lo que
       // está iluminado, del color del sol, un poco más donde el cielo no llega —adentro es la luz principal—)
       amb *= mix(0.16, 1.0, gi.x); env *= mix(0.2, 1.0, gi.x);
@@ -953,6 +975,8 @@ pub fn prueba(n: &str) -> bool { (ab() || std::env::var_os("JXM_PRUEBA_SIEMPRE")
 static DEFS_B: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 /// una matriz de sombra (ortográfica: su w da siempre 1) que en vez de −1..1 da 0..1 —la posición en el mapa de sombras y su
 /// profundidad—: cada fila x, y, z pasa a la mitad de ella más la mitad de la fila w
+/// una matriz de sombra que deja todo afuera del mapa (x = 5,5 después de a_01): la cascada que no está
+const FUERA: M4 = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10.0, 0.0, 0.0, 1.0];
 fn a_01(m: &M4) -> M4 { let mut r = *m; for c in 0..4 { for i in 0..3 { r[c * 4 + i] = 0.5 * m[c * 4 + i] + 0.5 * m[c * 4 + 3]; } } r }
 /// el rectángulo de la pantalla (NDC, de −1 a 1) donde está el agua —sus esferas vistas con `v`— más lo que la corren las olas;
 /// la pantalla entera si alguna rodea a la cámara
@@ -1135,6 +1159,8 @@ pub struct Motor {
     perfil: Option<std::cell::RefCell<Vec<(bool, bool, i64, i64, u32, u32, f64)>>>,
     /// (los programas de la luz con JXM_FS_DEFS_B, para los cuadros B del banco A/B)
     luz_b: Option<Box<[Prog; 6]>>,
+    /// el gráfico Simple: los seis programas de luz con SIMPLE (se arman la primera vez)
+    luz_s: Option<Box<[Prog; 6]>>,
     pub mapa: String,
 }
 
@@ -1198,7 +1224,7 @@ impl Motor {
         Ok(Motor { vx: 0, gi_tex: None, gi_ver: -1.0, refl_agua: false, refl_piso: None, refl_piso_ult: (mat::id(), f32::NAN), p_adapta, adapta: None, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], rayos_rt: None, hongos: crate::hongo::Hongos::nuevo(true), gl, op, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), agua: None, agua_n: None, agua_p: None, agua_na: None, cielo: None, cubo: None, blanca,
             p_luz, p_luz_piel, p_luz_c, p_luz_piel_c, p_luz_inst_c, p_pre, p_pre_piel, p_pre_inst, p_sombra, p_sombra_piel, p_agua, p_cielo, p_ao, p_ao_poner, p_final, p_part, p_flu, p_flu_g, p_flu_bl, p_flu_c, flu_rt: [None, None, None], p_lin, p_ui, ui, p_luz_inst, p_sombra_inst, inst_buf, part, flu, marcas, ao_rt: None, refr_rt: None, olas_t: None, sombra: None, reflejo: None, escena_rt: None, svp: mat::id(), sesgo: [0.0, 0.0], svp2: mat::id(), sesgo2: [0.0, 0.0], c: None, items: vec![], cuadro: 0, dibujos: 0,
             opacos: vec![], transp: vec![], aguas: vec![], memoria: 0, mapa: String::new(), ranuras: Vec::new(), instancias: std::env::var("JXM_SIN_INST").is_err(),
-            ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), vp_ult: None, corte_ult: 0.0, final_rt: None, p_repro, p_copia, taa_rt: [None, None], taa_i: 0, taa_vp: None, taa_vp0: None, taa_n: 0, taa_jit: [0.0; 2], p_taa, reloj, puesto: std::cell::RefCell::new(None), llamadas: std::cell::Cell::new([0; 2]), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), fases_b: vec![], luz_b, perfil: std::env::var_os("JXM_PERFIL").map(|_| std::cell::RefCell::new(vec![])) })
+            ao_luz: false, esc_wh: (1.0, 1.0), oclu: HashMap::new(), sombra_huella: [0; 2], cubo_oclu, tapados: vec![], luces_puestas: std::cell::Cell::new((0, u32::MAX)), vp_ult: None, corte_ult: 0.0, final_rt: None, p_repro, p_copia, luz_s: None, taa_rt: [None, None], taa_i: 0, taa_vp: None, taa_vp0: None, taa_n: 0, taa_jit: [0.0; 2], p_taa, reloj, puesto: std::cell::RefCell::new(None), llamadas: std::cell::Cell::new([0; 2]), dbg: std::env::var("JXM_DBG").is_ok(), sin_agua: std::env::var("JXM_SIN_AGUA").is_ok(), fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), fases_b: vec![], luz_b, perfil: std::env::var_os("JXM_PERFIL").map(|_| std::cell::RefCell::new(vec![])) })
     }
 
     /// sube a la placa los recursos nuevos (los que ya estaban con el mismo número se reemplazan)
@@ -1628,8 +1654,10 @@ impl Motor {
         }
         // (la de lejos —todo el radio, píxeles de 4 cm— cambia poco de un cuadro al otro: se dibuja un cuadro sí y uno no, y en
         // el medio se sigue usando con su matriz; la de cerca, siempre)
-        let lejos = self.op.sombra_cada > 1 || self.cuadro % 2 == 0 || self.svp2 == mat::id();
-        let (svp0, ses0) = self.cascada(0); let (svp1, ses1) = if lejos { self.cascada(1) } else { (self.svp2, self.sesgo2) };
+        // (una sola cascada: la de lejos no se dibuja y su matriz manda todo afuera —el shader la da por «lejos»: sin sombra—)
+        let una = self.op.cascadas == 1;
+        let lejos = !una && (self.op.sombra_cada > 1 || self.cuadro % 2 == 0 || self.svp2 == mat::id());
+        let (svp0, ses0) = self.cascada(0); let (svp1, ses1) = if una { (FUERA, [0.0; 2]) } else if lejos { self.cascada(1) } else { (self.svp2, self.sesgo2) };
         self.svp = svp0; self.sesgo = ses0; self.svp2 = svp1; self.sesgo2 = ses1;
         let l0 = self.recortar(&svp0, true); let l1 = if lejos { self.recortar(&svp1, true) } else { vec![] };
         // (lo que no cambió no se vuelve a dibujar: con todo quieto —o la cámara girando en el lugar— la sombra no cuesta nada)
@@ -1962,9 +1990,24 @@ impl Motor {
     pub unsafe fn dibujar(&mut self, salida: Option<glow::Framebuffer>, w: i32, h: i32) {
         self.dibujos = 0; self.llamadas.set([0; 2]);
         if self.c.is_none() { let gl = &self.gl; gl.bind_framebuffer(glow::FRAMEBUFFER, salida); gl.viewport(0, 0, w, h); gl.clear_color(0.0, 0.0, 0.0, 1.0); gl.clear(glow::COLOR_BUFFER_BIT); return; }
+        // (el gráfico Simple: los programas de luz con SIMPLE —sin el reflejo del cielo, las luces, la oclusión, las cáusticas ni
+        // la luz global, y el sol sin brillo—; se arman la primera vez)
+        if self.op.simple && self.luz_s.is_none() {
+            const D: &str = "#define SIMPLE\n#define DBG_SIN_BRDF\n#define DBG_SIN_LUCES\n#define DBG_SIN_CIELO\n#define DBG_SIN_AO\n"; let gl = &self.gl;
+            let r = (|| -> Result<[Prog; 6], String> { Ok([programa(gl, VS_LUZ, FS_LUZ, D)?, programa(gl, VS_LUZ, FS_LUZ, &format!("{D}#define PIEL\n"))?, programa(gl, VS_LUZ, FS_LUZ, &format!("{D}#define INST\n"))?,
+                programa(gl, VS_LUZ, FS_LUZ, &format!("{D}#define CORTE\n"))?, programa(gl, VS_LUZ, FS_LUZ, &format!("{D}#define PIEL\n#define CORTE\n"))?, programa(gl, VS_LUZ, FS_LUZ, &format!("{D}#define INST\n#define CORTE\n"))?]) })();
+            match r { Ok(p) => self.luz_s = Some(Box::new(p)), Err(e) => { eprintln!("simple: {e}"); self.op.simple = false; } }
+        }
+        let simple = self.op.simple && self.luz_s.is_some(); if simple { self.cambiar_luz_s(); }
         let cambiar = ab() && self.luz_b.is_some(); if cambiar { self.cambiar_luz_b(); }
         self.dibujar_escena(salida, w, h);
         if cambiar { self.cambiar_luz_b(); }
+        if simple { self.cambiar_luz_s(); }
+    }
+    fn cambiar_luz_s(&mut self) {
+        let Some(b) = self.luz_s.as_mut() else { return };
+        std::mem::swap(&mut self.p_luz, &mut b[0]); std::mem::swap(&mut self.p_luz_piel, &mut b[1]); std::mem::swap(&mut self.p_luz_inst, &mut b[2]);
+        std::mem::swap(&mut self.p_luz_c, &mut b[3]); std::mem::swap(&mut self.p_luz_piel_c, &mut b[4]); std::mem::swap(&mut self.p_luz_inst_c, &mut b[5]);
     }
     fn cambiar_luz_b(&mut self) {
         let Some(b) = self.luz_b.as_mut() else { return };
@@ -2321,12 +2364,14 @@ unsafe fn borrar_malla(gl: &glow::Context, m: MallaGL) { gl.delete_vertex_array(
 /// los tres motores
 pub fn cascada(c: &crate::escena::Cuadro, s: [f32; 3], op: &Opciones, k: usize) -> (M4, [f32; 2]) {
     let px = op.sombra_px;
-    let r = if k == 0 { op.sombra_radio * 0.25 } else { op.sombra_radio };
+    // (con una sola cascada, la de cerca cubre todo el radio y va centrada —el «Stable Fit» de Unity—)
+    let una = op.cascadas == 1 && k == 0;
+    let r = if una { op.sombra_radio } else if k == 0 { op.sombra_radio * 0.25 } else { op.sombra_radio };
     // (la fila de w de la matriz de la cámara es para adelante)
     let mut c0 = c.pos;
     // (la de cerca va delante de la cámara: hacia uno de 16 rumbos —sin lo vertical—, así girando un poco no se mueve y su
     // sombra guardada sigue sirviendo)
-    if k == 0 { let f = mat::norm([c.vp[3], c.vp[7], c.vp[11]]); let hz = (f[0] * f[0] + f[2] * f[2]).sqrt();
+    if k == 0 && !una { let f = mat::norm([c.vp[3], c.vp[7], c.vp[11]]); let hz = (f[0] * f[0] + f[2] * f[2]).sqrt();
         if hz > 0.3 { let paso = std::f32::consts::TAU / 16.0; let a = (f[2].atan2(f[0]) / paso).round() * paso; c0[0] += a.cos() * r * 0.6; c0[2] += a.sin() * r * 0.6; } }
     let paso = 2.0 * r / px as f32; let cen = [(c0[0] / paso).round() * paso, (c0[1] / paso).round() * paso, (c0[2] / paso).round() * paso];
     // (lo que hay entre el sol y la caja, hasta 80 m más arriba, también tapa; el margen de profundidad, en metros)

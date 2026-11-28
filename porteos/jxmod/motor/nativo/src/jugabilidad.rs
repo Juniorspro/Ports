@@ -299,7 +299,7 @@ impl Juego {
             Bj::CamL | Bj::CamR => self.jg.clib.menu,
             Bj::Patada => pie && self.mapa.is_some(),
             Bj::Ciclope => self.jg.activo("ciclope") && pie,
-            Bj::Eje(_) => self.cons.activo && self.cons.fuente.is_some(),
+            Bj::Eje(_) => self.cons.fuente.is_some(),
             Bj::Tecla(i) => pie && self.gmod_arma_activa() && (i as usize) < self.gmod.teclas.len(),
         }
     }

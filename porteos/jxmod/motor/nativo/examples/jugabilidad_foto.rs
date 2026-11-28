@@ -243,6 +243,19 @@ fn main() {
         j.cons_eje(3); j.jug.yaw = -0.3; j.jug.pitch = -0.4; paso(&mut j, &mut m, 2); foto(&mut m, "construir_libre");
         eprintln!("objetos: {}", j.objs.len());
     }
+    if hace("simple") {
+        // (el gráfico Simple contra Medio: el mismo lugar, el tiempo de cada cuadro y la foto)
+        j.aj.sin_ui = true; j.aj.fps = false; j.aj.dinamica = false; j.aj.turbo = false; j.aj.auto = false; j.aj.res = 100;
+        j.poner_mapa("RB_Ciudad"); paso(&mut j, &mut m, 3); paso(&mut j, &mut m, 60); j.jug.pitch = 0.0;
+        // (alternadas tres vueltas y el mejor tiempo de cada una: así el ruido de la máquina no decide)
+        let confs = [(false, 0usize, "simple_patata"), (false, 2, "simple_medio"), (false, 2, "simple_medio_reflejo"), (true, 1, "simple_simple"), (false, 4, "simple_ultra"), (false, 5, "simple_definitivo")];
+        let mut mejor = [f32::MAX; 6];
+        for vuelta in 0..3 { for (i, (simple, cal, n)) in confs.iter().enumerate() {
+            j.aj.simple = *simple; j.aj.poner_calidad(*cal); if n.ends_with("_reflejo") { j.aj.reflejo = true; } paso(&mut j, &mut m, 12);
+            let t0 = std::time::Instant::now(); paso(&mut j, &mut m, 24); mejor[i] = mejor[i].min(t0.elapsed().as_secs_f32() * 1000.0 / 24.0);
+            if vuelta == 2 { eprintln!("{n}: {:.1} ms por cuadro", mejor[i]); foto(&mut m, n); }
+        } }
+    }
     if hace("taa") {
         // (la reconstrucción temporal: la misma vista al 20 % sin y con, contra el 50 % de verdad; quieto, después de juntar)
         j.aj.sin_ui = true; j.aj.fps = false; j.aj.dinamica = false; j.aj.turbo = false; j.aj.auto = false;

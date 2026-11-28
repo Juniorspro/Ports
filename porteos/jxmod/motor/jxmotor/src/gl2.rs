@@ -27,8 +27,8 @@ const MAX_HUESOS2: usize = 56;
 #[derive(Clone, Debug)]
 /// lo que se puede elegir: la fracción de la pantalla, el retoque, la sombra del sol (lado del mapa, cada cuántos cuadros se
 /// rehace y su radio alrededor de la cámara), el reflejo del agua y del piso (a 1/`reflejo_div` del lado) y los rayos del sol
-pub struct Opciones2 { pub escala: f32, pub retoque: bool, pub sombras: bool, pub sombra_px: i32, pub sombra_cada: u32, pub sombra_radio: f32, pub reflejo: bool, pub reflejo_div: i32, pub reflejo_piso: bool, pub rayos: bool, pub hongo: u8, pub aaa: bool, pub adapta: bool, pub turbo: bool }
-impl Default for Opciones2 { fn default() -> Self { Opciones2 { escala: 1.0, retoque: true, sombras: true, sombra_px: 1024, sombra_cada: 2, sombra_radio: 60.0, reflejo: true, reflejo_div: 3, reflejo_piso: true, rayos: false, hongo: 2, aaa: false, adapta: false, turbo: false } } }
+pub struct Opciones2 { /** el gráfico Simple: sólo el sol con su sombra cercana, el cielo difuso y la niebla (luz_s) */ pub simple: bool, pub escala: f32, pub retoque: bool, pub sombras: bool, pub sombra_px: i32, pub sombra_cada: u32, pub sombra_radio: f32, /** 1: una sola cascada centrada en todo el radio (como Hyper Sandbox) */ pub cascadas: u8, pub reflejo: bool, pub reflejo_div: i32, pub reflejo_piso: bool, pub rayos: bool, pub hongo: u8, pub aaa: bool, pub adapta: bool, pub turbo: bool }
+impl Default for Opciones2 { fn default() -> Self { Opciones2 { escala: 1.0, retoque: true, sombras: true, sombra_px: 1024, sombra_cada: 2, sombra_radio: 60.0, cascadas: 2, reflejo: true, reflejo_div: 3, reflejo_piso: true, rayos: false, hongo: 2, aaa: false, adapta: false, turbo: false, simple: false } } }
 
 struct Malla2 { vb: glow::Buffer, ib: glow::Buffer, lm: Option<glow::Buffer>, i32: bool, mn: [f32; 3], sc: [f32; 3], lm_id: i64, bytes: usize, piel: Option<Box<PielCpu>> }
 /// lo que hace falta para deformar una malla con huesos en la CPU: posición y normal sueltas, huesos y pesos por vértice
@@ -90,6 +90,7 @@ float pcf(vec3 q, float k, float sesgo) {
   return mix(mix(s00, s10, f.x), mix(s01, s11, f.x), f.y);
 }
 float sombraLejos(float inc) {
+  if (uSomP2.z < 0.5) return 1.0;   // (una sola cascada: no hay de lejos)
   vec3 q = vS2.xyz / vS2.w * 0.5 + 0.5; vec2 e = abs(q.xy - 0.5) * 2.0; float borde = smoothstep(0.85, 0.98, max(e.x, e.y));
   if (borde >= 1.0 || q.z >= 1.0) return 1.0;
   return mix(pcf(q, 1.0, uSomP2.x * inc), 1.0, borde);
@@ -98,6 +99,12 @@ float sombraLejos(float inc) {
 // la sombra de un techo sigue a la sombra aunque el sol le llegue de costado)
 float sombra(float inc) {
   if (uSomP.z < 0.5) return 1.0;
+#ifdef SIMPLE
+  // (Simple, como el «Simple» de Hyper Sandbox: sombra dura —una sola lectura, sin suavizar— y sólo la cercana; lejos, sin
+  // sombra. En una placa vieja —Mali-400— son 3 lecturas y 3 desempaques menos por píxel)
+  { vec3 q = vS.xyz / vS.w * 0.5 + 0.5; vec2 e = abs(q.xy - 0.5) * 2.0; if (max(e.x, e.y) >= 0.97 || q.z >= 1.0) return 1.0;
+    float d = uSomP.x; vec2 b = (floor(q.xy / d) + 0.5) * d; b.x *= 0.5; return step(q.z - uSomP.y * inc, desem(texture2D(uSom, b))); }
+#endif
   vec3 q = vS.xyz / vS.w * 0.5 + 0.5; vec2 e = abs(q.xy - 0.5) * 2.0; float g = max(e.x, e.y);
   if (g < 0.97 && q.z < 1.0) { float s0 = pcf(q, 0.0, uSomP.y * inc), k = smoothstep(0.8, 0.97, g); return k > 0.0 ? mix(s0, sombraLejos(inc), k) : s0; }
   return sombraLejos(inc);
@@ -215,7 +222,12 @@ void main() {
   vec4 t; float rk = 0.0; vec2 rOnd = vec2(0.0);
   if (uBan.x > 0.5) { vec4 kc = texture2D(uT, vU); t = vec4(texture2D(uT1, vU * uS1.xy).rgb * kc.r + texture2D(uT2, vU * uS1.zw).rgb * kc.g + texture2D(uT3, vU * uS3).rgb * kc.b, 1.0); }
   else if (uBan.y > 0.5) t = mix(texture2D(uT, vU), texture2D(uT1, vU), clamp(vMz, 0.0, 1.0));
+#ifdef SIMPLE
+  // (Simple: las texturas un escalón más chicas —como las de 128 a 512 de Hyper Sandbox—: menos memoria leída por píxel)
   else t = texture2D(uT, vU);
+#else
+  else t = texture2D(uT, vU);
+#endif
   t *= uC;
   // la pintura en dos tonos (las armas de JXMod, armasjx.js): lo gris de la textura con un color y lo de color (los
   // acentos) con otro, que además brilla; con un solo tono, el brillo de la textura de ese color (Modelo.tinte)
@@ -248,9 +260,14 @@ void main() {
       // luz se apaga suave en el borde; antes la sombra se desvanecía hacia la luz y lo de adentro de una casa se iluminaba)
       float nl = dot(n, uSol), ng0 = max(dot(ng, uSol), 0.0);
       sh = nl > 0.0 && ng0 > 0.0 ? sombra(1.0 + 2.0 * (1.0 - ng0)) * smoothstep(0.0, 0.08, ng0) : 0.0;
+#ifdef SIMPLE
+      col = dif * max(nl, 0.0) * uSolC * sh;
+#else
       col = brdf(n, v, uSol, dif, f0, a) * uSolC * sh;
+#endif
       if (fol) { float tr = max(dot(-v, uSol), 0.0); tr *= tr; col += dif * uSolC * (tr * tr) * 0.6 * sh; }
     }
+#ifndef SIMPLE
     if (uCaus.y > 0.0 && vW.y < uCaus.x && vW.x > uCausB.x && vW.x < uCausB.z && vW.z > uCausB.y && vW.z < uCausB.w && uSol.y > 0.0) {
       float hondo = uCaus.x - vW.y;
       float k = causticas(vW.xz * 1.1 + uSol.xz * hondo * 0.6, uCaus.z * 0.9) * exp(-hondo * 0.18) * smoothstep(0.0, 0.35, hondo) * (0.3 + 0.7 * max(n.y, 0.0)) * uCaus.y;
@@ -270,8 +287,15 @@ void main() {
       float d = sqrt(d2), q = d2 / (r * r), cae = clamp(1.0 - q * q, 0.0, 1.0); float at = cae * cae / (d2 + 1.0);
       col += dif * uLC[i].rgb * max(dot(n, L / d), 0.0) * at;
     }
+#endif
+    vec3 amb;
+#ifdef SIMPLE
+    if (false) {
+#else
+    {
+#endif
     // la luz del cielo como OpenGL 3: difusa (hemisferio) y el reflejo del cielo, más borroso cuanto más áspero, con Fresnel
-    vec3 rf = reflect(-v, n), amb, env; float nv = max(dot(n, v), 1e-3);
+    vec3 rf = reflect(-v, n), env; float nv = max(dot(n, v), 1e-3);
     if (lm) { amb = vec3(0.0); env = lmL * 0.5; } else { amb = mix(uAmbG, uAmbS, n.y * 0.5 + 0.5); env = mix(cieloCol(rf), amb, clamp(rough * 1.15, 0.0, 1.0)); }
     float hor = clamp(1.0 + 1.3 * dot(rf, ng), 0.0, 1.0); env *= hor * hor;
     // (Definitivo: la luz global —adentro la luz del cielo se apaga; la del sol que entra rebota—)
@@ -282,6 +306,11 @@ void main() {
       col += dif * uSolC * (gi.y * mix(1.7, 1.0, gi.x)); }
     float q1 = 1.0 - nv, q2 = q1 * q1; vec3 Fr = f0 + (max(vec3(1.0 - rough), f0) - f0) * (q2 * q2 * q1);
     col += dif * amb * 0.82 + env * Fr * mix(1.0, sh * 0.6 + 0.4, metal) + uEm * 1.6;
+#ifdef SIMPLE
+    } else { amb = lm ? vec3(0.0) : mix(uAmbG, uAmbS, n.y * 0.5 + 0.5); col += dif * amb * 0.82 + uEm * 1.6; }
+#else
+    }
+#endif
   }
   col += emAc;
   float dist = max(distance(vW, uCam), 1e-3);
@@ -893,6 +922,8 @@ pub struct Motor {
     /// el reflejo del agua: su destino (cuadro, textura, profundidad, ancho, alto), si se dibujó en este cuadro y los programas
     /// de la luz con el plano que corta lo de abajo del agua
     refl: Option<(glow::Framebuffer, glow::Texture, glow::Renderbuffer, i32, i32)>, refl_on: bool, refl_activo: bool, p_luz_r: Prog2, p_luz_rc: Prog2,
+    /// el gráfico Simple: los cuatro programas de luz con SIMPLE (se arman la primera vez) y si están puestos
+    luz_s: Option<Box<[Prog2; 4]>>, simple_on: bool,
     /// el reflejo del piso (cuando no hay agua): la altura del piso si se dibujó, 1/ancho y 1/alto de la pantalla; y con qué
     /// cámara y plano se dibujó el último reflejo (si no cambiaron, se usa el de antes un cuadro sí y otro no)
     refl_piso: Option<f32>, refl_px: [f32; 2], refl_ult: (M4, f32),
@@ -944,7 +975,7 @@ impl Motor {
             Some((HashMap::new(), pc, vb, ib))
         } else { None };
         let reloj = crate::reloj::Reloj::nuevo(&gl);
-        Ok(Motor { vr: false, vx: 0, gi_tex: None, gi_ver: -1.0, p_ao, ao_ahora: false, ao_prof: None, prof24: ext.contains("GL_OES_packed_depth_stencil") && std::env::var_os("JXM_GL2_PROF16").is_none(), escena_prof: None, ao_rt: None, p_adapta, adapta: None, hongos: crate::hongo::Hongos::nuevo(false), alta, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], vol_ahora: false, alfa_d: false, rayos_rt: None, rayos_ahora: None, som: None, som_vp: [mat::id(); 2], som_n: 0, som_on: false, som_off: [[0.0; 2]; 2], som_huella: [0; 2], refl_n: 0, p_som, p_som_c, p_prof_ao, som_ao: false, refl: None, refl_on: false, refl_activo: false, p_luz_r, p_luz_rc, refl_piso: None, refl_px: [0.0; 2], refl_ult: (mat::id(), f32::NAN), oclu, n_cuadro: 0, fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), gl, op, cubo: None, p_luz, p_luz_c, p_cielo, p_ui, p_copia, p_repro, p_pasar, final_rt: None, vp_ult: None, reloj, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), p_flu, olas_t: None, flu_vb, flu_ib, flu_cap: 0, flu_v: Vec::new(), marcas_vb, marcas_n: 0, poses: vec![], poses_n: 0, pose_p: vec![], pose_v: vec![], marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
+        Ok(Motor { luz_s: None, simple_on: false, vr: false, vx: 0, gi_tex: None, gi_ver: -1.0, p_ao, ao_ahora: false, ao_prof: None, prof24: ext.contains("GL_OES_packed_depth_stencil") && std::env::var_os("JXM_GL2_PROF16").is_none(), escena_prof: None, ao_rt: None, p_adapta, adapta: None, hongos: crate::hongo::Hongos::nuevo(false), alta, p_rayos, p_rayos2, p_vol, p_vol_aaa, p_brillo, p_baja, p_sube, brillo_rt: vec![], vol_ahora: false, alfa_d: false, rayos_rt: None, rayos_ahora: None, som: None, som_vp: [mat::id(); 2], som_n: 0, som_on: false, som_off: [[0.0; 2]; 2], som_huella: [0; 2], refl_n: 0, p_som, p_som_c, p_prof_ao, som_ao: false, refl: None, refl_on: false, refl_activo: false, p_luz_r, p_luz_rc, refl_piso: None, refl_px: [0.0; 2], refl_ult: (mat::id(), f32::NAN), oclu, n_cuadro: 0, fases: std::env::var("JXM_FASES").is_ok().then(|| (std::time::Instant::now(), vec![])), gl, op, cubo: None, p_luz, p_luz_c, p_cielo, p_ui, p_copia, p_repro, p_pasar, final_rt: None, vp_ult: None, reloj, p_agua, p_part, p_lin, part_vb, part_ib, part_cap: 0, part_v: Vec::new(), p_flu, olas_t: None, flu_vb, flu_ib, flu_cap: 0, flu_v: Vec::new(), marcas_vb, marcas_n: 0, poses: vec![], poses_n: 0, pose_p: vec![], pose_v: vec![], marcas_nuevas: None, agua: None, agua_n: None, aguas: vec![], tri, ui_buf, blanca, mallas: HashMap::new(), mats: HashMap::new(), texs: HashMap::new(), lms: HashMap::new(), cielo: None,
             c: None, items: vec![], opacos: vec![], opacos_todos: vec![], transp: vec![], uint32, npot, escena_rt: None, dibujos: 0, memoria: 0, mapa: String::new(), puesto: Puesto::default(), llamadas: [0; 2] })
     }
 
@@ -1073,6 +1104,16 @@ impl Motor {
     /// un cuadro: la escena (a la escala pedida) en `salida` de w × h
     pub unsafe fn dibujar(&mut self, salida: Option<glow::Framebuffer>, w: i32, h: i32) {
         self.marca("interfaz_y_cpu");
+        // (el gráfico Simple: los programas de luz sin lo caro —se cambian sólo cuando cambia la opción—)
+        if self.op.simple != self.simple_on {
+            if self.luz_s.is_none() {
+                let a = ["aP", "aN", "aU", "aL"]; let gl = &self.gl;
+                let r = (|| -> Result<[Prog2; 4], String> { Ok([programa(gl, VS_LUZ, &format!("#define SIMPLE\n{FS_LUZ}"), &a)?, programa(gl, VS_LUZ, &format!("#define SIMPLE\n#define CORTE\n{FS_LUZ}"), &a)?,
+                    programa(gl, VS_LUZ, &format!("#define SIMPLE\n#define CLIP\n{FS_LUZ}"), &a)?, programa(gl, VS_LUZ, &format!("#define SIMPLE\n#define CLIP\n#define CORTE\n{FS_LUZ}"), &a)?]) })();
+                match r { Ok(p) => self.luz_s = Some(Box::new(p)), Err(e) => { eprintln!("simple: {e}"); self.op.simple = self.simple_on; } }
+            }
+            if let Some(b) = self.luz_s.as_mut() { std::mem::swap(&mut self.p_luz, &mut b[0]); std::mem::swap(&mut self.p_luz_c, &mut b[1]); std::mem::swap(&mut self.p_luz_r, &mut b[2]); std::mem::swap(&mut self.p_luz_rc, &mut b[3]); self.simple_on = self.op.simple; }
+        }
         self.subir_gi();
         self.dibujos = 0; self.poses_n = 0; self.llamadas = [0; 2]; self.puesto.olvidar();
         let (ew, eh) = (((w as f32) * self.op.escala).round().max(16.0) as i32, ((h as f32) * self.op.escala).round().max(16.0) as i32);
@@ -1510,7 +1551,7 @@ impl Motor {
         gl.uniform_matrix_4_f32_slice(p.u("uSVP"), false, &self.som_vp[0]); gl.uniform_matrix_4_f32_slice(p.u("uSVP2"), false, &self.som_vp[1]); gl.uniform_1_i32(p.u("uSom"), 6);
         let px = self.som.as_ref().map_or(1, |s| s.3);
         gl.uniform_4_f32(p.u("uSomP"), 1.0 / px as f32, self.som_off[0][0], if self.som_on { 1.0 } else { 0.0 }, self.som_off[0][1]);
-        gl.uniform_4_f32(p.u("uSomP2"), self.som_off[1][0], self.som_off[1][1], 0.0, 0.0);
+        gl.uniform_4_f32(p.u("uSomP2"), self.som_off[1][0], self.som_off[1][1], if self.op.cascadas == 1 { 0.0 } else { 1.0 }, 0.0);
         gl.uniform_1_f32(p.u("uAlfaD"), if self.alfa_d && !self.refl_activo { 1.0 } else { 0.0 });
         // (el reflejo del piso, en la unidad 7: no mientras se dibuja el reflejo mismo)
         gl.uniform_1_i32(p.u("uR"), 7);
@@ -1638,12 +1679,13 @@ impl Motor {
         }
         self.som_n += 1;
         let cada = self.op.sombra_cada.max(1) as u64; let n = self.som_n;
-        let toca = [!self.som_on || n % cada == 0, !self.som_on || n % (2 * cada) == cada / 2];
+        let una = self.op.cascadas == 1;
+        let toca = [!self.som_on || n % cada == 0, !una && (!self.som_on || n % (2 * cada) == cada / 2)];
         let mut hechas = 0;
         for k in 0..2 {
             if !toca[k] { continue; }
-            let c = self.c.as_ref().unwrap(); let r = if k == 0 { (self.op.sombra_radio * 0.22).max(6.0) } else { self.op.sombra_radio.max(8.0) };
-            let (svp, off) = cascada2(c, s, r, px, k == 0);
+            let c = self.c.as_ref().unwrap(); let r = if una { self.op.sombra_radio.max(8.0) } else if k == 0 { (self.op.sombra_radio * 0.22).max(6.0) } else { self.op.sombra_radio.max(8.0) };
+            let (svp, off) = cascada2(c, s, r, px, k == 0 && !una);
             self.som_vp[k] = svp; self.som_off[k] = off;
             let pl = mat::planos(&svp);
             // (todo lo opaco que cae en el mapa de la sombra, esté o no en cámara: si no, el techo de una habitación que no se ve

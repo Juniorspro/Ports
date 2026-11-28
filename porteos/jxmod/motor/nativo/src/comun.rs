@@ -1353,9 +1353,17 @@ impl Juego {
                 efectos.extend(self.gi.paso(&self.mapas[self.mapa_i], &mp.mundo.t, [self.jug.pos[0], self.jug.pos[1], self.jug.pos[2]], [s[0] / l, s[1] / l, s[2] / l]));
             }
             let mut luces = self.ef.luces(); luces.extend(mp.luces_cerca(ojos, 6));
-            self.herramientas_items(&mut items, &mut luces); self.cons_items(&mut items); luces.truncate(8); self.jg_luces(&mut luces); self.pjs_luces(&mut luces, ojos);
+            self.herramientas_items(&mut items, &mut luces); self.cons_items(&mut items); {
+                // (como las «pixel lights» de los niveles de Hyper Sandbox —0 a 4—: sólo las luces más cercanas, según la calidad)
+                let tope = if self.aj.simple { 0 } else { [1usize, 2, 3, 4, 6, 8][self.aj.calidad.min(5)] };
+                if luces.len() > tope { let d2 = |l: &jxmotor::escena::LuzP| (l[0] - cam[0]).powi(2) + (l[1] - cam[1]).powi(2) + (l[2] - cam[2]).powi(2); luces.sort_by(|a, b| d2(a).total_cmp(&d2(b))); luces.truncate(tope); }
+            } self.jg_luces(&mut luces); self.pjs_luces(&mut luces, ojos);
             // (el piso de abajo de la cámara, para su reflejo en OpenGL 2: sólo si es casi plano)
             let suelo_y = jxjuego::persona::rayo_mundo(&mp.mundo, jugabilidad::v64(cam), [0.0, -1.0, 0.0], 30.0).filter(|h| h.1[1] > 0.9).map(|h| cam[1] - h.0 as f32);
+            // (como CameraDrawDistance/DistanceLod de Hyper Sandbox: lo que en pantalla mide menos de unos pocos píxeles no se
+            // dibuja —ni hace sombra—; más temprano en las calidades bajas y según la distancia de dibujo elegida)
+            { let um = if self.aj.simple { 0.006 } else { [0.008f32, 0.006, 0.004, 0.003, 0.002, 0.0015][self.aj.calidad.min(5)] } * 100.0 / self.aj.dist.max(50) as f32;
+              items.retain(|it| it.fl & (jxmotor::escena::FL_ARMA | jxmotor::escena::FL_CIELO) != 0 || it.esf[3] <= 0.0 || { let d2 = (it.esf[0] - cam[0]).powi(2) + (it.esf[1] - cam[1]).powi(2) + (it.esf[2] - cam[2]).powi(2); it.esf[3] * it.esf[3] >= d2 * um * um }); }
             let c = Cuadro { vp: m4::mul(&p, &vista), pos: cam, luz, agua_y: mp.agua_y, suelo_y, tiempo: self.t0.elapsed().as_secs_f32(),
                 luces, esp: self.jg_esp(cam, mira), items, efectos };
             marca(&mut self.perf, &mut self.perf_t, 3);

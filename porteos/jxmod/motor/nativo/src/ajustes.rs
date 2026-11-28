@@ -58,6 +58,8 @@ pub struct Ajustes {
     pub fps_max: u32,
     /// la reconstrucción temporal: con la resolución baja, juntar varios cuadros corridos (se ve como más resolución)
     pub taa: bool,
+    /// el gráfico Simple (en Calidad, después de Definitivo): sombras y nada más, para los celulares más flojos
+    pub simple: bool,
     /// la distancia de dibujo de los props de los mapas (%: 50 más liviano … 150 más lejos)
     pub dist: u32,
     /// la hora del día y si avanza sola (como DIA de la web, no se guardan: cada vez empieza a las 12)
@@ -87,7 +89,7 @@ pub struct Ajustes {
     pub menus: u32,
 }
 impl Default for Ajustes {
-    fn default() -> Self { Ajustes { calidad: 4, res: 0, sombras: true, ao: true, reflejo: true, retoque: true, sens: 12, fov: 70, fps: true, vol: 80, ambiente: true, espacial: true, voces: true, npc_max: 24, sin_ui: false, quien: true, ruleta: true, mun_lim: false, fps_max: 0, taa: true, dist: 100, hora: 12.0, ciclo: false, auto: true, medido: None, hud: 80, pal: 100, hud_pos: String::new(), tut: false, cont: false, dinamica: true, turbo: true, idioma: None, musica: true, menus: 80 } }
+    fn default() -> Self { Ajustes { calidad: 4, res: 0, sombras: true, ao: true, reflejo: true, retoque: true, sens: 12, fov: 70, fps: true, vol: 80, ambiente: true, espacial: true, voces: true, npc_max: 24, sin_ui: false, quien: true, ruleta: true, mun_lim: false, fps_max: 0, taa: true, simple: false, dist: 100, hora: 12.0, ciclo: false, auto: true, medido: None, hud: 80, pal: 100, hud_pos: String::new(), tut: false, cont: false, dinamica: true, turbo: true, idioma: None, musica: true, menus: 80 } }
 }
 
 /// lo que se puede tocar en el menú, un renglón cada uno
@@ -135,7 +137,7 @@ impl Ajustes {
                 "sombras" => a.sombras = b, "ao" => a.ao = b, "reflejo" => a.reflejo = b, "retoque" => a.retoque = b,
                 "sens" => if let Some(n) = n { a.sens = n.clamp(1, 40) },
                 "fov" => if let Some(n) = n { a.fov = n.clamp(50, 110) },
-                "fps" => a.fps = b, "musica" => a.musica = b, "menus" => if let Some(n) = n { a.menus = n.clamp(50, 120) }, "vol" => if let Some(n) = n { a.vol = n.min(100) }, "ambiente" => a.ambiente = b, "espacial" => a.espacial = b, "voces" => a.voces = b, "sinui" => a.sin_ui = b, "quien" => a.quien = b, "ruleta" => a.ruleta = b, "munlim" => a.mun_lim = b, "taa" => a.taa = b, "fpsmax" => if let Some(n) = n { a.fps_max = if FPS_MAX.contains(&n) { n } else { 0 } }, "dist" => if let Some(n) = n { a.dist = if DIST.contains(&n) { n } else { 100 } }, "npcmax" => if let Some(n) = n { a.npc_max = if [0, 24, 50, 100, 200].contains(&(n as usize)) { n as usize } else { 24 } },
+                "fps" => a.fps = b, "musica" => a.musica = b, "menus" => if let Some(n) = n { a.menus = n.clamp(50, 120) }, "vol" => if let Some(n) = n { a.vol = n.min(100) }, "ambiente" => a.ambiente = b, "espacial" => a.espacial = b, "voces" => a.voces = b, "sinui" => a.sin_ui = b, "quien" => a.quien = b, "ruleta" => a.ruleta = b, "munlim" => a.mun_lim = b, "taa" => a.taa = b, "simple" => a.simple = b, "fpsmax" => if let Some(n) = n { a.fps_max = if FPS_MAX.contains(&n) { n } else { 0 } }, "dist" => if let Some(n) = n { a.dist = if DIST.contains(&n) { n } else { 100 } }, "npcmax" => if let Some(n) = n { a.npc_max = if [0, 24, 50, 100, 200].contains(&(n as usize)) { n as usize } else { 24 } },
                 "auto" => a.auto = b,
                 "hud" => if let Some(n) = n { a.hud = n.clamp(60, 120) }, "pal" => if let Some(n) = n { a.pal = n.clamp(60, 160) },
                 "hudpos" => a.hud_pos = v.to_string(), "idioma" => if jxjuego::idiomas::de_codigo(v).is_some() { a.idioma = Some(v.to_string()) }, "tut" => a.tut = b, "cont" => a.cont = b, "din2" => a.dinamica = b, "turbo" => a.turbo = b,
@@ -150,7 +152,7 @@ impl Ajustes {
         let mut t = format!("calidad={}\nres2={}\nsombras={}\nao={}\nreflejo={}\nretoque={}\nsens={}\nfov={}\nfps={}\nvol={}\nambiente={}\nauto={}\n",
             if self.calidad >= 5 { if self.calidad == PERSONAL { 5 } else { 4 } } else { self.calidad }, self.res, b(self.sombras), b(self.ao), b(self.reflejo), b(self.retoque), self.sens, self.fov, b(self.fps), self.vol, b(self.ambiente), b(self.auto));
         if let Some((q, g)) = &self.medido { t += &format!("medido={q}|{}\n", g.replace('\n', " ")); }
-        t += &format!("hud={}\npal={}\ntut={}\ncont={}\ndin2={}\nturbo={}\nmusica={}\nmenus={}\n", self.hud, self.pal, b(self.tut), b(self.cont), b(self.dinamica), b(self.turbo), b(self.musica), self.menus); t += &format!("espacial={}\nvoces={}\nnpcmax={}\nsinui={}\nquien={}\ndist={}\nruleta={}\nmunlim={}\nfpsmax={}\ntaa={}\n", b(self.espacial), b(self.voces), self.npc_max, b(self.sin_ui), b(self.quien), self.dist, b(self.ruleta), b(self.mun_lim), self.fps_max, b(self.taa)); if !self.hud_pos.is_empty() { t += &format!("hudpos={}\n", self.hud_pos.replace('\n', "")); }
+        t += &format!("hud={}\npal={}\ntut={}\ncont={}\ndin2={}\nturbo={}\nmusica={}\nmenus={}\n", self.hud, self.pal, b(self.tut), b(self.cont), b(self.dinamica), b(self.turbo), b(self.musica), self.menus); t += &format!("espacial={}\nvoces={}\nnpcmax={}\nsinui={}\nquien={}\ndist={}\nruleta={}\nmunlim={}\nfpsmax={}\ntaa={}\nsimple={}\n", b(self.espacial), b(self.voces), self.npc_max, b(self.sin_ui), b(self.quien), self.dist, b(self.ruleta), b(self.mun_lim), self.fps_max, b(self.taa), b(self.simple)); if !self.hud_pos.is_empty() { t += &format!("hudpos={}\n", self.hud_pos.replace('\n', "")); }
         if let Some(i) = &self.idioma { t += &format!("idioma={i}\n"); }
         // (la calidad con Definitivo: va al final para mandar sobre «calidad»; ésa queda para las versiones de antes —Personal en 5—)
         t += &format!("calidad2={}\n", self.calidad);
@@ -159,7 +161,9 @@ impl Ajustes {
     /// pone una calidad entera (como gfx de la web: cada una con su resolución y sus pasadas)
     /// (la resolución queda como está: va aparte)
     pub fn poner_calidad(&mut self, k: usize) {
-        let (so, ao, re, rt) = match k { 0 => (false, false, false, false), 1 => (false, false, true, false), 2 => (true, false, true, true), 3 => (true, false, true, true), _ => (true, true, true, true) };
+        // (como Hyper Sandbox —sin sondas de reflejo en las bajas—: Patata y Bajo sin el reflejo del piso, que dibuja la escena otra
+        // vez; de Medio para arriba sí —medido: a un tercio y cada 2 cuadros casi no cuesta—)
+        let (so, ao, re, rt) = match k { 0 | 1 => (false, false, false, false), 2 | 3 => (true, false, true, true), _ => (true, true, true, true) };
         self.calidad = k.min(CALIDADES.len() - 1); self.sombras = so; self.ao = ao; self.reflejo = re; self.retoque = rt;
     }
     /// la resolución con la que se dibuja la escena (% de la pantalla): la elegida o, en Automática, la de la calidad
@@ -167,9 +171,16 @@ impl Ajustes {
     /// lo que va al motor: con calidad media o menos, la sombra de 1024 y el reflejo a un cuarto; hasta Ultra la sombra y el
     /// reflejo se rehacen un cuadro sí y uno no (los celulares flojos: el TCL 20 SE); Definitivo, todo cada cuadro
     pub fn opciones(&self) -> Opciones {
-        let flojo = self.calidad <= 2; let muy = self.calidad <= 1;
-        Opciones { escala: self.res_efectiva() as f32 / 100.0, sombras: self.sombras, sombra_px: if flojo { 1024 } else { 2048 }, sombra_cada: if self.calidad == 5 { 1 } else { 2 }, sombra_radio: if flojo { 35.0 } else if self.calidad == 5 { 60.0 } else { 45.0 },
-            reflejo: self.reflejo, reflejo_div: if muy { 4 } else if self.calidad == 5 { 2 } else { 3 }, reflejo_cada: if self.calidad == 5 { 1 } else { 2 }, ao: self.ao, ao_fuerza: if self.calidad == 5 { 1.0 } else { 0.6 }, retoque: self.retoque, adapta: self.retoque, prepaso: true, rayos: self.calidad >= 4, hongo: self.calidad.min(4) as u8, aaa: self.calidad == 5, turbo: self.turbo, taa: self.taa }
+        // (las sombras por calidad, como los niveles de Hyper Sandbox —«Low Shadow» 15 m y «Simple» 20 m con una sola cascada;
+        // «Hight Shadow» con dos—: Patata y Bajo —si se prenden— y Simple, una sola cascada centrada y chica; de Medio para
+        // arriba, las dos. Definitivo: el reflejo del piso cada 2 cuadros y la sombra hasta 50 m)
+        let k = self.calidad.min(5); let muy = k <= 1;
+        let mut o = Opciones { escala: self.res_efectiva() as f32 / 100.0, sombras: self.sombras, sombra_px: [512, 512, 1024, 1024, 2048, 2048][k], sombra_cada: [3, 3, 2, 2, 2, 1][k], sombra_radio: [20.0, 25.0, 35.0, 45.0, 45.0, 50.0][k], cascadas: [1, 1, 2, 2, 2, 2][k],
+            reflejo: self.reflejo, reflejo_div: if muy { 4 } else if k == 5 { 2 } else { 3 }, reflejo_cada: 2, ao: self.ao, ao_fuerza: if self.calidad == 5 { 1.0 } else { 0.6 }, retoque: self.retoque, adapta: self.retoque, prepaso: true, rayos: self.calidad >= 4, hongo: self.calidad.min(4) as u8, aaa: self.calidad == 5, turbo: self.turbo, taa: self.taa, simple: self.simple };
+        // (Simple —como Hyper Sandbox—: sólo la sombra del sol, chica y cada 3 cuadros; sin reflejos, oclusión, rayos, retoque,
+        // exposición, resplandor ni luces de las cosas —comun.rs—: lo más liviano que sigue viéndose con sombras)
+        if self.simple { o.sombras = true; o.sombra_px = 512; o.sombra_cada = 3; o.sombra_radio = 20.0; o.cascadas = 1; o.reflejo = false; o.ao = false; o.retoque = false; o.adapta = false; o.rayos = false; o.hongo = 1; o.aaa = false; }
+        o
     }
     /// el volumen para el mezclador (80, el de fábrica, es 1: como quedó medido contra la web)
     pub fn volumen(&self) -> f32 { self.vol as f32 / 80.0 }
@@ -178,7 +189,7 @@ impl Ajustes {
         let num = |v: &[u32], suf: &str| v.iter().map(|x| format!("{x}{suf}")).collect();
         match c {
             // (como el selector de la web: Automático primero y después las cinco)
-            Clave::Calidad => std::iter::once("Automático").chain(CALIDADES).map(|s| s.to_string()).collect(),
+            Clave::Calidad => std::iter::once("Automático").chain(CALIDADES).chain(std::iter::once("Simple")).map(|s| s.to_string()).collect(),
             Clave::Res => RES.iter().map(|x| if *x == 0 { "Automática".to_string() } else { format!("{x}%") }).collect(), Clave::Sens => num(&SENS, ""), Clave::Fov => num(&FOV, "°"), Clave::Vol => num(&VOL, "%"),
             Clave::Dinamica | Clave::Turbo | Clave::Sombras | Clave::Ao | Clave::Reflejo | Clave::Retoque | Clave::Fps | Clave::Ambiente | Clave::Espacial | Clave::Voces | Clave::Quien | Clave::Ruleta | Clave::Taa | Clave::SinUi | Clave::Musica | Clave::Ciclo => NO_SI.iter().map(|s| s.to_string()).collect(),
             Clave::Hora => HORAS.iter().map(|h| h.0.to_string()).collect(),
@@ -196,7 +207,7 @@ impl Ajustes {
     pub fn elegido(&self, c: Clave) -> Option<usize> {
         let pos = |v: &[u32], x: u32| v.iter().position(|y| *y == x);
         match c {
-            Clave::Calidad => if self.auto { Some(0) } else if self.calidad < PERSONAL { Some(self.calidad + 1) } else { None },
+            Clave::Calidad => if self.simple { Some(CALIDADES.len() + 1) } else if self.auto { Some(0) } else if self.calidad < PERSONAL { Some(self.calidad + 1) } else { None },
             Clave::Res => pos(&RES, self.res), Clave::Sens => pos(&SENS, self.sens), Clave::Fov => pos(&FOV, self.fov), Clave::Vol => pos(&VOL, self.vol),
             Clave::Dinamica => Some(self.dinamica as usize), Clave::Turbo => Some(self.turbo as usize), Clave::Sombras => Some(self.sombras as usize), Clave::Ao => Some(self.ao as usize), Clave::Reflejo => Some(self.reflejo as usize),
             Clave::Retoque => Some(self.retoque as usize), Clave::Fps => Some(self.fps as usize), Clave::Ambiente => Some(self.ambiente as usize), Clave::Espacial => Some(self.espacial as usize), Clave::Voces => Some(self.voces as usize), Clave::NpcMax => [24usize, 50, 100, 200, 0].iter().position(|x| *x == self.npc_max), Clave::SinUi => Some(self.sin_ui as usize), Clave::Quien => Some(self.quien as usize), Clave::Taa => Some(self.taa as usize), Clave::FpsMax => FPS_MAX.iter().position(|x| *x == self.fps_max), Clave::Ruleta => Some(self.ruleta as usize), Clave::Dist => DIST.iter().position(|x| *x == self.dist), Clave::Musica => Some(self.musica as usize),
@@ -209,7 +220,7 @@ impl Ajustes {
     pub fn elegir(&mut self, c: Clave, k: usize) {
         let toma = |v: &[u32]| v[k.min(v.len() - 1)]; let antes = self.calidad;
         match c {
-            Clave::Calidad => if k == 0 { self.auto = true } else { self.auto = false; self.poner_calidad(k - 1) },
+            Clave::Calidad => if k == CALIDADES.len() + 1 { self.simple = true; self.auto = false; self.poner_calidad(1); self.sombras = true; } else { self.simple = false; if k == 0 { self.auto = true } else { self.auto = false; self.poner_calidad(k - 1) } },
             // (la resolución va aparte: no toca la calidad ni Automático)
             Clave::Res => self.res = toma(&RES),
             Clave::Dinamica => self.dinamica = k == 1,
