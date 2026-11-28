@@ -1,9 +1,9 @@
 {
- "codigo": 26112720,
- "version": "0.53",
+ "codigo": 26112721,
+ "version": "0.54",
  "apk": "jxmod/JXModNativo.apk",
  "tam": 76712198,
- "sha256": "279637c09fcc9b5ef42694ba2d09d21055d20835d3cb02db515da01974b5f6d9",
- "notas_es": "La app avisa con qué celular jugás y cómo te anda (fps), sin datos personales: así se optimiza para los celulares que más lo necesitan.",
- "notas_en": "The app reports which phone you play on and how it runs (fps), with no personal data, so we can optimize for the phones that need it most."
+ "sha256": "13607b4913d93213bfb88568b01f0cd1e04a952f1c13811e05da29710f535f9c",
+ "notas_es": "Cuando el juego anda lento en tu celular, se avisa solo (sin datos personales) para optimizarlo.",
+ "notas_en": "When the game runs slow on your phone, it reports it automatically (no personal data) so we can optimize it."
 }
