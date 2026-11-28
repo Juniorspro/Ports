@@ -189,7 +189,8 @@ function pintarInicio() {
   const posts = {}; for (const x of E.posts) posts[x.tipo] = (posts[x.tipo] || 0) + x.n;
   $('#main').innerHTML = `<div class="card"><h2>🟢 Jugando ahora</h2><div class="nums"><div class="num grande"><b>${E.jugando.length}</b><span>ahora</span></div><div class="num"><b>${E.hoy}</b><span>hoy</span></div><div class="num"><b>${E.semana}</b><span>semana</span></div><div class="num"><b>${E.nuevos}</b><span>nuevos hoy</span></div></div>
       ${jug || '<div class="vacio">Nadie jugando en este momento</div>'}</div>
-    <div class="card"><h2>📱 Celulares y fps (7 días)</h2>${celus || '<div class="vacio">Todavía no llegó ninguno: la app de Rust manda sus fps desde la 0.53</div>'}</div>
+    <div class="card"><h2>📱 Celulares con fps bajos (7 días)</h2>${celus || '<div class="vacio">Ningún bajón todavía (la app de Rust manda sólo cuando anda debajo de 30 fps)</div>'}</div>
+    <div class="card"><h2>🐢 Últimos bajones</h2>${(E.bajones || []).map((x) => `<div class="fila"><div class="dato"><b>${esc(x.cel || '?')} · ${esc(x.mapa || '')}</b><small>${esc(x.gpu || '')} · ${esc(x.motor || '')} ${esc(x.calidad || '')} ${esc(x.res || '')} · v${esc(x.version || '')} · hace ${hace(x.t)}</small><small>${esc(x.det || '')}</small></div><b class="fps" style="color:${fpsCol(x.fps)}">${x.fps} fps<br><small>peor ${x.fps_min}</small></b></div>`).join('') || '<div class="vacio">Nada todavía</div>'}</div>
     <div class="card"><h2>📦 Publicado</h2>
       <div class="fila"><div class="dato"><b>Versión ${esc(P.v ? P.v.version : '…')}</b><small>${P.o ? 'Actualización por partes ' + esc(P.o.version) + ' · APK mínimo ' + P.o.apkMin : ''}</small></div></div>
       <div class="fila"><div class="dato"><b>Evento en vivo: ${P.vv ? (P.vv.js ? esc(P.vv.js) : 'ninguno') : '…'}</b><small>${P.vv && P.vv.hasta ? 'hasta ' + fecha(P.vv.hasta) : ''}</small></div></div>

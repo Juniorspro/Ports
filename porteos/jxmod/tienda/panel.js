@@ -53,13 +53,14 @@ export async function tablas(env) {
     env.DB.prepare('CREATE TABLE IF NOT EXISTS pn_push (endpoint TEXT PRIMARY KEY, creado INTEGER, visto INTEGER, ip TEXT)'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS conf (k TEXT PRIMARY KEY, v TEXT)'),
     // (el registro de fps de la app de Rust: uno por minuto por aparato, se guarda 14 días)
-    env.DB.prepare('CREATE TABLE IF NOT EXISTS pn_fps (d TEXT, t INTEGER, cel TEXT, gpu TEXT, motor TEXT, calidad TEXT, res TEXT, mapa TEXT, version TEXT, fps REAL, fps_min REAL, ms REAL, pms REAL)'),
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS pn_fps (d TEXT, t INTEGER, cel TEXT, gpu TEXT, motor TEXT, calidad TEXT, res TEXT, mapa TEXT, version TEXT, fps REAL, fps_min REAL, ms REAL, pms REAL, det TEXT)'),
     env.DB.prepare('CREATE INDEX IF NOT EXISTS i_pn_fps ON pn_fps(t)'),
   ]);
   // (lo del celular en la presencia: columnas nuevas en una tabla que ya existe)
   for (const c of ['cel TEXT', 'gpu TEXT', 'motor TEXT', 'calidad TEXT', 'res TEXT', 'fps REAL', 'fps_min REAL', 'ms REAL', 'pms REAL']) {
     try { await env.DB.prepare('ALTER TABLE pn_presencia ADD COLUMN ' + c).run(); } catch (e) { /* ya está */ }
   }
+  try { await env.DB.prepare('ALTER TABLE pn_fps ADD COLUMN det TEXT').run(); } catch (e) { /* ya está */ }
   listas = true;
 }
 
@@ -152,7 +153,8 @@ async function admin(env, Q, ip, json, url) {
     const posts = await env.DB.prepare("SELECT tipo, estado, COUNT(*) AS n FROM pn_posts WHERE oculto = 0 GROUP BY tipo, estado").all();
     const errores = await env.DB.prepare("SELECT COUNT(*) AS n, SUM(n) AS veces FROM pn_errores WHERE ultimo > ?1 AND (estado IS NULL OR estado != 'hecho')").bind(ahora - 7 * DIA).first();
     const ordenes = await env.DB.prepare("SELECT id, a, tipo, de, creada, hasta FROM pn_ordenes WHERE hasta > ?1 AND tipo != 'quitar' ORDER BY id DESC LIMIT 20").bind(ahora).all();
-    return json({ ahora, de, jugando: jugando.results, celus: celus.results, hoy: hoy.n, semana: semana.n, nuevos: nuevos.n, versiones: versiones.results, posts: posts.results, errores, ordenes: ordenes.results });
+    const bajones = await env.DB.prepare('SELECT t, cel, gpu, motor, calidad, res, mapa, version, fps, fps_min, det FROM pn_fps ORDER BY t DESC LIMIT 25').all();
+    return json({ ahora, de, jugando: jugando.results, celus: celus.results, bajones: bajones.results, hoy: hoy.n, semana: semana.n, nuevos: nuevos.n, versiones: versiones.results, posts: posts.results, errores, ordenes: ordenes.results });
   }
   if (op === 'posts') {
     const tipo = TIPOS_ADMIN.includes(q.tipo) ? q.tipo : null, estado = ESTADOS.includes(q.estado) ? q.estado : null, p = Math.max(0, Math.min(500, +q.p || 0));
@@ -351,7 +353,8 @@ export async function panelRutas(req, env, url, r, ip, json, cuentaUsuario, cuen
     if (!ant || ahora - ant.visto > 8000) {   // (más seguido que cada 8 s, sólo se llevan las órdenes)
       await env.DB.prepare('INSERT INTO pn_presencia (d, nombre, version, plat, mapa, sala, visto, primero, ip) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8) ON CONFLICT(d) DO UPDATE SET nombre = ?2, version = ?3, plat = ?4, mapa = ?5, sala = ?6, visto = ?7, ip = ?8')
         .bind(d, linea(b.n, 24), linea(b.v, 16), linea(b.pl, 24), linea(b.m, 40), linea(b.s, 40), ahora, ip).run();
-      // (la app de Rust: el celular, la placa, el motor, la calidad y cómo le anda —fps promedio y el peor segundo—)
+      // (la app de Rust: el celular, la placa, el motor, la calidad y cómo le anda —fps promedio y el peor momento—; sólo manda
+      // los fps cuando andan mal —promedio debajo de 30 o un momento debajo de 20—, con lo que estaba pasando en `det`)
       const f = Number(b.fps);
       if (typeof b.cel === 'string' && Number.isFinite(f) && f >= 0 && f < 1000) {
         const n = (x, a) => { const v = Number(x); return Number.isFinite(v) ? Math.max(0, Math.min(a, v)) : null; };
@@ -359,8 +362,8 @@ export async function panelRutas(req, env, url, r, ip, json, cuentaUsuario, cuen
         await env.DB.prepare('UPDATE pn_presencia SET cel = ?2, gpu = ?3, motor = ?4, calidad = ?5, res = ?6, fps = ?7, fps_min = ?8, ms = ?9, pms = ?10 WHERE d = ?1').bind(d, ...fila).run();
         const ult = await env.DB.prepare('SELECT MAX(t) AS t FROM pn_fps WHERE d = ?1').bind(d).first();
         if (f > 0 && (!ult || !ult.t || ahora - ult.t > 55000)) {
-          await env.DB.prepare('INSERT INTO pn_fps (d, t, cel, gpu, motor, calidad, res, mapa, version, fps, fps_min, ms, pms) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)')
-            .bind(d, ahora, fila[0], fila[1], fila[2], fila[3], fila[4], linea(b.m, 40), linea(b.v, 16), fila[5], fila[6], fila[7], fila[8]).run();
+          await env.DB.prepare('INSERT INTO pn_fps (d, t, cel, gpu, motor, calidad, res, mapa, version, fps, fps_min, ms, pms, det) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)')
+            .bind(d, ahora, fila[0], fila[1], fila[2], fila[3], fila[4], linea(b.m, 40), linea(b.v, 16), fila[5], fila[6], fila[7], fila[8], linea(b.det, 200)).run();
           if (Math.random() < 0.01) await env.DB.prepare('DELETE FROM pn_fps WHERE t < ?1').bind(ahora - 14 * DIA).run();
         }
       }
