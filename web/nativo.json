@@ -1,9 +1,9 @@
 {
- "codigo": 26112729,
- "version": "0.62",
+ "codigo": 26112730,
+ "version": "0.63",
  "apk": "jxmod/JXModNativo.apk",
  "tam": 77245008,
- "sha256": "33ff6131f8dd7863f9b0bc1f4c79734321d8944445d46a712c29a500e26e7fda",
- "notas_es": "Arreglos: las radios (Android bloqueaba las emisoras http), la tele y la música de YouTube (no cargaban). 25 canciones Frutiger Aero que suenan apenas abrís el juego. La tele también en Props → Opciones. JX Turbo ya no se prende si el celular llega solo a los fps de la pantalla.",
- "notas_en": "Fixes: radios, TV and YouTube music. 25 Frutiger Aero songs on start. JX Turbo no longer lowers fps."
+ "sha256": "b392f312ce3571810a985f1f2e22e9cfb1ffbedb552cdbd417d2cd69edff4f90",
+ "notas_es": "Ajustes → Gráficos → Límite de fps: Pantalla (como siempre), 30, 60, 90, 120, 144, 240 o Sin límite. Fuera de Pantalla, el juego no se sincroniza con la pantalla y JX Turbo suma un cuadro intermedio por cada real: los fps pasan los de la pantalla.",
+ "notas_en": "Settings → Graphics → FPS limit (Screen, 30-240, Unlimited). Unsynced mode lets JX Turbo go above the screen refresh rate."
 }
