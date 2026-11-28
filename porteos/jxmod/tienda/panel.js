@@ -52,7 +52,14 @@ export async function tablas(env) {
     env.DB.prepare('CREATE TABLE IF NOT EXISTS pn_notis (id TEXT PRIMARY KEY, titulo TEXT, texto TEXT, link TEXT, de TEXT, creado INTEGER, vence INTEGER, juego INTEGER, push INTEGER, correo INTEGER, stats TEXT)'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS pn_push (endpoint TEXT PRIMARY KEY, creado INTEGER, visto INTEGER, ip TEXT)'),
     env.DB.prepare('CREATE TABLE IF NOT EXISTS conf (k TEXT PRIMARY KEY, v TEXT)'),
+    // (el registro de fps de la app de Rust: uno por minuto por aparato, se guarda 14 días)
+    env.DB.prepare('CREATE TABLE IF NOT EXISTS pn_fps (d TEXT, t INTEGER, cel TEXT, gpu TEXT, motor TEXT, calidad TEXT, res TEXT, mapa TEXT, version TEXT, fps REAL, fps_min REAL, ms REAL, pms REAL)'),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS i_pn_fps ON pn_fps(t)'),
   ]);
+  // (lo del celular en la presencia: columnas nuevas en una tabla que ya existe)
+  for (const c of ['cel TEXT', 'gpu TEXT', 'motor TEXT', 'calidad TEXT', 'res TEXT', 'fps REAL', 'fps_min REAL', 'ms REAL', 'pms REAL']) {
+    try { await env.DB.prepare('ALTER TABLE pn_presencia ADD COLUMN ' + c).run(); } catch (e) { /* ya está */ }
+  }
   listas = true;
 }
 
@@ -135,7 +142,9 @@ async function suscriptosCorreo(env) { try { const f = await env.DB.prepare('SEL
 async function admin(env, Q, ip, json, url) {
   const { de, q } = Q, op = q.op, ahora = Date.now();
   if (op === 'estado') {
-    const jugando = await env.DB.prepare('SELECT d, nombre, version, plat, mapa, sala, visto, primero FROM pn_presencia WHERE visto > ?1 ORDER BY visto DESC LIMIT 300').bind(ahora - 2 * MIN).all();
+    const jugando = await env.DB.prepare('SELECT d, nombre, version, plat, mapa, sala, visto, primero, cel, gpu, motor, calidad, res, fps, fps_min, ms, pms FROM pn_presencia WHERE visto > ?1 ORDER BY visto DESC LIMIT 300').bind(ahora - 2 * MIN).all();
+    // (cómo anda cada celular en los últimos 7 días: promedio de fps, el peor segundo y cuántos aparatos)
+    const celus = await env.DB.prepare('SELECT cel, gpu, motor, calidad, COUNT(DISTINCT d) AS aparatos, COUNT(*) AS minutos, ROUND(AVG(fps), 1) AS fps, ROUND(MIN(fps_min), 1) AS peor, ROUND(AVG(pms), 1) AS pms, MAX(t) AS ultimo FROM pn_fps WHERE t > ?1 GROUP BY cel, gpu, motor, calidad ORDER BY aparatos DESC, minutos DESC LIMIT 80').bind(ahora - 7 * DIA).all();
     const hoy = await env.DB.prepare('SELECT COUNT(*) AS n FROM pn_presencia WHERE visto > ?1').bind(ahora - DIA).first();
     const semana = await env.DB.prepare('SELECT COUNT(*) AS n FROM pn_presencia WHERE visto > ?1').bind(ahora - 7 * DIA).first();
     const nuevos = await env.DB.prepare('SELECT COUNT(*) AS n FROM pn_presencia WHERE primero > ?1').bind(ahora - DIA).first();
@@ -143,7 +152,7 @@ async function admin(env, Q, ip, json, url) {
     const posts = await env.DB.prepare("SELECT tipo, estado, COUNT(*) AS n FROM pn_posts WHERE oculto = 0 GROUP BY tipo, estado").all();
     const errores = await env.DB.prepare("SELECT COUNT(*) AS n, SUM(n) AS veces FROM pn_errores WHERE ultimo > ?1 AND (estado IS NULL OR estado != 'hecho')").bind(ahora - 7 * DIA).first();
     const ordenes = await env.DB.prepare("SELECT id, a, tipo, de, creada, hasta FROM pn_ordenes WHERE hasta > ?1 AND tipo != 'quitar' ORDER BY id DESC LIMIT 20").bind(ahora).all();
-    return json({ ahora, de, jugando: jugando.results, hoy: hoy.n, semana: semana.n, nuevos: nuevos.n, versiones: versiones.results, posts: posts.results, errores, ordenes: ordenes.results });
+    return json({ ahora, de, jugando: jugando.results, celus: celus.results, hoy: hoy.n, semana: semana.n, nuevos: nuevos.n, versiones: versiones.results, posts: posts.results, errores, ordenes: ordenes.results });
   }
   if (op === 'posts') {
     const tipo = TIPOS_ADMIN.includes(q.tipo) ? q.tipo : null, estado = ESTADOS.includes(q.estado) ? q.estado : null, p = Math.max(0, Math.min(500, +q.p || 0));
@@ -342,6 +351,19 @@ export async function panelRutas(req, env, url, r, ip, json, cuentaUsuario, cuen
     if (!ant || ahora - ant.visto > 8000) {   // (más seguido que cada 8 s, sólo se llevan las órdenes)
       await env.DB.prepare('INSERT INTO pn_presencia (d, nombre, version, plat, mapa, sala, visto, primero, ip) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8) ON CONFLICT(d) DO UPDATE SET nombre = ?2, version = ?3, plat = ?4, mapa = ?5, sala = ?6, visto = ?7, ip = ?8')
         .bind(d, linea(b.n, 24), linea(b.v, 16), linea(b.pl, 24), linea(b.m, 40), linea(b.s, 40), ahora, ip).run();
+      // (la app de Rust: el celular, la placa, el motor, la calidad y cómo le anda —fps promedio y el peor segundo—)
+      const f = Number(b.fps);
+      if (typeof b.cel === 'string' && Number.isFinite(f) && f >= 0 && f < 1000) {
+        const n = (x, a) => { const v = Number(x); return Number.isFinite(v) ? Math.max(0, Math.min(a, v)) : null; };
+        const fila = [linea(b.cel, 60), linea(b.gpu, 60), linea(b.mo, 16), linea(b.ca, 16), linea(b.res, 16), n(b.fps, 999), n(b.fmin, 999), n(b.ms, 9999), n(b.pms, 9999)];
+        await env.DB.prepare('UPDATE pn_presencia SET cel = ?2, gpu = ?3, motor = ?4, calidad = ?5, res = ?6, fps = ?7, fps_min = ?8, ms = ?9, pms = ?10 WHERE d = ?1').bind(d, ...fila).run();
+        const ult = await env.DB.prepare('SELECT MAX(t) AS t FROM pn_fps WHERE d = ?1').bind(d).first();
+        if (f > 0 && (!ult || !ult.t || ahora - ult.t > 55000)) {
+          await env.DB.prepare('INSERT INTO pn_fps (d, t, cel, gpu, motor, calidad, res, mapa, version, fps, fps_min, ms, pms) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)')
+            .bind(d, ahora, fila[0], fila[1], fila[2], fila[3], fila[4], linea(b.m, 40), linea(b.v, 16), fila[5], fila[6], fila[7], fila[8]).run();
+          if (Math.random() < 0.01) await env.DB.prepare('DELETE FROM pn_fps WHERE t < ?1').bind(ahora - 14 * DIA).run();
+        }
+      }
       for (const e of (Array.isArray(b.e) ? b.e : []).slice(0, 3)) {
         const msg = limpio(e, 600); if (msg.length < 3) continue; const h = (await sha(linea(b.v, 16) + '|' + msg)).slice(0, 24);
         await env.DB.prepare('INSERT INTO pn_errores (h, msg, version, n, aparatos, primero, ultimo) VALUES (?1, ?2, ?3, 1, 1, ?4, ?4) ON CONFLICT(h) DO UPDATE SET n = n + 1, ultimo = ?4').bind(h, msg, linea(b.v, 16), ahora).run();

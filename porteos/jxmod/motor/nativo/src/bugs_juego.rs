@@ -93,7 +93,7 @@ impl Juego {
         let mut texto = f.texto.trim().to_string();
         if f.tipo != 1 && !celu.is_empty() { texto = format!("{texto}\n\n— {celu}"); }
         let cuerpo = json!({ "tipo": TIPOS[f.tipo.min(2)].0, "titulo": f.titulo, "texto": texto.chars().take(4000).collect::<String>(), "media": f.media.iter().cloned().collect::<Vec<_>>(),
-            "version": "nativo", "lugar": format!("{mapa} · nativo celu"), "nombre": nombre }).to_string();
+            "version": format!("nativo {}", super::super::latido_juego::VERSION), "lugar": format!("{mapa} · nativo celu"), "nombre": nombre }).to_string();
         let (tx, url) = (self.gmod.tx.clone(), format!("{}post", base()));
         std::thread::spawn(move || {
             let r = h("POST", &url, &[("Content-Type".into(), "application/json".into())], Some(&cuerpo)).map(|(c, b)| { let mut v: Value = serde_json::from_str(&b).unwrap_or(json!({})); v["_codigo"] = c.into(); v.to_string().into_bytes() });

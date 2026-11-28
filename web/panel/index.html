@@ -180,12 +180,16 @@ async function cargarPublicado() {
 }
 function pintarInicio() {
   const E = A.estado, P = A.pub || {};
-  const jug = E.jugando.map((j) => `<div class="fila"><div class="dato"><b>${esc(j.nombre || 'sin nombre')} <span class="chip">${esc(j.version)}</span></b><small>${esc(j.mapa)}${j.sala ? ' · server ' + esc(j.sala) : ''} · ${esc(j.plat)}</small></div><small class="peq">hace ${hace(j.visto)}</small></div>`).join('');
+  const fpsCol = (f) => (f >= 50 ? '#5fd36a' : f >= 30 ? '#ffb84d' : '#ff6b6b');
+  const jug = E.jugando.map((j) => `<div class="fila"><div class="dato"><b>${esc(j.nombre || 'sin nombre')} <span class="chip">${esc(j.version)}</span></b><small>${esc(j.mapa)}${j.sala ? ' · server ' + esc(j.sala) : ''} · ${esc(j.plat)}</small>${j.cel ? `<small>${esc(j.cel)} · ${esc(j.gpu || '')} · ${esc(j.motor || '')} ${esc(j.calidad || '')} · ${esc(j.res || '')}</small>` : ''}</div>${j.fps != null && j.cel ? `<b class="fps" style="color:${fpsCol(j.fps)}">${Math.round(j.fps)} fps</b>` : ''}<small class="peq">hace ${hace(j.visto)}</small></div>`).join('');
+  // (cómo anda cada celular en los últimos 7 días —la app de Rust manda sus fps cada minuto—: los peores primero)
+  const celus = (E.celus || []).slice().sort((a, b) => a.fps - b.fps).map((c) => `<div class="fila"><div class="dato"><b>${esc(c.cel || '?')}</b><small>${esc(c.gpu || '')} · ${esc(c.motor || '')} ${esc(c.calidad || '')} · ${c.aparatos} aparato${c.aparatos === 1 ? '' : 's'} · ${c.minutos} min · peor segundo ${c.peor ?? '?'} fps · placa ${c.pms ?? '?'} ms</small></div><b class="fps" style="color:${fpsCol(c.fps)}">${c.fps} fps</b></div>`).join('');
   const ver = E.versiones.map((x) => `<span class="chip">${esc(x.version || '?')}: ${x.n}</span>`).join(' ');
   const ords = E.ordenes.filter((o) => o.tipo !== 'quitar').map((o) => { const a = JSON.parse(o.a); return `<div class="fila"><div class="dato"><b>${esc(o.tipo)} · ${esc((a.datos && (a.datos.titulo || a.datos.mapa || a.datos.url)) || '')}</b><small>de ${esc(o.de)} · hasta ${fecha(o.hasta)}</small></div><button class="rojo" data-quitar="${esc(a.uid)}">Quitar</button></div>`; }).join('');
   const posts = {}; for (const x of E.posts) posts[x.tipo] = (posts[x.tipo] || 0) + x.n;
   $('#main').innerHTML = `<div class="card"><h2>🟢 Jugando ahora</h2><div class="nums"><div class="num grande"><b>${E.jugando.length}</b><span>ahora</span></div><div class="num"><b>${E.hoy}</b><span>hoy</span></div><div class="num"><b>${E.semana}</b><span>semana</span></div><div class="num"><b>${E.nuevos}</b><span>nuevos hoy</span></div></div>
       ${jug || '<div class="vacio">Nadie jugando en este momento</div>'}</div>
+    <div class="card"><h2>📱 Celulares y fps (7 días)</h2>${celus || '<div class="vacio">Todavía no llegó ninguno: la app de Rust manda sus fps desde la 0.53</div>'}</div>
     <div class="card"><h2>📦 Publicado</h2>
       <div class="fila"><div class="dato"><b>Versión ${esc(P.v ? P.v.version : '…')}</b><small>${P.o ? 'Actualización por partes ' + esc(P.o.version) + ' · APK mínimo ' + P.o.apkMin : ''}</small></div></div>
       <div class="fila"><div class="dato"><b>Evento en vivo: ${P.vv ? (P.vv.js ? esc(P.vv.js) : 'ninguno') : '…'}</b><small>${P.vv && P.vv.hasta ? 'hasta ' + fecha(P.vv.hasta) : ''}</small></div></div>

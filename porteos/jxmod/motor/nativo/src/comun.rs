@@ -23,6 +23,7 @@ use herramientas::{Herramientas, Logica, Valor};
 // (el multijugador: las salas, los demás jugadores y sus cosas)
 #[path = "red_juego.rs"] pub mod red_juego;
 #[path = "vozcerca.rs"] pub mod vozcerca;
+#[path = "latido_juego.rs"] pub mod latido_juego;
 #[path = "gmod_juego.rs"] pub mod gmod_juego;
 // (los mapas del Workshop —sus puertas, botones, zonas, sonidos, trenes y puertas portal— y la hora del día)
 #[path = "mapas_juego.rs"] pub mod mapas_juego;
@@ -355,6 +356,8 @@ pub struct Juego {
     pub med: paneles_juego::medios::Medios,
     /// el nombre de la placa de video (para Celulares en Bugs y sugerencias)
     pub placa_nombre: String,
+    /// el latido al panel con el celular y sus fps (latido_juego.rs)
+    latido: latido_juego::Latido,
     /// la voz por cercanía (vozcerca.rs)
     pub vz: vozcerca::VozCerca,
     /// escribir (sin teclado —en la compu—, no se puede) y lo que se está esperando
@@ -403,7 +406,7 @@ impl Juego {
             fis: Fisica::nueva(), cat_fis: None, acum_fis: 0.0, armas: Armas::default(), ojos_ult: [0.0; 3], acu_d: [crate::acustica::LEJOS; 14], acu_i: 0, acu_t: 0.0,
             pj: None, pj_cargados: personaje::Cargados::default(), camara: 0, nado: None, skin: "Hero".into(),
             npcs: Npcs::nuevo(&serde_json::Value::Null, 1), npc_skins: Skins::nuevo(1, 512), vehs: Vehiculos::nuevo(), ondas: Vec::new(), onda_t: 0.0, gi: Default::default(), aguas: Aguas::de_cajas(&[]), usar_ve: false, pila: vec![], vp_ult: m4::id(), ef: Efectos::nuevo(0x0ef), ef_atlas: false,
-            her: Herramientas::default(), soc: Default::default(), med: Default::default(), vz: Default::default(), placa_nombre: String::new(), en_red, gmod, gb: Default::default(), vr: Default::default(), grabar_pedido: None, grabando: false, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), banco: Default::default(), musica: Default::default(), ed: hud_web::Editor::default(), tut: Default::default(), gr: Default::default(), cont: Default::default(), poner_congelado: false, pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
+            her: Herramientas::default(), soc: Default::default(), med: Default::default(), vz: Default::default(), placa_nombre: String::new(), latido: Default::default(), en_red, gmod, gb: Default::default(), vr: Default::default(), grabar_pedido: None, grabando: false, mj: Default::default(), jg: jugabilidad::Jugabilidad::default(), banco: Default::default(), musica: Default::default(), ed: hud_web::Editor::default(), tut: Default::default(), gr: Default::default(), cont: Default::default(), poner_congelado: false, pjs: personajes::Pjs::default(), ini: inicio_juego::Inicio::default(), teclado: None, escribir: None, escribir_n: 0, emote: None, emotes_panel: false, emo_scroll: 0.0, npc_panel: None, npc_act: None, npc_skin: "Hero".into(), sig_id: 1, proys: vec![], por_explotar: vec![], temblor: 0.0, golpe_t: 0.0, muerto: false, fov_b: 0.0,
             armas_ico: false, armas_ico_h: 256, hud_ico: false, aero: None, aero_tiro: 9.0, aero_abre: 0.0, vista: None, vista_cargados: vista::Cargados::default(), clips: vista::Clips::default(), clip_ya: "", sway: [0.0; 5], bob_arma: 0.0, mdx: 0.0, tubo_ok: false,
             aj, ajustes: None, sonido: crate::sonido::Sonido::mudo(), amb_t: 3.0, paso_d: 0.0, aire_t: 0.0, vy_aire: 0.0, golpe_max: 0.0, saltos_vistos: 0, ahogos_vistos: 0, nadaba: false, brazada_t: 0.0, azar: 0x9e3779b9 };
         // los mapas: todos los de la web (DATA.esc), primero los RB (los de la versión personal); empieza en el último elegido
@@ -1369,6 +1372,8 @@ impl Juego {
     fn sonidos(&mut self, dt: f32, ojos: [f32; 3], ent: &Entrada) {
         self.sonido.oyente = (ojos, self.jug.yaw);
         self.med_paso(dt);
+        // (el latido al panel: el celular y sus fps, cada 25 s)
+        self.latido_paso(dt);
         // (la voz por cercanía: el micrófono, las voces de los demás desde su lugar)
         self.vz_paso(dt);
         if !self.sonido.suena() || self.mapa.is_none() { return; }
