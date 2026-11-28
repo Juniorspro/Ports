@@ -21,7 +21,7 @@ const NEG: Col = rgba(0xffffff, 1.0);
 
 const PESTANAS: [(&str, &str); 5] = [("Props", "ico_props"), ("NPCs", "ico_ragdoll"), ("Vehículos", "ico_auto"), ("Herramientas", "ico_herr"), ("Mods", "ico_mod")];
 /// el ícono de color de cada Opción (las de la web: volar, muñeco de trapo, SCP, Cíclope)
-fn ico_opcion(it: &str) -> &'static str { if let Some(a) = crate::comun::jugabilidad::agua_juego::ITEMS.iter().find(|a| a.0 == it) { return a.2; } match it { "opc:volar" => "ico_volar", "opc:ragdoll" => "ico_ragdoll", "opc:scp" => "ico_scp", "opc:ciclope" => "ico_ciclope", "opc:radio" => "radio", "opc:piano" => "ico_piano", x if x.starts_with("mun:") => "ico_balas", _ => "ico_mod" } }
+fn ico_opcion(it: &str) -> &'static str { if let Some(a) = crate::comun::jugabilidad::agua_juego::ITEMS.iter().find(|a| a.0 == it) { return a.2; } match it { "opc:volar" => "ico_volar", "opc:ragdoll" => "ico_ragdoll", "opc:scp" => "ico_scp", "opc:ciclope" => "ico_ciclope", "opc:radio" => "radio", "opc:piano" => "ico_piano", x if x.starts_with("mun:") => "ico_balas", x if x.starts_with("tmod:") => "ico_mod", _ => "ico_mod" } }
 
 /// las pestañas que se ven en la ventana de objetos (las herramientas tienen su ventana)
 const VISIBLES: [usize; 4] = [0, 1, 2, PESTANA_MODS];
@@ -127,7 +127,7 @@ impl Juego {
                     let (cx, fy) = (k % g.cols, k / g.cols); let r = [gr[0] + 8.0 * c + cx as f32 * (g.tile[0] + g.gap), gr[1] + 8.0 * c + fy as f32 * (g.tile[1] + g.gap) - scroll, g.tile[0], g.tile[1]];
                     if r[1] + r[3] < gr[1] || r[1] > gr[1] + gr[3] { continue; }
                     let mundo = crate::comun::jugabilidad::MUNDO.iter().find(|m| m.0 == it.as_str());
-                    let opc = it.starts_with("opc:") || it.starts_with("agua:") || it.starts_with("mun:") || mundo.is_some();
+                    let opc = it.starts_with("opc:") || it.starts_with("agua:") || it.starts_with("mun:") || it.starts_with("tmod:") || mundo.is_some();
                     let on = match mundo { Some(m) => self.mundo_activo(m.0), None => opc && self.jg.activo(it.trim_start_matches("opc:")) };
                     tarjeta(p, r, if on { rgba(0x173a66, 1.0) } else { PL }); if on { p.contorno(r[0], r[1], r[2], r[3], [4.0 * c; 4], 2.0 * c, AMA); }
                     let (iw, ih) = (70.0 * c, 50.0 * c); let (ix, iy) = (r[0] + (r[2] - iw) / 2.0, r[1] + 6.0 * c);

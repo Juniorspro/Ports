@@ -75,7 +75,7 @@ Cada archivo de la web y dónde quedó en la nativa (lo de jugabilidad.rs, una v
 | nativos.js | ◐ | nativo/nat_juego.rs; en la sala, que otro te agarre el muñeco («jalar»); falta agarrar el de otro desde acá |
 | modmenu.js | ◐ | nativo/jugabilidad.rs (el menú MOD y las Opciones de los mods nativos) |
 | acciones.js (y las teclas de las armas de controles.js) | ✔ | nativo/teclas_mod.rs: con un arma de un addon en la mano se lee su Lua y el de sus bases (Gmod::fuentes_arma) y sus teclas (IN_*, KEY_*) pasan a hasta 4 botones en arco arriba del disparo, con el ícono de lo que hacen (la tabla de acciones.js sacada con herramientas/acciones_nativo.mjs → acciones_web.json); examples/teclas_mods.rs las lista para una carpeta de .gma |
-| smods.js | ✘ | |
+| smods.js | ◐ (los mods de la tienda: la lista baja sola y queda guardada, en Props → Mods de la tienda se prenden y apagan —también en una sala, cada uno los suyos—; se aplican gravedad, velocidad, salto, munición infinita, invencible y hora; falta el código JavaScript de algunos, el tiempo, las explosiones, las armas, el personaje y lo que aparece) | nativo/mods_tienda.rs |
 | modapi.js (mods con código JS) | — | no hay JavaScript en la nativa |
 
 ## Menús e interfaz

@@ -150,7 +150,7 @@ pub struct Jugabilidad {
     /// lo que hace Usar mirando algo de acá (Armar, Disparar, Elegir)
     pub usar_txt: Option<&'static str>,
     /// lo cargado en el motor (el cubo y los materiales), las Opciones ya en el menú y los nombres de las nucleares
-    pub listo: bool, nombres: HashMap<String, String>,
+    pub listo: bool, pub(crate) nombres: HashMap<String, String>,
     /// la entrada del cuadro tal cual (antes de que la cámara libre o un mod la cambien)
     pub ent: Entrada,
     /// el skin puesto por el Cíclope (y el que había antes)
@@ -384,6 +384,7 @@ impl Juego {
         if let Some(k) = nombre.strip_prefix("mundo:") { self.mundo_poner(k); return true; }
         if let Some(k) = nombre.strip_prefix("agua:") { return self.agua_poner(k); }
         if let Some(k) = nombre.strip_prefix("mun:") { self.mun_poner(k); return true; }
+        if let Some(k) = nombre.strip_prefix("tmod:") { self.mt_alternar(k); return true; }
         let Some(k) = nombre.strip_prefix("opc:") else { return false };
         // (el piano gigante: se pone delante —o se trae, si ya está—; entidadPonerMod)
         if k == "radio" { self.jg.ents.poner = Some("radio"); self.avisar("Radio: mirala y tocá Usar para elegir una emisora".into()); return true; }
