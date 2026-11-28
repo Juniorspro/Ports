@@ -200,7 +200,7 @@ impl Juego {
         let j = &self.jug; let p64 = |v: [f32; 3]| [v[0] as f64, v[1] as f64, v[2] as f64];
         let mut l = std::mem::take(&mut self.en_red.local);
         l.jug = red::Jugador { skin: self.skin.clone(), gorro: self.pjs.prefs.gorro.clone(), gorro_aj: self.pjs.prefs.gorro_aj.as_ref().map(|g| g.json().to_string()).unwrap_or_default(), acc: self.pjs.prefs.acc.as_ref().map(|a| a.json().to_string()).unwrap_or_default(), pos: p64(j.pos), yaw: j.yaw as f64, pitch: -j.pitch as f64, vel: p64(j.vel),
-            suelo: j.suelo, agachado: j.agachado, vivo: !self.muerto, bits: if j.noclip { 16 } else { 0 }, arma: Some(self.armas.def().n.to_string()), emote: self.emote.clone(), vida: j.vida as f64,
+            suelo: j.suelo, agachado: j.agachado, vivo: !self.muerto, bits: if j.noclip { 16 } else { 0 } | if self.jg.lint { 128 } else { 0 }, arma: Some(self.armas.def().n.to_string()), emote: self.emote.clone(), vida: j.vida as f64,
             vehiculo: veh, reloj: self.en_red.reloj, voz: self.aj.voces, ..Default::default() };
         // (mis entidades de las Opciones, para el que entra: ROOM/w/ID)
         l.entidades = self.ent_mias_json();

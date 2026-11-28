@@ -104,7 +104,7 @@ pub fn claves(pestana: usize) -> &'static [Clave] {
 pub fn nombre(c: Clave) -> &'static str {
     match c {
         Clave::Calidad => "Calidad", Clave::Res => "Resolución", Clave::Dinamica => "Resolución dinámica", Clave::Turbo => "JX Turbo (más fps)", Clave::Sombras => "Sombras", Clave::Ao => "Oclusión ambiental", Clave::Reflejo => "Reflejos del agua",
-        Clave::Retoque => "Retoque de color", Clave::Sens => "Sensibilidad", Clave::Fov => "Campo de visión", Clave::Fps => "Mostrar fps", Clave::Vol => "Volumen",
+        Clave::Retoque => "Post-procesado (retoque de color)", Clave::Sens => "Sensibilidad", Clave::Fov => "Campo de visión", Clave::Fps => "Mostrar fps", Clave::Vol => "Volumen",
         Clave::Ambiente => "Sonido del ambiente", Clave::Espacial => "Sonido espacial (eco y paredes)", Clave::Voces => "Escuchar la voz de los demás", Clave::NpcMax => "Límite de NPC", Clave::Quien => "Mostrar quién habla", Clave::Ruleta => "El botón de emotes abre la ruleta", Clave::Dist => "Distancia de dibujo", Clave::SinUi => "Ocultar la interfaz (queda la pausa)", Clave::MiMusica => "Mi música (tu lista de YouTube)", Clave::Musica => "Música del menú", Clave::Motor => "Motor", Clave::Comparar => "Comparar los motores", Clave::Mapa => "Mapa", Clave::Hora => "Hora", Clave::Ciclo => "Ciclo (2 horas por minuto)",
         Clave::TamMenus => "Tamaño de los menús", Clave::TamBotones => "Tamaño de los botones", Clave::TamPalanca => "Tamaño de la palanca", Clave::Botones => "Botones de la pantalla",
     }

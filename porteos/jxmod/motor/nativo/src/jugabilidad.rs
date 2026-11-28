@@ -420,6 +420,14 @@ impl Juego {
             let p = if !afuera && !tercera { add(cam, esc(f, 0.02)) } else { o };
             v.push([p[0], p[1], p[2], 30.0, 6.8, 6.5, 5.9, 0.0, f[0], f[1], f[2], 0.42f32.cos()]);
         }
+        // (la linterna de los demás de la sala —bandera 128; la mirada llega con el signo de la web—: desde sus ojos hacia donde miran; las 3 más cerca, a menos de 60 m)
+        let mut otros: Vec<(f32, LuzP)> = self.en_red.red.remotos().iter().filter(|r| r.f & 128 != 0 && r.f & 4 != 0).filter_map(|r| {
+            let o = [r.pos[0] as f32, r.pos[1] as f32 + 0.62, r.pos[2] as f32]; let d2 = (o[0] - cam[0]).powi(2) + (o[1] - cam[1]).powi(2) + (o[2] - cam[2]).powi(2);
+            if d2 > 3600.0 { return None; }
+            let (y, p) = (r.yaw as f32, -r.mira as f32); let f = [y.sin() * p.cos(), p.sin(), y.cos() * p.cos()];
+            Some((d2, [o[0] + f[0] * 0.3, o[1] + f[1] * 0.3, o[2] + f[2] * 0.3, 30.0, 6.8, 6.5, 5.9, 0.0, f[0], f[1], f[2], 0.42f32.cos()]))
+        }).collect();
+        otros.sort_by(|a, b| a.0.total_cmp(&b.0)); v.extend(otros.into_iter().take(3).map(|x| x.1));
         if let Some(l) = self.pv_luz(cam) { v.push(l); }
         v
     }
